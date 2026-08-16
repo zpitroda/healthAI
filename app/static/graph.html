@@ -1,0 +1,1904 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Biological Knowledge Graph & Cascade Engine // HealthAI</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700;800&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=Inter:wght@400;500;600;700&display=swap"
+      rel="stylesheet"
+    />
+    <style>
+      :root {
+        --bg-deep: #050811;
+        --bg-surface: #0a0f1d;
+        --bg-card: rgba(13, 20, 38, 0.82);
+        --bg-card-hover: rgba(18, 28, 54, 0.92);
+        --bg-glass: rgba(10, 16, 31, 0.78);
+        --border-subtle: rgba(56, 189, 248, 0.12);
+        --border-mid: rgba(56, 189, 248, 0.22);
+        --border-focus: #00f2fe;
+        
+        --text-primary: #f8fafc;
+        --text-secondary: #94a3b8;
+        --text-muted: #64748b;
+        --text-dim: #475569;
+
+        /* Biological Tier & Entity Colors */
+        --color-compound: #00f2fe;
+        --color-receptor: #ff4b72;
+        --color-enzyme: #f59e0b;
+        --color-transporter: #fb923c;
+        --color-ion-channel: #ef4444;
+        --color-pathway: #a855f7;
+        --color-physiology: #38bdf8;
+        --color-biomarker: #10b981;
+        --color-phenotype: #f43f5e;
+        --color-crosstalk: #c084fc;
+        
+        --glow-cyan: 0 0 24px rgba(0, 242, 254, 0.25);
+        --glow-rose: 0 0 24px rgba(255, 75, 114, 0.25);
+        --shadow-elevation: 0 16px 40px rgba(0, 0, 0, 0.55), 0 0 1px rgba(255, 255, 255, 0.1);
+      }
+
+      * {
+        box-sizing: border-box;
+        margin: 0;
+        padding: 0;
+      }
+
+      html, body {
+        width: 100%;
+        height: 100%;
+        overflow: hidden;
+        background-color: var(--bg-deep);
+        color: var(--text-primary);
+        font-family: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+        -webkit-font-smoothing: antialiased;
+        -moz-osx-font-smoothing: grayscale;
+        text-rendering: optimizeLegibility;
+      }
+
+      body {
+        display: flex;
+        flex-direction: column;
+      }
+
+      .app-shell {
+        display: flex;
+        flex-direction: column;
+        width: 100vw;
+        height: 100vh;
+        padding: 10px 14px 12px;
+        gap: 8px;
+      }
+
+      /* ==========================================================================
+         TOPBAR & NAVIGATION
+         ========================================================================== */
+      .toolbar {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        gap: 12px;
+        padding: 8px 16px;
+        background: var(--bg-glass);
+        backdrop-filter: blur(24px);
+        -webkit-backdrop-filter: blur(24px);
+        border: 1px solid var(--border-subtle);
+        border-radius: 14px;
+        box-shadow: var(--shadow-elevation);
+        z-index: 40;
+      }
+
+      .brand-wrap {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+      }
+
+      .brand-logo {
+        width: 32px;
+        height: 32px;
+        border-radius: 9px;
+        background: linear-gradient(135deg, #00f2fe 0%, #3b82f6 100%);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 1.1rem;
+        box-shadow: 0 0 16px rgba(0, 242, 254, 0.4);
+      }
+
+      .brand-title {
+        font-size: 1.08rem;
+        font-weight: 800;
+        letter-spacing: -0.02em;
+        background: linear-gradient(135deg, #ffffff 40%, #94a3b8 100%);
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
+      }
+
+      .brand-tag {
+        font-family: 'JetBrains Mono', monospace;
+        font-size: 0.65rem;
+        padding: 2px 7px;
+        border-radius: 6px;
+        background: rgba(0, 242, 254, 0.08);
+        border: 1px solid rgba(0, 242, 254, 0.25);
+        color: #38bdf8;
+        font-weight: 700;
+        letter-spacing: 0.04em;
+        text-transform: uppercase;
+      }
+
+      .controls-bar {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        flex-wrap: wrap;
+      }
+
+      .search-box {
+        position: relative;
+        display: flex;
+        align-items: center;
+      }
+
+      .search-input {
+        width: 200px;
+        padding: 6px 12px 6px 30px;
+        border-radius: 8px;
+        border: 1px solid var(--border-subtle);
+        background: rgba(8, 13, 25, 0.9);
+        color: var(--text-primary);
+        font-size: 0.8rem;
+        font-family: inherit;
+        transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+      }
+
+      .search-input:focus {
+        outline: none;
+        width: 240px;
+        border-color: var(--border-focus);
+        box-shadow: 0 0 12px rgba(0, 242, 254, 0.25);
+        background: rgba(12, 20, 38, 0.95);
+      }
+
+      .search-icon {
+        position: absolute;
+        left: 9px;
+        color: var(--text-muted);
+        font-size: 0.75rem;
+        pointer-events: none;
+      }
+
+      .select-custom {
+        padding: 6px 10px;
+        border-radius: 8px;
+        border: 1px solid var(--border-subtle);
+        background: rgba(8, 13, 25, 0.9);
+        color: var(--text-primary);
+        font-size: 0.78rem;
+        font-family: inherit;
+        cursor: pointer;
+        outline: none;
+        transition: all 0.2s ease;
+      }
+
+      .select-custom:focus, .select-custom:hover {
+        border-color: var(--border-mid);
+      }
+
+      .btn-icon {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        gap: 4px;
+        height: 30px;
+        padding: 0 9px;
+        border-radius: 8px;
+        border: 1px solid var(--border-subtle);
+        background: rgba(13, 20, 38, 0.85);
+        color: var(--text-secondary);
+        font-size: 0.78rem;
+        font-weight: 600;
+        cursor: pointer;
+        transition: all 0.15s ease;
+        user-select: none;
+      }
+
+      .btn-icon:hover {
+        background: rgba(22, 34, 64, 0.95);
+        color: var(--text-primary);
+        border-color: var(--border-mid);
+      }
+
+      .btn-icon.active {
+        background: rgba(0, 242, 254, 0.15);
+        border-color: rgba(0, 242, 254, 0.45);
+        color: #00f2fe;
+      }
+
+      .btn-action-glow {
+        background: linear-gradient(135deg, rgba(0, 242, 254, 0.18), rgba(59, 130, 246, 0.25));
+        border: 1px solid rgba(0, 242, 254, 0.4);
+        color: #e0f7ff;
+        font-weight: 700;
+      }
+      .btn-action-glow:hover {
+        background: linear-gradient(135deg, #00f2fe, #3b82f6);
+        color: #040d1a;
+        box-shadow: 0 0 16px rgba(0, 242, 254, 0.4);
+      }
+
+      .nav-links {
+        display: flex;
+        align-items: center;
+        gap: 4px;
+      }
+
+      .nav-link {
+        color: var(--text-secondary);
+        text-decoration: none;
+        font-size: 0.78rem;
+        font-weight: 600;
+        padding: 5px 10px;
+        border-radius: 7px;
+        transition: all 0.15s ease;
+      }
+
+      .nav-link:hover, .nav-link.active {
+        color: #38bdf8;
+        background: rgba(56, 189, 248, 0.1);
+      }
+
+      /* ==========================================================================
+         ACTIVE STACK BAR & AUTOCOMPLETE
+         ========================================================================== */
+      .stack-bar {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 10px;
+        padding: 6px 12px;
+        background: var(--bg-glass);
+        backdrop-filter: blur(18px);
+        -webkit-backdrop-filter: blur(18px);
+        border: 1px solid var(--border-subtle);
+        border-radius: 12px;
+      }
+
+      .stack-pills-wrap {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        flex-wrap: wrap;
+        flex: 1;
+        min-width: 0;
+      }
+
+      .stack-title {
+        font-family: 'JetBrains Mono', monospace;
+        font-size: 0.68rem;
+        font-weight: 700;
+        text-transform: uppercase;
+        letter-spacing: 0.06em;
+        color: #38bdf8;
+        display: flex;
+        align-items: center;
+        gap: 4px;
+        margin-right: 4px;
+        white-space: nowrap;
+      }
+
+      .compound-chip {
+        display: inline-flex;
+        align-items: center;
+        gap: 5px;
+        background: rgba(0, 242, 254, 0.08);
+        border: 1px solid rgba(0, 242, 254, 0.3);
+        color: var(--text-primary);
+        padding: 3px 9px;
+        border-radius: 999px;
+        font-size: 0.76rem;
+        font-weight: 600;
+        box-shadow: 0 2px 6px rgba(0, 0, 0, 0.2);
+        transition: all 0.2s ease;
+      }
+
+      .compound-chip:hover {
+        border-color: #00f2fe;
+        background: rgba(0, 242, 254, 0.16);
+      }
+
+      .compound-chip .chip-del {
+        background: none;
+        border: none;
+        color: var(--text-muted);
+        cursor: pointer;
+        padding: 0;
+        font-size: 0.95rem;
+        line-height: 1;
+        display: inline-flex;
+        align-items: center;
+      }
+      .compound-chip .chip-del:hover { color: #ef4444; }
+
+      .stack-search-container {
+        position: relative;
+      }
+
+      .stack-add-input {
+        width: 190px;
+        padding: 5px 10px;
+        border-radius: 8px;
+        border: 1px solid var(--border-subtle);
+        background: rgba(8, 13, 25, 0.95);
+        color: var(--text-primary);
+        font-size: 0.76rem;
+        font-family: inherit;
+        transition: all 0.2s ease;
+      }
+
+      .stack-add-input:focus {
+        outline: none;
+        width: 220px;
+        border-color: var(--border-focus);
+      }
+
+      .autocomplete-popup {
+        position: absolute;
+        top: calc(100% + 5px);
+        right: 0;
+        width: 260px;
+        max-height: 220px;
+        overflow-y: auto;
+        background: #0b1324;
+        border: 1px solid rgba(56, 189, 248, 0.3);
+        border-radius: 10px;
+        box-shadow: 0 16px 36px rgba(0, 0, 0, 0.7);
+        z-index: 60;
+        display: none;
+      }
+
+      .autocomplete-row {
+        padding: 7px 11px;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        cursor: pointer;
+        border-bottom: 1px solid rgba(255, 255, 255, 0.04);
+        font-size: 0.78rem;
+      }
+      .autocomplete-row:hover { background: rgba(0, 242, 254, 0.12); }
+
+      /* ==========================================================================
+         CASCADE SIMULATION & SUMMARY STRIP
+         ========================================================================== */
+      .cascade-strip {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        padding: 5px 12px;
+        background: rgba(8, 13, 25, 0.85);
+        border: 1px solid var(--border-subtle);
+        border-radius: 10px;
+        font-size: 0.75rem;
+        overflow-x: auto;
+        white-space: nowrap;
+        scrollbar-width: thin;
+      }
+
+      .cascade-title {
+        font-family: 'JetBrains Mono', monospace;
+        font-weight: 700;
+        color: #00f2fe;
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
+        font-size: 0.68rem;
+        display: flex;
+        align-items: center;
+        gap: 4px;
+      }
+
+      .cascade-badge {
+        display: inline-flex;
+        align-items: center;
+        gap: 4px;
+        padding: 2px 8px;
+        border-radius: 6px;
+        background: rgba(13, 20, 38, 0.9);
+        border: 1px solid rgba(255, 255, 255, 0.07);
+        font-size: 0.72rem;
+      }
+      .cascade-badge.shift-up { border-color: rgba(239, 68, 68, 0.4); color: #fca5a5; background: rgba(239, 68, 68, 0.08); }
+      .cascade-badge.shift-down { border-color: rgba(16, 185, 129, 0.4); color: #86efac; background: rgba(16, 185, 129, 0.08); }
+      .cascade-badge.pathway { border-color: rgba(168, 85, 247, 0.4); color: #d8b4fe; background: rgba(168, 85, 247, 0.08); }
+
+      /* ==========================================================================
+         GRAPH WORKSPACE & CANVAS
+         ========================================================================== */
+      .graph-workspace {
+        position: relative;
+        flex: 1;
+        min-height: 0;
+        background: radial-gradient(circle at 50% 50%, rgba(14, 26, 48, 0.5) 0%, rgba(5, 8, 17, 0.96) 80%),
+                    radial-gradient(rgba(56, 189, 248, 0.06) 1px, transparent 1px);
+        background-size: 100% 100%, 28px 28px;
+        border: 1px solid var(--border-subtle);
+        border-radius: 14px;
+        overflow: hidden;
+        box-shadow: inset 0 0 50px rgba(0, 0, 0, 0.7);
+      }
+
+      #graph-canvas {
+        width: 100%;
+        height: 100%;
+        cursor: grab;
+      }
+      #graph-canvas:active { cursor: grabbing; }
+
+      /* FLOATING HUD & CONTROLS */
+      .hud-tier-filters {
+        position: absolute;
+        top: 12px;
+        left: 12px;
+        display: flex;
+        align-items: center;
+        gap: 5px;
+        padding: 5px 8px;
+        background: rgba(8, 13, 25, 0.88);
+        backdrop-filter: blur(16px);
+        -webkit-backdrop-filter: blur(16px);
+        border: 1px solid var(--border-subtle);
+        border-radius: 9px;
+        z-index: 20;
+        flex-wrap: wrap;
+        max-width: 650px;
+      }
+
+      .filter-pill {
+        padding: 3px 8px;
+        border-radius: 6px;
+        border: 1px solid rgba(255, 255, 255, 0.06);
+        background: rgba(13, 20, 38, 0.6);
+        color: var(--text-secondary);
+        font-size: 0.7rem;
+        font-weight: 600;
+        cursor: pointer;
+        transition: all 0.15s ease;
+        display: inline-flex;
+        align-items: center;
+        gap: 4px;
+      }
+
+      .filter-pill:hover {
+        color: var(--text-primary);
+        border-color: rgba(255, 255, 255, 0.15);
+      }
+
+      .filter-pill.active {
+        background: rgba(0, 242, 254, 0.14);
+        border-color: rgba(0, 242, 254, 0.45);
+        color: #38bdf8;
+      }
+
+      .hud-legend {
+        position: absolute;
+        bottom: 12px;
+        left: 12px;
+        display: flex;
+        flex-wrap: wrap;
+        gap: 7px;
+        padding: 5px 12px;
+        background: rgba(8, 13, 25, 0.88);
+        backdrop-filter: blur(16px);
+        -webkit-backdrop-filter: blur(16px);
+        border: 1px solid var(--border-subtle);
+        border-radius: 999px;
+        z-index: 20;
+        align-items: center;
+      }
+
+      .legend-item {
+        display: inline-flex;
+        align-items: center;
+        gap: 5px;
+        font-size: 0.68rem;
+        color: var(--text-secondary);
+        font-weight: 500;
+      }
+
+      .legend-dot {
+        width: 7px;
+        height: 7px;
+        border-radius: 50%;
+        box-shadow: 0 0 6px currentColor;
+      }
+
+      .hud-status {
+        position: absolute;
+        bottom: 12px;
+        right: 12px;
+        font-family: 'JetBrains Mono', monospace;
+        font-size: 0.68rem;
+        color: var(--text-muted);
+        background: rgba(8, 13, 25, 0.88);
+        backdrop-filter: blur(14px);
+        border: 1px solid var(--border-subtle);
+        border-radius: 7px;
+        padding: 4px 9px;
+        z-index: 20;
+      }
+
+      /* FLOATING HOVER TOOLTIP */
+      .graph-tooltip {
+        position: absolute;
+        display: none;
+        pointer-events: none;
+        z-index: 50;
+        background: rgba(8, 13, 25, 0.95);
+        border: 1px solid rgba(56, 189, 248, 0.35);
+        border-radius: 8px;
+        padding: 8px 12px;
+        box-shadow: 0 10px 28px rgba(0, 0, 0, 0.75), 0 0 14px rgba(0, 242, 254, 0.15);
+        backdrop-filter: blur(12px);
+        max-width: 260px;
+        font-size: 0.74rem;
+        transform: translate(12px, 12px);
+      }
+
+      .tooltip-title {
+        font-weight: 700;
+        color: #ffffff;
+        font-size: 0.82rem;
+        margin-bottom: 2px;
+      }
+
+      .tooltip-sub {
+        color: var(--text-secondary);
+        font-size: 0.7rem;
+      }
+
+      .tooltip-badge {
+        display: inline-block;
+        margin-top: 4px;
+        padding: 1px 6px;
+        border-radius: 4px;
+        font-size: 0.65rem;
+        font-weight: 700;
+        text-transform: uppercase;
+      }
+
+      /* ==========================================================================
+         FLOATING NODE INSPECTOR 2.0
+         ========================================================================== */
+      .inspector-drawer {
+        position: absolute;
+        top: 12px;
+        right: 12px;
+        bottom: 12px;
+        width: 380px;
+        background: rgba(8, 13, 25, 0.94);
+        backdrop-filter: blur(24px);
+        -webkit-backdrop-filter: blur(24px);
+        border: 1px solid rgba(56, 189, 248, 0.28);
+        border-radius: 14px;
+        overflow: hidden;
+        display: flex;
+        flex-direction: column;
+        box-shadow: 0 24px 50px rgba(0, 0, 0, 0.7), 0 0 20px rgba(0, 242, 254, 0.12);
+        z-index: 30;
+        transition: transform 0.26s cubic-bezier(0.16, 1, 0.3, 1), opacity 0.2s ease;
+      }
+
+      .inspector-drawer.hidden {
+        transform: translateX(calc(100% + 24px));
+        opacity: 0;
+        pointer-events: none;
+      }
+
+      .inspector-header {
+        padding: 12px 16px;
+        background: rgba(12, 19, 36, 0.95);
+        border-bottom: 1px solid var(--border-subtle);
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+      }
+
+      .inspector-title {
+        font-size: 0.82rem;
+        font-weight: 700;
+        color: var(--text-primary);
+        letter-spacing: 0.02em;
+        display: flex;
+        align-items: center;
+        gap: 6px;
+      }
+
+      .inspector-close-btn {
+        background: none;
+        border: none;
+        color: var(--text-muted);
+        cursor: pointer;
+        font-size: 1.2rem;
+        padding: 0;
+        line-height: 1;
+      }
+      .inspector-close-btn:hover { color: var(--text-primary); }
+
+      /* TABS IN INSPECTOR */
+      .inspector-tabs {
+        display: flex;
+        background: rgba(6, 10, 20, 0.8);
+        border-bottom: 1px solid var(--border-subtle);
+      }
+
+      .inspector-tab {
+        flex: 1;
+        padding: 8px 0;
+        text-align: center;
+        font-size: 0.72rem;
+        font-weight: 600;
+        color: var(--text-muted);
+        cursor: pointer;
+        border-bottom: 2px solid transparent;
+        transition: all 0.15s ease;
+      }
+
+      .inspector-tab:hover {
+        color: var(--text-secondary);
+      }
+
+      .inspector-tab.active {
+        color: #00f2fe;
+        border-bottom-color: #00f2fe;
+        background: rgba(0, 242, 254, 0.05);
+      }
+
+      .inspector-body {
+        padding: 14px;
+        overflow-y: auto;
+        display: flex;
+        flex-direction: column;
+        gap: 12px;
+        flex: 1;
+      }
+
+      .node-hero-title {
+        font-size: 1.15rem;
+        font-weight: 800;
+        letter-spacing: -0.02em;
+        color: #ffffff;
+        word-break: break-word;
+      }
+
+      .node-badge-row {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 5px;
+        margin-top: 5px;
+      }
+
+      .node-badge {
+        font-size: 0.68rem;
+        font-weight: 600;
+        padding: 2px 7px;
+        border-radius: 5px;
+        border: 1px solid var(--border-subtle);
+        background: rgba(13, 20, 38, 0.8);
+        color: var(--text-secondary);
+      }
+
+      .metrics-grid {
+        display: grid;
+        grid-template-columns: repeat(2, 1fr);
+        gap: 7px;
+      }
+
+      .metric-card {
+        background: rgba(13, 20, 38, 0.75);
+        border: 1px solid rgba(255, 255, 255, 0.05);
+        border-radius: 8px;
+        padding: 7px 9px;
+      }
+
+      .metric-label {
+        font-size: 0.65rem;
+        color: var(--text-muted);
+        text-transform: uppercase;
+        letter-spacing: 0.04em;
+      }
+
+      .metric-value {
+        font-size: 0.92rem;
+        font-weight: 700;
+        color: var(--text-primary);
+        margin-top: 2px;
+        word-break: break-word;
+      }
+
+      .neighbor-group-title {
+        font-size: 0.74rem;
+        font-weight: 700;
+        color: #38bdf8;
+        text-transform: uppercase;
+        letter-spacing: 0.04em;
+        margin-bottom: 5px;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+      }
+
+      .neighbor-pill-list {
+        display: flex;
+        flex-direction: column;
+        gap: 5px;
+      }
+
+      .neighbor-pill {
+        padding: 6px 9px;
+        border-radius: 7px;
+        background: rgba(13, 20, 38, 0.75);
+        border: 1px solid rgba(255, 255, 255, 0.05);
+        font-size: 0.76rem;
+        cursor: pointer;
+        transition: all 0.15s ease;
+      }
+
+      .neighbor-pill:hover {
+        background: rgba(0, 242, 254, 0.12);
+        border-color: rgba(0, 242, 254, 0.35);
+      }
+
+      .neighbor-pill strong {
+        color: #38bdf8;
+        display: block;
+        font-size: 0.76rem;
+      }
+
+      /* PATHFINDING PANEL OVERLAY */
+      .path-badge {
+        display: inline-flex;
+        align-items: center;
+        gap: 4px;
+        padding: 4px 8px;
+        border-radius: 6px;
+        background: rgba(192, 132, 252, 0.12);
+        border: 1px solid rgba(192, 132, 252, 0.4);
+        color: #d8b4fe;
+        font-size: 0.74rem;
+        font-weight: 600;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="app-shell">
+      <!-- TOPBAR -->
+      <header class="toolbar">
+        <div class="brand-wrap">
+          <div class="brand-logo">🧬</div>
+          <div>
+            <div class="brand-title">Biological Knowledge Graph</div>
+          </div>
+          <span class="brand-tag">Dynamic Multi-Tier Engine</span>
+        </div>
+
+        <div class="controls-bar">
+          <div class="search-box">
+            <span class="search-icon">🔍</span>
+            <input id="searchInput" class="search-input" type="search" placeholder="Search nodes or targets..." />
+          </div>
+
+          <select id="layoutSelect" class="select-custom" title="Graph Layout Engine">
+            <option value="tier_flow" selected>⚡ Cascade Tier Flow (Left-to-Right)</option>
+            <option value="cose">🌐 Physics Network (COSE)</option>
+            <option value="breadthfirst">🌲 Directed Hierarchy (Tree)</option>
+            <option value="concentric">🎯 Concentric Orbits</option>
+            <option value="circle">⭕ Circular Ring</option>
+          </select>
+
+          <button id="btnSimulate" class="btn-icon btn-action-glow" title="Simulate biological signal propagation down cascades">
+            ⚡ Simulate Signal
+          </button>
+          <button id="btnTracePath" class="btn-icon" title="Find biological path between two nodes">
+            📍 Trace Path
+          </button>
+          <button id="zoomIn" class="btn-icon" title="Zoom In">+</button>
+          <button id="zoomOut" class="btn-icon" title="Zoom Out">−</button>
+          <button id="resetView" class="btn-icon" title="Fit to Screen">Fit</button>
+          <button id="btnExport" class="btn-icon" title="Export High-Res PNG">Export</button>
+          <button id="togglePanel" class="btn-icon" title="Toggle Inspector">Inspector</button>
+        </div>
+
+        <nav class="nav-links">
+          <a href="/" class="nav-link">Safety Lab</a>
+          <a href="/graph" class="nav-link active">Knowledge Graph</a>
+          <a href="/admin" class="nav-link">Catalog DB</a>
+        </nav>
+      </header>
+
+      <!-- ACTIVE STACK STRIP -->
+      <div class="stack-bar">
+        <div class="stack-pills-wrap" id="stackBadgesWrap">
+          <span class="stack-title">Active Stack:</span>
+          <div id="stackPillsList" style="display:inline-flex; gap:5px; flex-wrap:wrap;"></div>
+        </div>
+
+        <div class="stack-search-container">
+          <input
+            type="text"
+            id="stackSearchInput"
+            class="stack-add-input"
+            placeholder="+ Add compound to graph..."
+            autocomplete="off"
+          />
+          <div id="stackSearchDropdown" class="autocomplete-popup"></div>
+        </div>
+      </div>
+
+      <!-- CASCADE PREVIEW STRIP -->
+      <div id="cascadeResultsBar" class="cascade-strip">
+        <span class="cascade-title">⚡ Cascade Effects:</span>
+        <div id="cascadeChipsList" style="display:inline-flex; gap:5px;">
+          <span class="cascade-badge">Computing multi-tier cascade predictions…</span>
+        </div>
+      </div>
+
+      <!-- WORKSPACE CANVAS & FLOATING HUD -->
+      <main class="graph-workspace">
+        <div id="graph-canvas" aria-label="Interactive biological knowledge graph canvas"></div>
+
+        <!-- HUD TIER FILTER PILLS -->
+        <div class="hud-tier-filters" id="typeFilters"></div>
+
+        <!-- HUD COLOR LEGEND -->
+        <div class="hud-legend" id="legend"></div>
+
+        <!-- HUD STATUS BAR -->
+        <div class="hud-status" id="status">Loading biological network…</div>
+
+        <!-- FLOATING HOVER TOOLTIP -->
+        <div id="graphTooltip" class="graph-tooltip">
+          <div class="tooltip-title" id="tooltipTitle">Node</div>
+          <div class="tooltip-sub" id="tooltipSub">Sub</div>
+          <div id="tooltipBadge"></div>
+        </div>
+
+        <!-- FLOATING INSPECTOR DRAWER 2.0 -->
+        <aside class="inspector-drawer" id="nodePanelContainer">
+          <div class="inspector-header">
+            <span class="inspector-title">🧬 Node Inspector</span>
+            <button id="inspectorCloseBtn" class="inspector-close-btn" title="Close drawer">&times;</button>
+          </div>
+          
+          <div class="inspector-tabs">
+            <div class="inspector-tab active" data-tab="overview">Overview</div>
+            <div class="inspector-tab" data-tab="pharmacodynamics">Pharmacology</div>
+            <div class="inspector-tab" data-tab="cascade">Cascades</div>
+          </div>
+
+          <div class="inspector-body" id="nodePanel">
+            <div>
+              <div class="node-hero-title">Select a node</div>
+              <p style="color:var(--text-muted); font-size:0.8rem; margin-top:5px;">
+                Click any molecular node or edge in the graph to inspect its binding affinities, signaling cascades, and clinical biomarkers.
+              </p>
+            </div>
+          </div>
+        </aside>
+      </main>
+    </div>
+
+    <!-- CYTOSCAPE HIGH-PERFORMANCE ENGINE -->
+    <script src="https://cdn.jsdelivr.net/npm/cytoscape@3.29.0/dist/cytoscape.min.js"></script>
+    <script>
+      const graphContainer = document.getElementById('graph-canvas');
+      const statusEl = document.getElementById('status');
+      const nodePanel = document.getElementById('nodePanel');
+      const nodePanelContainer = document.getElementById('nodePanelContainer');
+      const searchInput = document.getElementById('searchInput');
+      const layoutSelect = document.getElementById('layoutSelect');
+      const typeFiltersWrap = document.getElementById('typeFilters');
+      const legendEl = document.getElementById('legend');
+      const stackPillsList = document.getElementById('stackPillsList');
+      const stackSearchInput = document.getElementById('stackSearchInput');
+      const stackSearchDropdown = document.getElementById('stackSearchDropdown');
+      const cascadeChipsList = document.getElementById('cascadeChipsList');
+      const inspectorCloseBtn = document.getElementById('inspectorCloseBtn');
+      const graphTooltip = document.getElementById('graphTooltip');
+      const tooltipTitle = document.getElementById('tooltipTitle');
+      const tooltipSub = document.getElementById('tooltipSub');
+      const tooltipBadge = document.getElementById('tooltipBadge');
+      const btnSimulate = document.getElementById('btnSimulate');
+      const btnTracePath = document.getElementById('btnTracePath');
+      const btnExport = document.getElementById('btnExport');
+
+      const nodeColors = {
+        compound: '#00f2fe',
+        receptor: '#ff4b72',
+        enzyme: '#f59e0b',
+        transporter: '#fb923c',
+        ion_channel: '#ef4444',
+        signaling_pathway: '#a855f7',
+        physiology: '#38bdf8',
+        biomarker: '#10b981',
+        phenotype: '#f43f5e',
+        reaction: '#f97316',
+        carrier_protein: '#14b8a6',
+        target: '#ff4b72',
+        default: '#94a3b8'
+      };
+
+      const tierNames = {
+        0: 'Compound / Ligand',
+        1: 'Molecular Target',
+        2: 'Signaling Cascade',
+        3: 'Organ Physiology',
+        4: 'Clinical Biomarker',
+        5: 'Clinical Outcome'
+      };
+
+      const state = {
+        baseData: { nodes: [], edges: [], cascade_simulation: {} },
+        data: { nodes: [], edges: [], cascade_simulation: {} },
+        filtered: { nodes: [], edges: [] },
+        typeFilter: new Set(),
+        search: '',
+        selectedNode: null,
+        selectedTab: 'overview',
+        pathfindingMode: false,
+        pathSourceNode: null,
+        simulating: false,
+        cy: null,
+        stack: [],
+        loadRequestId: 0,
+      };
+
+      function colorForNode(nodeType) {
+        return nodeColors[nodeType] || nodeColors.default;
+      }
+
+      function getNodeLabel(node) {
+        return node.label || node.id;
+      }
+
+      function buildTypeFilters() {
+        const typeSet = new Set(state.data.nodes.map(node => node.node_type).filter(Boolean));
+        if (!typeSet.size) {
+          state.typeFilter = new Set(['compound', 'receptor']);
+        } else {
+          state.typeFilter = new Set(typeSet);
+        }
+
+        typeFiltersWrap.innerHTML = '';
+        
+        // "ALL" Toggle
+        const allBtn = document.createElement('button');
+        allBtn.className = 'filter-pill active';
+        allBtn.textContent = 'All Tiers';
+        allBtn.addEventListener('click', () => {
+          if (state.typeFilter.size === typeSet.size) {
+            state.typeFilter.clear();
+            allBtn.classList.remove('active');
+            typeFiltersWrap.querySelectorAll('.filter-pill[data-type]').forEach(b => b.classList.remove('active'));
+          } else {
+            state.typeFilter = new Set(typeSet);
+            allBtn.classList.add('active');
+            typeFiltersWrap.querySelectorAll('.filter-pill[data-type]').forEach(b => b.classList.add('active'));
+          }
+          render();
+        });
+        typeFiltersWrap.appendChild(allBtn);
+
+        Array.from(typeSet).sort().forEach(type => {
+          const button = document.createElement('button');
+          button.className = 'filter-pill active';
+          button.dataset.type = type;
+          button.innerHTML = `<span style="display:inline-block;width:6px;height:6px;border-radius:50%;background:${colorForNode(type)};"></span>${type.replace('_', ' ')}`;
+          button.addEventListener('click', () => {
+            if (state.typeFilter.has(type)) {
+              state.typeFilter.delete(type);
+              button.classList.remove('active');
+            } else {
+              state.typeFilter.add(type);
+              button.classList.add('active');
+            }
+            allBtn.classList.toggle('active', state.typeFilter.size === typeSet.size);
+            render();
+          });
+          typeFiltersWrap.appendChild(button);
+        });
+
+        legendEl.innerHTML = '';
+        Array.from(typeSet).sort().forEach(type => {
+          const chip = document.createElement('div');
+          chip.className = 'legend-item';
+          chip.innerHTML = `<span class="legend-dot" style="background:${colorForNode(type)};color:${colorForNode(type)};"></span>${type.replace('_', ' ')}`;
+          legendEl.appendChild(chip);
+        });
+      }
+
+      function computeAdjacent(nodeId) {
+        const incoming = [];
+        const outgoing = [];
+        for (const edge of state.data.edges) {
+          if (edge.target === nodeId) incoming.push(edge);
+          if (edge.source === nodeId) outgoing.push(edge);
+        }
+        return { incoming, outgoing };
+      }
+
+      function resolveSelectedNode() {
+        const candidates = [];
+        if (Array.isArray(state.data && state.data.nodes)) candidates.push(...state.data.nodes);
+        if (Array.isArray(state.filtered && state.filtered.nodes)) candidates.push(...state.filtered.nodes);
+        if (Array.isArray(state.baseData && state.baseData.nodes)) candidates.push(...state.baseData.nodes);
+
+        const seen = new Set();
+        const unique = [];
+        for (const node of candidates) {
+          if (!node || !node.id || seen.has(node.id)) continue;
+          seen.add(node.id);
+          unique.push(node);
+        }
+
+        if (!state.selectedNode) return null;
+        return unique.find(node => node.id === state.selectedNode) || {
+          id: state.selectedNode,
+          label: state.selectedNode,
+          node_type: 'selected',
+        };
+      }
+
+      function renderNodePanel() {
+        if (!state.selectedNode) {
+          nodePanel.innerHTML = `
+            <div>
+              <div class="node-hero-title">Select a node</div>
+              <p style="color:var(--text-muted); font-size:0.8rem; margin-top:6px;">
+                Click any molecular node or edge to inspect binding properties, intracellular pathways, and clinical biomarkers.
+              </p>
+            </div>
+          `;
+          return;
+        }
+
+        const node = resolveSelectedNode();
+        if (!node) return;
+
+        const { incoming, outgoing } = computeAdjacent(node.id);
+        const nodeColor = colorForNode(node.node_type);
+
+        const incomingTexts = incoming.length
+          ? incoming.map(edge => `
+              <div class="neighbor-pill" onclick="focusAndSelectNode('${edge.source}')">
+                <strong>${edge.type || 'MODULATES'}</strong>
+                <span style="color:var(--text-secondary); font-size:0.72rem;">from ${edge.source} ${edge.affinity_ki ? `(Ki: ${edge.affinity_ki} nM)` : ''}</span>
+              </div>
+            `).join('')
+          : '<div style="color:var(--text-muted); font-size:0.75rem;">No upstream cascade inputs.</div>';
+
+        const outgoingTexts = outgoing.length
+          ? outgoing.map(edge => `
+              <div class="neighbor-pill" onclick="focusAndSelectNode('${edge.target}')">
+                <strong>${edge.type || 'MODULATES'}</strong>
+                <span style="color:var(--text-secondary); font-size:0.72rem;">to ${edge.target} ${edge.is_bridge ? '⚡ Cross-Talk Bridge' : ''}</span>
+              </div>
+            `).join('')
+          : '<div style="color:var(--text-muted); font-size:0.75rem;">No downstream targets.</div>';
+
+        if (state.selectedTab === 'overview') {
+          const metaRows = [];
+          if (node.smiles) metaRows.push(`<div style="grid-column: span 2; background:rgba(0,0,0,0.35); padding:6px 8px; border-radius:6px; font-family:'JetBrains Mono',monospace; font-size:0.68rem; word-break:break-all; border:1px solid rgba(255,255,255,0.06);"><div style="color:var(--text-muted); margin-bottom:2px; font-size:0.62rem;">SMILES</div>${node.smiles}</div>`);
+          if (node.logP !== undefined && node.logP !== null) metaRows.push(`<div class="metric-card"><div class="metric-label">LogP Lipophilicity</div><div class="metric-value">${node.logP}</div></div>`);
+          if (node.molecular_weight) metaRows.push(`<div class="metric-card"><div class="metric-label">Molecular Weight</div><div class="metric-value">${node.molecular_weight} g/mol</div></div>`);
+          if (node.unit) metaRows.push(`<div class="metric-card"><div class="metric-label">Lab Unit</div><div class="metric-value">${node.unit}</div></div>`);
+          if (node.biomarker_panel) metaRows.push(`<div class="metric-card"><div class="metric-label">Biomarker Panel</div><div class="metric-value">${node.biomarker_panel}</div></div>`);
+          if (node.organ_system) metaRows.push(`<div class="metric-card"><div class="metric-label">Organ System</div><div class="metric-value">${node.organ_system}</div></div>`);
+          if (node.pathway_database) metaRows.push(`<div class="metric-card"><div class="metric-label">Pathway DB</div><div class="metric-value">${node.pathway_database}</div></div>`);
+
+          nodePanel.innerHTML = `
+            <div>
+              <div class="node-hero-title">${getNodeLabel(node)}</div>
+              <div class="node-badge-row">
+                <span class="node-badge" style="border-color:${nodeColor}; color:${nodeColor}; background:rgba(0, 242, 254, 0.08); font-weight:700;">
+                  ${(node.node_type || 'node').toUpperCase()}
+                </span>
+                <span class="node-badge" style="color:#38bdf8;">Tier ${node.tier !== undefined ? node.tier : 1}: ${node.tier_name || 'Target'}</span>
+                <span class="node-badge" style="font-family:'JetBrains Mono',monospace;">${node.id}</span>
+              </div>
+            </div>
+
+            ${metaRows.length ? `<div class="metrics-grid">${metaRows.join('')}</div>` : ''}
+
+            <div class="metrics-grid">
+              <div class="metric-card">
+                <div class="metric-label">Inputs / Upstream</div>
+                <div class="metric-value" style="color:#38bdf8;">${incoming.length}</div>
+              </div>
+              <div class="metric-card">
+                <div class="metric-label">Downstream Targets</div>
+                <div class="metric-value" style="color:#00f2fe;">${outgoing.length}</div>
+              </div>
+            </div>
+
+            <div>
+              <div class="neighbor-group-title">Upstream Regulators & Inputs</div>
+              <div class="neighbor-pill-list">${incomingTexts}</div>
+            </div>
+
+            <div>
+              <div class="neighbor-group-title">Downstream Signaling & Targets</div>
+              <div class="neighbor-pill-list">${outgoingTexts}</div>
+            </div>
+          `;
+        } else if (state.selectedTab === 'pharmacodynamics') {
+          nodePanel.innerHTML = `
+            <div>
+              <div class="node-hero-title">${getNodeLabel(node)}</div>
+              <p style="color:var(--text-secondary); font-size:0.75rem; margin-top:4px;">Direct molecular binding kinetics & target interactions.</p>
+            </div>
+            <div>
+              <div class="neighbor-group-title">Upstream Ligand Binding</div>
+              <div class="neighbor-pill-list">${incomingTexts}</div>
+            </div>
+            <div>
+              <div class="neighbor-group-title">Target Effector Actions</div>
+              <div class="neighbor-pill-list">${outgoingTexts}</div>
+            </div>
+          `;
+        } else if (state.selectedTab === 'cascade') {
+          nodePanel.innerHTML = `
+            <div>
+              <div class="node-hero-title">${getNodeLabel(node)}</div>
+              <p style="color:var(--text-secondary); font-size:0.75rem; margin-top:4px;">Intracellular signal cascade propagation & physiological impact.</p>
+            </div>
+            <div class="metrics-grid">
+              <div class="metric-card">
+                <div class="metric-label">Cascade In-Degree</div>
+                <div class="metric-value" style="color:#38bdf8;">${incoming.length}</div>
+              </div>
+              <div class="metric-card">
+                <div class="metric-label">Cascade Out-Degree</div>
+                <div class="metric-value" style="color:#a855f7;">${outgoing.length}</div>
+              </div>
+            </div>
+            <div>
+              <div class="neighbor-group-title">Cascade Signaling Links</div>
+              <div class="neighbor-pill-list">${outgoingTexts}</div>
+            </div>
+          `;
+        }
+
+        nodePanelContainer.classList.remove('hidden');
+      }
+
+      // INSPECTOR TAB SWITCHING
+      document.querySelectorAll('.inspector-tab').forEach(tab => {
+        tab.addEventListener('click', () => {
+          document.querySelectorAll('.inspector-tab').forEach(t => t.classList.remove('active'));
+          tab.classList.add('active');
+          state.selectedTab = tab.dataset.tab;
+          renderNodePanel();
+        });
+      });
+
+      window.focusAndSelectNode = (nodeId) => {
+        if (!state.cy) return;
+        const targetEle = state.cy.getElementById(nodeId);
+        if (targetEle && targetEle.length) {
+          state.selectedNode = nodeId;
+          state.cy.elements().removeClass('highlighted');
+          targetEle.addClass('highlighted');
+          state.cy.animate({
+            center: { eles: targetEle },
+            zoom: Math.min(state.cy.maxZoom(), Math.max(1.3, state.cy.zoom())),
+            duration: 350
+          });
+          renderNodePanel();
+        }
+      };
+
+      function renderCascadeStrip(cascade) {
+        if (!cascade) {
+          cascadeChipsList.innerHTML = '<span class="cascade-badge">No cascade simulation data.</span>';
+          return;
+        }
+
+        const chips = [];
+
+        (cascade.biomarker_shifts || []).forEach(shift => {
+          const name = shift.label || shift.name || shift.biomarker_id || 'Biomarker';
+          const isUp = shift.direction === 'INCREASE';
+          const arrow = shift.arrow || (isUp ? '↑' : '↓');
+          chips.push(`
+            <span class="cascade-badge ${isUp ? 'shift-up' : 'shift-down'}" title="${name} (${shift.unit || ''})">
+              ${arrow} ${name}: <strong>${shift.direction || 'MODULATED'}</strong>
+            </span>
+          `);
+        });
+
+        (cascade.activated_pathways || []).forEach(p => {
+          const name = p.label || p.name || p.pathway_id || 'Pathway';
+          chips.push(`
+            <span class="cascade-badge pathway" title="${name} (${p.status || ''})">
+              ⚡ ${name}
+            </span>
+          `);
+        });
+
+        (cascade.phenotypes || []).forEach(pheno => {
+          const name = pheno.label || pheno.name || pheno.phenotype_id || 'Phenotype';
+          chips.push(`
+            <span class="cascade-badge" style="border-color:rgba(244,63,94,0.45); color:#fda4af; background:rgba(244,63,94,0.08);" title="${name}">
+              🎯 ${name}
+            </span>
+          `);
+        });
+
+        cascadeChipsList.innerHTML = chips.length ? chips.join('') : '<span class="cascade-badge">Clean physiological basal state</span>';
+      }
+
+      function filterGraph() {
+        const search = state.search.trim().toLowerCase();
+        const nodeIdsInScope = new Set();
+
+        state.filtered.nodes = state.data.nodes.filter(node => {
+          if (!state.typeFilter.has(node.node_type)) return false;
+          if (search) {
+            const label = getNodeLabel(node).toLowerCase();
+            const id = (node.id || '').toLowerCase();
+            return label.includes(search) || id.includes(search);
+          }
+          return true;
+        });
+
+        state.filtered.nodes.forEach(node => nodeIdsInScope.add(node.id));
+        state.filtered.edges = state.data.edges.filter(edge => nodeIdsInScope.has(edge.source) && nodeIdsInScope.has(edge.target));
+      }
+
+      // HIGH-DPI CRISP CYTOSCAPE INITIALIZATION
+      function ensureCytoscape() {
+        if (!window.cytoscape) {
+          statusEl.textContent = 'Graph library failed to load.';
+          return null;
+        }
+
+        if (state.cy) return state.cy;
+
+        // Force 2x+ pixelRatio so canvas backing store rasterizes text with crisp subpixels
+        const dpr = Math.max(window.devicePixelRatio || 1, 2);
+
+        state.cy = window.cytoscape({
+          container: graphContainer,
+          pixelRatio: dpr,
+          textureOnViewport: false, // Prevents blurry low-res texture downscaling during pan/zoom!
+          motionBlur: false,        // Prevents blur artifacting during interaction
+          hideEdgesOnViewport: false,
+          style: [
+            {
+              selector: 'node',
+              style: {
+                'background-color': ele => colorForNode(ele.data('node_type')),
+                'label': ele => ele.data('label') || ele.data('id'),
+                'font-family': 'Plus Jakarta Sans, -apple-system, sans-serif',
+                'font-size': '11px',
+                'font-weight': '700',
+                'text-wrap': 'wrap',
+                'text-max-width': '120px',
+                'color': '#f8fafc',
+                
+                // Crisp Badge Styling (avoids destructive dark outline blur when zoomed out!)
+                'text-background-opacity': 0.88,
+                'text-background-color': '#070d19',
+                'text-background-padding': '3px 5px',
+                'text-background-shape': 'roundrectangle',
+                'text-border-width': 1,
+                'text-border-color': ele => colorForNode(ele.data('node_type')),
+                'text-border-opacity': 0.6,
+                'text-margin-y': 6,
+                'text-valign': 'bottom',
+                'text-halign': 'center',
+                
+                'border-width': 2.5,
+                'border-color': ele => ele.data('node_type') === 'compound' ? '#ffffff' : 'rgba(255,255,255,0.7)',
+                'width': ele => ele.data('node_type') === 'compound' ? 46 : (ele.data('node_type') === 'biomarker' ? 32 : 36),
+                'height': ele => ele.data('node_type') === 'compound' ? 46 : (ele.data('node_type') === 'biomarker' ? 32 : 36),
+                'shape': ele => {
+                  const type = ele.data('node_type');
+                  if (type === 'compound') return 'ellipse';
+                  if (type === 'signaling_pathway') return 'diamond';
+                  if (type === 'biomarker') return 'round-rectangle';
+                  if (type === 'phenotype') return 'hexagon';
+                  if (type === 'physiology') return 'round-rectangle';
+                  return 'ellipse';
+                },
+                'shadow-blur': 14,
+                'shadow-color': ele => colorForNode(ele.data('node_type')),
+                'shadow-opacity': 0.45,
+                'min-zoomed-font-size': 5,
+                'transition-property': 'background-color, border-color, shadow-blur, opacity',
+                'transition-duration': '0.2s',
+              }
+            },
+            {
+              selector: 'edge',
+              style: {
+                'curve-style': 'bezier',
+                'target-arrow-shape': 'triangle',
+                'arrow-scale': 1.1,
+                'line-color': edge => {
+                  const dir = edge.data('direction_class');
+                  const isBridge = edge.data('is_bridge');
+                  if (isBridge) return '#c084fc';
+                  if (dir === 'negative') return '#ff4b72';
+                  if (dir === 'allosteric') return '#f59e0b';
+                  return '#00f2fe';
+                },
+                'target-arrow-color': edge => {
+                  const dir = edge.data('direction_class');
+                  const isBridge = edge.data('is_bridge');
+                  if (isBridge) return '#c084fc';
+                  if (dir === 'negative') return '#ff4b72';
+                  if (dir === 'allosteric') return '#f59e0b';
+                  return '#00f2fe';
+                },
+                'line-style': edge => {
+                  const dir = edge.data('direction_class');
+                  const isBridge = edge.data('is_bridge');
+                  if (isBridge) return 'dotted';
+                  if (dir === 'negative') return 'dashed';
+                  return 'solid';
+                },
+                'width': edge => edge.data('is_bridge') ? 2.8 : 2.0,
+                'label': 'data(type)',
+                'font-family': 'JetBrains Mono, monospace',
+                'font-size': '8.5px',
+                'font-weight': '600',
+                'color': '#cbd5e1',
+                'text-background-opacity': 0.85,
+                'text-background-color': '#060a14',
+                'text-background-padding': '2px 4px',
+                'text-background-shape': 'roundrectangle',
+                'text-border-width': 0.8,
+                'text-border-color': 'rgba(255,255,255,0.15)',
+                'text-border-opacity': 0.8,
+                'opacity': 0.82,
+                'text-rotation': 'autorotate',
+                'min-zoomed-font-size': 7,
+              }
+            },
+            {
+              selector: 'node:selected',
+              style: {
+                'border-width': 4,
+                'border-color': '#ffffff',
+                'shadow-blur': 28,
+                'shadow-color': '#00f2fe',
+                'shadow-opacity': 0.95,
+              }
+            },
+            {
+              selector: '.highlighted',
+              style: {
+                'border-width': 4,
+                'border-color': '#00f2fe',
+                'shadow-blur': 25,
+                'shadow-color': '#00f2fe',
+                'shadow-opacity': 0.9,
+              }
+            },
+            {
+              selector: '.path-highlight',
+              style: {
+                'line-color': '#c084fc',
+                'target-arrow-color': '#c084fc',
+                'width': 4.5,
+                'opacity': 1.0,
+                'shadow-blur': 16,
+                'shadow-color': '#c084fc',
+                'shadow-opacity': 0.9,
+              }
+            },
+            {
+              selector: '.faded',
+              style: {
+                'opacity': 0.12,
+              }
+            }
+          ],
+          zoomingEnabled: true,
+          userZoomingEnabled: true,
+          panningEnabled: true,
+          userPanningEnabled: true,
+          minZoom: 0.15,
+          maxZoom: 3.5,
+          wheelSensitivity: 0.14,
+          padding: 40,
+        });
+
+        // Hover Spotlight & Tooltip
+        state.cy.on('mouseover', 'node', event => {
+          const selNode = event.target;
+          const neighborhood = selNode.neighborhood().add(selNode);
+          state.cy.elements().addClass('faded');
+          neighborhood.removeClass('faded');
+
+          const renderedPos = selNode.renderedPosition();
+          const nodeData = selNode.data();
+
+          tooltipTitle.textContent = nodeData.label || nodeData.id;
+          tooltipSub.textContent = `Type: ${(nodeData.node_type || 'Node').toUpperCase()}`;
+          const col = colorForNode(nodeData.node_type);
+          tooltipBadge.innerHTML = `<span class="tooltip-badge" style="background:${col}22; color:${col}; border:1px solid ${col}66;">Tier ${nodeData.tier !== undefined ? nodeData.tier : 1}: ${nodeData.tier_name || 'Entity'}</span>`;
+
+          graphTooltip.style.left = `${renderedPos.x}px`;
+          graphTooltip.style.top = `${renderedPos.y}px`;
+          graphTooltip.style.display = 'block';
+        });
+
+        state.cy.on('mouseout', 'node', () => {
+          state.cy.elements().removeClass('faded');
+          graphTooltip.style.display = 'none';
+        });
+
+        state.cy.on('tap', 'node', event => {
+          const nodeId = event.target.id();
+          
+          if (state.pathfindingMode) {
+            if (!state.pathSourceNode) {
+              state.pathSourceNode = nodeId;
+              event.target.addClass('highlighted');
+              statusEl.textContent = `Path source selected: ${nodeId}. Now click destination node...`;
+              return;
+            } else {
+              const destNode = nodeId;
+              tracePathBetween(state.pathSourceNode, destNode);
+              state.pathSourceNode = null;
+              state.pathfindingMode = false;
+              btnTracePath.classList.remove('active');
+              return;
+            }
+          }
+
+          state.selectedNode = nodeId;
+          renderNodePanel();
+        });
+
+        state.cy.on('tap', event => {
+          if (event.target === state.cy) {
+            state.selectedNode = null;
+            renderNodePanel();
+            state.cy.elements().removeClass('path-highlight');
+          }
+        });
+
+        return state.cy;
+      }
+
+      // CUSTOM MULTI-TIER CASCADE FLOW LAYOUT
+      function applyTierFlowLayout(cy) {
+        const nodes = cy.nodes();
+        if (!nodes.length) return;
+
+        // Group nodes by biological tier index
+        const tiers = { 0: [], 1: [], 2: [], 3: [], 4: [], 5: [] };
+        
+        nodes.forEach(node => {
+          const tier = node.data('tier') !== undefined ? node.data('tier') : 1;
+          const bucket = Math.min(5, Math.max(0, tier));
+          tiers[bucket].push(node);
+        });
+
+        const columnWidth = 230;
+        const startX = 60;
+        const centerY = 350;
+
+        cy.batch(() => {
+          for (let t = 0; t <= 5; t++) {
+            const group = tiers[t];
+            if (!group || !group.length) continue;
+            
+            const colX = startX + (t * columnWidth);
+            const totalInCol = group.length;
+            const spacingY = Math.min(95, Math.max(55, 600 / Math.max(totalInCol, 1)));
+            const colHeight = (totalInCol - 1) * spacingY;
+            const topY = centerY - (colHeight / 2);
+
+            group.forEach((node, idx) => {
+              // slight stagger to prevent straight-line overlap
+              const jitterX = (idx % 2 === 1) ? 14 : -14;
+              node.position({
+                x: colX + jitterX,
+                y: topY + (idx * spacingY)
+              });
+            });
+          }
+        });
+
+        cy.fit(undefined, 50);
+      }
+
+      function render() {
+        filterGraph();
+        const cy = ensureCytoscape();
+        if (!cy) return;
+
+        const elements = {
+          nodes: state.filtered.nodes.map(node => ({
+            data: {
+              id: node.id,
+              label: getNodeLabel(node),
+              node_type: node.node_type,
+              tier: node.tier,
+              tier_name: node.tier_name,
+              degree: node.degree,
+            },
+          })),
+          edges: state.filtered.edges.map(edge => ({
+            data: {
+              id: `${edge.source}->${edge.target}`,
+              source: edge.source,
+              target: edge.target,
+              type: edge.type || 'MODULATES',
+              direction_class: edge.direction_class || 'positive',
+              is_bridge: edge.is_bridge,
+            },
+          })),
+        };
+
+        cy.elements().remove();
+        cy.add(elements);
+
+        const layoutName = layoutSelect.value || 'tier_flow';
+
+        if (layoutName === 'tier_flow') {
+          applyTierFlowLayout(cy);
+        } else {
+          const layoutOptions = {
+            name: layoutName,
+            padding: 45,
+            animate: true,
+            animationDuration: 350,
+            nodeDimensionsIncludeLabels: true,
+          };
+
+          if (layoutName === 'breadthfirst') {
+            layoutOptions.directed = true;
+            layoutOptions.spacingFactor = 1.4;
+          } else if (layoutName === 'cose') {
+            layoutOptions.nodeRepulsion = 4500;
+            layoutOptions.idealEdgeLength = 90;
+            layoutOptions.edgeElasticity = 100;
+          } else if (layoutName === 'concentric') {
+            layoutOptions.concentric = ele => 6 - (ele.data('tier') || 1);
+            layoutOptions.levelWidth = () => 1;
+          }
+
+          const layout = cy.layout(layoutOptions);
+          layout.run();
+          cy.fit(undefined, 45);
+        }
+
+        const totalCount = state.filtered.nodes.length;
+        statusEl.textContent = totalCount === 0
+          ? 'No nodes match the selected filters.'
+          : `${totalCount} visible nodes • ${state.filtered.edges.length} connections • ${layoutName.toUpperCase()} layout`;
+
+        renderNodePanel();
+      }
+
+      // DYNAMIC CASCADE SIGNAL PROPAGATION SIMULATOR
+      function simulateCascadeSignal() {
+        if (!state.cy || state.simulating) return;
+        state.simulating = true;
+        btnSimulate.classList.add('active');
+        btnSimulate.textContent = '🌊 Propagating Signal…';
+
+        const cy = state.cy;
+        const tiers = [0, 1, 2, 3, 4, 5];
+
+        let step = 0;
+        cy.elements().removeClass('highlighted').addClass('faded');
+
+        const interval = setInterval(() => {
+          if (step > 5) {
+            clearInterval(interval);
+            setTimeout(() => {
+              cy.elements().removeClass('faded').removeClass('highlighted');
+              state.simulating = false;
+              btnSimulate.classList.remove('active');
+              btnSimulate.textContent = '⚡ Simulate Signal';
+              statusEl.textContent = 'Signal cascade simulation complete.';
+            }, 600);
+            return;
+          }
+
+          const currentNodes = cy.nodes().filter(n => (n.data('tier') || 0) === step);
+          const currentEdges = cy.edges().filter(e => {
+            const srcTier = e.source().data('tier') || 0;
+            return srcTier === step - 1 || srcTier === step;
+          });
+
+          currentNodes.removeClass('faded').addClass('highlighted');
+          currentEdges.removeClass('faded').addClass('highlighted');
+
+          statusEl.textContent = `Propagating signal wave through Tier ${step}: ${tierNames[step] || 'Cascade'}`;
+          step++;
+        }, 400);
+      }
+
+      btnSimulate.addEventListener('click', simulateCascadeSignal);
+
+      // PATHFINDING & CROSS-TALK FINDER
+      function tracePathBetween(sourceId, targetId) {
+        statusEl.textContent = `Finding biological path from ${sourceId} to ${targetId}…`;
+        
+        fetch(`/graph-path?source=${encodeURIComponent(sourceId)}&target=${encodeURIComponent(targetId)}&stack=${encodeURIComponent(state.stack.join(','))}`)
+          .then(res => res.json())
+          .then(data => {
+            if (!data.path || !data.path.length) {
+              statusEl.textContent = `No connecting biological cascade between ${sourceId} and ${targetId}.`;
+              return;
+            }
+
+            const cy = state.cy;
+            cy.elements().addClass('faded').removeClass('path-highlight');
+
+            const pathEles = [];
+            for (let i = 0; i < data.path.length; i++) {
+              const n = cy.getElementById(data.path[i]);
+              if (n.length) pathEles.push(n);
+              if (i < data.path.length - 1) {
+                const s = data.path[i];
+                const t = data.path[i + 1];
+                const e = cy.edges(`[source="${s}"][target="${t}"], [source="${t}"][target="${s}"]`);
+                if (e.length) pathEles.push(e);
+              }
+            }
+
+            pathEles.forEach(ele => ele.removeClass('faded').addClass('path-highlight'));
+
+            statusEl.textContent = `Path found (${data.length} steps): ${data.path.join(' → ')}`;
+          })
+          .catch(err => {
+            console.error(err);
+            statusEl.textContent = 'Path lookup error.';
+          });
+      }
+
+      btnTracePath.addEventListener('click', () => {
+        state.pathfindingMode = !state.pathfindingMode;
+        state.pathSourceNode = null;
+        btnTracePath.classList.toggle('active', state.pathfindingMode);
+        if (state.pathfindingMode) {
+          statusEl.textContent = 'Path Mode active: Click starting node in the graph…';
+        } else {
+          statusEl.textContent = 'Path Mode cancelled.';
+          if (state.cy) state.cy.elements().removeClass('path-highlight');
+        }
+      });
+
+      // EXPORT HIGH-RES PNG
+      btnExport.addEventListener('click', () => {
+        if (!state.cy) return;
+        const png = state.cy.png({
+          bg: '#050811',
+          full: true,
+          scale: 2.5
+        });
+        const link = document.createElement('a');
+        link.download = `healthai-knowledge-graph-${state.stack.join('-') || 'network'}.png`;
+        link.href = png;
+        link.click();
+      });
+
+      function renderStackBadges() {
+        if (!state.stack.length) {
+          stackPillsList.innerHTML = '<span style="color:var(--text-muted); font-size:0.75rem;">Empty stack. Search below or add compounds to explore cascade interactions.</span>';
+          return;
+        }
+
+        stackPillsList.innerHTML = state.stack.map(key => `
+          <span class="compound-chip">
+            ${key.replace('_', ' ').replace(/\b\w/g, l => l.toUpperCase())}
+            <button type="button" class="chip-del" onclick="removeCompoundFromGraph('${key}')" title="Remove from graph">&times;</button>
+          </span>
+        `).join('');
+      }
+
+      window.removeCompoundFromGraph = (key) => {
+        state.stack = state.stack.filter(k => k !== key);
+        syncStackState();
+        loadGraphData();
+      };
+
+      function addCompoundToGraph(key) {
+        if (!key || state.stack.includes(key)) return;
+        state.stack.push(key);
+        syncStackState();
+        loadGraphData();
+      }
+
+      function syncStackState() {
+        renderStackBadges();
+        try {
+          localStorage.setItem('healthai_stack', JSON.stringify(state.stack.map(k => ({ key: k, name: k }))));
+        } catch (e) {
+          console.warn('localStorage sync error', e);
+        }
+        const newUrl = new URL(window.location);
+        newUrl.searchParams.set('stack', state.stack.join(','));
+        window.history.replaceState({}, '', newUrl);
+      }
+
+      // STACK SEARCH AUTOCOMPLETE
+      let searchTimeout = null;
+      stackSearchInput.addEventListener('input', (e) => {
+        const query = e.target.value.trim();
+        clearTimeout(searchTimeout);
+        if (!query) {
+          stackSearchDropdown.style.display = 'none';
+          return;
+        }
+
+        searchTimeout = setTimeout(() => {
+          fetch(`/api/compounds/search?q=${encodeURIComponent(query)}`)
+            .then(res => res.json())
+            .then(items => {
+              if (!items || !items.length) {
+                stackSearchDropdown.innerHTML = '<div style="padding:8px 11px;color:var(--text-muted);font-size:0.75rem;">No match found</div>';
+                stackSearchDropdown.style.display = 'block';
+                return;
+              }
+
+              stackSearchDropdown.innerHTML = items.map(c => `
+                <div class="autocomplete-row" data-key="${c.key}">
+                  <span>${c.name}</span>
+                  <span style="color:#00f2fe;font-size:0.72rem;font-weight:700;">+ Add</span>
+                </div>
+              `).join('');
+
+              stackSearchDropdown.style.display = 'block';
+
+              stackSearchDropdown.querySelectorAll('.autocomplete-row').forEach(el => {
+                el.addEventListener('click', () => {
+                  addCompoundToGraph(el.dataset.key);
+                  stackSearchInput.value = '';
+                  stackSearchDropdown.style.display = 'none';
+                });
+              });
+            })
+            .catch(err => console.error(err));
+        }, 150);
+      });
+
+      document.addEventListener('click', (e) => {
+        if (!stackSearchInput.contains(e.target) && !stackSearchDropdown.contains(e.target)) {
+          stackSearchDropdown.style.display = 'none';
+        }
+      });
+
+      function applyZoom(delta) {
+        if (!state.cy) return;
+        const current = state.cy.zoom();
+        state.cy.zoom({ level: Math.min(3.5, Math.max(0.15, current + delta)), renderedPosition: { x: state.cy.width() / 2, y: state.cy.height() / 2 } });
+      }
+
+      graphContainer.addEventListener('wheel', event => {
+        event.preventDefault();
+        const delta = event.deltaY > 0 ? -0.12 : 0.12;
+        applyZoom(delta);
+      }, { passive: false });
+
+      searchInput.addEventListener('input', event => {
+        state.search = event.target.value;
+        render();
+
+        if (state.cy && state.search.trim()) {
+          const match = state.cy.nodes().filter(n => (n.data('label') || '').toLowerCase().includes(state.search.toLowerCase()));
+          if (match.length) {
+            state.cy.animate({
+              center: { eles: match[0] },
+              zoom: 1.4,
+              duration: 300
+            });
+          }
+        }
+      });
+
+      layoutSelect.addEventListener('change', () => render());
+      document.getElementById('zoomIn').addEventListener('click', () => applyZoom(0.25));
+      document.getElementById('zoomOut').addEventListener('click', () => applyZoom(-0.25));
+      document.getElementById('resetView').addEventListener('click', () => {
+        if (state.cy) {
+          state.cy.fit(undefined, 45);
+          state.cy.center();
+        }
+      });
+
+      document.getElementById('togglePanel').addEventListener('click', () => {
+        nodePanelContainer.classList.toggle('hidden');
+      });
+
+      inspectorCloseBtn.addEventListener('click', () => {
+        nodePanelContainer.classList.add('hidden');
+      });
+
+      function loadGraphData() {
+        const urlParams = new URLSearchParams(window.location.search);
+        let stackFromUrl = [];
+        const rawStackParams = urlParams.getAll('stack').filter(Boolean);
+        for (const item of rawStackParams) {
+          item.split(',').forEach(part => {
+            const cleaned = part.trim();
+            if (cleaned && !stackFromUrl.includes(cleaned)) stackFromUrl.push(cleaned);
+          });
+        }
+
+        const saved = localStorage.getItem('healthai_stack');
+        let stack = stackFromUrl.length ? stackFromUrl : [];
+
+        if (!stack.length && saved) {
+          try {
+            const parsed = JSON.parse(saved);
+            if (Array.isArray(parsed)) {
+              stack = parsed
+                .map(item => typeof item === 'string' ? item : (item && (item.key || item.compound || item.name) ? (item.key || item.compound || item.name) : ''))
+                .filter(Boolean);
+            }
+          } catch (error) {
+            console.warn('Failed to parse saved stack', error);
+          }
+        }
+
+        if (!stack.length) {
+          stack = ['caffeine', 'creatine', 'theanine'];
+        }
+
+        state.stack = Array.from(new Set(stack));
+        renderStackBadges();
+
+        const requestId = ++state.loadRequestId;
+        const params = new URLSearchParams();
+        state.stack.forEach(item => params.append('stack', item));
+        params.set('depth', '5');
+
+        fetch(`/graph-data?${params.toString()}`, { cache: 'no-store' })
+          .then(response => response.json())
+          .then(data => {
+            if (requestId !== state.loadRequestId) return;
+
+            state.baseData = data;
+            state.data = data;
+            if (data.nodes && data.nodes.length) {
+              state.selectedNode = data.nodes[0].id;
+            } else {
+              state.selectedNode = null;
+            }
+
+            renderCascadeStrip(data.cascade_simulation);
+            buildTypeFilters();
+            render();
+          })
+          .catch(error => {
+            if (requestId !== state.loadRequestId) return;
+            console.error('Failed to load graph data', error);
+            statusEl.textContent = 'Graph data unavailable';
+          });
+      }
+
+      window.addEventListener('storage', (event) => {
+        if (event.key === 'healthai_stack') {
+          loadGraphData();
+        }
+      });
+
+      loadGraphData();
+    </script>
+  </body>
+</html>

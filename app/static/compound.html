@@ -1,0 +1,1445 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Compound Intelligence & PK/PD Network // HealthAI</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700;800&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=Inter:wght@400;500;600;700&display=swap"
+      rel="stylesheet"
+    />
+    <style>
+      :root {
+        --bg-deep: #050811;
+        --bg-surface: #0a0f1d;
+        --bg-card: rgba(13, 20, 38, 0.84);
+        --bg-card-hover: rgba(18, 28, 54, 0.94);
+        --bg-glass: rgba(10, 16, 31, 0.82);
+        --border-subtle: rgba(56, 189, 248, 0.14);
+        --border-mid: rgba(56, 189, 248, 0.28);
+        --border-focus: #00f2fe;
+
+        --text-primary: #f8fafc;
+        --text-secondary: #94a3b8;
+        --text-muted: #64748b;
+
+        /* Biological Tier Colors */
+        --color-compound: #00f2fe;
+        --color-receptor: #ff4b72;
+        --color-enzyme: #f59e0b;
+        --color-transporter: #fb923c;
+        --color-ion-channel: #ef4444;
+        --color-pathway: #a855f7;
+        --color-physiology: #38bdf8;
+        --color-biomarker: #10b981;
+        --color-phenotype: #f43f5e;
+        --color-crosstalk: #c084fc;
+
+        --danger: #ff4b72;
+        --warning: #f59e0b;
+        --success: #10b981;
+        --info: #38bdf8;
+
+        --shadow-card: 0 16px 40px rgba(0, 0, 0, 0.55), inset 0 1px 0 rgba(255, 255, 255, 0.06);
+      }
+
+      * {
+        box-sizing: border-box;
+        margin: 0;
+        padding: 0;
+      }
+
+      html, body {
+        width: 100%;
+        min-height: 100vh;
+        background-color: var(--bg-deep);
+        color: var(--text-primary);
+        font-family: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, sans-serif;
+        -webkit-font-smoothing: antialiased;
+        -moz-osx-font-smoothing: grayscale;
+      }
+
+      a {
+        color: #38bdf8;
+        text-decoration: none;
+        transition: color 0.15s ease;
+      }
+      a:hover {
+        color: #00f2fe;
+      }
+
+      .container {
+        max-width: 1540px;
+        margin: 0 auto;
+        padding: 16px 20px 60px;
+      }
+
+      /* TOPBAR */
+      .topbar {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        gap: 12px;
+        padding: 10px 18px;
+        background: var(--bg-glass);
+        backdrop-filter: blur(24px);
+        -webkit-backdrop-filter: blur(24px);
+        border: 1px solid var(--border-subtle);
+        border-radius: 14px;
+        box-shadow: var(--shadow-card);
+        margin-bottom: 16px;
+      }
+
+      .brand-wrap {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+      }
+
+      .brand-logo {
+        width: 32px;
+        height: 32px;
+        border-radius: 9px;
+        background: linear-gradient(135deg, #00f2fe 0%, #3b82f6 100%);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 1.1rem;
+        box-shadow: 0 0 16px rgba(0, 242, 254, 0.4);
+      }
+
+      .brand-title {
+        font-size: 1.12rem;
+        font-weight: 800;
+        letter-spacing: -0.02em;
+        background: linear-gradient(135deg, #ffffff 40%, #94a3b8 100%);
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
+      }
+
+      .brand-tag {
+        font-family: 'JetBrains Mono', monospace;
+        font-size: 0.65rem;
+        padding: 2px 7px;
+        border-radius: 6px;
+        background: rgba(0, 242, 254, 0.08);
+        border: 1px solid rgba(0, 242, 254, 0.25);
+        color: #38bdf8;
+        font-weight: 700;
+        text-transform: uppercase;
+      }
+
+      .nav-links {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+      }
+
+      .nav-link {
+        color: var(--text-secondary);
+        font-size: 0.8rem;
+        font-weight: 600;
+        padding: 6px 12px;
+        border-radius: 8px;
+        border: 1px solid transparent;
+        transition: all 0.15s ease;
+      }
+
+      .nav-link:hover {
+        color: #38bdf8;
+        background: rgba(56, 189, 248, 0.1);
+        border-color: var(--border-subtle);
+      }
+
+      .nav-link.btn-primary {
+        background: linear-gradient(135deg, rgba(0, 242, 254, 0.16), rgba(59, 130, 246, 0.22));
+        border-color: rgba(0, 242, 254, 0.4);
+        color: #e0f7ff;
+      }
+      .nav-link.btn-primary:hover {
+        background: linear-gradient(135deg, #00f2fe, #3b82f6);
+        color: #040d1a;
+        box-shadow: 0 0 16px rgba(0, 242, 254, 0.35);
+      }
+
+      /* MAIN SPLIT LAYOUT */
+      .layout {
+        display: grid;
+        grid-template-columns: 1.05fr 1fr;
+        gap: 16px;
+        align-items: start;
+      }
+
+      .panel {
+        background: var(--bg-card);
+        border: 1px solid var(--border-subtle);
+        border-radius: 16px;
+        padding: 20px;
+        box-shadow: var(--shadow-card);
+      }
+
+      /* HERO TITLE & RISK BADGE */
+      .hero {
+        display: flex;
+        justify-content: space-between;
+        align-items: flex-start;
+        gap: 16px;
+        margin-bottom: 18px;
+        padding-bottom: 16px;
+        border-bottom: 1px solid var(--border-subtle);
+      }
+
+      .hero-title {
+        font-size: clamp(1.8rem, 2.5vw, 2.3rem);
+        font-weight: 800;
+        letter-spacing: -0.02em;
+        color: #ffffff;
+      }
+
+      .subtitle {
+        color: var(--text-secondary);
+        font-size: 0.92rem;
+        margin-top: 4px;
+      }
+
+      .meta-row {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 6px;
+        margin-top: 10px;
+      }
+
+      .pill {
+        display: inline-flex;
+        align-items: center;
+        gap: 5px;
+        padding: 4px 10px;
+        border-radius: 999px;
+        border: 1px solid var(--border-subtle);
+        background: rgba(56, 189, 248, 0.08);
+        color: #38bdf8;
+        font-size: 0.75rem;
+        font-weight: 600;
+      }
+
+      .risk-badge-box {
+        min-width: 140px;
+        padding: 10px 14px;
+        border: 1px solid var(--border-subtle);
+        border-radius: 12px;
+        background: rgba(8, 13, 25, 0.85);
+        text-align: right;
+      }
+
+      .risk-badge-box label {
+        font-size: 0.65rem;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+        color: var(--text-muted);
+        display: block;
+      }
+
+      .risk-badge-box strong {
+        display: block;
+        font-size: 1.15rem;
+        font-weight: 800;
+        margin-top: 3px;
+      }
+
+      /* STRUCTURED GRIDS */
+      .section-heading {
+        font-size: 0.78rem;
+        font-weight: 700;
+        text-transform: uppercase;
+        letter-spacing: 0.06em;
+        color: #38bdf8;
+        margin: 16px 0 10px;
+        display: flex;
+        align-items: center;
+        gap: 6px;
+      }
+
+      .detail-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+        gap: 10px;
+      }
+
+      .info-box {
+        background: rgba(8, 13, 25, 0.8);
+        border: 1px solid rgba(255, 255, 255, 0.05);
+        border-radius: 10px;
+        padding: 10px 12px;
+        transition: border-color 0.2s ease;
+      }
+      .info-box:hover {
+        border-color: var(--border-mid);
+      }
+
+      .info-box label {
+        display: block;
+        font-size: 0.65rem;
+        letter-spacing: 0.06em;
+        text-transform: uppercase;
+        color: var(--text-muted);
+        margin-bottom: 4px;
+      }
+
+      .info-box .value {
+        font-size: 0.85rem;
+        font-weight: 600;
+        line-height: 1.4;
+        word-break: break-word;
+      }
+
+      .list-box {
+        margin-top: 14px;
+        border: 1px solid var(--border-subtle);
+        border-radius: 12px;
+        background: rgba(8, 13, 25, 0.75);
+        overflow: hidden;
+      }
+
+      .list-box .header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        padding: 10px 14px;
+        border-bottom: 1px solid var(--border-subtle);
+        background: rgba(12, 19, 36, 0.85);
+        font-size: 0.8rem;
+        font-weight: 700;
+      }
+
+      .list-box .body {
+        padding: 12px 14px;
+        font-size: 0.82rem;
+        line-height: 1.5;
+      }
+
+      .list-box .body.compact {
+        max-height: 180px;
+        overflow-y: auto;
+      }
+
+      .bullet-list {
+        list-style: none;
+        display: grid;
+        gap: 6px;
+      }
+
+      .bullet-list li {
+        padding: 7px 10px;
+        border: 1px solid rgba(255, 255, 255, 0.05);
+        border-radius: 8px;
+        background: rgba(13, 20, 38, 0.75);
+        font-size: 0.78rem;
+        line-height: 1.45;
+      }
+
+      .target-links {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 6px;
+      }
+
+      .target-link {
+        appearance: none;
+        background: rgba(255, 75, 114, 0.1);
+        color: #ffa5ba;
+        border: 1px solid rgba(255, 75, 114, 0.35);
+        border-radius: 999px;
+        padding: 4px 10px;
+        cursor: pointer;
+        font-size: 0.75rem;
+        font-weight: 600;
+        transition: all 0.15s ease;
+      }
+      .target-link:hover {
+        background: rgba(255, 75, 114, 0.22);
+        border-color: #ff4b72;
+        color: #ffffff;
+      }
+
+      /* ==========================================================================
+         GRAPH PANEL & CANVAS
+         ========================================================================== */
+      .graph-panel {
+        display: flex;
+        flex-direction: column;
+        min-height: 680px;
+        position: sticky;
+        top: 16px;
+      }
+
+      .graph-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        gap: 10px;
+        margin-bottom: 12px;
+        flex-wrap: wrap;
+      }
+
+      .graph-title-wrap {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+      }
+
+      .graph-title {
+        font-size: 1.05rem;
+        font-weight: 800;
+        letter-spacing: -0.01em;
+      }
+
+      .graph-toolbar {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        flex-wrap: wrap;
+      }
+
+      .select-custom {
+        padding: 5px 9px;
+        border-radius: 8px;
+        border: 1px solid var(--border-subtle);
+        background: rgba(8, 13, 25, 0.9);
+        color: var(--text-primary);
+        font-size: 0.75rem;
+        font-family: inherit;
+        cursor: pointer;
+        outline: none;
+      }
+      .select-custom:focus {
+        border-color: var(--border-focus);
+      }
+
+      .btn-icon {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        gap: 4px;
+        height: 28px;
+        padding: 0 8px;
+        border-radius: 7px;
+        border: 1px solid var(--border-subtle);
+        background: rgba(13, 20, 38, 0.85);
+        color: var(--text-secondary);
+        font-size: 0.74rem;
+        font-weight: 600;
+        cursor: pointer;
+        transition: all 0.15s ease;
+        user-select: none;
+      }
+      .btn-icon:hover {
+        background: rgba(22, 34, 64, 0.95);
+        color: var(--text-primary);
+        border-color: var(--border-mid);
+      }
+      .btn-icon.active {
+        background: rgba(0, 242, 254, 0.15);
+        border-color: rgba(0, 242, 254, 0.45);
+        color: #00f2fe;
+      }
+
+      .btn-flow {
+        background: linear-gradient(135deg, rgba(0, 242, 254, 0.16), rgba(59, 130, 246, 0.25));
+        border-color: rgba(0, 242, 254, 0.4);
+        color: #e0f7ff;
+        font-weight: 700;
+      }
+      .btn-flow:hover {
+        background: linear-gradient(135deg, #00f2fe, #3b82f6);
+        color: #040d1a;
+      }
+
+      /* FILTER PILL MATRIX */
+      .graph-filter-matrix {
+        display: flex;
+        gap: 5px;
+        margin-bottom: 10px;
+        flex-wrap: wrap;
+      }
+
+      .filter-btn {
+        padding: 4px 9px;
+        border-radius: 6px;
+        border: 1px solid rgba(255, 255, 255, 0.06);
+        background: rgba(8, 13, 25, 0.7);
+        color: var(--text-secondary);
+        font-size: 0.72rem;
+        font-weight: 600;
+        cursor: pointer;
+        transition: all 0.15s ease;
+      }
+      .filter-btn:hover {
+        color: var(--text-primary);
+        border-color: rgba(255, 255, 255, 0.15);
+      }
+      .filter-btn.active {
+        background: rgba(0, 242, 254, 0.14);
+        border-color: rgba(0, 242, 254, 0.45);
+        color: #38bdf8;
+      }
+
+      /* GRAPH CANVAS & WORKSPACE */
+      .graph-wrap {
+        position: relative;
+        flex: 1;
+        min-height: 520px;
+        background: radial-gradient(circle at 50% 50%, rgba(14, 26, 48, 0.5) 0%, rgba(5, 8, 17, 0.96) 80%),
+                    radial-gradient(rgba(56, 189, 248, 0.06) 1px, transparent 1px);
+        background-size: 100% 100%, 26px 26px;
+        border: 1px solid var(--border-subtle);
+        border-radius: 14px;
+        overflow: hidden;
+        box-shadow: inset 0 0 40px rgba(0, 0, 0, 0.7);
+      }
+
+      .graph-canvas {
+        width: 100%;
+        height: 100%;
+        min-height: 520px;
+        cursor: grab;
+      }
+      .graph-canvas:active { cursor: grabbing; }
+
+      .graph-meta-bar {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-top: 10px;
+        font-size: 0.75rem;
+        color: var(--text-muted);
+        font-family: 'JetBrains Mono', monospace;
+      }
+
+      /* FLOATING QUICK INSPECTOR CARD */
+      .quick-card {
+        position: absolute;
+        bottom: 12px;
+        left: 12px;
+        right: 12px;
+        background: rgba(8, 13, 25, 0.95);
+        backdrop-filter: blur(20px);
+        -webkit-backdrop-filter: blur(20px);
+        border: 1px solid rgba(56, 189, 248, 0.3);
+        border-radius: 12px;
+        padding: 12px 14px;
+        box-shadow: 0 16px 36px rgba(0, 0, 0, 0.75);
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        gap: 12px;
+        z-index: 30;
+        transition: transform 0.2s ease, opacity 0.2s ease;
+      }
+      .quick-card.hidden {
+        transform: translateY(calc(100% + 20px));
+        opacity: 0;
+        pointer-events: none;
+      }
+
+      .quick-card-info {
+        flex: 1;
+      }
+      .quick-card-title {
+        font-size: 0.88rem;
+        font-weight: 800;
+        color: #ffffff;
+        display: flex;
+        align-items: center;
+        gap: 6px;
+      }
+      .quick-card-sub {
+        font-size: 0.74rem;
+        color: var(--text-secondary);
+        margin-top: 3px;
+      }
+
+      /* MODAL */
+      .target-modal {
+        position: fixed;
+        inset: 0;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        background: rgba(2, 6, 14, 0.8);
+        backdrop-filter: blur(14px);
+        z-index: 80;
+      }
+      .target-modal.hidden { display: none; }
+
+      .target-modal-card {
+        width: min(560px, calc(100vw - 32px));
+        border: 1px solid var(--border-mid);
+        border-radius: 16px;
+        background: rgba(10, 16, 31, 0.98);
+        padding: 20px;
+        box-shadow: 0 24px 60px rgba(0, 0, 0, 0.8);
+      }
+
+      .target-modal-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 16px;
+      }
+
+      .target-modal-title {
+        font-size: 1.1rem;
+        font-weight: 800;
+        color: #ffffff;
+      }
+
+      .target-modal-grid {
+        display: grid;
+        gap: 8px;
+        max-height: 400px;
+        overflow-y: auto;
+      }
+
+      .target-modal-row {
+        padding: 8px 12px;
+        border: 1px solid rgba(255, 255, 255, 0.05);
+        border-radius: 8px;
+        background: rgba(13, 20, 38, 0.85);
+      }
+      .target-modal-row strong {
+        display: block;
+        font-size: 0.65rem;
+        letter-spacing: 0.06em;
+        text-transform: uppercase;
+        color: var(--text-muted);
+        margin-bottom: 2px;
+      }
+
+      @media (max-width: 1024px) {
+        .layout {
+          grid-template-columns: 1fr;
+        }
+        .graph-panel {
+          position: static;
+          min-height: 540px;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <div class="container">
+      <!-- TOPBAR -->
+      <header class="topbar">
+        <div class="brand-wrap">
+          <div class="brand-logo">🧬</div>
+          <div>
+            <div class="brand-title" id="topbarTitle">Compound Intelligence</div>
+          </div>
+          <span class="brand-tag">PK/PD Engine</span>
+        </div>
+
+        <nav class="nav-links">
+          <a href="/admin" class="nav-link">← Catalog</a>
+          <a href="/graph" class="nav-link">Knowledge Graph</a>
+          <a href="#" id="openInGraphBtn" class="nav-link btn-primary">Open in Graph Studio ↗</a>
+        </nav>
+      </header>
+
+      <!-- SPLIT WORKSPACE -->
+      <div class="layout">
+        <!-- LEFT: COMPOUND CLINICAL & ADMET DATA -->
+        <main class="panel" id="compoundMain">
+          <div id="compoundLoading" style="color:var(--text-muted); font-size:0.9rem;">Loading compound data…</div>
+          <div id="compoundError" style="color:var(--danger); display:none;"></div>
+
+          <div id="compoundContent" style="display:none;">
+            <!-- HERO -->
+            <div class="hero">
+              <div>
+                <h1 id="compoundName" class="hero-title">Compound</h1>
+                <div id="compoundSubtitle" class="subtitle"></div>
+                <div id="compoundTags" class="meta-row"></div>
+              </div>
+              <div class="risk-badge-box">
+                <label>Risk Band</label>
+                <strong id="compoundRisk">—</strong>
+              </div>
+            </div>
+
+            <!-- PHARMACOKINETICS ADMET PROFILE -->
+            <div class="section-heading">💊 Pharmacokinetics & ADMET Dynamics</div>
+            <div class="detail-grid" id="pkOverviewGrid"></div>
+
+            <!-- CYP & TRANSPORTER METABOLISM PROFILE -->
+            <div class="section-heading">🧬 Hepatic Metabolism & Transporters</div>
+            <div class="detail-grid" id="cypTransporterGrid"></div>
+
+            <!-- CHEMICAL PROPERTIES -->
+            <div class="section-heading">🧪 Physicochemical Properties</div>
+            <div class="detail-grid" id="physicochemicalGrid"></div>
+
+            <!-- MECHANISM OF ACTION -->
+            <div class="list-box">
+              <div class="header">
+                <span>⚡ Pharmacodynamic Mechanism</span>
+              </div>
+              <div class="body">
+                <div id="compoundMechanism"></div>
+              </div>
+            </div>
+
+            <!-- RECEPTOR TARGETS -->
+            <div class="list-box">
+              <div class="header">
+                <span>🎯 Molecular Targets & Receptors</span>
+              </div>
+              <div class="body compact">
+                <div id="compoundTargets" class="target-links"></div>
+              </div>
+            </div>
+
+            <!-- INDICATIONS -->
+            <div class="list-box">
+              <div class="header">
+                <span>📋 Clinical Indications</span>
+              </div>
+              <div class="body compact">
+                <ul id="compoundIndications" class="bullet-list"></ul>
+              </div>
+            </div>
+
+            <!-- WARNINGS -->
+            <div class="list-box">
+              <div class="header" style="color:#fca5a5;">
+                <span>⚠️ Safety Warnings & Precautions</span>
+              </div>
+              <div class="body compact">
+                <ul id="compoundWarnings" class="bullet-list"></ul>
+              </div>
+            </div>
+
+            <!-- SIDE EFFECTS & INTERACTIONS -->
+            <div class="list-box">
+              <div class="header">
+                <span>⚡ Adverse Effects</span>
+              </div>
+              <div class="body compact">
+                <ul id="compoundSideEffects" class="bullet-list"></ul>
+              </div>
+            </div>
+
+            <div class="list-box">
+              <div class="header">
+                <span>🔄 Known Drug-Drug Interactions</span>
+              </div>
+              <div class="body compact">
+                <ul id="compoundInteractions" class="bullet-list"></ul>
+              </div>
+            </div>
+          </div>
+        </main>
+
+        <!-- RIGHT: INTERACTIVE PK/PD NEIGHBORHOOD GRAPH -->
+        <aside class="panel graph-panel">
+          <div class="graph-header">
+            <div class="graph-title-wrap">
+              <span style="font-size:1.1rem;">🧬</span>
+              <h2 class="graph-title">PK/PD Interaction Network</h2>
+            </div>
+
+            <div class="graph-toolbar">
+              <select id="layoutSelect" class="select-custom" title="Layout Engine">
+                <option value="tier_flow" selected>⚡ Cascade Tier Flow</option>
+                <option value="concentric">🎯 Concentric Radar</option>
+                <option value="cose">🌐 Physics Network (COSE)</option>
+                <option value="breadthfirst">🌲 Hierarchy (Tree)</option>
+                <option value="circle">⭕ Circular Ring</option>
+              </select>
+
+              <button id="btnSimulateFlow" class="btn-icon btn-flow" title="Simulate signal and clearance wave">
+                ⚡ Simulate Flow
+              </button>
+              <button id="zoomIn" class="btn-icon" title="Zoom In">+</button>
+              <button id="zoomOut" class="btn-icon" title="Zoom Out">−</button>
+              <button id="fitView" class="btn-icon" title="Fit to Screen">Fit</button>
+            </div>
+          </div>
+
+          <!-- PK/PD FILTER PILLS -->
+          <div class="graph-filter-matrix">
+            <button class="filter-btn active" data-filter="all">All Interactions</button>
+            <button class="filter-btn" data-filter="pd">⚡ Pharmacodynamics (PD)</button>
+            <button class="filter-btn" data-filter="pk">💊 Pharmacokinetics (PK)</button>
+            <button class="filter-btn" data-filter="outcomes">📊 Biomarkers & Outcomes</button>
+          </div>
+
+          <!-- CANVAS WRAPPER -->
+          <div class="graph-wrap">
+            <div id="compoundGraph" class="graph-canvas" aria-label="Compound PK/PD interaction graph"></div>
+
+            <!-- QUICK INSPECTOR CARD -->
+            <div id="quickCard" class="quick-card hidden">
+              <div class="quick-card-info">
+                <div class="quick-card-title" id="quickCardTitle">Node</div>
+                <div class="quick-card-sub" id="quickCardSub">Details</div>
+              </div>
+              <button id="quickCardDetailBtn" class="btn-icon btn-flow" style="height:30px; padding:0 10px;">
+                Inspect Details
+              </button>
+            </div>
+          </div>
+
+          <div class="graph-meta-bar">
+            <span id="graphSummary">Loading PK/PD network…</span>
+            <span style="color:#38bdf8;">High-DPI Razor-Sharp Engine</span>
+          </div>
+        </aside>
+      </div>
+    </div>
+
+    <!-- TARGET DETAILS MODAL -->
+    <div id="targetInfoModal" class="target-modal hidden" aria-live="polite">
+      <div class="target-modal-card">
+        <div class="target-modal-header">
+          <h3 id="targetModalTitle" class="target-modal-title">Target details</h3>
+          <button type="button" id="targetModalClose" class="btn-icon">✕ Close</button>
+        </div>
+        <div id="targetModalContent" class="target-modal-grid"></div>
+      </div>
+    </div>
+
+    <!-- CYTOSCAPE HIGH-PERFORMANCE ENGINE -->
+    <script src="https://cdn.jsdelivr.net/npm/cytoscape@3.29.0/dist/cytoscape.min.js"></script>
+    <script>
+      const compoundKey = decodeURIComponent(window.location.pathname.split('/').filter(Boolean).slice(-1)[0] || '');
+      const compoundLoading = document.getElementById('compoundLoading');
+      const compoundError = document.getElementById('compoundError');
+      const compoundContent = document.getElementById('compoundContent');
+      const targetInfoModal = document.getElementById('targetInfoModal');
+      const targetModalClose = document.getElementById('targetModalClose');
+      const layoutSelect = document.getElementById('layoutSelect');
+      const btnSimulateFlow = document.getElementById('btnSimulateFlow');
+      const openInGraphBtn = document.getElementById('openInGraphBtn');
+      const quickCard = document.getElementById('quickCard');
+      const quickCardTitle = document.getElementById('quickCardTitle');
+      const quickCardSub = document.getElementById('quickCardSub');
+      const quickCardDetailBtn = document.getElementById('quickCardDetailBtn');
+      const filterBtns = document.querySelectorAll('.filter-btn');
+
+      const nodeColors = {
+        compound: '#00f2fe',
+        receptor: '#ff4b72',
+        enzyme: '#f59e0b',
+        transporter: '#fb923c',
+        ion_channel: '#ef4444',
+        signaling_pathway: '#a855f7',
+        physiology: '#38bdf8',
+        biomarker: '#10b981',
+        phenotype: '#f43f5e',
+        reaction: '#f97316',
+        carrier_protein: '#14b8a6',
+        target: '#ff4b72',
+        default: '#94a3b8'
+      };
+
+      const state = {
+        compound: null,
+        rawNodes: [],
+        rawEdges: [],
+        filterMode: 'all',
+        cy: null,
+        selectedNode: null,
+        simulating: false,
+      };
+
+      function colorForNode(nodeType) {
+        return nodeColors[nodeType] || nodeColors.default;
+      }
+
+      function asList(value) {
+        if (Array.isArray(value)) return value.filter(item => item !== null && item !== undefined && item !== '');
+        if (typeof value === 'string') {
+          return value.split(',').map(item => item.trim()).filter(Boolean);
+        }
+        return [];
+      }
+
+      function safeText(value) {
+        return value === null || value === undefined || value === 'None' ? '—' : String(value);
+      }
+
+      function renderCompound(compound) {
+        state.compound = compound;
+        document.getElementById('topbarTitle').textContent = compound.name || compound.key || 'Compound Intelligence';
+        document.getElementById('compoundName').textContent = compound.name || compound.key || 'Compound';
+        document.getElementById('compoundSubtitle').textContent = compound.canonical_name || compound.name || 'No canonical name recorded';
+        document.getElementById('compoundRisk').textContent = compound.risk_band || 'LOW';
+
+        const riskBox = document.querySelector('.risk-badge-box');
+        const rb = (compound.risk_band || '').toUpperCase();
+        if (rb.includes('SEVERE') || rb.includes('HIGH') || rb.includes('CRITICAL')) {
+          riskBox.style.borderColor = 'rgba(255, 75, 114, 0.45)';
+          riskBox.style.background = 'rgba(255, 75, 114, 0.1)';
+          riskBox.querySelector('strong').style.color = '#ff4b72';
+        } else if (rb.includes('MODERATE') || rb.includes('ELEVATED')) {
+          riskBox.style.borderColor = 'rgba(245, 158, 11, 0.45)';
+          riskBox.style.background = 'rgba(245, 158, 11, 0.1)';
+          riskBox.querySelector('strong').style.color = '#f59e0b';
+        } else {
+          riskBox.style.borderColor = 'rgba(16, 185, 129, 0.45)';
+          riskBox.style.background = 'rgba(16, 185, 129, 0.1)';
+          riskBox.querySelector('strong').style.color = '#10b981';
+        }
+
+        const tags = [];
+        if (compound.drug_class) tags.push(compound.drug_class);
+        if (compound.compound_class) tags.push(compound.compound_class);
+        if (compound.route_of_administration) tags.push(compound.route_of_administration);
+        if (compound.evidence_level) tags.push(`Evidence: ${compound.evidence_level}`);
+
+        document.getElementById('compoundTags').innerHTML = tags.length
+          ? tags.map(tag => `<span class="pill">${tag}</span>`).join('')
+          : '<span class="pill">Unclassified Molecule</span>';
+
+        document.getElementById('compoundMechanism').textContent = compound.mechanism || 'No pharmacodynamic mechanism recorded.';
+
+        // PK & ADMET Grid
+        const pkRows = [
+          ['Elimination Half-Life', compound.half_life || '—'],
+          ['Oral Bioavailability', compound.oral_bioavailability || compound.bioavailability_pct ? `${compound.oral_bioavailability || compound.bioavailability_pct}%` : '—'],
+          ['Volume of Distribution (Vd)', compound.volume_of_distribution || '—'],
+          ['Plasma Protein Binding', compound.protein_binding || compound.protein_binding_pct ? `${compound.protein_binding || compound.protein_binding_pct}%` : '—'],
+          ['Clearance Routes', compound.clearance_routes || compound.clearance || '—'],
+          ['Therapeutic Precision', compound.is_narrow_therapeutic_index ? '⚠️ Narrow Therapeutic Index (NTI)' : 'Standard Margin'],
+        ];
+        document.getElementById('pkOverviewGrid').innerHTML = pkRows.map(([lbl, val]) => `
+          <div class="info-box" style="${lbl.includes('Narrow') && val.includes('Narrow') ? 'border-color:var(--warning);background:rgba(245,158,11,0.08);' : ''}">
+            <label>${lbl}</label>
+            <div class="value">${safeText(val)}</div>
+          </div>
+        `).join('');
+
+        // CYP & Transporter Grid
+        const formatObj = (obj) => {
+          if (!obj || typeof obj !== 'object') return 'None recorded';
+          const parts = [];
+          if (obj.substrates && obj.substrates.length) parts.push(`Substrates: ${obj.substrates.join(', ')}`);
+          if (obj.inhibitors && obj.inhibitors.length) parts.push(`Inhibits: ${obj.inhibitors.join(', ')}`);
+          if (obj.inducers && obj.inducers.length) parts.push(`Induces: ${obj.inducers.join(', ')}`);
+          return parts.length ? parts.join(' • ') : 'None active';
+        };
+
+        const cypRows = [
+          ['CYP450 Metabolism', formatObj(compound.cyp_enzymes)],
+          ['Membrane Transporters', formatObj(compound.transporters)],
+          ['Phase II Conjugation', formatObj(compound.phase2_enzymes)],
+        ];
+        document.getElementById('cypTransporterGrid').innerHTML = cypRows.map(([lbl, val]) => `
+          <div class="info-box" style="grid-column: span 1;">
+            <label>${lbl}</label>
+            <div class="value">${safeText(val)}</div>
+          </div>
+        `).join('');
+
+        // Physicochemical Grid
+        const chemRows = [
+          ['Canonical InChIKey', compound.inchikey || '—'],
+          ['LogP (Lipophilicity)', compound.logp !== null && compound.logp !== undefined ? compound.logp : '—'],
+          ['Polar Surface (TPSA)', compound.tpsa !== null && compound.tpsa !== undefined ? `${compound.tpsa} Å²` : '—'],
+          ['Molecular Weight', compound.molecular_weight !== null && compound.molecular_weight !== undefined ? `${compound.molecular_weight} g/mol` : '—'],
+          ['Canonical SMILES', compound.smiles || '—'],
+        ];
+        document.getElementById('physicochemicalGrid').innerHTML = chemRows.map(([lbl, val]) => `
+          <div class="info-box" style="${lbl.includes('SMILES') ? 'grid-column: 1 / -1;' : ''}">
+            <label>${lbl}</label>
+            <div class="value" style="${lbl.includes('SMILES') || lbl.includes('InChI') ? 'font-family:\'JetBrains Mono\',monospace; font-size:0.75rem;' : ''}">
+              ${safeText(val)}
+            </div>
+          </div>
+        `).join('');
+
+        // Target Pills
+        renderTargetPills(compound);
+        renderList('compoundIndications', compound.indications);
+        renderList('compoundWarnings', compound.warnings);
+        renderList('compoundSideEffects', compound.side_effects);
+        renderList('compoundInteractions', compound.interactions);
+
+        // Deep-link to Knowledge Graph
+        openInGraphBtn.href = `/graph?stack=${encodeURIComponent(compound.key || compound.name)}&focus=${encodeURIComponent(compound.key || compound.name)}`;
+
+        compoundContent.style.display = 'block';
+      }
+
+      function renderTargetPills(compound) {
+        const targetField = document.getElementById('compoundTargets');
+        const targets = Array.isArray(compound.receptor_targets) ? compound.receptor_targets : [];
+
+        if (!targets.length) {
+          targetField.innerHTML = '<span class="pill">No primary targets recorded</span>';
+          return;
+        }
+
+        targetField.innerHTML = targets.map((target, index) => {
+          const label = typeof target === 'string' ? target : (target.name || target.gene || target.target || `Target ${index + 1}`);
+          const action = typeof target === 'object' && target.action ? ` (${target.action})` : '';
+          return `<button type="button" class="target-link" data-target-index="${index}">${label}${action}</button>`;
+        }).join('');
+
+        targetField.querySelectorAll('.target-link').forEach((button) => {
+          button.addEventListener('click', () => {
+            const index = Number(button.dataset.targetIndex || 0);
+            const target = targets[index];
+            openTargetModal(target);
+          });
+        });
+      }
+
+      function renderList(targetId, items) {
+        const list = document.getElementById(targetId);
+        const values = asList(items);
+        if (!values.length) {
+          list.innerHTML = '<li>None recorded.</li>';
+          return;
+        }
+        list.innerHTML = values.map(value => `<li>${safeText(typeof value === 'string' ? value : JSON.stringify(value, null, 2))}</li>`).join('');
+      }
+
+      function openTargetModal(target) {
+        const modalTitle = document.getElementById('targetModalTitle');
+        const modalContent = document.getElementById('targetModalContent');
+
+        if (!target) {
+          targetInfoModal.classList.add('hidden');
+          return;
+        }
+
+        const detail = typeof target === 'string' ? { name: target } : target;
+        const rows = [
+          ['Name', detail.name || detail.target || detail.label || 'Molecular Target'],
+          ['Category / Class', detail.category || detail.type || detail.target_type || detail.receptor_family || detail.enzyme_family || '—'],
+          ['Pharmacological Action', detail.action || detail.mechanism || '—'],
+          ['Binding Affinity (Ki)', detail.affinity_ki ? `${detail.affinity_ki} nM` : '—'],
+          ['Inhibitory Potency (IC50)', detail.inhibition_ic50 ? `${detail.inhibition_ic50} nM` : '—'],
+          ['Organ System / Panel', detail.organ_system || detail.biomarker_panel || '—'],
+          ['Biological Summary', detail.notes || detail.summary || detail.description || '—'],
+        ];
+
+        modalTitle.textContent = detail.name || detail.target || detail.label || 'Target Details';
+        modalContent.innerHTML = rows.map(([label, value]) => `
+          <div class="target-modal-row">
+            <strong>${label}</strong>
+            <div style="font-size:0.82rem; line-height:1.4; color:var(--text-primary);">${safeText(value)}</div>
+          </div>
+        `).join('');
+
+        targetInfoModal.classList.remove('hidden');
+      }
+
+      targetModalClose.addEventListener('click', () => targetInfoModal.classList.add('hidden'));
+      targetInfoModal.addEventListener('click', (event) => {
+        if (event.target === targetInfoModal) targetInfoModal.classList.add('hidden');
+      });
+
+      // ==========================================================================
+      // CYTOSCAPE HIGH-DPI PK/PD GRAPH RENDERING
+      // ==========================================================================
+      function filterGraphElements() {
+        const mode = state.filterMode;
+        if (mode === 'all') {
+          return { nodes: state.rawNodes, edges: state.rawEdges };
+        }
+
+        let filteredNodes = [];
+        if (mode === 'pd') {
+          filteredNodes = state.rawNodes.filter(n => n.node_type === 'compound' || n.pk_pd_class === 'PD' || n.node_type === 'receptor' || n.node_type === 'signaling_pathway' || n.node_type === 'physiology' || n.node_type === 'biomarker' || n.node_type === 'phenotype');
+        } else if (mode === 'pk') {
+          filteredNodes = state.rawNodes.filter(n => n.node_type === 'compound' || n.pk_pd_class === 'PK' || n.node_type === 'enzyme' || n.node_type === 'transporter');
+        } else if (mode === 'outcomes') {
+          filteredNodes = state.rawNodes.filter(n => n.node_type === 'compound' || n.node_type === 'biomarker' || n.node_type === 'phenotype' || n.node_type === 'physiology');
+        }
+
+        const validIds = new Set(filteredNodes.map(n => n.id));
+        const filteredEdges = state.rawEdges.filter(e => validIds.has(e.source) && validIds.has(e.target));
+
+        return { nodes: filteredNodes, edges: filteredEdges };
+      }
+
+      function ensureCytoscape() {
+        const container = document.getElementById('compoundGraph');
+        if (!container || !window.cytoscape) return null;
+        if (state.cy) return state.cy;
+
+        const dpr = Math.max(window.devicePixelRatio || 1, 2);
+
+        state.cy = window.cytoscape({
+          container,
+          pixelRatio: dpr,
+          textureOnViewport: false,
+          motionBlur: false,
+          hideEdgesOnViewport: false,
+          style: [
+            {
+              selector: 'node',
+              style: {
+                'background-color': ele => colorForNode(ele.data('node_type')),
+                'label': ele => ele.data('label') || ele.data('id'),
+                'font-family': 'Plus Jakarta Sans, -apple-system, sans-serif',
+                'font-size': '11px',
+                'font-weight': '700',
+                'text-wrap': 'wrap',
+                'text-max-width': '110px',
+                'color': '#f8fafc',
+                
+                // Crisp Badge Box Styling
+                'text-background-opacity': 0.88,
+                'text-background-color': '#070d19',
+                'text-background-padding': '3px 5px',
+                'text-background-shape': 'roundrectangle',
+                'text-border-width': 1,
+                'text-border-color': ele => colorForNode(ele.data('node_type')),
+                'text-border-opacity': 0.6,
+                'text-margin-y': 5,
+                'text-valign': 'bottom',
+                'text-halign': 'center',
+
+                'border-width': 2.5,
+                'border-color': ele => ele.data('node_type') === 'compound' ? '#ffffff' : 'rgba(255,255,255,0.7)',
+                'width': ele => ele.data('node_type') === 'compound' ? 46 : (ele.data('node_type') === 'biomarker' ? 32 : 36),
+                'height': ele => ele.data('node_type') === 'compound' ? 46 : (ele.data('node_type') === 'biomarker' ? 32 : 36),
+                'shape': ele => {
+                  const type = ele.data('node_type');
+                  if (type === 'compound') return 'ellipse';
+                  if (type === 'signaling_pathway') return 'diamond';
+                  if (type === 'biomarker' || type === 'physiology') return 'round-rectangle';
+                  if (type === 'phenotype') return 'hexagon';
+                  if (type === 'transporter') return 'round-tag';
+                  return 'ellipse';
+                },
+                'shadow-blur': 14,
+                'shadow-color': ele => colorForNode(ele.data('node_type')),
+                'shadow-opacity': 0.45,
+                'min-zoomed-font-size': 5,
+                'transition-property': 'background-color, border-color, shadow-blur, opacity',
+                'transition-duration': '0.2s',
+              }
+            },
+            {
+              selector: 'edge',
+              style: {
+                'curve-style': 'bezier',
+                'target-arrow-shape': 'triangle',
+                'arrow-scale': 1.1,
+                'line-color': edge => {
+                  const dir = edge.data('direction_class');
+                  const isBridge = edge.data('is_bridge');
+                  if (isBridge) return '#c084fc';
+                  if (dir === 'negative') return '#ff4b72';
+                  if (dir === 'allosteric') return '#f59e0b';
+                  if (dir === 'metabolic') return '#fb923c';
+                  return '#00f2fe';
+                },
+                'target-arrow-color': edge => {
+                  const dir = edge.data('direction_class');
+                  const isBridge = edge.data('is_bridge');
+                  if (isBridge) return '#c084fc';
+                  if (dir === 'negative') return '#ff4b72';
+                  if (dir === 'allosteric') return '#f59e0b';
+                  if (dir === 'metabolic') return '#fb923c';
+                  return '#00f2fe';
+                },
+                'line-style': edge => {
+                  const dir = edge.data('direction_class');
+                  if (dir === 'negative') return 'dashed';
+                  if (edge.data('is_bridge')) return 'dotted';
+                  return 'solid';
+                },
+                'width': 2.0,
+                'label': 'data(type)',
+                'font-family': 'JetBrains Mono, monospace',
+                'font-size': '8.5px',
+                'font-weight': '600',
+                'color': '#cbd5e1',
+                'text-background-opacity': 0.85,
+                'text-background-color': '#060a14',
+                'text-background-padding': '2px 4px',
+                'text-background-shape': 'roundrectangle',
+                'text-border-width': 0.8,
+                'text-border-color': 'rgba(255,255,255,0.15)',
+                'text-rotation': 'autorotate',
+                'min-zoomed-font-size': 7,
+              }
+            },
+            {
+              selector: 'node:selected, .highlighted',
+              style: {
+                'border-width': 4,
+                'border-color': '#00f2fe',
+                'shadow-blur': 25,
+                'shadow-color': '#00f2fe',
+                'shadow-opacity': 0.9,
+              }
+            },
+            {
+              selector: '.faded',
+              style: {
+                'opacity': 0.14,
+              }
+            }
+          ],
+          zoomingEnabled: true,
+          userZoomingEnabled: true,
+          panningEnabled: true,
+          userPanningEnabled: true,
+          minZoom: 0.15,
+          maxZoom: 3.5,
+          wheelSensitivity: 0.14,
+          padding: 35,
+        });
+
+        // Hover effect
+        state.cy.on('mouseover', 'node', event => {
+          const selNode = event.target;
+          const neighborhood = selNode.neighborhood().add(selNode);
+          state.cy.elements().addClass('faded');
+          neighborhood.removeClass('faded');
+        });
+
+        state.cy.on('mouseout', 'node', () => {
+          state.cy.elements().removeClass('faded');
+        });
+
+        // Tap node to show quick card
+        state.cy.on('tap', 'node', event => {
+          const nodeId = event.target.id();
+          const nodeData = event.target.data();
+          state.selectedNode = nodeData;
+
+          quickCardTitle.innerHTML = `<span style="color:${colorForNode(nodeData.node_type)};">●</span> ${nodeData.label || nodeId}`;
+          quickCardSub.textContent = `Tier ${nodeData.tier !== undefined ? nodeData.tier : 1}: ${nodeData.tier_name || 'Target'} • ${(nodeData.node_type || 'Node').toUpperCase()} ${nodeData.pk_pd_class ? `[${nodeData.pk_pd_class}]` : ''}`;
+          quickCard.classList.remove('hidden');
+        });
+
+        state.cy.on('tap', event => {
+          if (event.target === state.cy) {
+            state.selectedNode = null;
+            quickCard.classList.add('hidden');
+          }
+        });
+
+        return state.cy;
+      }
+
+      quickCardDetailBtn.addEventListener('click', () => {
+        if (state.selectedNode) {
+          openTargetModal(state.selectedNode);
+        }
+      });
+
+      // CASCADE TIER FLOW LAYOUT
+      function applyTierFlowLayout(cy) {
+        const nodes = cy.nodes();
+        if (!nodes.length) return;
+
+        const tiers = { 0: [], 1: [], 2: [], 3: [], 4: [], 5: [] };
+        nodes.forEach(node => {
+          const tier = node.data('tier') !== undefined ? node.data('tier') : 1;
+          const bucket = Math.min(5, Math.max(0, tier));
+          tiers[bucket].push(node);
+        });
+
+        const columnWidth = 190;
+        const startX = 40;
+        const centerY = 260;
+
+        cy.batch(() => {
+          for (let t = 0; t <= 5; t++) {
+            const group = tiers[t];
+            if (!group || !group.length) continue;
+
+            const colX = startX + (t * columnWidth);
+            const totalInCol = group.length;
+            const spacingY = Math.min(85, Math.max(50, 480 / Math.max(totalInCol, 1)));
+            const colHeight = (totalInCol - 1) * spacingY;
+            const topY = centerY - (colHeight / 2);
+
+            group.forEach((node, idx) => {
+              const jitterX = (idx % 2 === 1) ? 10 : -10;
+              node.position({
+                x: colX + jitterX,
+                y: topY + (idx * spacingY)
+              });
+            });
+          }
+        });
+
+        cy.fit(undefined, 35);
+      }
+
+      function renderGraph() {
+        const cy = ensureCytoscape();
+        if (!cy) return;
+
+        const { nodes, edges } = filterGraphElements();
+
+        cy.elements().remove();
+        cy.add({
+          nodes: nodes.map(n => ({
+            data: {
+              id: n.id,
+              label: n.label || n.id,
+              node_type: n.node_type || 'default',
+              tier: n.tier,
+              tier_name: n.tier_name,
+              pk_pd_class: n.pk_pd_class,
+              category: n.category,
+              affinity_ki: n.affinity_ki,
+              inhibition_ic50: n.inhibition_ic50,
+              organ_system: n.organ_system,
+              biomarker_panel: n.biomarker_panel,
+            }
+          })),
+          edges: edges.map(e => ({
+            data: {
+              id: `${e.source}->${e.target}`,
+              source: e.source,
+              target: e.target,
+              type: e.type || 'MODULATES',
+              direction_class: e.direction_class || 'positive',
+              is_bridge: e.is_bridge,
+            }
+          }))
+        });
+
+        const layoutName = layoutSelect.value || 'tier_flow';
+
+        if (layoutName === 'tier_flow') {
+          applyTierFlowLayout(cy);
+        } else {
+          const layoutOptions = {
+            name: layoutName,
+            padding: 35,
+            animate: true,
+            animationDuration: 300,
+            nodeDimensionsIncludeLabels: true,
+          };
+
+          if (layoutName === 'concentric') {
+            layoutOptions.concentric = ele => 6 - (ele.data('tier') || 1);
+            layoutOptions.levelWidth = () => 1;
+          } else if (layoutName === 'cose') {
+            layoutOptions.nodeRepulsion = 3800;
+            layoutOptions.idealEdgeLength = 80;
+          } else if (layoutName === 'breadthfirst') {
+            layoutOptions.directed = true;
+            layoutOptions.spacingFactor = 1.3;
+          }
+
+          const layout = cy.layout(layoutOptions);
+          layout.run();
+          cy.fit(undefined, 35);
+        }
+
+        document.getElementById('graphSummary').textContent = `${nodes.length} connected entities • ${edges.length} interactions • ${layoutName.toUpperCase()}`;
+      }
+
+      // SIMULATE CASCADE SIGNAL FLOW
+      btnSimulateFlow.addEventListener('click', () => {
+        if (!state.cy || state.simulating) return;
+        state.simulating = true;
+        btnSimulateFlow.classList.add('active');
+        btnSimulateFlow.textContent = '🌊 Propagating…';
+
+        const cy = state.cy;
+        let step = 0;
+        cy.elements().removeClass('highlighted').addClass('faded');
+
+        const interval = setInterval(() => {
+          if (step > 5) {
+            clearInterval(interval);
+            setTimeout(() => {
+              cy.elements().removeClass('faded').removeClass('highlighted');
+              state.simulating = false;
+              btnSimulateFlow.classList.remove('active');
+              btnSimulateFlow.textContent = '⚡ Simulate Flow';
+            }, 500);
+            return;
+          }
+
+          const currentNodes = cy.nodes().filter(n => (n.data('tier') || 0) === step);
+          const currentEdges = cy.edges().filter(e => (e.source().data('tier') || 0) === step - 1 || (e.source().data('tier') || 0) === step);
+
+          currentNodes.removeClass('faded').addClass('highlighted');
+          currentEdges.removeClass('faded').addClass('highlighted');
+          step++;
+        }, 350);
+      });
+
+      // FILTER BUTTONS
+      filterBtns.forEach(btn => {
+        btn.addEventListener('click', () => {
+          filterBtns.forEach(b => b.classList.remove('active'));
+          btn.classList.add('active');
+          state.filterMode = btn.dataset.filter;
+          renderGraph();
+        });
+      });
+
+      layoutSelect.addEventListener('change', () => renderGraph());
+      document.getElementById('zoomIn').addEventListener('click', () => {
+        if (!state.cy) return;
+        state.cy.zoom(state.cy.zoom() + 0.25);
+      });
+      document.getElementById('zoomOut').addEventListener('click', () => {
+        if (!state.cy) return;
+        state.cy.zoom(state.cy.zoom() - 0.25);
+      });
+      document.getElementById('fitView').addEventListener('click', () => {
+        if (state.cy) {
+          state.cy.fit(undefined, 35);
+          state.cy.center();
+        }
+      });
+
+      function loadGraph(compound) {
+        const key = compound.key || compound.name;
+        if (!key) {
+          document.getElementById('graphSummary').textContent = 'No graph data available.';
+          return;
+        }
+
+        fetch(`/graph-data?stack=${encodeURIComponent(key)}&depth=5`, { cache: 'no-store' })
+          .then((response) => response.json())
+          .then((data) => {
+            state.rawNodes = Array.isArray(data.nodes) ? data.nodes : [];
+            state.rawEdges = Array.isArray(data.edges) ? data.edges : [];
+            renderGraph();
+          })
+          .catch((error) => {
+            console.error('Graph load error', error);
+            document.getElementById('graphSummary').textContent = 'Unable to render graph for this compound.';
+          });
+      }
+
+      // INITIAL FETCH
+      fetch(`/catalog/${encodeURIComponent(compoundKey)}`)
+        .then((response) => {
+          if (!response.ok) throw new Error('Compound not found');
+          return response.json();
+        })
+        .then((compound) => {
+          compoundLoading.style.display = 'none';
+          renderCompound(compound);
+          loadGraph(compound);
+        })
+        .catch((error) => {
+          compoundLoading.style.display = 'none';
+          compoundError.style.display = 'block';
+          compoundError.textContent = 'Unable to load this compound. Please return to the catalog and select a valid entry.';
+          console.error('Failed to fetch compound details', error);
+        });
+    </script>
+  </body>
+</html>

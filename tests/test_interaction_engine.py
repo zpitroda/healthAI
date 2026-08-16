@@ -1,0 +1,202 @@
+import pytest
+from app.services.interaction_engine import InteractionEngine
+
+
+def test_empty_stack_returns_zero_risk():
+    engine = InteractionEngine()
+    result = engine.analyze_stack([])
+    assert result["cumulative_risk_score"] == 0
+    assert result["risk_band"] == "MINIMAL"
+    assert result["conflict_count"] == 0
+    assert result["matrix"] == []
+
+
+def test_caffeine_and_theanine_synergy_detected():
+    engine = InteractionEngine()
+    caffeine = {
+        "key": "caffeine",
+        "name": "Caffeine",
+        "synergies": [{"partner": "theanine", "effect": "Cognitive Focus"}],
+        "cyp_enzymes": {"substrates": ["CYP1A2"], "inhibitors": ["CYP1A2"], "inducers": []},
+        "organ_burdens": {"cns_stimulant": "high", "cardiovascular": "moderate"},
+    }
+    theanine = {
+        "key": "theanine",
+        "name": "L-Theanine",
+        "synergies": [],
+        "cyp_enzymes": {"substrates": [], "inhibitors": [], "inducers": []},
+        "organ_burdens": {"sedative": "low"},
+    }
+
+    result = engine.analyze_stack([caffeine, theanine])
+    assert result["synergy_count"] >= 1
+    assert result["cumulative_risk_score"] <= 15
+    assert result["risk_band"] in {"MINIMAL", "LOW"}
+
+    assert len(result["matrix"]) == 2
+    assert len(result["matrix"][0]) == 2
+    cell_01 = result["matrix"][0][1]
+    assert cell_01["severity"] == "SYNERGISTIC"
+
+
+def test_cyp_collision_between_inhibitor_and_substrate():
+    engine = InteractionEngine()
+    inhibitor = {
+        "key": "berberine",
+        "name": "Berberine",
+        "cyp_enzymes": {"substrates": ["CYP3A4"], "inhibitors": ["CYP3A4", "CYP2D6"], "inducers": []},
+        "organ_burdens": {"hepatic": "moderate"},
+    }
+    substrate = {
+        "key": "simvastatin",
+        "name": "Simvastatin",
+        "cyp_enzymes": {"substrates": ["CYP3A4"], "inhibitors": [], "inducers": []},
+        "organ_burdens": {"hepatic": "moderate"},
+    }
+
+    result = engine.analyze_stack([inhibitor, substrate])
+    assert len(result["breakdown"]["cyp_conflicts"]) >= 1
+    cyp_conflict = result["breakdown"]["cyp_conflicts"][0]
+    assert "CYP3A4" in cyp_conflict["affected_targets"]
+    assert cyp_conflict["severity"] == "HIGH_RISK"
+
+
+def test_transporter_collision_detected():
+    engine = InteractionEngine()
+    verapamil = {
+        "key": "verapamil",
+        "name": "Verapamil",
+        "transporters": {"substrates": ["P-gp"], "inhibitors": ["P-gp"], "inducers": []},
+        "organ_burdens": {"cardiovascular": "high"},
+    }
+    digoxin = {
+        "key": "digoxin",
+        "name": "Digoxin",
+        "transporters": {"substrates": ["P-gp"], "inhibitors": [], "inducers": []},
+        "is_narrow_therapeutic_index": True,
+        "organ_burdens": {"cardiovascular": "high"},
+    }
+
+    result = engine.analyze_stack([verapamil, digoxin])
+    assert len(result["breakdown"]["transporter_conflicts"]) >= 1
+    assert any("P-gp" in c["affected_targets"] for c in result["breakdown"]["transporter_conflicts"])
+
+
+def test_serotonin_syndrome_detected():
+    engine = InteractionEngine()
+    fluoxetine = {
+        "key": "fluoxetine",
+        "name": "Fluoxetine",
+        "drug_class": "SSRI antidepressant",
+        "mechanism": "Selective serotonin reuptake inhibitor",
+    }
+    tramadol = {
+        "key": "tramadol",
+        "name": "Tramadol",
+        "drug_class": "Opioid / Serotonin releaser",
+        "mechanism": "Mu-opioid agonist and 5-HT reuptake inhibitor",
+    }
+
+    result = engine.analyze_stack([fluoxetine, tramadol])
+    assert any("Serotonin" in s["syndrome"] for s in result["breakdown"]["syndrome_alerts"])
+    assert result["cumulative_risk_score"] >= 25
+
+
+def test_renal_triple_whammy_detected():
+    engine = InteractionEngine()
+    lisinopril = {"key": "lisinopril", "name": "Lisinopril", "drug_class": "ACE Inhibitor", "mechanism": "Inhibits ACE"}
+    ibuprofen = {"key": "ibuprofen", "name": "Ibuprofen", "drug_class": "NSAID", "mechanism": "Inhibits COX-1 and COX-2"}
+    furosemide = {"key": "furosemide", "name": "Furosemide", "drug_class": "Loop Diuretic", "mechanism": "Inhibits Na-K-2Cl cotransporter"}
+
+    result = engine.analyze_stack([lisinopril, ibuprofen, furosemide])
+    assert any("Triple Whammy" in s["syndrome"] for s in result["breakdown"]["syndrome_alerts"])
+    assert result["risk_band"] in {"ELEVATED", "SEVERE"}
+
+
+def test_comprehensive_biomarker_warnings():
+    engine = InteractionEngine()
+    telmisartan = {
+        "key": "telmisartan",
+        "name": "Telmisartan",
+        "drug_class": "ARB",
+        "organ_burdens": {"renal": "moderate", "cardiovascular": "high"},
+    }
+
+    profile = {
+        "labs": {
+            "potassium_meq_l": 5.4,
+            "egfr": 42.0,
+            "alt_u_l": 82.0,
+            "blood_pressure": 150.0,
+        }
+    }
+
+    result = engine.analyze_stack([telmisartan], profile=profile)
+    warnings = result["breakdown"]["biomarker_warnings"]
+    assert len(warnings) >= 2
+    assert any("Potassium" in w["biomarker"] for w in warnings)
+    assert any("eGFR" in w["biomarker"] for w in warnings)
+
+
+def test_telmisartan_and_eplerenone_hyperkalemia_collision():
+    engine = InteractionEngine()
+    telmisartan = {
+        "key": "telmisartan",
+        "name": "Telmisartan",
+        "drug_class": "Angiotensin II Receptor Blocker (ARB)",
+        "mechanism": "Selectively antagonizes AT1 receptors",
+    }
+    eplerenone = {
+        "key": "eplerenone",
+        "name": "Eplerenone",
+        "drug_class": "Mineralocorticoid / Aldosterone Receptor Antagonist",
+        "mechanism": "Mineralocorticoid receptor antagonist",
+    }
+
+    result = engine.analyze_stack([telmisartan, eplerenone])
+    assert result["risk_band"] in {"ELEVATED", "SEVERE"}
+    assert len(result["breakdown"]["receptor_conflicts"]) >= 1
+    conflict = result["breakdown"]["receptor_conflicts"][0]
+    assert "Hyperkalemia" in conflict["title"]
+    assert any("ELECTROLYTE_DISRUPTION" in t or "DOWNSTREAM_CASCADE" in t for t in conflict["conflict_types"])
+    assert any("Hyperkalemia" in s["syndrome"] for s in result["breakdown"]["syndrome_alerts"])
+
+
+def test_pde5_and_nitrate_severe_hypotension_collision():
+    engine = InteractionEngine()
+    tadalafil = {
+        "key": "tadalafil",
+        "name": "Tadalafil",
+        "drug_class": "PDE5 Inhibitor",
+        "mechanism": "Inhibits phosphodiesterase type 5",
+    }
+    nitroglycerin = {
+        "key": "nitroglycerin",
+        "name": "Nitroglycerin",
+        "drug_class": "Nitrate vasodilator",
+        "mechanism": "Nitric oxide donor / cGMP stimulator",
+    }
+
+    result = engine.analyze_stack([tadalafil, nitroglycerin])
+    assert any(c["severity"] == "SEVERE_CONTRAINDICATION" for c in result["breakdown"]["receptor_conflicts"])
+    assert any("Hypotension" in c["title"] for c in result["breakdown"]["receptor_conflicts"])
+
+
+def test_beta_blocker_and_non_dhp_ccb_bradycardia_collision():
+    engine = InteractionEngine()
+    metoprolol = {
+        "key": "metoprolol",
+        "name": "Metoprolol",
+        "drug_class": "Beta-1 Adrenergic Receptor Blocker",
+        "mechanism": "Beta-1 blocker",
+    }
+    verapamil = {
+        "key": "verapamil",
+        "name": "Verapamil",
+        "drug_class": "Non-Dihydropyridine Calcium Channel Blocker",
+        "mechanism": "L-type calcium channel blocker",
+    }
+
+    result = engine.analyze_stack([metoprolol, verapamil])
+    assert any("Bradycardia" in c["title"] or "AV Nodal" in c["title"] for c in result["breakdown"]["receptor_conflicts"])
+    assert result["risk_band"] in {"MODERATE", "ELEVATED", "SEVERE"}

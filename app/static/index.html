@@ -1652,11 +1652,11 @@
             } else if (cell.severity === 'HIGH_RISK' || cell.severity === 'SEVERE_CONTRAINDICATION') {
               cellClass = 'cell-high';
               icon = '⚠️';
-              label = 'High Risk';
+              label = cell.ddi_auc_ratio ? `+${Math.round((cell.ddi_auc_ratio - 1) * 100)}% AUC` : 'High Risk';
             } else if (cell.severity === 'MODERATE_RISK') {
               cellClass = 'cell-moderate';
               icon = '⚡';
-              label = 'Moderate';
+              label = cell.ddi_auc_ratio ? `+${Math.round((cell.ddi_auc_ratio - 1) * 100)}% AUC` : 'Moderate';
             }
 
             html += `
@@ -1696,6 +1696,7 @@
               <span class="panel-title-badge">${item.cat}</span>
             </div>
             <p class="conflict-card-desc">${item.description}</p>
+            ${item.ddi_auc_ratio ? `<div style="font-family:'JetBrains Mono',monospace; font-size:0.78rem; color:#00f2fe; margin-top:4px;">📊 Estimated DDI Exposure Multiplier: ${item.ddi_auc_ratio}x AUC (+${Math.round((item.ddi_auc_ratio - 1) * 100)}% surge)</div>` : ''}
             ${item.clinical_recommendation ? `<div class="conflict-card-rec"><strong>Recommendation:</strong> ${item.clinical_recommendation}</div>` : ''}
           </div>
         `).join('');

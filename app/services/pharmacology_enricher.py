@@ -63,8 +63,8 @@ USAN_STEM_RULES: List[Dict[str, Any]] = [
         "tpsa": 73.2,
         "is_narrow_therapeutic_index": False,
         "targets": [
-            {"target": "Type-1 Angiotensin II Receptor (AT1)", "action": "antagonist", "family": "Renin-Angiotensin", "affinity_ki": 0.003},
-            {"target": "Peroxisome Proliferator-Activated Receptor Gamma (PPAR-gamma)", "action": "agonist", "family": "Nuclear Receptor", "affinity_ki": 4.5}
+            {"target": "Angiotensin II Type-1 Receptor (AGTR1)", "action": "antagonist", "family": "Renin-Angiotensin", "affinity_ki": 0.003},
+            {"target": "Peroxisome Proliferator-Activated Receptor Gamma (PPARG)", "action": "agonist", "family": "Nuclear Receptor", "affinity_ki": 4.5}
         ],
     },
     {
@@ -723,14 +723,16 @@ class PharmacologyEnricher:
         enriched["is_narrow_therapeutic_index"] = is_nti
 
         # Receptor Targets Merging
+        from app.services.graph_service import _normalize_target_node_id
         existing_targets = compound.get("receptor_targets") or []
         if not isinstance(existing_targets, list):
             existing_targets = []
 
         combined_targets = list(existing_targets)
         for t in matched_targets:
+            t_norm = _normalize_target_node_id(t.get("target"))
             if not any(
-                isinstance(existing, dict) and existing.get("target") == t.get("target")
+                isinstance(existing, dict) and _normalize_target_node_id(existing.get("target")) == t_norm
                 for existing in combined_targets
             ):
                 combined_targets.append(t)
@@ -742,6 +744,10 @@ class PharmacologyEnricher:
                 enriched["dosing"] = matched_dosing
             else:
                 enriched["dosing"] = {"common": 100, "unit": "mg", "frequency": "daily", "timing": "morning"}
+
+        # Structured Quantitative PK/PD Benchmark Enrichment
+        from app.services.pkpd_enricher import PKPDEnricher
+        enriched = PKPDEnricher().enrich_compound_pkpd(enriched)
 
         return enriched
 

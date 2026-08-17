@@ -596,24 +596,34 @@ class InteractionEngine:
         key_b = _normalize_name(comp_b.get("key") or comp_b.get("name"))
         name_b = comp_b.get("name") or key_b
 
-        # 1. Documented Synergies
+        # 1. Documented Synergies (Check bidirectional synergy pairing)
+        syn_item = None
         for syn in comp_a.get("synergies", []):
             if isinstance(syn, dict) and _normalize_name(syn.get("partner")) in {key_b, name_b.lower()}:
-                return {
-                    "source_key": key_a,
-                    "source_name": name_a,
-                    "target_key": key_b,
-                    "target_name": name_b,
-                    "is_self": False,
-                    "severity": "SYNERGISTIC",
-                    "severity_score": -5,
-                    "conflict_types": ["SYNERGY"],
-                    "title": f"Synergistic Mechanism: {syn.get('effect', 'Positive Pairing')}",
-                    "description": syn.get("description") or f"{name_a} and {name_b} provide mutually reinforcing physiological benefits.",
-                    "affected_targets": [r.get("target") for r in comp_a.get("receptor_targets", []) + comp_b.get("receptor_targets", []) if isinstance(r, dict)],
-                    "clinical_recommendation": "Standardized clinical dosage recommended for both compounds.",
-                    "evidence_level": "strong",
-                }
+                syn_item = syn
+                break
+        if not syn_item:
+            for syn in comp_b.get("synergies", []):
+                if isinstance(syn, dict) and _normalize_name(syn.get("partner")) in {key_a, name_a.lower()}:
+                    syn_item = syn
+                    break
+
+        if syn_item:
+            return {
+                "source_key": key_a,
+                "source_name": name_a,
+                "target_key": key_b,
+                "target_name": name_b,
+                "is_self": False,
+                "severity": "SYNERGISTIC",
+                "severity_score": -5,
+                "conflict_types": ["SYNERGY"],
+                "title": f"Synergistic Mechanism: {syn_item.get('effect', 'Positive Pairing')}",
+                "description": syn_item.get("description") or f"{name_a} and {name_b} provide mutually reinforcing physiological benefits.",
+                "affected_targets": [r.get("target") for r in comp_a.get("receptor_targets", []) + comp_b.get("receptor_targets", []) if isinstance(r, dict)],
+                "clinical_recommendation": "Standardized clinical dosage recommended for both compounds.",
+                "evidence_level": "strong",
+            }
 
         # 2. CYP450 Collisions
         cyp_a = comp_a.get("cyp_enzymes", {}) or {}
@@ -628,11 +638,19 @@ class InteractionEngine:
         cyp_collisions = overlap_a_inh_b_sub.union(overlap_b_inh_a_sub)
 
         if cyp_collisions:
+            from app.services.pkpd_engine import PKPDEngine
+            aucr_b, cmax_m_b, _ = PKPDEngine.calculate_ddi_shift(comp_b, [comp_a])
+            aucr_a, cmax_m_a, _ = PKPDEngine.calculate_ddi_shift(comp_a, [comp_b])
+            max_aucr = max(aucr_a, aucr_b)
+            max_cmax_m = max(cmax_m_a, cmax_m_b)
+
             details = []
             if overlap_a_inh_b_sub:
-                details.append(f"{name_a} inhibits {', '.join(sorted(overlap_a_inh_b_sub))}, the primary clearance pathway for {name_b}, increasing circulating {name_b} exposure.")
+                pct_surge = int(round((aucr_b - 1.0) * 100))
+                details.append(f"{name_a} inhibits {', '.join(sorted(overlap_a_inh_b_sub))}, the primary clearance pathway for {name_b}, causing an estimated +{pct_surge}% AUC surge ({round(aucr_b, 1)}x exposure).")
             if overlap_b_inh_a_sub:
-                details.append(f"{name_b} inhibits {', '.join(sorted(overlap_b_inh_a_sub))}, delaying {name_a} clearance.")
+                pct_surge = int(round((aucr_a - 1.0) * 100))
+                details.append(f"{name_b} inhibits {', '.join(sorted(overlap_b_inh_a_sub))}, delaying {name_a} clearance (+{pct_surge}% AUC surge).")
 
             is_high_risk = any(e in {"CYP3A4", "CYP2D6", "CYP2C9"} for e in cyp_collisions) or comp_a.get("is_narrow_therapeutic_index") or comp_b.get("is_narrow_therapeutic_index")
             severity = "HIGH_RISK" if is_high_risk else "MODERATE_RISK"
@@ -650,6 +668,8 @@ class InteractionEngine:
                 "affected_targets": list(cyp_collisions),
                 "clinical_recommendation": "Dose reduce the substrate compound or separate administration times by at least 4 hours.",
                 "evidence_level": "strong",
+                "ddi_auc_ratio": round(max_aucr, 2),
+                "ddi_cmax_multiplier": round(max_cmax_m, 2),
             }
 
         # 3. Transporter Collisions (P-gp, OATP1B1, BCRP, OCT2, OAT1/3)
@@ -662,6 +682,12 @@ class InteractionEngine:
 
         trans_overlap = (t_inh_a.intersection(t_sub_b)).union(t_inh_b.intersection(t_sub_a))
         if trans_overlap:
+            from app.services.pkpd_engine import PKPDEngine
+            aucr_b, cmax_m_b, _ = PKPDEngine.calculate_ddi_shift(comp_b, [comp_a])
+            aucr_a, cmax_m_a, _ = PKPDEngine.calculate_ddi_shift(comp_a, [comp_b])
+            max_aucr = max(aucr_a, aucr_b)
+            max_cmax_m = max(cmax_m_a, cmax_m_b)
+
             trans_names = ", ".join(sorted(trans_overlap))
             return {
                 "source_key": key_a,
@@ -673,10 +699,12 @@ class InteractionEngine:
                 "severity_score": 22,
                 "conflict_types": ["TRANSPORTER"],
                 "title": f"Drug Transporter Collision ({trans_names})",
-                "description": f"Transporter inhibition at {trans_names} alters intestinal efflux, tissue uptake, or renal secretion between {name_a} and {name_b}.",
+                "description": f"Transporter inhibition at {trans_names} alters intestinal efflux, tissue uptake, or renal secretion between {name_a} and {name_b} ({round(max_aucr, 1)}x exposure multiplier).",
                 "affected_targets": list(trans_overlap),
                 "clinical_recommendation": "Monitor for altered bioavailability and tissue exposure.",
                 "evidence_level": "strong",
+                "ddi_auc_ratio": round(max_aucr, 2),
+                "ddi_cmax_multiplier": round(max_cmax_m, 2),
             }
 
         # 4. Phase II Glucuronidation Collisions (UGTs)

@@ -79,3 +79,81 @@ def test_telmisartan_and_eplerenone_raas_cross_talk_connectivity():
     assert raas_path_found, "RAAS cascade cross-talk path not found"
 
 
+def test_telmisartan_target_nodes_are_deduplicated():
+    """Verify Telmisartan produces clean single AGTR1 and PPARG target nodes without duplicates."""
+    from app.services.graph_service import build_selected_compound_graph
+    from app.services.catalog_service import CatalogService
+
+    service = CatalogService()
+    graph = build_selected_compound_graph(["telmisartan"], catalog_service=service)
+
+    nodes = graph.graph.nodes
+    agtr1_nodes = [n for n in nodes if "Angiotensin" in n or "AGTR1" in n]
+    pparg_nodes = [n for n in nodes if "PPAR" in n or "PPARG" in n]
+
+    assert len(agtr1_nodes) == 1, f"Expected 1 AGTR1 node, found: {agtr1_nodes}"
+    assert len(pparg_nodes) == 1, f"Expected 1 PPARG node, found: {pparg_nodes}"
+
+
+def test_telmisartan_ppar_gamma_downstream_cascade_expansion():
+    """Verify Telmisartan expands both AGTR1 and PPAR-gamma downstream cascades to pathways, physiology, biomarkers, and phenotypes."""
+    import networkx as nx
+    from app.services.graph_service import build_selected_compound_graph
+    from app.services.catalog_service import CatalogService
+
+    service = CatalogService()
+    graph = build_selected_compound_graph(["telmisartan"], catalog_service=service)
+
+    nodes = set(graph.graph.nodes)
+    
+    # Verify PPAR-gamma target node exists
+    ppar_target = [n for n in nodes if "PPAR" in n or "PPARG" in n][0]
+    
+    # Verify PPAR-gamma downstream pathway and physiology nodes exist in graph
+    assert "pathway_ppar_signaling" in nodes, "PPAR signaling pathway node missing"
+    assert "phys_insulin_sensitization" in nodes, "Insulin sensitization physiology node missing"
+    assert "bio_hba1c" in nodes or "bio_adiponectin" in nodes, "PPAR biomarker nodes missing"
+    assert "pheno_glycemic_control" in nodes, "PPAR glycemic control phenotype node missing"
+
+    # Verify directed path from Telmisartan compound -> PPAR target -> PPAR pathway -> Insulin sensitization physiology
+    t_key = service.get_compound("telmisartan")["key"]
+    assert nx.has_path(graph.graph, t_key, "phys_insulin_sensitization"), "No directed path from Telmisartan to PPAR physiology"
+
+
+def test_unmapped_target_dynamic_fallback_cascade():
+    """Verify that unmapped targets produce dynamic fallback downstream cascades without leaving orphan target nodes."""
+    from app.knowledge_graph.graph import BiologicalGraph
+    from app.knowledge_graph.models import CompoundNode
+    from app.services.graph_service import build_selected_compound_graph
+    from app.services.catalog_service import CatalogService
+
+    # Create a custom mock catalog service with a compound having an unusual target
+    class CustomCatalogService(CatalogService):
+        def get_compound(self, key: str):
+            if key == "novel_compound":
+                return {
+                    "key": "novel_compound",
+                    "name": "Novel Compound X",
+                    "receptor_targets": [
+                        {"target": "Novel Orphan Receptor XYZ", "action": "agonist"}
+                    ]
+                }
+            return super().get_compound(key)
+
+    service = CustomCatalogService()
+    graph = build_selected_compound_graph(["novel_compound"], catalog_service=service)
+
+    nodes = list(graph.graph.nodes)
+    assert "novel_compound" in nodes
+    assert "Novel Orphan Receptor XYZ" in nodes
+    
+    # Check that dynamic fallback downstream nodes were generated
+    pathway_nodes = [n for n in nodes if "transduction cascade" in str(graph.graph.nodes[n].get("label", "")).lower()]
+    phys_nodes = [n for n in nodes if "physiological function" in str(graph.graph.nodes[n].get("label", "")).lower()]
+
+    assert len(pathway_nodes) > 0, "Fallback pathway node not generated"
+    assert len(phys_nodes) > 0, "Fallback physiology node not generated"
+
+
+
+

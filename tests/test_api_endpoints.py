@@ -116,6 +116,16 @@ def test_html_views_serve():
         assert response.status_code == 200
         assert "text/html" in response.headers.get("content-type", "")
 
+    # Verify /graph contains domain filter matrix buttons
+    graph_html = client.get("/graph").text
+    assert "data-filter=\"all\"" in graph_html
+    assert "data-filter=\"pd\"" in graph_html
+    assert "data-filter=\"pk\"" in graph_html
+    assert "data-filter=\"outcomes\"" in graph_html
+    assert "Pharmacodynamics (PD)" in graph_html
+    assert "Pharmacokinetics (PK)" in graph_html
+    assert "Biomarkers &amp; Outcomes" in graph_html or "Biomarkers & Outcomes" in graph_html
+
 
 def test_graph_data_endpoint_enriched_tiers_and_path():
     # Test /graph-data with multi-compound stack

@@ -415,6 +415,7 @@
       }
       .cascade-badge.shift-up { border-color: rgba(239, 68, 68, 0.4); color: #fca5a5; background: rgba(239, 68, 68, 0.08); }
       .cascade-badge.shift-down { border-color: rgba(16, 185, 129, 0.4); color: #86efac; background: rgba(16, 185, 129, 0.08); }
+      .cascade-badge.shift-neutral { border-color: rgba(148, 163, 184, 0.4); color: #cbd5e1; background: rgba(148, 163, 184, 0.08); }
       .cascade-badge.pathway { border-color: rgba(168, 85, 247, 0.4); color: #d8b4fe; background: rgba(168, 85, 247, 0.08); }
 
       /* ==========================================================================
@@ -441,10 +442,55 @@
       #graph-canvas:active { cursor: grabbing; }
 
       /* FLOATING HUD & CONTROLS */
-      .hud-tier-filters {
+      .hud-top-filters {
         position: absolute;
         top: 12px;
         left: 12px;
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+        z-index: 20;
+        max-width: 680px;
+      }
+
+      .graph-filter-matrix {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        flex-wrap: wrap;
+        padding: 5px 8px;
+        background: rgba(8, 13, 25, 0.88);
+        backdrop-filter: blur(16px);
+        -webkit-backdrop-filter: blur(16px);
+        border: 1px solid var(--border-subtle);
+        border-radius: 9px;
+      }
+
+      .filter-btn {
+        padding: 4px 10px;
+        border-radius: 7px;
+        border: 1px solid var(--border-subtle);
+        background: rgba(13, 20, 38, 0.6);
+        color: var(--text-secondary);
+        font-size: 0.72rem;
+        font-weight: 600;
+        cursor: pointer;
+        transition: all 0.15s ease;
+      }
+
+      .filter-btn:hover {
+        color: var(--text-primary);
+        border-color: rgba(255, 255, 255, 0.15);
+      }
+
+      .filter-btn.active {
+        background: rgba(0, 242, 254, 0.15);
+        border-color: var(--border-focus);
+        color: #00f2fe;
+        box-shadow: 0 0 10px rgba(0, 242, 254, 0.2);
+      }
+
+      .hud-tier-filters {
         display: flex;
         align-items: center;
         gap: 5px;
@@ -454,9 +500,7 @@
         -webkit-backdrop-filter: blur(16px);
         border: 1px solid var(--border-subtle);
         border-radius: 9px;
-        z-index: 20;
         flex-wrap: wrap;
-        max-width: 650px;
       }
 
       .filter-pill {
@@ -852,8 +896,16 @@
       <main class="graph-workspace">
         <div id="graph-canvas" aria-label="Interactive biological knowledge graph canvas"></div>
 
-        <!-- HUD TIER FILTER PILLS -->
-        <div class="hud-tier-filters" id="typeFilters"></div>
+        <!-- HUD DOMAIN & TIER FILTER PILLS -->
+        <div class="hud-top-filters">
+          <div class="graph-filter-matrix" id="domainFilters">
+            <button class="filter-btn active" data-filter="all">All Interactions</button>
+            <button class="filter-btn" data-filter="pd">⚡ Pharmacodynamics (PD)</button>
+            <button class="filter-btn" data-filter="pk">💊 Pharmacokinetics (PK)</button>
+            <button class="filter-btn" data-filter="outcomes">📊 Biomarkers & Outcomes</button>
+          </div>
+          <div class="hud-tier-filters" id="typeFilters"></div>
+        </div>
 
         <!-- HUD COLOR LEGEND -->
         <div class="hud-legend" id="legend"></div>
@@ -946,6 +998,7 @@
         baseData: { nodes: [], edges: [], cascade_simulation: {} },
         data: { nodes: [], edges: [], cascade_simulation: {} },
         filtered: { nodes: [], edges: [] },
+        filterMode: 'all',
         typeFilter: new Set(),
         search: '',
         selectedNode: null,
@@ -1214,9 +1267,11 @@
         (cascade.biomarker_shifts || []).forEach(shift => {
           const name = shift.label || shift.name || shift.biomarker_id || 'Biomarker';
           const isUp = shift.direction === 'INCREASE';
-          const arrow = shift.arrow || (isUp ? '↑' : '↓');
+          const isDown = shift.direction === 'DECREASE';
+          const arrow = shift.arrow || (isUp ? '↑' : (isDown ? '↓' : '→'));
+          const badgeClass = isUp ? 'shift-up' : (isDown ? 'shift-down' : 'shift-neutral');
           chips.push(`
-            <span class="cascade-badge ${isUp ? 'shift-up' : 'shift-down'}" title="${name} (${shift.unit || ''})">
+            <span class="cascade-badge ${badgeClass}" title="${name} (${shift.unit || ''})">
               ${arrow} ${name}: <strong>${shift.direction || 'MODULATED'}</strong>
             </span>
           `);
@@ -1245,9 +1300,23 @@
 
       function filterGraph() {
         const search = state.search.trim().toLowerCase();
+        const mode = state.filterMode || 'all';
         const nodeIdsInScope = new Set();
 
         state.filtered.nodes = state.data.nodes.filter(node => {
+          if (mode !== 'all') {
+            if (mode === 'pd') {
+              const isPD = node.node_type === 'compound' || node.pk_pd_class === 'PD' || ['receptor', 'signaling_pathway', 'physiology', 'biomarker', 'phenotype', 'ion_channel', 'target'].includes(node.node_type);
+              if (!isPD) return false;
+            } else if (mode === 'pk') {
+              const isPK = node.node_type === 'compound' || node.pk_pd_class === 'PK' || ['enzyme', 'transporter', 'carrier_protein'].includes(node.node_type);
+              if (!isPK) return false;
+            } else if (mode === 'outcomes') {
+              const isOutcomes = node.node_type === 'compound' || ['biomarker', 'phenotype', 'physiology', 'lab', 'outcome', 'toxicity', 'benefit'].includes(node.node_type);
+              if (!isOutcomes) return false;
+            }
+          }
+
           if (!state.typeFilter.has(node.node_type)) return false;
           if (search) {
             const label = getNodeLabel(node).toLowerCase();
@@ -1794,6 +1863,16 @@
         const delta = event.deltaY > 0 ? -0.12 : 0.12;
         applyZoom(delta);
       }, { passive: false });
+
+      const domainFilterBtns = document.querySelectorAll('#domainFilters .filter-btn');
+      domainFilterBtns.forEach(btn => {
+        btn.addEventListener('click', () => {
+          domainFilterBtns.forEach(b => b.classList.remove('active'));
+          btn.classList.add('active');
+          state.filterMode = btn.dataset.filter || 'all';
+          render();
+        });
+      });
 
       searchInput.addEventListener('input', event => {
         state.search = event.target.value;

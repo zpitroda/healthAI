@@ -242,8 +242,8 @@ COMPOUND_LIBRARY = {
         "compound_class": "biphenyl tetrazole",
         "mechanism": "Selectively antagonizes angiotensin II type 1 (AT1) receptors and acts as a partial agonist of PPAR-gamma, conferring metabolic and cardiovascular protection.",
         "receptor_targets": [
-            {"target": "Type-1 angiotensin II receptor", "action": "antagonist", "family": "angiotensin"},
-            {"target": "PPAR-gamma", "action": "agonist", "family": "nuclear receptor"},
+            {"target": "Angiotensin II Type-1 Receptor (AGTR1)", "action": "antagonist", "family": "angiotensin"},
+            {"target": "Peroxisome Proliferator-Activated Receptor Gamma (PPARG)", "action": "agonist", "family": "nuclear receptor"},
             {"target": "TGF-beta signaling", "action": "inhibitor", "family": "fibrosis"}
         ],
         "cyp_enzymes": {
@@ -576,13 +576,7 @@ COMPOUND_LIBRARY = {
             "inducers": []
         },
         "organ_burdens": {"hepatic": "low", "renal": "low", "cardiovascular": "high", "cns_stimulant": "high", "sedative": "none"},
-        "synergies": [
-            {
-                "partner": "caffeine",
-                "effect": "High-risk synergistic stimulant load",
-                "description": "Concurrent phosphodiesterase/adenosine blockade and presynaptic alpha-2 disinhibition dramatically multiplies norepinephrine and cardiovascular burden."
-            }
-        ],
+        "synergies": [],
         "categories": ["fat loss", "performance"],
         "indications": ["fat loss", "lipolysis"],
         "dosing": {

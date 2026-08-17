@@ -218,12 +218,14 @@ class LiveEnrichmentService:
         enriched["categories"] = existing_categories
 
         # Enrich Receptor Targets
+        from app.services.graph_service import _normalize_target_node_id
         existing_targets = list(enriched.get("receptor_targets", []))
-        existing_target_names = {str(t.get("target", "")).lower() for t in existing_targets if isinstance(t, dict)}
+        existing_target_names = {_normalize_target_node_id(t.get("target", "")) for t in existing_targets if isinstance(t, dict)}
         for ct in chembl_data.get("receptor_targets", []):
-            if str(ct.get("target", "")).lower() not in existing_target_names:
+            norm_name = _normalize_target_node_id(ct.get("target", ""))
+            if norm_name not in existing_target_names:
                 existing_targets.append(ct)
-                existing_target_names.add(str(ct.get("target", "")).lower())
+                existing_target_names.add(norm_name)
         enriched["receptor_targets"] = existing_targets
 
         # Enrich Warnings & Boxed Warnings
@@ -249,5 +251,9 @@ class LiveEnrichmentService:
             "chembl_mechanisms": chembl_data.get("mechanisms", []),
         }
         enriched["metadata"] = metadata
+
+        # Structured Quantitative PK/PD Benchmark & Assay Enrichment
+        from app.services.pkpd_enricher import PKPDEnricher
+        enriched = PKPDEnricher(timeout_seconds=self.timeout).enrich_compound_pkpd(enriched)
 
         return enriched

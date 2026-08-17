@@ -8,6 +8,7 @@ from app.routers import (
     catalog_router,
     graph_router,
     interactions_router,
+    pkpd_router,
     protocols_router,
     views_router,
 )
@@ -30,6 +31,7 @@ app.include_router(catalog_router)
 app.include_router(interactions_router)
 app.include_router(graph_router)
 app.include_router(protocols_router)
+app.include_router(pkpd_router)
 
 
 @app.get("/health", tags=["system"])

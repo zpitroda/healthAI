@@ -658,13 +658,81 @@
             <!-- HERO -->
             <div class="hero">
               <div>
-                <h1 id="compoundName" class="hero-title">Compound</h1>
+                <div style="display:flex; align-items:center; gap:10px;">
+                  <h1 id="compoundName" class="hero-title">Compound</h1>
+                  <button id="btnDeepEnrich" type="button" title="Perform multi-source structured biomedical enrichment (PubChem, ChEMBL Activity, Reactome)" style="display:inline-flex; align-items:center; gap:6px; padding:6px 12px; font-size:0.75rem; background:linear-gradient(135deg,#00f2fe 0%,#3b82f6 100%); color:#050811; font-weight:800; border:none; border-radius:7px; cursor:pointer; box-shadow:0 0 12px rgba(0,242,254,0.3); transition:all 0.15s ease;">
+                    ⚡ Full PK/PD Enrich
+                  </button>
+                </div>
                 <div id="compoundSubtitle" class="subtitle"></div>
                 <div id="compoundTags" class="meta-row"></div>
               </div>
               <div class="risk-badge-box">
                 <label>Risk Band</label>
                 <strong id="compoundRisk">—</strong>
+              </div>
+            </div>
+
+            <!-- DYNAMIC PK/PD SIMULATION DASHBOARD -->
+            <div class="section-heading" style="display:flex; justify-content:space-between; align-items:center;">
+              <span>📈 Dynamic Pharmacokinetic & Pharmacodynamic Simulation</span>
+              <span class="brand-tag" id="simModeTag">Bateman Steady-State</span>
+            </div>
+            <div class="sim-card" style="background:var(--bg-card); border:1px solid var(--border-subtle); border-radius:12px; padding:16px; margin-bottom:16px;">
+              <div class="sim-controls" style="display:grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap:10px; margin-bottom:12px;">
+                <div>
+                  <label style="font-size:0.7rem; color:var(--text-secondary); display:block; margin-bottom:3px;">Dose (mg)</label>
+                  <input type="number" id="simDose" value="100" min="1" max="5000" style="width:100%; background:var(--bg-surface); border:1px solid var(--border-subtle); color:var(--text-primary); padding:5px 8px; border-radius:6px; font-family:'JetBrains Mono'; font-size:0.8rem;" />
+                </div>
+                <div>
+                  <label style="font-size:0.7rem; color:var(--text-secondary); display:block; margin-bottom:3px;">Interval &tau; (hours)</label>
+                  <select id="simTau" style="width:100%; background:var(--bg-surface); border:1px solid var(--border-subtle); color:var(--text-primary); padding:5px 8px; border-radius:6px; font-family:'JetBrains Mono'; font-size:0.8rem;">
+                    <option value="8">q8h (TID)</option>
+                    <option value="12">q12h (BID)</option>
+                    <option value="24" selected>q24h (Daily)</option>
+                    <option value="48">q48h (EOD)</option>
+                    <option value="168">q168h (Weekly)</option>
+                  </select>
+                </div>
+                <div>
+                  <label style="font-size:0.7rem; color:var(--text-secondary); display:block; margin-bottom:3px;">Route</label>
+                  <select id="simRoute" style="width:100%; background:var(--bg-surface); border:1px solid var(--border-subtle); color:var(--text-primary); padding:5px 8px; border-radius:6px; font-family:'JetBrains Mono'; font-size:0.8rem;">
+                    <option value="oral" selected>Oral (Bateman 1-Comp)</option>
+                    <option value="iv">IV Bolus</option>
+                  </select>
+                </div>
+                <div>
+                  <label style="font-size:0.7rem; color:var(--text-secondary); display:block; margin-bottom:3px;">Regimen Mode</label>
+                  <select id="simRegimen" style="width:100%; background:var(--bg-surface); border:1px solid var(--border-subtle); color:var(--text-primary); padding:5px 8px; border-radius:6px; font-family:'JetBrains Mono'; font-size:0.8rem;">
+                    <option value="steady_state" selected>Steady State (Css)</option>
+                    <option value="single">Single Dose (C(t))</option>
+                  </select>
+                </div>
+                <div>
+                  <label style="font-size:0.7rem; color:var(--text-secondary); display:block; margin-bottom:3px;">Curve Type</label>
+                  <select id="simCurveType" style="width:100%; background:var(--bg-surface); border:1px solid var(--border-subtle); color:var(--text-primary); padding:5px 8px; border-radius:6px; font-family:'JetBrains Mono'; font-size:0.8rem;">
+                    <option value="pk" selected>PK Concentration C(t)</option>
+                    <option value="pd">PD Sigmoidal Hill E(C)</option>
+                  </select>
+                </div>
+              </div>
+
+              <!-- SIMULATION SUMMARY METRICS -->
+              <div class="detail-grid" id="simStatsGrid" style="grid-template-columns: repeat(auto-fit, minmax(110px, 1fr)); gap:6px; margin-bottom:12px;"></div>
+
+              <!-- CANVAS TIME-SERIES CHART -->
+              <div style="position:relative; width:100%; height:220px; background:rgba(5,8,17,0.85); border:1px solid var(--border-subtle); border-radius:8px; overflow:hidden;">
+                <canvas id="pkpdCanvas" style="width:100%; height:100%; display:block;"></canvas>
+              </div>
+
+              <div style="display:flex; justify-content:space-between; align-items:center; margin-top:8px; font-size:0.72rem; color:var(--text-muted);">
+                <div id="simLegend" style="display:flex; gap:12px; align-items:center;">
+                  <span style="display:inline-flex; align-items:center; gap:4px;"><span style="width:10px; height:3px; background:#00f2fe; display:inline-block; border-radius:1px;"></span> Total Plasma C(t)</span>
+                  <span style="display:inline-flex; align-items:center; gap:4px;"><span style="width:10px; height:3px; background:#10b981; display:inline-block; border-radius:1px;"></span> Free Unbound C(t)</span>
+                  <span style="display:inline-flex; align-items:center; gap:4px;"><span style="width:10px; height:1px; border-top:1px dashed #f59e0b; display:inline-block;"></span> MEC Threshold</span>
+                  <span style="display:inline-flex; align-items:center; gap:4px;"><span style="width:10px; height:1px; border-top:1px dashed #ff4b72; display:inline-block;"></span> MTC Toxic Bound</span>
+                </div>
+                <div id="simWindowStatus" style="font-weight:700; color:var(--success);">In Therapeutic Window: 100%</div>
               </div>
             </div>
 
@@ -907,19 +975,26 @@
 
         // PK & ADMET Grid
         const pkRows = [
-          ['Elimination Half-Life', compound.half_life || '—'],
-          ['Oral Bioavailability', compound.oral_bioavailability || compound.bioavailability_pct ? `${compound.oral_bioavailability || compound.bioavailability_pct}%` : '—'],
-          ['Volume of Distribution (Vd)', compound.volume_of_distribution || '—'],
-          ['Plasma Protein Binding', compound.protein_binding || compound.protein_binding_pct ? `${compound.protein_binding || compound.protein_binding_pct}%` : '—'],
-          ['Clearance Routes', compound.clearance_routes || compound.clearance || '—'],
-          ['Therapeutic Precision', compound.is_narrow_therapeutic_index ? '⚠️ Narrow Therapeutic Index (NTI)' : 'Standard Margin'],
+          ['Elimination Half-Life (t½)', compound.t_half_numeric ? `${compound.t_half_numeric} h (numeric)` : (compound.half_life || '—')],
+          ['Oral Bioavailability (F)', compound.bioavailability_f !== null && compound.bioavailability_f !== undefined ? `${Math.round(compound.bioavailability_f * 100)}% (F=${compound.bioavailability_f})` : (compound.oral_bioavailability ? `${compound.oral_bioavailability}%` : '—')],
+          ['Volume of Distribution (Vd)', compound.volume_of_distribution_l_kg ? `${compound.volume_of_distribution_l_kg} L/kg` : (compound.volume_of_distribution || '—')],
+          ['Systemic Clearance (CL)', compound.clearance_l_h_kg ? `${compound.clearance_l_h_kg} L/h/kg` : (compound.clearance || '—')],
+          ['Absorption Rate (ka)', compound.absorption_rate_ka ? `${compound.absorption_rate_ka} h⁻¹` : '—'],
+          ['Plasma Protein Binding', compound.protein_binding_pct ? `${compound.protein_binding_pct}% (fu=${compound.fraction_unbound !== null && compound.fraction_unbound !== undefined ? compound.fraction_unbound : '—'})` : (compound.protein_binding ? `${compound.protein_binding}%` : '—')],
+          ['Biopharmaceutics (BCS)', compound.bcs_class || 'Class II / Unclassified'],
+          ['Therapeutic Precision', compound.therapeutic_index ? `TI: ${compound.therapeutic_index}x (MEC: ${compound.mec_ng_ml || '—'} ng/mL, MTC: ${compound.mtc_ng_ml || '—'} ng/mL)` : (compound.is_narrow_therapeutic_index ? '⚠️ Narrow Therapeutic Index (NTI)' : 'Standard Margin')],
         ];
         document.getElementById('pkOverviewGrid').innerHTML = pkRows.map(([lbl, val]) => `
-          <div class="info-box" style="${lbl.includes('Narrow') && val.includes('Narrow') ? 'border-color:var(--warning);background:rgba(245,158,11,0.08);' : ''}">
+          <div class="info-box" style="${lbl.includes('Precision') && val.includes('Narrow') ? 'border-color:var(--warning);background:rgba(245,158,11,0.08);' : ''}">
             <label>${lbl}</label>
             <div class="value">${safeText(val)}</div>
           </div>
         `).join('');
+
+        // Populate Dosing Default into Simulator
+        if (compound.dosing && compound.dosing.common) {
+          document.getElementById('simDose').value = compound.dosing.common;
+        }
 
         // CYP & Transporter Grid
         const formatObj = (obj) => {
@@ -949,16 +1024,20 @@
           ['LogP (Lipophilicity)', compound.logp !== null && compound.logp !== undefined ? compound.logp : '—'],
           ['Polar Surface (TPSA)', compound.tpsa !== null && compound.tpsa !== undefined ? `${compound.tpsa} Å²` : '—'],
           ['Molecular Weight', compound.molecular_weight !== null && compound.molecular_weight !== undefined ? `${compound.molecular_weight} g/mol` : '—'],
+          ['Biological Pathways', (compound.pathway_details && compound.pathway_details.length) ? compound.pathway_details.map(p => p.name || p.id).join(', ') : '—'],
           ['Canonical SMILES', compound.smiles || '—'],
         ];
         document.getElementById('physicochemicalGrid').innerHTML = chemRows.map(([lbl, val]) => `
-          <div class="info-box" style="${lbl.includes('SMILES') ? 'grid-column: 1 / -1;' : ''}">
+          <div class="info-box" style="${lbl.includes('SMILES') || lbl.includes('Pathways') ? 'grid-column: 1 / -1;' : ''}">
             <label>${lbl}</label>
             <div class="value" style="${lbl.includes('SMILES') || lbl.includes('InChI') ? 'font-family:\'JetBrains Mono\',monospace; font-size:0.75rem;' : ''}">
               ${safeText(val)}
             </div>
           </div>
         `).join('');
+
+        // Run Initial PK/PD Simulation
+        runPKPDSimulation();
 
         // Target Pills
         renderTargetPills(compound);
@@ -1421,6 +1500,256 @@
             console.error('Graph load error', error);
             document.getElementById('graphSummary').textContent = 'Unable to render graph for this compound.';
           });
+      }
+
+      // ==========================================
+      // PK/PD CONTINUOUS SIMULATION ENGINE (CANVAS)
+      // ==========================================
+      let pkpdSimData = null;
+
+      function runPKPDSimulation() {
+        if (!state.compound) return;
+        const dose = parseFloat(document.getElementById('simDose').value) || 100;
+        const tau = parseFloat(document.getElementById('simTau').value) || 24;
+        const route = document.getElementById('simRoute').value || 'oral';
+        const regimen = document.getElementById('simRegimen').value || 'steady_state';
+        const curveType = document.getElementById('simCurveType').value || 'pk';
+
+        document.getElementById('simModeTag').textContent = regimen === 'steady_state' ? 'Bateman Steady-State' : 'Single-Dose Oral Curve';
+
+        const payload = {
+          compound_key: state.compound.key || compoundKey,
+          dose_mg: dose,
+          dosing_interval_h: tau,
+          simulation_duration_h: tau * 2,
+          route: route,
+          steady_state: regimen === 'steady_state',
+          body_weight_kg: 70.0,
+          egfr_ml_min: 90.0
+        };
+
+        fetch('/api/pkpd/simulate', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload)
+        })
+        .then(res => res.json())
+        .then(data => {
+          pkpdSimData = data;
+          renderSimStats(data);
+          drawPKPDChart(data, curveType);
+        })
+        .catch(err => console.error('PK/PD simulation failure', err));
+      }
+
+      function renderSimStats(data) {
+        const stats = [
+          ['Cmax (Peak)', `${data.c_max_ng_ml || 0} ng/mL`],
+          ['Tmax', `${data.t_max_h || 0} h`],
+          ['Cmin (Trough)', `${data.c_min_trough_ng_ml || 0} ng/mL`],
+          ['AUC (0-τ)', `${data.auc_0_tau_ng_h_ml || 0} ng·h/mL`],
+          ['Accumulation Ratio', `${data.accumulation_ratio || 1.0}x`],
+          ['Fluctuation %', `${data.fluctuation_pct || 0}%`],
+          ['Effective t½', `${data.elimination_half_life_effective_h || 0} h`],
+          ['In Window %', `${data.time_in_therapeutic_window_pct || 100}%`],
+        ];
+
+        document.getElementById('simStatsGrid').innerHTML = stats.map(([l, v]) => `
+          <div class="info-box" style="padding:6px 8px; border-radius:6px; background:rgba(10,16,31,0.6);">
+            <label style="font-size:0.65rem; color:var(--text-muted);">${l}</label>
+            <div class="value" style="font-size:0.82rem; font-family:'JetBrains Mono'; color:#00f2fe;">${v}</div>
+          </div>
+        `).join('');
+
+        const winStatus = document.getElementById('simWindowStatus');
+        const winPct = data.time_in_therapeutic_window_pct !== undefined ? data.time_in_therapeutic_window_pct : 100;
+        winStatus.textContent = `In Therapeutic Window: ${winPct}%`;
+        winStatus.style.color = winPct > 80 ? 'var(--success)' : (winPct > 40 ? 'var(--warning)' : 'var(--danger)');
+      }
+
+      function drawPKPDChart(data, curveType) {
+        const canvas = document.getElementById('pkpdCanvas');
+        if (!canvas) return;
+        const ctx = canvas.getContext('2d');
+        const dpr = window.devicePixelRatio || 1;
+        const rect = canvas.getBoundingClientRect();
+        
+        canvas.width = rect.width * dpr;
+        canvas.height = rect.height * dpr;
+        ctx.scale(dpr, dpr);
+
+        const w = rect.width;
+        const h = rect.height;
+        const pad = { top: 18, right: 24, bottom: 28, left: 52 };
+        const plotW = w - pad.left - pad.right;
+        const plotH = h - pad.top - pad.bottom;
+
+        ctx.clearRect(0, 0, w, h);
+
+        const points = data.time_series || [];
+        if (!points.length) {
+          ctx.fillStyle = '#64748b';
+          ctx.font = '12px Plus Jakarta Sans';
+          ctx.fillText('No simulation curve points available.', w / 2 - 80, h / 2);
+          return;
+        }
+
+        const maxT = points[points.length - 1].time_h || 24;
+        let maxVal = 1;
+
+        if (curveType === 'pd') {
+          maxVal = 100;
+        } else {
+          const maxC = Math.max(...points.map(p => p.c_plasma_ng_ml), data.mtc_threshold_ng_ml || 0);
+          maxVal = maxC > 0 ? maxC * 1.15 : 10;
+        }
+
+        // Draw grid lines
+        ctx.strokeStyle = 'rgba(56, 189, 248, 0.08)';
+        ctx.lineWidth = 1;
+        ctx.setLineDash([]);
+        for (let i = 0; i <= 4; i++) {
+          const y = pad.top + (plotH * (i / 4));
+          ctx.beginPath();
+          ctx.moveTo(pad.left, y);
+          ctx.lineTo(w - pad.right, y);
+          ctx.stroke();
+
+          const valLabel = curveType === 'pd' ? `${100 - i * 25}%` : `${Math.round(maxVal * (1 - i / 4))}`;
+          ctx.fillStyle = '#64748b';
+          ctx.font = '10px JetBrains Mono';
+          ctx.textAlign = 'right';
+          ctx.fillText(valLabel, pad.left - 6, y + 3);
+        }
+
+        for (let i = 0; i <= 6; i++) {
+          const x = pad.left + (plotW * (i / 6));
+          ctx.beginPath();
+          ctx.moveTo(x, pad.top);
+          ctx.lineTo(x, h - pad.bottom);
+          ctx.stroke();
+
+          const tLabel = `${Math.round(maxT * (i / 6))}h`;
+          ctx.fillStyle = '#64748b';
+          ctx.font = '10px JetBrains Mono';
+          ctx.textAlign = 'center';
+          ctx.fillText(tLabel, x, h - pad.bottom + 14);
+        }
+
+        // Draw MEC and MTC Thresholds for PK mode
+        if (curveType === 'pk') {
+          if (data.mtc_threshold_ng_ml && data.mtc_threshold_ng_ml < maxVal) {
+            const mtcY = pad.top + plotH * (1 - data.mtc_threshold_ng_ml / maxVal);
+            ctx.strokeStyle = '#ff4b72';
+            ctx.setLineDash([4, 4]);
+            ctx.beginPath();
+            ctx.moveTo(pad.left, mtcY);
+            ctx.lineTo(w - pad.right, mtcY);
+            ctx.stroke();
+            ctx.fillStyle = '#ff4b72';
+            ctx.font = '9px JetBrains Mono';
+            ctx.textAlign = 'right';
+            ctx.fillText(`MTC (${data.mtc_threshold_ng_ml})`, w - pad.right, mtcY - 3);
+          }
+
+          if (data.mec_threshold_ng_ml && data.mec_threshold_ng_ml < maxVal) {
+            const mecY = pad.top + plotH * (1 - data.mec_threshold_ng_ml / maxVal);
+            ctx.strokeStyle = '#f59e0b';
+            ctx.setLineDash([4, 4]);
+            ctx.beginPath();
+            ctx.moveTo(pad.left, mecY);
+            ctx.lineTo(w - pad.right, mecY);
+            ctx.stroke();
+            ctx.fillStyle = '#f59e0b';
+            ctx.font = '9px JetBrains Mono';
+            ctx.textAlign = 'right';
+            ctx.fillText(`MEC (${data.mec_threshold_ng_ml})`, w - pad.right, mecY - 3);
+          }
+        }
+
+        ctx.setLineDash([]);
+
+        // Draw Area Fill for Plasma C(t)
+        const getX = t => pad.left + (t / maxT) * plotW;
+        const getY = v => pad.top + plotH * (1 - v / maxVal);
+
+        const plasmaGrad = ctx.createLinearGradient(0, pad.top, 0, h - pad.bottom);
+        plasmaGrad.addColorStop(0, 'rgba(0, 242, 254, 0.28)');
+        plasmaGrad.addColorStop(1, 'rgba(0, 242, 254, 0.01)');
+
+        ctx.beginPath();
+        ctx.moveTo(getX(points[0].time_h), getY(0));
+        points.forEach(p => {
+          const val = curveType === 'pd' ? p.effect_pct : p.c_plasma_ng_ml;
+          ctx.lineTo(getX(p.time_h), getY(Math.max(0, val)));
+        });
+        ctx.lineTo(getX(points[points.length - 1].time_h), getY(0));
+        ctx.fillStyle = plasmaGrad;
+        ctx.fill();
+
+        // Draw Main Curve Stroke
+        ctx.beginPath();
+        ctx.strokeStyle = curveType === 'pd' ? '#c084fc' : '#00f2fe';
+        ctx.lineWidth = 2.5;
+        points.forEach((p, idx) => {
+          const val = curveType === 'pd' ? p.effect_pct : p.c_plasma_ng_ml;
+          const px = getX(p.time_h);
+          const py = getY(Math.max(0, val));
+          if (idx === 0) ctx.moveTo(px, py);
+          else ctx.lineTo(px, py);
+        });
+        ctx.stroke();
+
+        // Draw Free Unbound Curve if in PK mode
+        if (curveType === 'pk') {
+          ctx.beginPath();
+          ctx.strokeStyle = '#10b981';
+          ctx.lineWidth = 1.5;
+          points.forEach((p, idx) => {
+            const px = getX(p.time_h);
+            const py = getY(Math.max(0, p.c_free_ng_ml));
+            if (idx === 0) ctx.moveTo(px, py);
+            else ctx.lineTo(px, py);
+          });
+          ctx.stroke();
+        }
+      }
+
+      // Simulator event listeners
+      ['simDose', 'simTau', 'simRoute', 'simRegimen', 'simCurveType'].forEach(id => {
+        const el = document.getElementById(id);
+        if (el) {
+          el.addEventListener('input', runPKPDSimulation);
+          el.addEventListener('change', runPKPDSimulation);
+        }
+      });
+
+      // Deep Enrich Button Listener
+      const btnDeepEnrich = document.getElementById('btnDeepEnrich');
+      if (btnDeepEnrich) {
+        btnDeepEnrich.addEventListener('click', () => {
+          btnDeepEnrich.textContent = '⏳ Enriching PubChem/ChEMBL/Reactome…';
+          btnDeepEnrich.style.opacity = '0.7';
+
+          fetch(`/api/compounds/${encodeURIComponent(compoundKey)}/enrich-full`, { method: 'POST' })
+            .then(res => res.json())
+            .then(updated => {
+              btnDeepEnrich.textContent = '✅ Enriched & Saved';
+              btnDeepEnrich.style.opacity = '1';
+              renderCompound(updated);
+              setTimeout(() => {
+                btnDeepEnrich.textContent = '⚡ Full PK/PD Enrich';
+              }, 2500);
+            })
+            .catch(err => {
+              console.error('Enrichment failed', err);
+              btnDeepEnrich.textContent = '❌ Enrichment Error';
+              setTimeout(() => {
+                btnDeepEnrich.textContent = '⚡ Full PK/PD Enrich';
+                btnDeepEnrich.style.opacity = '1';
+              }, 2500);
+            });
+        });
       }
 
       // INITIAL FETCH

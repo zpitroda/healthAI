@@ -3,33 +3,64 @@
 env/
 venv/
 ENV/
+env.bak/
+venv.bak/
 
-# Python Cache & Bytecode
+# Python Cache, Bytecode & Testing
 __pycache__/
 *.py[cod]
 *$py.class
 .pytest_cache/
 .coverage
+.coverage.*
 htmlcov/
 .mypy_cache/
 .ruff_cache/
+.hypothesis/
 
-# Databases & Data Archives
-*.db
-*.sqlite
-*.sqlite3
+# Python Build & Distribution
+build/
+dist/
+*.egg-info/
+.eggs/
+*.egg
+
+# Data Files & Raw Exports (excluding database files like .db)
+*.csv
+*.CSV
+*.tsv
+*.parquet
+*.jsonl
+
+# Archives & Compressed Files
 *.tar.gz
 *.tar
 *.zip
+*.gz
+*.rar
+*.7z
 
-# Operating System & IDE
+# Logs & Temporary Files
+*.log
+logs/
+*.tmp
+*.temp
+*.bak
+*.swp
+*.swo
+
+# Operating System & IDEs
 .DS_Store
 Thumbs.db
 .vscode/
 .idea/
-*.swp
-*.swo
+.cursor/
+*.sublime-workspace
+*.sublime-project
 
-# Environment Variables
+# Environment & Secrets
 .env
 .env.local
+.env.*.local
+*.pem
+*.key

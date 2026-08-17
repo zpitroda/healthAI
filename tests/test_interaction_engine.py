@@ -36,7 +36,26 @@ def test_caffeine_and_theanine_synergy_detected():
     assert len(result["matrix"]) == 2
     assert len(result["matrix"][0]) == 2
     cell_01 = result["matrix"][0][1]
+    cell_10 = result["matrix"][1][0]
     assert cell_01["severity"] == "SYNERGISTIC"
+    assert cell_10["severity"] == "SYNERGISTIC"
+
+
+def test_caffeine_and_yohimbine_dual_stimulant_high_risk_collision():
+    from app.services.catalog_service import CatalogService
+    cat = CatalogService()
+    engine = InteractionEngine()
+    caffeine = cat.get_compound("caffeine")
+    yohimbine = cat.get_compound("yohimbine")
+
+    result = engine.analyze_stack([caffeine, yohimbine])
+    assert result["synergy_count"] == 0
+    assert len(result["breakdown"]["synergistic_benefits"]) == 0
+    assert len(result["breakdown"]["receptor_conflicts"]) >= 1
+    assert result["matrix"][0][1]["severity"] == "HIGH_RISK"
+    assert result["matrix"][1][0]["severity"] == "HIGH_RISK"
+    assert result["matrix"][0][1]["title"] == "Dual Stimulant Sympathetic Hyper-Activation"
+    assert result["matrix"][1][0]["title"] == "Dual Stimulant Sympathetic Hyper-Activation"
 
 
 def test_cyp_collision_between_inhibitor_and_substrate():

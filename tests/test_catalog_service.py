@@ -143,9 +143,9 @@ def test_graph_data_uses_selected_compound_target_edges(tmp_path):
 
     assert response.status_code == 200
     assert "CHEMBL38943" in node_ids
-    assert "Androgen receptor" in node_ids
+    assert "Androgen Receptor (AR / NR3C4)" in node_ids
     assert any(
-        edge["source"] == "CHEMBL38943" and edge["target"] == "Androgen receptor" and str(edge["type"]).lower() in {"agonizes", "agonist"}
+        edge["source"] == "CHEMBL38943" and edge["target"] == "Androgen Receptor (AR / NR3C4)" and str(edge["type"]).lower() in {"agonizes", "agonist"}
         for edge in edges
     )
 
@@ -156,9 +156,9 @@ def test_graph_data_uses_selected_compound_target_edges(tmp_path):
         edges = payload["edges"]
 
         assert "CHEMBL38943" in node_ids
-        assert "Androgen receptor" in node_ids
+        assert "Androgen Receptor (AR / NR3C4)" in node_ids
         assert any(
-            edge["source"] == "CHEMBL38943" and edge["target"] == "Androgen receptor" and str(edge["type"]).lower() in {"agonizes", "agonist"}
+            edge["source"] == "CHEMBL38943" and edge["target"] == "Androgen Receptor (AR / NR3C4)" and str(edge["type"]).lower() in {"agonizes", "agonist"}
             for edge in edges
         )
 
@@ -199,7 +199,7 @@ def test_graph_data_labels_antagonist_edges_correctly(tmp_path):
     assert response.status_code == 200
     assert any(
         edge["source"] == "CHEMBL1017"
-        and edge["target"] == "Type-1 angiotensin II receptor"
+        and edge["target"] == "Angiotensin II Type-1 Receptor (AGTR1)"
         and edge["type"] == "ANTAGONIZES"
         for edge in payload["edges"]
     )

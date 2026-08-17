@@ -123,7 +123,7 @@ CANONICAL_TARGET_CASCADES: List[Dict[str, Any]] = [
         ],
     },
     {
-        "target_pattern": r"(?:adenosine|a1|a2a)",
+        "target_pattern": r"(?:adenosine|\ba1\b|\ba2a\b|adora1|adora2a)",
         "target_name": "Adenosine A1/A2A Receptor",
         "node_type": "receptor",
         "pathway": {
@@ -133,16 +133,16 @@ CANONICAL_TARGET_CASCADES: List[Dict[str, Any]] = [
         },
         "physiology": {
             "id": "phys_central_arousal",
-            "label": "Central Catecholaminergic Tone & Autonomic Arousal",
+            "label": "Purinergic Somnolence & Autonomic Brake",
             "organ": "Central Nervous System",
         },
         "biomarkers": [
-            {"id": "bio_heart_rate", "label": "Resting Heart Rate", "unit": "bpm", "panel": "Vitals", "lower": 50, "upper": 90, "mag": 0.6},
-            {"id": "bio_blood_pressure", "label": "Systolic Blood Pressure", "unit": "mmHg", "panel": "Vitals", "lower": 90, "upper": 120, "mag": 0.5},
+            {"id": "bio_heart_rate", "label": "Resting Heart Rate", "unit": "bpm", "panel": "Vitals", "lower": 50, "upper": 90, "mag": -0.6},
+            {"id": "bio_blood_pressure", "label": "Systolic Blood Pressure", "unit": "mmHg", "panel": "Vitals", "lower": 90, "upper": 120, "mag": -0.5},
         ],
         "phenotypes": [
-            {"id": "pheno_vigilance", "label": "Heightened Cognitive Vigilance & Reaction Time", "cat": "therapeutic_benefit", "sev": "moderate", "mag": 0.8},
-            {"id": "pheno_insomnia", "label": "Sleep Onset Latency Increase & Sleep Fragmentation", "cat": "adverse_effect", "sev": "moderate", "mag": 0.7},
+            {"id": "pheno_vigilance", "label": "Heightened Cognitive Vigilance & Reaction Time", "cat": "therapeutic_benefit", "sev": "moderate", "mag": -0.8},
+            {"id": "pheno_insomnia", "label": "Sleep Onset Latency Increase & Sleep Fragmentation", "cat": "adverse_effect", "sev": "moderate", "mag": -0.7},
         ],
         "bridges": [
             {
@@ -192,7 +192,7 @@ CANONICAL_TARGET_CASCADES: List[Dict[str, Any]] = [
         },
         "biomarkers": [
             {"id": "bio_cortisol", "label": "Serum Cortisol Concentration", "unit": "μg/dL", "panel": "Endocrine Panel", "lower": 6.0, "upper": 18.0, "mag": -0.6},
-            {"id": "bio_resting_hr", "label": "Resting Heart Rate", "unit": "bpm", "panel": "Vitals", "lower": 50, "upper": 90, "mag": -0.4},
+            {"id": "bio_heart_rate", "label": "Resting Heart Rate", "unit": "bpm", "panel": "Vitals", "lower": 50, "upper": 90, "mag": -0.4},
         ],
         "phenotypes": [
             {"id": "pheno_anxiolysis", "label": "Rapid Anxiolysis & Somatic Stress Reduction", "cat": "therapeutic_benefit", "sev": "high", "mag": 0.85},
@@ -264,15 +264,15 @@ CANONICAL_TARGET_CASCADES: List[Dict[str, Any]] = [
         },
         "physiology": {
             "id": "phys_ldl_clearance",
-            "label": "Hepatic LDL Receptor Upregulation & Sterol Homeostasis",
+            "label": "Hepatic Cholesterol Biosynthesis & Sterol Homeostasis",
             "organ": "Hepatic",
         },
         "biomarkers": [
-            {"id": "bio_ldl_c", "label": "Serum LDL Cholesterol", "unit": "mg/dL", "panel": "Lipid Panel", "lower": 50, "upper": 100, "mag": -0.85},
-            {"id": "bio_alt", "label": "Alanine Aminotransferase (ALT)", "unit": "U/L", "panel": "Hepatic Panel", "lower": 10, "upper": 45, "mag": 0.25},
+            {"id": "bio_ldl_c", "label": "Serum LDL Cholesterol", "unit": "mg/dL", "panel": "Lipid Panel", "lower": 50, "upper": 100, "mag": 0.85},
+            {"id": "bio_alt", "label": "Alanine Aminotransferase (ALT)", "unit": "U/L", "panel": "Hepatic Panel", "lower": 10, "upper": 45, "mag": -0.25},
         ],
         "phenotypes": [
-            {"id": "pheno_athero_regression", "label": "Atherosclerotic Plaque Stabilization & Major Adverse Event Reduction", "cat": "therapeutic_benefit", "sev": "high", "mag": 0.95},
+            {"id": "pheno_athero_regression", "label": "Atherosclerotic Plaque Stabilization & Major Adverse Event Reduction", "cat": "therapeutic_benefit", "sev": "high", "mag": -0.95},
         ],
     },
     {
@@ -335,10 +335,10 @@ CANONICAL_TARGET_CASCADES: List[Dict[str, Any]] = [
             "organ": "Cardiovascular",
         },
         "biomarkers": [
-            {"id": "bio_blood_pressure", "label": "Systolic Blood Pressure", "unit": "mmHg", "panel": "Vitals", "lower": 90, "upper": 120, "mag": -0.5},
+            {"id": "bio_blood_pressure", "label": "Systolic Blood Pressure", "unit": "mmHg", "panel": "Vitals", "lower": 90, "upper": 120, "mag": 0.5},
         ],
         "phenotypes": [
-            {"id": "pheno_hyperemia", "label": "Enhanced Endothelial Vasodilation & Skeletal Muscle Perfusion", "cat": "therapeutic_benefit", "sev": "high", "mag": 0.9},
+            {"id": "pheno_hyperemia", "label": "Enhanced Endothelial Vasodilation & Skeletal Muscle Perfusion", "cat": "therapeutic_benefit", "sev": "high", "mag": -0.9},
         ],
     },
     {
@@ -356,12 +356,12 @@ CANONICAL_TARGET_CASCADES: List[Dict[str, Any]] = [
             "organ": "Immune / Renal",
         },
         "biomarkers": [
-            {"id": "bio_crp", "label": "High-Sensitivity C-Reactive Protein (hs-CRP)", "unit": "mg/L", "panel": "Inflammatory Panel", "lower": 0.0, "upper": 1.0, "mag": -0.75},
-            {"id": "bio_egfr", "label": "Glomerular Filtration Rate (eGFR)", "unit": "mL/min/1.73m²", "panel": "Renal Panel", "lower": 60, "upper": 120, "mag": -0.35},
+            {"id": "bio_crp", "label": "High-Sensitivity C-Reactive Protein (hs-CRP)", "unit": "mg/L", "panel": "Inflammatory Panel", "lower": 0.0, "upper": 1.0, "mag": 0.75},
+            {"id": "bio_egfr", "label": "Glomerular Filtration Rate (eGFR)", "unit": "mL/min/1.73m²", "panel": "Renal Panel", "lower": 60, "upper": 120, "mag": 0.35},
         ],
         "phenotypes": [
-            {"id": "pheno_antiinflammatory", "label": "Rapid Analgesia & Systemic Inflammation Suppression", "cat": "therapeutic_benefit", "sev": "high", "mag": 0.9},
-            {"id": "pheno_renal_strain", "label": "Afferent Renal Vasoconstriction & Fluid Retention Risk", "cat": "adverse_effect", "sev": "moderate", "mag": 0.65},
+            {"id": "pheno_antiinflammatory", "label": "Rapid Analgesia & Systemic Inflammation Suppression", "cat": "therapeutic_benefit", "sev": "high", "mag": -0.9},
+            {"id": "pheno_renal_strain", "label": "Afferent Renal Vasoconstriction & Fluid Retention Risk", "cat": "adverse_effect", "sev": "moderate", "mag": -0.65},
         ],
     },
     {
@@ -379,10 +379,10 @@ CANONICAL_TARGET_CASCADES: List[Dict[str, Any]] = [
             "organ": "Integumentary",
         },
         "biomarkers": [
-            {"id": "bio_dht", "label": "Serum Dihydrotestosterone (DHT)", "unit": "ng/dL", "panel": "Endocrine Panel", "lower": 30, "upper": 85, "mag": -0.8},
+            {"id": "bio_dht", "label": "Serum Dihydrotestosterone (DHT)", "unit": "ng/dL", "panel": "Endocrine Panel", "lower": 30, "upper": 85, "mag": 0.8},
         ],
         "phenotypes": [
-            {"id": "pheno_alopecia_halt", "label": "Arrest of Androgen-Driven Hair Follicle Miniaturization", "cat": "therapeutic_benefit", "sev": "high", "mag": 0.85},
+            {"id": "pheno_alopecia_halt", "label": "Arrest of Androgen-Driven Hair Follicle Miniaturization", "cat": "therapeutic_benefit", "sev": "high", "mag": -0.85},
         ],
     },
     {
@@ -508,10 +508,10 @@ CANONICAL_TARGET_CASCADES: List[Dict[str, Any]] = [
             "organ": "Endocrine / Renal",
         },
         "biomarkers": [
-            {"id": "bio_glucose", "label": "Fasting Blood Glucose", "unit": "mg/dL", "panel": "Metabolic Panel", "lower": 70, "upper": 100, "mag": 0.8},
+            {"id": "bio_glucose", "label": "Fasting Blood Glucose", "unit": "mg/dL", "panel": "Metabolic Panel", "lower": 70, "upper": 100, "mag": -0.8},
         ],
         "phenotypes": [
-            {"id": "pheno_hypoglycemia_crisis", "label": "Severe Neuroglycopenic Hypoglycemia & Cognitive Collapse", "cat": "toxicity", "sev": "severe", "mag": -0.9},
+            {"id": "pheno_hypoglycemia_crisis", "label": "Severe Neuroglycopenic Hypoglycemia & Cognitive Collapse", "cat": "toxicity", "sev": "severe", "mag": 0.9},
         ],
     },
     {
@@ -529,10 +529,154 @@ CANONICAL_TARGET_CASCADES: List[Dict[str, Any]] = [
             "organ": "Central Nervous System",
         },
         "biomarkers": [
-            {"id": "bio_cns_arousal", "label": "Central Respiratory & Arousal Index", "unit": "index", "panel": "Neurologic Index", "lower": 50, "upper": 100, "mag": 0.85},
+            {"id": "bio_cns_arousal", "label": "Central Respiratory & Arousal Index", "unit": "index", "panel": "Neurologic Index", "lower": 50, "upper": 100, "mag": -0.85},
         ],
         "phenotypes": [
-            {"id": "pheno_respiratory_arrest", "label": "Fatal Respiratory Depression, Hypoventilation & Coma", "cat": "toxicity", "sev": "severe", "mag": -0.95},
+            {"id": "pheno_respiratory_arrest", "label": "Fatal Respiratory Depression, Hypoventilation & Coma", "cat": "toxicity", "sev": "severe", "mag": 0.95},
+        ],
+    },
+    {
+        "target_pattern": r"(?:ppar|pparg|ppara|ppard|peroxisome proliferator)",
+        "target_name": "Peroxisome Proliferator-Activated Receptor (PPAR-γ/α/δ)",
+        "node_type": "receptor",
+        "pathway": {
+            "id": "pathway_ppar_signaling",
+            "label": "PPAR-Mediated Gene Transcription & Lipid/Glucose Regulation",
+            "db": "Reactome",
+        },
+        "physiology": {
+            "id": "phys_insulin_sensitization",
+            "label": "Adipose Tissue Lipid Storage & Peripheral GLUT4 Glucose Uptake",
+            "organ": "Endocrine / Metabolic",
+        },
+        "biomarkers": [
+            {"id": "bio_hba1c", "label": "Hemoglobin A1c (HbA1c)", "unit": "%", "panel": "Glycemic Panel", "lower": 4.0, "upper": 5.6, "mag": -0.8},
+            {"id": "bio_triglycerides", "label": "Serum Triglycerides", "unit": "mg/dL", "panel": "Lipid Panel", "lower": 40, "upper": 150, "mag": -0.7},
+            {"id": "bio_adiponectin", "label": "Serum Adiponectin Level", "unit": "μg/mL", "panel": "Endocrine Panel", "lower": 5.0, "upper": 30.0, "mag": 0.85},
+        ],
+        "phenotypes": [
+            {"id": "pheno_glycemic_control", "label": "Peripheral Insulin Sensitization & Glycemic Normalization", "cat": "therapeutic_benefit", "sev": "high", "mag": 0.9},
+            {"id": "pheno_fluid_retention_weight", "label": "Renal Sodium Retention & Subcutaneous Weight Gain Risk", "cat": "adverse_effect", "sev": "moderate", "mag": -0.6},
+        ],
+        "bridges": [
+            {
+                "target_node_pattern": r"(?:phys_glycemic_control|pathway_glucose_homeostasis|bio_glucose)",
+                "edge_type": EdgeType.ACTIVATES_PATHWAY,
+                "vector_magnitude": 0.85,
+                "description": "PPAR-gamma activation enhances systemic insulin sensitivity and downstream glucose homeostasis",
+            }
+        ],
+    },
+    {
+        "target_pattern": r"(?:sglt2|slc5a2|dapagliflozin|empagliflozin|canagliflozin)",
+        "target_name": "Sodium-Glucose Cotransporter 2 (SGLT2 / SLC5A2)",
+        "node_type": "transporter",
+        "pathway": {
+            "id": "pathway_sglt2_inhibition",
+            "label": "Renal Proximal Tubule Sodium-Glucose Transport Inhibition",
+            "db": "Reactome",
+        },
+        "physiology": {
+            "id": "phys_renal_glycosuria",
+            "label": "Glomerular Hyperfiltration Suppression & Osmotic Natriuresis",
+            "organ": "Renal / Cardiovascular",
+        },
+        "biomarkers": [
+            {"id": "bio_glucose", "label": "Fasting Blood Glucose", "unit": "mg/dL", "panel": "Metabolic Panel", "lower": 70, "upper": 100, "mag": -0.85},
+            {"id": "bio_egfr", "label": "Glomerular Filtration Rate (eGFR)", "unit": "mL/min/1.73m²", "panel": "Renal Panel", "lower": 60, "upper": 120, "mag": 0.6},
+        ],
+        "phenotypes": [
+            {"id": "pheno_cardiorenal_protection", "label": "Cardiorenal Protection & Glycemic Reduction", "cat": "therapeutic_benefit", "sev": "high", "mag": 0.9},
+        ],
+    },
+    {
+        "target_pattern": r"(?:androgen|nr3c4|\bar\b|testosterone receptor)",
+        "target_name": "Androgen Receptor (AR / NR3C4)",
+        "node_type": "receptor",
+        "pathway": {
+            "id": "pathway_androgen_transactivation",
+            "label": "Nuclear Androgen Receptor Transactivation & Protein Synthesis",
+            "db": "Reactome",
+        },
+        "physiology": {
+            "id": "phys_anabolic_trophism",
+            "label": "Skeletal Muscle Myofibrillar Protein Accrual & Virilization",
+            "organ": "Musculoskeletal / Endocrine",
+        },
+        "biomarkers": [
+            {"id": "bio_testosterone", "label": "Total Serum Testosterone", "unit": "ng/dL", "panel": "Endocrine Panel", "lower": 300, "upper": 1000, "mag": 0.85},
+            {"id": "bio_luteinizing_hormone", "label": "Luteinizing Hormone (LH)", "unit": "IU/L", "panel": "Endocrine Panel", "lower": 1.5, "upper": 9.3, "mag": -0.75},
+        ],
+        "phenotypes": [
+            {"id": "pheno_muscle_hypertrophy", "label": "Enhanced Anabolic Muscle Mass & Bone Mineral Density", "cat": "therapeutic_benefit", "sev": "high", "mag": 0.9},
+            {"id": "pheno_androgenic_alopecia", "label": "Follicular Miniaturization & Prostatic Hypertrophy Risk", "cat": "adverse_effect", "sev": "moderate", "mag": 0.7},
+        ],
+    },
+    {
+        "target_pattern": r"(?:adra1|alpha-1|alpha_1|prazosin|tamsulosin|terazosin)",
+        "target_name": "Alpha-1 Adrenergic Receptor (ADRA1A/1B/1D)",
+        "node_type": "receptor",
+        "pathway": {
+            "id": "pathway_alpha1_vasoconstriction",
+            "label": "Gq/11 PLC-IP3/DAG Calcium Mobilization Cascade",
+            "db": "Reactome",
+        },
+        "physiology": {
+            "id": "phys_vascular_tone",
+            "label": "Arteriolar Smooth Muscle Tone & Prostatic Urethral Resistance",
+            "organ": "Cardiovascular / Genitourinary",
+        },
+        "biomarkers": [
+            {"id": "bio_blood_pressure", "label": "Systolic Blood Pressure", "unit": "mmHg", "panel": "Vitals", "lower": 90, "upper": 120, "mag": 0.75},
+        ],
+        "phenotypes": [
+            {"id": "pheno_antihypertensive", "label": "Smooth Muscle Relaxation & Blood Pressure Normalization", "cat": "therapeutic_benefit", "sev": "high", "mag": -0.85},
+            {"id": "pheno_orthostatic_hypotension", "label": "Postural Orthostatic Hypotension & Reflex Tachycardia", "cat": "adverse_effect", "sev": "moderate", "mag": -0.7},
+        ],
+    },
+    {
+        "target_pattern": r"(?:htr1a|htr2a|htr2c|5-ht1a|5-ht2a|5-ht2c)",
+        "target_name": "Serotonin Receptors (5-HT1A/2A/2C)",
+        "node_type": "receptor",
+        "pathway": {
+            "id": "pathway_5ht_gpcr_signaling",
+            "label": "Corticolimbic Serotonergic GPCR Signal Transduction",
+            "db": "Reactome",
+        },
+        "physiology": {
+            "id": "phys_cortical_5ht_modulation",
+            "label": "Prefrontal Neurotransmission & Limbic Affective Modulation",
+            "organ": "Central Nervous System",
+        },
+        "biomarkers": [
+            {"id": "bio_acetylcholine_cns", "label": "Central Neurotransmission Index", "unit": "index", "panel": "Neurologic Index", "lower": 50, "upper": 100, "mag": 0.7},
+        ],
+        "phenotypes": [
+            {"id": "pheno_mood_stabilization", "label": "Affective Stabilization & Anxiolytic Modulation", "cat": "therapeutic_benefit", "sev": "high", "mag": 0.85},
+        ],
+    },
+    {
+        "target_pattern": r"(?:nr3c1|glucocorticoid|cortisol receptor|dexamethasone|prednisone)",
+        "target_name": "Glucocorticoid Receptor (GR / NR3C1)",
+        "node_type": "receptor",
+        "pathway": {
+            "id": "pathway_glucocorticoid_transactivation",
+            "label": "Nuclear Glucocorticoid Response Transactivation & NF-kB Suppression",
+            "db": "Reactome",
+        },
+        "physiology": {
+            "id": "phys_immunosuppression",
+            "label": "Systemic Leukocyte Suppression & Hepatic Gluconeogenesis",
+            "organ": "Immune / Endocrine",
+        },
+        "biomarkers": [
+            {"id": "bio_cortisol", "label": "Serum Cortisol Concentration", "unit": "μg/dL", "panel": "Endocrine Panel", "lower": 6.0, "upper": 18.0, "mag": -0.85},
+            {"id": "bio_crp", "label": "High-Sensitivity C-Reactive Protein (hs-CRP)", "unit": "mg/L", "panel": "Inflammatory Panel", "lower": 0.0, "upper": 1.0, "mag": -0.8},
+            {"id": "bio_glucose", "label": "Fasting Blood Glucose", "unit": "mg/dL", "panel": "Metabolic Panel", "lower": 70, "upper": 100, "mag": 0.7},
+        ],
+        "phenotypes": [
+            {"id": "pheno_antiinflammatory", "label": "Potent Systemic Anti-Inflammatory Action", "cat": "therapeutic_benefit", "sev": "high", "mag": 0.95},
+            {"id": "pheno_hpa_suppression", "label": "Iatrogenic Cushingoid Features & HPA Axis Suppression", "cat": "toxicity", "sev": "high", "mag": -0.8},
         ],
     },
 ]
@@ -541,6 +685,8 @@ CANONICAL_TARGET_CASCADES: List[Dict[str, Any]] = [
 def _normalize_target_node_id(raw_name: str) -> str:
     """Normalize target receptor and enzyme names to standard clinical IDs for multi-compound graph cross-talk."""
     cleaned = str(raw_name or "").strip()
+    # Strip trailing action descriptors if present in raw target names (e.g., "Type-1 angiotensin II receptor antagonist")
+    cleaned = re.sub(r"\s+(?:antagonist|agonist|inhibitor|modulator|partial agonist|blocker)$", "", cleaned, flags=re.IGNORECASE).strip()
     lower = cleaned.lower()
     if re.search(r"\b(?:beta-1|adrb1)\b", lower) or "beta-1 adrenergic" in lower:
         return "Beta-1 Adrenergic Receptor (ADRB1)"
@@ -554,8 +700,10 @@ def _normalize_target_node_id(raw_name: str) -> str:
         return "Alpha-2C Adrenergic Receptor (ADRA2C)"
     if re.search(r"\b(?:alpha-1a|adra1a)\b", lower) or "alpha-1a adrenergic" in lower:
         return "Alpha-1A Adrenergic Receptor (ADRA1A)"
-    if re.search(r"\b(?:at1|agtr1)\b", lower) or "type-1 angiotensin" in lower or "angiotensin ii type-1" in lower:
+    if re.search(r"\b(?:at1|agtr1)\b", lower) or "type-1 angiotensin" in lower or "angiotensin ii type-1" in lower or "angiotensin ii receptor" in lower:
         return "Angiotensin II Type-1 Receptor (AGTR1)"
+    if re.search(r"\b(?:pparg|ppar-gamma|ppargamma)\b", lower) or "peroxisome proliferator-activated receptor gamma" in lower or "peroxisome proliferator activated receptor gamma" in lower:
+        return "Peroxisome Proliferator-Activated Receptor Gamma (PPARG)"
     if re.search(r"\b(?:nr3c2|mineralocorticoid)\b", lower) or "mineralocorticoid receptor" in lower or "aldosterone receptor" in lower:
         return "Mineralocorticoid Receptor (NR3C2)"
     if re.search(r"\b(?:kcnh2|herg)\b", lower) or "voltage-gated potassium channel" in lower:
@@ -638,8 +786,8 @@ def build_selected_compound_graph(stack: List[str], catalog_service: CatalogServ
             if not target_raw:
                 continue
 
-            target_id = target_raw
-            target_label = target_raw
+            target_id = _normalize_target_node_id(target_raw)
+            target_label = target_id
             edge_type, vector_magnitude = classify_target_action(receptor.get("action"))
 
             # Add Target Node
@@ -665,8 +813,10 @@ def build_selected_compound_graph(stack: List[str], catalog_service: CatalogServ
 
             # Check Canonical Cascade Mapping
             target_lower = target_id.lower()
+            matched_cascade = False
             for cascade in CANONICAL_TARGET_CASCADES:
                 if re.search(cascade["target_pattern"], target_lower) or (not receptor_targets and re.search(cascade["target_pattern"], mechanism_text)):
+                    matched_cascade = True
                     p_info = cascade["pathway"]
                     phys_info = cascade["physiology"]
 
@@ -742,6 +892,71 @@ def build_selected_compound_graph(stack: List[str], catalog_service: CatalogServ
                             edge_data=EdgeData(vector_magnitude=pheno_mag),
                         )
                     break
+
+            # Universal Dynamic Target Cascade Fallback for unmapped targets
+            if not matched_cascade:
+                safe_slug = re.sub(r"[^a-z0-9_]", "_", target_id.lower()).strip("_")
+                pathway_id = f"pathway_{safe_slug}"
+                phys_id = f"phys_{safe_slug}"
+                bio_id = f"bio_{safe_slug}_activity"
+                pheno_id = f"pheno_{safe_slug}_modulation"
+
+                graph.add_node(
+                    SignalingPathwayNode(
+                        node_id=pathway_id,
+                        label=f"{target_label} Transduction Cascade",
+                        pathway_database="Reactome / KEGG",
+                    )
+                )
+                graph.add_edge(
+                    target_id,
+                    pathway_id,
+                    edge_type=EdgeType.ACTIVATES_PATHWAY,
+                    edge_data=EdgeData(vector_magnitude=1.0),
+                )
+                graph.add_node(
+                    PhysiologyNode(
+                        node_id=phys_id,
+                        label=f"{target_label} Downstream Physiological Function",
+                        organ_system="Systemic",
+                    )
+                )
+                graph.add_edge(
+                    pathway_id,
+                    phys_id,
+                    edge_type=EdgeType.ALTERS_PHYSIOLOGY,
+                    edge_data=EdgeData(vector_magnitude=1.0),
+                )
+                graph.add_node(
+                    BiomarkerNode(
+                        node_id=bio_id,
+                        label=f"{target_label} Functional Index",
+                        unit="index",
+                        biomarker_panel="Functional Panel",
+                        safe_lower_bound=0.0,
+                        safe_upper_bound=100.0,
+                    )
+                )
+                graph.add_edge(
+                    phys_id,
+                    bio_id,
+                    edge_type=EdgeType.MODIFIES_BIOMARKER,
+                    edge_data=EdgeData(vector_magnitude=0.75),
+                )
+                graph.add_node(
+                    PhenotypeNode(
+                        node_id=pheno_id,
+                        label=f"{target_label} Downstream Outcome",
+                        phenotype_category="therapeutic_benefit",
+                        severity="moderate",
+                    )
+                )
+                graph.add_edge(
+                    phys_id,
+                    pheno_id,
+                    edge_type=EdgeType.DRIVES_PHENOTYPE,
+                    edge_data=EdgeData(vector_magnitude=0.75),
+                )
 
         # Connect Pharmacokinetic CYP450 Metabolism Enzymes
         cyp_info = compound.get("cyp_enzymes") or {}

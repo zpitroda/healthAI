@@ -31,7 +31,6 @@ dist/
 *.tsv
 *.parquet
 *.jsonl
-*.db
 *.sqlite
 *.sqlite3
 *.db-journal

@@ -1,3 +1,4 @@
+import itertools
 from datetime import datetime, timezone
 import logging
 from typing import Any, Dict, List, Optional
@@ -479,17 +480,12 @@ class LiveEnrichmentService:
         enriched["synonyms"] = existing_synonyms
 
         # Enrich Categories & ATC & MeSH
-        existing_categories = list(enriched.get("categories", []))
-        for epc in fda_data.get("pharm_class_epc", []):
-            if epc not in existing_categories:
-                existing_categories.append(epc)
-        for atc in atc_classes:
-            if atc not in existing_categories:
-                existing_categories.append(atc)
-        for mesh in pubchem_data.get("mesh_pharmacology", []):
-            if mesh not in existing_categories:
-                existing_categories.append(mesh)
-        enriched["categories"] = existing_categories
+        enriched["categories"] = list(dict.fromkeys(itertools.chain(
+            enriched.get("categories", []),
+            fda_data.get("pharm_class_epc", []),
+            atc_classes,
+            pubchem_data.get("mesh_pharmacology", [])
+        )))
 
         # Enrich Receptor Targets & Live Binding Affinities
         from app.services.graph_service import _normalize_target_node_id
@@ -508,7 +504,7 @@ class LiveEnrichmentService:
 
         # Connect specific MeSH / Nootropic / Anabolic heuristics if targets were not explicitly in ChEMBL mechanisms
         name_lower = name.lower()
-        if any("anabolic" in c.lower() for c in existing_categories) or "androgen" in name_lower or any(w in name_lower for w in ["trenbolone", "nandrolone", "drostanolone", "oxandrolone", "stanozolol", "rad140", "rad_140", "lgd4033", "ostarine", "sarm"]):
+        if any("anabolic" in c.lower() for c in enriched["categories"]) or "androgen" in name_lower or any(w in name_lower for w in ["trenbolone", "nandrolone", "drostanolone", "oxandrolone", "stanozolol", "rad140", "rad_140", "lgd4033", "ostarine", "sarm"]):
             if not any("androgen" in t.get("target", "").lower() for t in existing_targets):
                 existing_targets.insert(0, {
                     "target": "Androgen Receptor (AR)",
@@ -525,7 +521,7 @@ class LiveEnrichmentService:
                     "affinity_ki": 1.2,
                     "intrinsic_efficacy": 0.9,
                 })
-        if any(w in name_lower for w in ["bromantane", "ladasten"]) or "dopamine" in " ".join(existing_categories).lower():
+        if any(w in name_lower for w in ["bromantane", "ladasten"]) or "dopamine" in " ".join(enriched["categories"]).lower():
             if not any("dopamine" in t.get("target", "").lower() for t in existing_targets):
                 existing_targets.insert(0, {
                     "target": "Dopamine Transporter (DAT / SLC6A3)",
@@ -543,7 +539,7 @@ class LiveEnrichmentService:
                 })
 
         # Dynamic synthesis of non-receptor targets for supplements & nutraceuticals from online MeSH & categories
-        cat_str = " ".join(existing_categories).lower()
+        cat_str = " ".join(enriched["categories"]).lower()
         if any(w in cat_str for w in ["antioxidant", "free radical scavenger", "radical scavenger", "carotenoid"]):
             if not any(any(w in t.get("target", "").lower() for w in ["glutathione", "redox", "antioxidant"]) for t in existing_targets):
                 existing_targets.append({

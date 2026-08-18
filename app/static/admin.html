@@ -38,11 +38,77 @@
         justify-content: space-between;
         align-items: center;
         margin-bottom: 20px;
+        position: relative;
+        padding: 12px 18px;
+        background: rgba(16, 29, 42, 0.85);
+        border: 1px solid var(--border);
+        border-radius: 14px;
       }
 
       .brand {
-        font-size: 1.8rem;
+        font-size: clamp(1.15rem, 2.8vw, 1.6rem);
         font-weight: 700;
+        display: flex;
+        align-items: center;
+        gap: 10px;
+      }
+
+      .brand-icon {
+        width: 32px;
+        height: 32px;
+        border-radius: 8px;
+        background: linear-gradient(135deg, var(--accent), var(--accent-2));
+        color: #04151b;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-weight: 800;
+        font-size: 1rem;
+        flex-shrink: 0;
+      }
+
+      .mobile-menu-toggle {
+        display: none;
+        background: rgba(20, 39, 56, 0.8);
+        border: 1px solid var(--border);
+        color: var(--text);
+        font-size: 1.2rem;
+        width: 38px;
+        height: 38px;
+        border-radius: 8px;
+        cursor: pointer;
+        align-items: center;
+        justify-content: center;
+        transition: all 0.15s ease;
+      }
+
+      .mobile-menu-toggle:hover {
+        border-color: var(--accent);
+        color: var(--accent);
+      }
+
+      .nav-links {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+      }
+
+      .nav-link {
+        color: var(--muted);
+        text-decoration: none;
+        font-size: 0.85rem;
+        font-weight: 600;
+        padding: 6px 12px;
+        border-radius: 8px;
+        border: 1px solid transparent;
+        transition: all 0.15s ease;
+        white-space: nowrap;
+      }
+
+      .nav-link:hover, .nav-link.active {
+        color: var(--accent-2);
+        background: rgba(123, 223, 242, 0.1);
+        border-color: rgba(123, 223, 242, 0.25);
       }
 
       .layout {
@@ -419,17 +485,135 @@
         color: var(--danger);
         margin-top: 8px;
       }
+
+      /* ==========================================================================
+         RESPONSIVE MOBILE BREAKPOINTS & TOUCH OPTIMIZATIONS
+         ========================================================================== */
+      @media (max-width: 992px) {
+        .container {
+          padding: 16px 14px 40px;
+        }
+
+        .layout {
+          grid-template-columns: 1fr;
+          gap: 16px;
+        }
+      }
+
+      @media (max-width: 768px) {
+        .topbar {
+          padding: 10px 14px;
+        }
+
+        .mobile-menu-toggle {
+          display: flex;
+        }
+
+        .nav-links {
+          display: none;
+          position: absolute;
+          top: calc(100% + 6px);
+          left: 0;
+          right: 0;
+          background: rgba(16, 29, 42, 0.98);
+          backdrop-filter: blur(20px);
+          -webkit-backdrop-filter: blur(20px);
+          border: 1px solid var(--border);
+          border-radius: 12px;
+          box-shadow: 0 16px 36px rgba(0, 0, 0, 0.6);
+          padding: 10px;
+          flex-direction: column;
+          gap: 6px;
+          z-index: 100;
+        }
+
+        .nav-links.open {
+          display: flex;
+          animation: slideDownAdminNav 0.2s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+        }
+
+        @keyframes slideDownAdminNav {
+          from { opacity: 0; transform: translateY(-8px); }
+          to { opacity: 1; transform: translateY(0); }
+        }
+
+        .nav-link {
+          width: 100%;
+          padding: 8px 12px;
+        }
+
+        .db-toolbar {
+          flex-direction: column;
+          align-items: stretch;
+          gap: 8px;
+        }
+
+        .db-search-actions {
+          width: 100%;
+          justify-content: space-between;
+        }
+
+        .db-pagination {
+          flex-direction: column;
+          align-items: stretch;
+          gap: 10px;
+          text-align: center;
+        }
+
+        .db-pagination-buttons {
+          justify-content: center;
+          width: 100%;
+        }
+
+        .button-row {
+          flex-wrap: wrap;
+        }
+
+        .button-row button {
+          flex: 1;
+          min-width: 110px;
+        }
+      }
+
+      @media (max-width: 540px) {
+        .grid {
+          grid-template-columns: 1fr;
+        }
+
+        .picker-row {
+          grid-template-columns: 1fr;
+        }
+
+        .panel {
+          padding: 14px;
+          border-radius: 14px;
+        }
+
+        .detail-grid {
+          grid-template-columns: 1fr;
+        }
+      }
     </style>
   </head>
   <body>
     <div class="container">
-      <div class="topbar">
-        <div class="brand">healthAI Catalog Admin</div>
-        <div style="display:flex; gap:16px; align-items:center;">
-          <a href="/" style="color: var(--accent-2); text-decoration: none;">Back to dashboard</a>
-          <a href="/graph" style="color: var(--accent-2); text-decoration: none;">View graph</a>
+      <header class="topbar">
+        <div class="brand">
+          <div class="brand-icon">A</div>
+          <span>healthAI Catalog Admin</span>
         </div>
-      </div>
+
+        <button class="mobile-menu-toggle" id="mobile-menu-toggle" aria-label="Toggle navigation menu">
+          <span>☰</span>
+        </button>
+
+        <nav class="nav-links" id="nav-links">
+          <a href="/" class="nav-link">Safety Lab</a>
+          <a href="/graph" class="nav-link">Knowledge Graph</a>
+          <a href="/admin" class="nav-link active">Catalog DB</a>
+          <a href="/docs" target="_blank" class="nav-link">API Docs</a>
+        </nav>
+      </header>
 
       <div class="layout">
         <section class="panel">
@@ -1176,6 +1360,22 @@
           refreshDatabasePage();
         }
       });
+
+      // Mobile menu toggle handling
+      const adminMobileMenuBtn = document.getElementById('mobile-menu-toggle');
+      const adminNavLinks = document.getElementById('nav-links');
+      if (adminMobileMenuBtn && adminNavLinks) {
+        adminMobileMenuBtn.addEventListener('click', (e) => {
+          e.stopPropagation();
+          adminNavLinks.classList.toggle('open');
+        });
+
+        document.addEventListener('click', (e) => {
+          if (!adminNavLinks.contains(e.target) && !adminMobileMenuBtn.contains(e.target)) {
+            adminNavLinks.classList.remove('open');
+          }
+        });
+      }
 
       loadCatalog();
     </script>

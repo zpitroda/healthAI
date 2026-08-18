@@ -114,7 +114,7 @@ def classify_target_action(action: Any) -> tuple[EdgeType, float]:
         return EdgeType.ANTAGONIZES, -1.0
     if "agonist" in normalized or "agonizes" in normalized or "activator" in normalized or "activates" in normalized or "antioxidant" in normalized or "scavenger" in normalized:
         return EdgeType.AGONIZES, 1.0
-    if any(token in normalized for token in ["inhibitor", "inhibits", "inhibition", "suppresses"]):
+    if any(token in normalized for token in ["inhibitor", "inhibits", "inhibition", "suppresses", "protects", "hepatoprotective", "cytoprotective"]):
         return EdgeType.INHIBITS_ENZYME, -0.8
     if any(token in normalized for token in ["substrate", "metabolized by", "converted by", "cleaved by"]):
         return EdgeType.SUBSTRATE_OF, 0.5
@@ -124,1517 +124,29 @@ def classify_target_action(action: Any) -> tuple[EdgeType, float]:
         return EdgeType.POSITIVE_ALLOSTERIC_MODULATOR, 0.8
     if any(token in normalized for token in ["nam", "negative allosteric"]):
         return EdgeType.NEGATIVE_ALLOSTERIC_MODULATOR, -0.8
-    if any(token in normalized for token in ["modulator", "modulates", "supports", "cofactor"]):
+    if any(token in normalized for token in ["supports", "enhances transport", "biliary"]):
+        return EdgeType.INHIBITS_CASCADE, -0.8
+    if any(token in normalized for token in ["modulator", "modulates", "cofactor"]):
         return EdgeType.MODULATES, 0.5
     return EdgeType.MODULATES, 0.5
 
 
-# CANONICAL TARGET-TO-DOWNSTREAM-CASCADE MAPPER
-# Maps molecular targets to intracellular signaling pathways, physiology, biomarkers, and clinical phenotypes
-CANONICAL_TARGET_CASCADES: List[Dict[str, Any]] = [
-    {
-        "target_pattern": r"(?:adra2|alpha-2|alpha_2|yohimbine|clonidine|guanfacine)",
-        "target_name": "Alpha-2 Adrenergic Receptor (ADRA2A/2B/2C)",
-        "node_type": "receptor",
-        "pathway": {
-            "id": "pathway_adra2_autoreceptor",
-            "label": "Presynaptic Gi/o Autoreceptor Exocytosis Regulation",
-            "db": "Reactome",
-        },
-        "physiology": {
-            "id": "phys_norepinephrine_release",
-            "label": "Presynaptic Norepinephrine Exocytosis & Sympathetic Noradrenergic Outflow",
-            "organ": "Autonomic / Cardiovascular",
-        },
-        "biomarkers": [
-            {"id": "bio_heart_rate", "label": "Resting Heart Rate", "unit": "bpm", "panel": "Vitals", "lower": 50, "upper": 90, "mag": -0.7},
-            {"id": "bio_blood_pressure", "label": "Systolic Blood Pressure", "unit": "mmHg", "panel": "Vitals", "lower": 90, "upper": 120, "mag": -0.6},
-        ],
-        "phenotypes": [
-            {"id": "pheno_sympathetic_activation", "label": "Sympathoadrenal Arousal, Lipolysis & Chronotropic Stimulation", "cat": "therapeutic_benefit", "sev": "moderate", "mag": -0.85},
-            {"id": "pheno_tachycardia", "label": "Resting Tachycardia & Sympathetic Vasoconstriction", "cat": "adverse_effect", "sev": "moderate", "mag": -0.75},
-        ],
-        "bridges": [
-            {
-                "target_node_pattern": r"(?:beta-1|beta-2|adrb1|adrb2|beta-adrenergic)",
-                "edge_type": EdgeType.AGONIZES,
-                "vector_magnitude": -0.85,
-                "description": "Presynaptic Alpha-2 blockade triggers norepinephrine exocytosis, which endogenous agonist binds post-junctional Beta-1/Beta-2 Adrenergic Receptors",
-            },
-            {
-                "target_node_pattern": r"(?:pathway_beta1_adrenergic|pathway_beta2_adrenergic|phys_sa_av_nodal_conduction)",
-                "edge_type": EdgeType.ACTIVATES_PATHWAY,
-                "vector_magnitude": -0.85,
-                "description": "Surge in synaptic norepinephrine activates downstream cardiac beta-adrenergic inotropic/chronotropic signaling",
-            },
-        ],
-    },
-    {
-        "target_pattern": r"(?:adenosine|\ba1\b|\ba2a\b|adora1|adora2a)",
-        "target_name": "Adenosine A1/A2A Receptor",
-        "node_type": "receptor",
-        "pathway": {
-            "id": "pathway_adenosine_signaling",
-            "label": "Adenosine / Adenylyl Cyclase Signaling",
-            "db": "Reactome",
-        },
-        "physiology": {
-            "id": "phys_central_arousal",
-            "label": "Purinergic Somnolence & Autonomic Brake",
-            "organ": "Central Nervous System",
-        },
-        "biomarkers": [
-            {"id": "bio_heart_rate", "label": "Resting Heart Rate", "unit": "bpm", "panel": "Vitals", "lower": 50, "upper": 90, "mag": -0.6},
-            {"id": "bio_blood_pressure", "label": "Systolic Blood Pressure", "unit": "mmHg", "panel": "Vitals", "lower": 90, "upper": 120, "mag": -0.5},
-        ],
-        "phenotypes": [
-            {"id": "pheno_vigilance", "label": "Heightened Cognitive Vigilance & Reaction Time", "cat": "therapeutic_benefit", "sev": "moderate", "mag": -0.8},
-            {"id": "pheno_insomnia", "label": "Sleep Onset Latency Increase & Sleep Fragmentation", "cat": "adverse_effect", "sev": "moderate", "mag": -0.7},
-            {"id": "pheno_tachycardia", "label": "Resting Tachycardia & Sympathetic Chronotropy", "cat": "adverse_effect", "sev": "moderate", "mag": -0.65},
-        ],
-        "bridges": [
-            {
-                "target_node_pattern": r"(?:dopamine|dat|net|vmat|pathway_monoamine_reuptake|phys_mesolimbic_tone)",
-                "edge_type": EdgeType.MODULATES,
-                "vector_magnitude": -0.7,
-                "description": "Adenosine receptor antagonism removes tonic purinergic inhibition, facilitating central catecholaminergic and dopaminergic neurotransmission",
-            }
-        ],
-    },
-    {
-        "target_pattern": r"(?:atp-pcr|phosphagen|skeletal muscle)",
-        "target_name": "Skeletal Muscle ATP-PCr System",
-        "node_type": "enzyme",
-        "pathway": {
-            "id": "pathway_phosphagen_resynthesis",
-            "label": "Mitochondrial Creatine Kinase / Phosphagen Regeneration",
-            "db": "Reactome",
-        },
-        "physiology": {
-            "id": "phys_muscle_bioenergetics",
-            "label": "Intracellular High-Energy Phosphate Resynthesis",
-            "organ": "Skeletal Muscle",
-        },
-        "biomarkers": [
-            {"id": "bio_pcr_stores", "label": "Intramuscular Phosphocreatine Concentration", "unit": "mmol/kg dw", "panel": "Muscle Panel", "lower": 100, "upper": 150, "mag": 0.85},
-            {"id": "bio_serum_creatinine", "label": "Serum Creatinine Lab Artifact", "unit": "mg/dL", "panel": "Renal Panel", "lower": 0.6, "upper": 1.2, "mag": 0.2},
-        ],
-        "phenotypes": [
-            {"id": "pheno_power_output", "label": "Enhanced Anaerobic Peak Power & Repeated Sprint Capacity", "cat": "therapeutic_benefit", "sev": "high", "mag": 0.9},
-            {"id": "pheno_lean_mass", "label": "Accelerated Resistance Training Lean Mass Adaptation", "cat": "therapeutic_benefit", "sev": "high", "mag": 0.8},
-        ],
-    },
-    {
-        "target_pattern": r"(?:gaba|gaba_a|benzodiazepine)",
-        "target_name": "GABA-A Receptor Complex",
-        "node_type": "receptor",
-        "pathway": {
-            "id": "pathway_gabaergic_transmission",
-            "label": "GABA-A Receptor Activation & Chloride Influx",
-            "db": "Reactome",
-        },
-        "physiology": {
-            "id": "phys_neural_inhibition",
-            "label": "Central Synaptic Hyperpolarization & Cortical Inhibition",
-            "organ": "Central Nervous System",
-        },
-        "biomarkers": [
-            {"id": "bio_cortisol", "label": "Serum Cortisol Concentration", "unit": "μg/dL", "panel": "Endocrine Panel", "lower": 6.0, "upper": 18.0, "mag": -0.6},
-            {"id": "bio_heart_rate", "label": "Resting Heart Rate", "unit": "bpm", "panel": "Vitals", "lower": 50, "upper": 90, "mag": -0.4},
-        ],
-        "phenotypes": [
-            {"id": "pheno_anxiolysis", "label": "Rapid Anxiolysis & Somatic Stress Reduction", "cat": "therapeutic_benefit", "sev": "high", "mag": 0.85},
-            {"id": "pheno_sedation", "label": "Central Sedation & Sleep Consolidation", "cat": "therapeutic_benefit", "sev": "high", "mag": 0.8},
-        ],
-    },
-    {
-        "target_pattern": r"(?:angiotensin|at1|agtr1|ace|renin|sartan)",
-        "target_name": "Angiotensin II Type-1 (AT1) Receptor / ACE",
-        "node_type": "receptor",
-        "pathway": {
-            "id": "pathway_raas_signaling",
-            "label": "Renin-Angiotensin-Aldosterone System (RAAS) Cascade",
-            "db": "Reactome",
-        },
-        "physiology": {
-            "id": "phys_arteriolar_tone",
-            "label": "Systemic Vascular Resistance & Glomerular Hemodynamics",
-            "organ": "Cardiovascular / Renal",
-        },
-        "biomarkers": [
-            {"id": "bio_blood_pressure", "label": "Systolic Blood Pressure", "unit": "mmHg", "panel": "Vitals", "lower": 90, "upper": 120, "mag": 0.7},
-            {"id": "bio_potassium", "label": "Serum Potassium (K+)", "unit": "mEq/L", "panel": "Electrolytes", "lower": 3.5, "upper": 5.0, "mag": -0.4},
-        ],
-        "phenotypes": [
-            {"id": "pheno_bp_control", "label": "Cardiovascular Risk Reduction & Blood Pressure Normalization", "cat": "therapeutic_benefit", "sev": "high", "mag": -0.9},
-            {"id": "pheno_nephroprotection", "label": "Renal Glomerular Protection & Reduced Microalbuminuria", "cat": "therapeutic_benefit", "sev": "high", "mag": -0.8},
-        ],
-        "bridges": [
-            {
-                "target_node_pattern": r"(?:mineralocorticoid|aldosterone|nr3c2|pathway_aldosterone_mr|phys_renal_k_sparing)",
-                "edge_type": EdgeType.MODULATES,
-                "vector_magnitude": 0.8,
-                "description": "AT1 receptor signaling drives adrenal secretion of Aldosterone to activate Mineralocorticoid Receptors",
-            }
-        ],
-    },
-    {
-        "target_pattern": r"(?:mineralocorticoid|aldosterone|nr3c2|eplerenone|spironolactone)",
-        "target_name": "Mineralocorticoid Receptor (Aldosterone Receptor / NR3C2)",
-        "node_type": "receptor",
-        "pathway": {
-            "id": "pathway_aldosterone_mr",
-            "label": "Aldosterone-Regulated Renal Sodium/Potassium Transport",
-            "db": "Reactome",
-        },
-        "physiology": {
-            "id": "phys_renal_k_sparing",
-            "label": "Distal Nephron Potassium Sparing & Natriuresis",
-            "organ": "Renal / Cardiovascular",
-        },
-        "biomarkers": [
-            {"id": "bio_potassium", "label": "Serum Potassium (K+)", "unit": "mEq/L", "panel": "Electrolytes", "lower": 3.5, "upper": 5.0, "mag": -0.5},
-            {"id": "bio_blood_pressure", "label": "Systolic Blood Pressure", "unit": "mmHg", "panel": "Vitals", "lower": 90, "upper": 120, "mag": 0.15},
-        ],
-        "phenotypes": [
-            {"id": "pheno_hyperkalemia_risk", "label": "Severe Hyperkalemia Risk & Cardiac Conduction Vulnerability", "cat": "toxicity", "sev": "severe", "mag": -0.85},
-            {"id": "pheno_aldosterone_blockade", "label": "Aldosterone Breakthrough Suppression & Antifibrotic Cardioprotection", "cat": "therapeutic_benefit", "sev": "high", "mag": -0.8},
-        ],
-    },
-    {
-        "target_pattern": r"(?:hmg-coa|statin|cholesterol)",
-        "target_name": "HMG-CoA Reductase",
-        "node_type": "enzyme",
-        "pathway": {
-            "id": "pathway_mevalonate",
-            "label": "Mevalonate / Hepatic Cholesterol Biosynthesis Pathway",
-            "db": "Reactome",
-        },
-        "physiology": {
-            "id": "phys_ldl_clearance",
-            "label": "Hepatic Cholesterol Biosynthesis & Sterol Homeostasis",
-            "organ": "Hepatic",
-        },
-        "biomarkers": [
-            {"id": "bio_ldl_c", "label": "Serum LDL Cholesterol", "unit": "mg/dL", "panel": "Lipid Panel", "lower": 50, "upper": 100, "mag": 0.85},
-            {"id": "bio_alt", "label": "Alanine Aminotransferase (ALT)", "unit": "U/L", "panel": "Hepatic Panel", "lower": 10, "upper": 45, "mag": -0.25},
-        ],
-        "phenotypes": [
-            {"id": "pheno_athero_regression", "label": "Atherosclerotic Plaque Stabilization & Major Adverse Event Reduction", "cat": "therapeutic_benefit", "sev": "high", "mag": -0.95},
-        ],
-    },
-    {
-        "target_pattern": r"(?:dopamine|dat|net|vmat)",
-        "target_name": "Dopamine / Norepinephrine Transporter (DAT/NET)",
-        "node_type": "transporter",
-        "pathway": {
-            "id": "pathway_monoamine_reuptake",
-            "label": "Synaptic Monoamine Transport & Neurotransmission",
-            "db": "Reactome",
-        },
-        "physiology": {
-            "id": "phys_mesolimbic_tone",
-            "label": "Prefrontal Dopaminergic Signaling & Psychomotor Motivation",
-            "organ": "Central Nervous System",
-        },
-        "biomarkers": [
-            {"id": "bio_blood_pressure", "label": "Systolic Blood Pressure", "unit": "mmHg", "panel": "Vitals", "lower": 90, "upper": 120, "mag": 0.6},
-            {"id": "bio_heart_rate", "label": "Resting Heart Rate", "unit": "bpm", "panel": "Vitals", "lower": 50, "upper": 90, "mag": 0.65},
-        ],
-        "phenotypes": [
-            {"id": "pheno_executive_function", "label": "Enhanced Working Memory, Attentional Focus & Motivation", "cat": "therapeutic_benefit", "sev": "high", "mag": 0.9},
-            {"id": "pheno_tachycardia", "label": "Resting Tachycardia & Sympathetic Vasoconstriction", "cat": "adverse_effect", "sev": "moderate", "mag": 0.6},
-        ],
-    },
-    {
-        "target_pattern": r"(?:serotonin|sert|5-ht)",
-        "target_name": "Serotonin Transporter (SERT / SLC6A4)",
-        "node_type": "transporter",
-        "pathway": {
-            "id": "pathway_serotonergic_signaling",
-            "label": "Synaptic Serotonin Signaling & Reuptake Inhibition",
-            "db": "Reactome",
-        },
-        "physiology": {
-            "id": "phys_limbic_neurotransmission",
-            "label": "Limbic Emotional Regulation & Platelet 5-HT Storage",
-            "organ": "Central Nervous System / Hematologic",
-        },
-        "biomarkers": [
-            {"id": "bio_cortisol", "label": "Serum Cortisol Concentration", "unit": "μg/dL", "panel": "Endocrine Panel", "lower": 6.0, "upper": 18.0, "mag": -0.4},
-        ],
-        "phenotypes": [
-            {"id": "pheno_mood_stabilization", "label": "Affective Stabilization & Depressive Symptom Remission", "cat": "therapeutic_benefit", "sev": "high", "mag": 0.85},
-            {"id": "pheno_serotonin_toxicity", "label": "Serotonergic Autonomic Toxicity at High Doses", "cat": "toxicity", "sev": "severe", "mag": 0.7},
-        ],
-    },
-    {
-        "target_pattern": r"(?:pde5|phosphodiesterase 5)",
-        "target_name": "Phosphodiesterase 5A (PDE5)",
-        "node_type": "enzyme",
-        "pathway": {
-            "id": "pathway_cgmp_no",
-            "label": "Nitric Oxide / cGMP Signal Transduction Pathway",
-            "db": "Reactome",
-        },
-        "physiology": {
-            "id": "phys_smooth_muscle_relaxation",
-            "label": "Vascular Smooth Muscle Relaxation & Endothelial Perfusion",
-            "organ": "Cardiovascular",
-        },
-        "biomarkers": [
-            {"id": "bio_blood_pressure", "label": "Systolic Blood Pressure", "unit": "mmHg", "panel": "Vitals", "lower": 90, "upper": 120, "mag": 0.5},
-        ],
-        "phenotypes": [
-            {"id": "pheno_hyperemia", "label": "Enhanced Endothelial Vasodilation & Skeletal Muscle Perfusion", "cat": "therapeutic_benefit", "sev": "high", "mag": -0.9},
-        ],
-    },
-    {
-        "target_pattern": r"(?:cox-1|cox-2|cyclooxygenase|prostaglandin)",
-        "target_name": "Cyclooxygenase 1 & 2 (COX-1/2)",
-        "node_type": "enzyme",
-        "pathway": {
-            "id": "pathway_eicosanoid",
-            "label": "Arachidonic Acid / Eicosanoid Biosynthesis Cascade",
-            "db": "Reactome",
-        },
-        "physiology": {
-            "id": "phys_inflammatory_cascade",
-            "label": "Pro-Inflammatory Prostaglandin Synthesis & Renal Hemodynamics",
-            "organ": "Immune / Renal",
-        },
-        "biomarkers": [
-            {"id": "bio_crp", "label": "High-Sensitivity C-Reactive Protein (hs-CRP)", "unit": "mg/L", "panel": "Inflammatory Panel", "lower": 0.0, "upper": 1.0, "mag": 0.75},
-            {"id": "bio_egfr", "label": "Glomerular Filtration Rate (eGFR)", "unit": "mL/min/1.73m²", "panel": "Renal Panel", "lower": 60, "upper": 120, "mag": 0.35},
-        ],
-        "phenotypes": [
-            {"id": "pheno_antiinflammatory", "label": "Rapid Analgesia & Systemic Inflammation Suppression", "cat": "therapeutic_benefit", "sev": "high", "mag": -0.9},
-            {"id": "pheno_renal_strain", "label": "Afferent Renal Vasoconstriction & Fluid Retention Risk", "cat": "adverse_effect", "sev": "moderate", "mag": -0.65},
-        ],
-    },
-    {
-        "target_pattern": r"(?:glutathione synthesis|glutathione|gsh|gssg|cystine-glutamate|system xc-|slc7a11|nrf2|nfe2l2|glutamate-cysteine ligase|gclc|gclm|antioxidant defense)",
-        "target_name": "Glutathione Biosynthesis & Cellular Antioxidant Defense (System xc- / Nrf2 / GCL)",
-        "node_type": "enzyme",
-        "pathway": {
-            "id": "pathway_glutathione_biosynthesis_and_redox",
-            "label": "Glutathione Biosynthesis, System xc- Cystine Transport & Nrf2 Redox Defense (R-HSA-3299685)",
-            "db": "Reactome",
-        },
-        "physiology": {
-            "id": "phys_glutathione_redox_tone",
-            "label": "Intracellular Glutathione Synthesis, ROS Scavenging & Endothelial Cytoprotection",
-            "organ": "Systemic / Hepatic",
-        },
-        "biomarkers": [
-            {"id": "bio_gsh_redox_ratio", "label": "Glutathione Redox Index (GSH:GSSG)", "unit": "index", "panel": "Redox Panel", "lower": 80.0, "upper": 120.0, "mag": 0.85},
-            {"id": "bio_crp", "label": "High-Sensitivity C-Reactive Protein (hs-CRP)", "unit": "mg/L", "panel": "Inflammatory Panel", "lower": 0.0, "upper": 1.0, "mag": -0.75},
-            {"id": "bio_mda", "label": "Serum Malondialdehyde (MDA / Lipid Peroxidation)", "unit": "μmol/L", "panel": "Redox Panel", "lower": 1.0, "upper": 2.5, "mag": -0.80},
-            {"id": "bio_alt", "label": "Alanine Aminotransferase (ALT)", "unit": "U/L", "panel": "Hepatic Panel", "lower": 10.0, "upper": 45.0, "mag": -0.35},
-        ],
-        "phenotypes": [
-            {"id": "pheno_glutathione_cytoprotection", "label": "Enhanced Hepatocellular Glutathione Pool, Free Radical Scavenging & Cytoprotection", "cat": "therapeutic_benefit", "sev": "high", "mag": 0.90},
-            {"id": "pheno_antiinflammatory", "label": "Systemic hs-CRP & Inflammatory Cascade Attenuation", "cat": "therapeutic_benefit", "sev": "high", "mag": 0.85},
-        ],
-    },
-    {
-        "target_pattern": r"(?:5-alpha|srd5a|5-ar|5ar|dihydrotestosterone synthase)",
-        "target_name": "5-Alpha Reductase Subtype 1 & 2",
-        "node_type": "enzyme",
-        "pathway": {
-            "id": "pathway_androgen_metabolism",
-            "label": "Steroid 5-Alpha Reduction & Androgenic Transactivation",
-            "db": "Reactome",
-        },
-        "physiology": {
-            "id": "phys_follicle_signaling",
-            "label": "Scalp Dermal Papilla Androgenic Signaling",
-            "organ": "Integumentary",
-        },
-        "biomarkers": [
-            {"id": "bio_dht", "label": "Serum Dihydrotestosterone (DHT)", "unit": "ng/dL", "panel": "Endocrine Panel", "lower": 30, "upper": 85, "mag": 0.8},
-        ],
-        "phenotypes": [
-            {"id": "pheno_alopecia_halt", "label": "Arrest of Androgen-Driven Hair Follicle Miniaturization", "cat": "therapeutic_benefit", "sev": "high", "mag": -0.85},
-        ],
-    },
-    {
-        "target_pattern": r"(?:kcnh2|herg|potassium voltage-gated|ik_r|delayed rectifier)",
-        "target_name": "Voltage-Gated Potassium Channel (hERG / KCNH2 / IKr)",
-        "node_type": "ion_channel",
-        "pathway": {
-            "id": "pathway_cardiac_repolarization",
-            "label": "Cardiac Ventricular Action Potential Phase 3 Repolarization",
-            "db": "Reactome",
-        },
-        "physiology": {
-            "id": "phys_ventricular_refractoriness",
-            "label": "Ventricular Myocardial Action Potential Duration & Refractoriness",
-            "organ": "Cardiovascular",
-        },
-        "biomarkers": [
-            {"id": "bio_qtc", "label": "Corrected QT Interval (QTc)", "unit": "ms", "panel": "Electrophysiology", "lower": 350, "upper": 440, "mag": -0.75},
-        ],
-        "phenotypes": [
-            {"id": "pheno_torsades_risk", "label": "Torsades de Pointes & Fatal Ventricular Arrhythmia Risk", "cat": "toxicity", "sev": "severe", "mag": -0.9},
-        ],
-    },
-    {
-        "target_pattern": r"(?:adrb1|beta-1|beta_1)",
-        "target_name": "Beta-1 Adrenergic Receptor (ADRB1)",
-        "node_type": "receptor",
-        "pathway": {
-            "id": "pathway_beta1_adrenergic",
-            "label": "Beta-1 Adrenergic Gs/cAMP/PKA Cardiac Chronotropic & Inotropic Cascade",
-            "db": "Reactome",
-        },
-        "physiology": {
-            "id": "phys_sa_av_nodal_conduction",
-            "label": "Sinoatrial & Atrioventricular Nodal Automaticity & Conduction",
-            "organ": "Cardiovascular",
-        },
-        "biomarkers": [
-            # β1-AR modulates cardiac chronotropy at rest — blockade reduces HR by ~15-20bpm max
-            {"id": "bio_heart_rate", "label": "Resting Heart Rate", "unit": "bpm", "panel": "Vitals", "lower": 50, "upper": 90, "mag": 0.55},
-            # β1-AR modulates cardiac inotropy → modest BP effect
-            {"id": "bio_blood_pressure", "label": "Systolic Blood Pressure", "unit": "mmHg", "panel": "Vitals", "lower": 90, "upper": 120, "mag": 0.35},
-        ],
-        "phenotypes": [
-            {"id": "pheno_bradycardia_block", "label": "Symptomatic Bradycardia & High-Grade AV Nodal Block", "cat": "toxicity", "sev": "high", "mag": -0.8},
-        ],
-        "bridges": [
-            {
-                "target_node_pattern": r"(?:pathway_calcium_influx|phys_myocardial_contractility)",
-                "edge_type": EdgeType.ACTIVATES_PATHWAY,
-                "vector_magnitude": 0.55,
-                "description": "Beta-1 adrenergic Gs/cAMP/PKA signaling stimulates calcium influx and myocardial contractility",
-            },
-        ],
-    },
-    {
-        "target_pattern": r"(?:adrb2|beta-2|beta_2|beta-adrenergic)",
-        "target_name": "Beta-2 Adrenergic Receptor (ADRB2)",
-        "node_type": "receptor",
-        "pathway": {
-            "id": "pathway_beta2_adrenergic",
-            "label": "Beta-2 Adrenergic Gs/cAMP Sympathoadrenal Activation Cascade",
-            "db": "Reactome",
-        },
-        "physiology": {
-            "id": "phys_sympathoadrenal_drive",
-            "label": "Sympathoadrenal Catecholaminergic Drive & Peripheral Beta-2 Vasodilation",
-            "organ": "Cardiovascular / Metabolic",
-        },
-        "biomarkers": [
-            # β2-AR agonism at high doses causes massive tachycardia (reflex + direct cAMP)
-            {"id": "bio_heart_rate", "label": "Resting Heart Rate", "unit": "bpm", "panel": "Vitals", "lower": 50, "upper": 90, "mag": 0.85},
-            # β2-AR agonism → vasodilation acutely, but high-dose systemic cAMP surge raises BP
-            {"id": "bio_blood_pressure", "label": "Systolic Blood Pressure", "unit": "mmHg", "panel": "Vitals", "lower": 90, "upper": 120, "mag": 0.55},
-            # β2 agonism drives hypokalemia via Na+/K+-ATPase stimulation
-            {"id": "bio_potassium", "label": "Serum Potassium", "unit": "mEq/L", "panel": "Metabolic", "lower": 3.5, "upper": 5.0, "mag": -0.7},
-        ],
-        "phenotypes": [
-            {"id": "pheno_sympathetic_activation", "label": "Sympathoadrenal Arousal, Lipolysis & Elevated Heart Rate", "cat": "therapeutic_benefit", "sev": "moderate", "mag": 0.8},
-            {"id": "pheno_tachycardia", "label": "Resting Tachycardia & Sympathetic Vasoconstriction", "cat": "adverse_effect", "sev": "moderate", "mag": 0.85},
-        ],
-        "bridges": [
-            {
-                "target_node_pattern": r"(?:pathway_beta1_adrenergic|phys_sa_av_nodal_conduction)",
-                "edge_type": EdgeType.ACTIVATES_PATHWAY,
-                "vector_magnitude": 0.65,
-                "description": "Beta-2 sympathoadrenal cAMP surge cross-activates cardiac β1 chronotropic pathway via circulating catecholamines and reflex tachycardia",
-            },
-        ],
-    },
-    {
-        "target_pattern": r"(?:cacna1c|voltage-gated calcium|l-type calcium|calcium channel)",
-        "target_name": "L-Type Voltage-Gated Calcium Channel (CACNA1C)",
-        "node_type": "ion_channel",
-        "pathway": {
-            "id": "pathway_calcium_influx",
-            "label": "Depolarization-Induced Calcium Influx & Excitation-Contraction Coupling",
-            "db": "Reactome",
-        },
-        "physiology": {
-            "id": "phys_myocardial_contractility",
-            "label": "Myocardial Inotropy & Peripheral Arteriolar Resistance",
-            "organ": "Cardiovascular",
-        },
-        "biomarkers": [
-            {"id": "bio_blood_pressure", "label": "Systolic Blood Pressure", "unit": "mmHg", "panel": "Vitals", "lower": 90, "upper": 120, "mag": 0.65},
-            {"id": "bio_heart_rate", "label": "Resting Heart Rate", "unit": "bpm", "panel": "Vitals", "lower": 50, "upper": 90, "mag": 0.5},
-        ],
-        "phenotypes": [
-            {"id": "pheno_vasodilatory_hypotension", "label": "Arteriolar Vasodilation & Blood Pressure Reduction", "cat": "therapeutic_benefit", "sev": "high", "mag": -0.85},
-        ],
-    },
-    {
-        "target_pattern": r"(?:thrombin|f2|factor xa|f10|p2y12|ptgs1|platelet|anticoagulant|antiplatelet)",
-        "target_name": "Coagulation Cascade (Thrombin / Factor Xa / Platelet P2Y12)",
-        "node_type": "enzyme",
-        "pathway": {
-            "id": "pathway_hemostatic_clotting",
-            "label": "Prothrombinase Complex Activation & Platelet Cross-Linking",
-            "db": "Reactome",
-        },
-        "physiology": {
-            "id": "phys_microvascular_hemostasis",
-            "label": "Fibrin Mesh Polymerization & Primary/Secondary Hemostasis",
-            "organ": "Hematologic",
-        },
-        "biomarkers": [
-            {"id": "bio_bleeding_risk", "label": "Bleeding Tendency / Clotting Impairment", "unit": "risk_index", "panel": "Coagulation Panel", "lower": 0.0, "upper": 1.0, "mag": -0.8},
-        ],
-        "phenotypes": [
-            {"id": "pheno_major_hemorrhage", "label": "Major Gastrointestinal & Intracranial Hemorrhage Risk", "cat": "toxicity", "sev": "severe", "mag": -0.9},
-        ],
-    },
-    {
-        "target_pattern": r"(?:chrm1|chrm2|chrm3|muscarinic|antimuscarinic|anticholinergic)",
-        "target_name": "Muscarinic Acetylcholine Receptors (CHRM1-5)",
-        "node_type": "receptor",
-        "pathway": {
-            "id": "pathway_muscarinic_signaling",
-            "label": "Postsynaptic Muscarinic Cholinergic Signal Transduction",
-            "db": "Reactome",
-        },
-        "physiology": {
-            "id": "phys_central_cholinergic_transmission",
-            "label": "Central Memory Encoding, Autonomic Secretions & Parasympathetic Tone",
-            "organ": "Central Nervous System / Autonomic",
-        },
-        "biomarkers": [
-            {"id": "bio_acetylcholine_cns", "label": "Central Cholinergic Neurotransmission Index", "unit": "index", "panel": "Neurologic Index", "lower": 50, "upper": 100, "mag": 0.8},
-            {"id": "bio_heart_rate", "label": "Resting Heart Rate", "unit": "bpm", "panel": "Vitals", "lower": 50, "upper": 90, "mag": -0.4},
-        ],
-        "phenotypes": [
-            {"id": "pheno_anticholinergic_delirium", "label": "Acute Anticholinergic Delirium & Memory Impairment", "cat": "toxicity", "sev": "severe", "mag": -0.85},
-        ],
-    },
-    {
-        "target_pattern": r"(?:glp1r|glp-1|slc5a2|sglt2|kcnj11|sulfonylurea|insulin)",
-        "target_name": "Glucose Regulatory Machinery (GLP1R / SGLT2 / KATP / Insulin)",
-        "node_type": "receptor",
-        "pathway": {
-            "id": "pathway_glucose_homeostasis",
-            "label": "Incretin Receptor Signaling & Renal Tubular Glucose Reclamation",
-            "db": "Reactome",
-        },
-        "physiology": {
-            "id": "phys_glycemic_control",
-            "label": "Insulin-Mediated Glucose Uptake & Renal Glycosuria Control",
-            "organ": "Endocrine / Renal",
-        },
-        "biomarkers": [
-            {"id": "bio_glucose", "label": "Fasting Blood Glucose", "unit": "mg/dL", "panel": "Metabolic Panel", "lower": 70, "upper": 100, "mag": -0.8},
-        ],
-        "phenotypes": [
-            {"id": "pheno_hypoglycemia_crisis", "label": "Severe Neuroglycopenic Hypoglycemia & Cognitive Collapse", "cat": "toxicity", "sev": "severe", "mag": 0.9},
-        ],
-    },
-    {
-        "target_pattern": r"(?:oprm1|mu-opioid|opioid|orexin|hcortr|histamine h1|hrh1)",
-        "target_name": "Central Depressant Receptors (Mu-Opioid / GABA-A / H1 / Orexin)",
-        "node_type": "receptor",
-        "pathway": {
-            "id": "pathway_brainstem_ventilatory_drive",
-            "label": "Medullary Chemosensory Ventilatory Pacemaker & Cortical Arousal",
-            "db": "Reactome",
-        },
-        "physiology": {
-            "id": "phys_respiratory_control",
-            "label": "Central Respiratory Drive & Vigilance Maintenance",
-            "organ": "Central Nervous System",
-        },
-        "biomarkers": [
-            {"id": "bio_cns_arousal", "label": "Central Respiratory & Arousal Index", "unit": "index", "panel": "Neurologic Index", "lower": 50, "upper": 100, "mag": -0.85},
-        ],
-        "phenotypes": [
-            {"id": "pheno_respiratory_arrest", "label": "Fatal Respiratory Depression, Hypoventilation & Coma", "cat": "toxicity", "sev": "severe", "mag": 0.95},
-        ],
-    },
-    {
-        "target_pattern": r"(?:ppar|pparg|ppara|ppard|peroxisome proliferator)",
-        "target_name": "Peroxisome Proliferator-Activated Receptor (PPAR-γ/α/δ)",
-        "node_type": "receptor",
-        "pathway": {
-            "id": "pathway_ppar_signaling",
-            "label": "PPAR-Mediated Gene Transcription & Lipid/Glucose Regulation",
-            "db": "Reactome",
-        },
-        "physiology": {
-            "id": "phys_insulin_sensitization",
-            "label": "Adipose Tissue Lipid Storage & Peripheral GLUT4 Glucose Uptake",
-            "organ": "Endocrine / Metabolic",
-        },
-        "biomarkers": [
-            {"id": "bio_hba1c", "label": "Hemoglobin A1c (HbA1c)", "unit": "%", "panel": "Glycemic Panel", "lower": 4.0, "upper": 5.6, "mag": -0.8},
-            {"id": "bio_triglycerides", "label": "Serum Triglycerides", "unit": "mg/dL", "panel": "Lipid Panel", "lower": 40, "upper": 150, "mag": -0.7},
-            {"id": "bio_adiponectin", "label": "Serum Adiponectin Level", "unit": "μg/mL", "panel": "Endocrine Panel", "lower": 5.0, "upper": 30.0, "mag": 0.85},
-        ],
-        "phenotypes": [
-            {"id": "pheno_glycemic_control", "label": "Peripheral Insulin Sensitization & Glycemic Normalization", "cat": "therapeutic_benefit", "sev": "high", "mag": 0.9},
-            {"id": "pheno_fluid_retention_weight", "label": "Renal Sodium Retention & Subcutaneous Weight Gain Risk", "cat": "adverse_effect", "sev": "moderate", "mag": -0.6},
-        ],
-        "bridges": [
-            {
-                "target_node_pattern": r"(?:phys_glycemic_control|pathway_glucose_homeostasis|bio_glucose)",
-                "edge_type": EdgeType.ACTIVATES_PATHWAY,
-                "vector_magnitude": 0.85,
-                "description": "PPAR-gamma activation enhances systemic insulin sensitivity and downstream glucose homeostasis",
-            }
-        ],
-    },
-    {
-        "target_pattern": r"(?:sglt2|slc5a2|dapagliflozin|empagliflozin|canagliflozin)",
-        "target_name": "Sodium-Glucose Cotransporter 2 (SGLT2 / SLC5A2)",
-        "node_type": "transporter",
-        "pathway": {
-            "id": "pathway_sglt2_inhibition",
-            "label": "Renal Proximal Tubule Sodium-Glucose Transport Inhibition",
-            "db": "Reactome",
-        },
-        "physiology": {
-            "id": "phys_renal_glycosuria",
-            "label": "Glomerular Hyperfiltration Suppression & Osmotic Natriuresis",
-            "organ": "Renal / Cardiovascular",
-        },
-        "biomarkers": [
-            {"id": "bio_glucose", "label": "Fasting Blood Glucose", "unit": "mg/dL", "panel": "Metabolic Panel", "lower": 70, "upper": 100, "mag": -0.85},
-            {"id": "bio_egfr", "label": "Glomerular Filtration Rate (eGFR)", "unit": "mL/min/1.73m²", "panel": "Renal Panel", "lower": 60, "upper": 120, "mag": 0.6},
-        ],
-        "phenotypes": [
-            {"id": "pheno_cardiorenal_protection", "label": "Cardiorenal Protection & Glycemic Reduction", "cat": "therapeutic_benefit", "sev": "high", "mag": 0.9},
-        ],
-    },
-    {
-        "target_pattern": r"(?:aromatase|cyp19a1|estrogen synthase)",
-        "target_name": "Aromatase (CYP19A1)",
-        "node_type": "enzyme",
-        "pathway": {
-            "id": "pathway_aromatization",
-            "label": "Steroid Aromatization & 17-Beta Estradiol Biosynthesis",
-            "db": "Reactome",
-        },
-        "physiology": {
-            "id": "phys_estrogenic_tone",
-            "label": "Estrogenic Endocrine Axis & Secondary Sexual Characteristics",
-            "organ": "Endocrine / Reproductive",
-        },
-        "biomarkers": [
-            {"id": "bio_estradiol", "label": "Serum Estradiol (E2)", "unit": "pg/mL", "panel": "Endocrine Panel", "lower": 15.0, "upper": 45.0, "mag": 1.0},
-            {"id": "bio_hdl_c", "label": "Serum HDL Cholesterol", "unit": "mg/dL", "panel": "Lipid Panel", "lower": 40.0, "upper": 90.0, "mag": 0.45},
-            {"id": "bio_ldl_c", "label": "Serum LDL Cholesterol", "unit": "mg/dL", "panel": "Lipid Panel", "lower": 50.0, "upper": 100.0, "mag": -0.40},
-            {"id": "bio_triglycerides", "label": "Serum Triglycerides", "unit": "mg/dL", "panel": "Lipid Panel", "lower": 40.0, "upper": 150.0, "mag": 0.25},
-            {"id": "bio_blood_pressure", "label": "Systolic Blood Pressure", "unit": "mmHg", "panel": "Vitals", "lower": 90, "upper": 120, "mag": 0.45},
-        ],
-        "phenotypes": [
-            {"id": "pheno_gynecomastia_risk", "label": "Glandular Gynecomastia & Estrogenic Breast Tissue Proliferation Risk", "cat": "adverse_effect", "sev": "moderate", "mag": 0.8},
-            {"id": "pheno_fluid_retention", "label": "Estrogen-Mediated Renal Sodium & Subcutaneous Fluid Retention", "cat": "adverse_effect", "sev": "moderate", "mag": 0.75},
-        ],
-        "bridges": [
-            {
-                "target_node_pattern": r"(?:esr1|esr2|er-alpha|er-beta|estrogen receptor|pathway_er_transactivation)",
-                "edge_type": EdgeType.AGONIZES,
-                "vector_magnitude": 0.85,
-                "description": "Aromatase catalyzes conversion of circulating C19 androgens into 17-beta estradiol, which potently binds and transactivates nuclear Estrogen Receptors (ER-alpha/ER-beta)",
-            },
-            {
-                "target_node_pattern": r"(?:pathway_raas_signaling|phys_arteriolar_tone|angiotensin|aldosterone|phys_renal_k_sparing)",
-                "edge_type": EdgeType.ACTIVATES_PATHWAY,
-                "vector_magnitude": 0.5,
-                "description": "Estradiol upregulates hepatic angiotensinogen synthesis and increases renal tubular sodium/water retention, feeding into the RAAS vascular tone cascade",
-            },
-        ],
-    },
-    {
-        "target_pattern": r"(?:esr1|esr2|er-alpha|er-beta|estrogen receptor|estradiol receptor)",
-        "target_name": "Estrogen Receptor Alpha & Beta (ESR1/ESR2)",
-        "node_type": "receptor",
-        "pathway": {
-            "id": "pathway_er_transactivation",
-            "label": "Nuclear Estrogen Receptor Transactivation & Gene Expression",
-            "db": "Reactome",
-        },
-        "physiology": {
-            "id": "phys_estrogenic_signaling",
-            "label": "Estrogenic Cellular Signaling & Tissue Proliferation",
-            "organ": "Endocrine / Reproductive",
-        },
-        "biomarkers": [
-            {"id": "bio_estradiol", "label": "Serum Estradiol (E2)", "unit": "pg/mL", "panel": "Endocrine Panel", "lower": 15.0, "upper": 45.0, "mag": 0.8},
-            {"id": "bio_hdl_c", "label": "Serum HDL Cholesterol", "unit": "mg/dL", "panel": "Lipid Panel", "lower": 40.0, "upper": 90.0, "mag": 0.4},
-            {"id": "bio_ldl_c", "label": "Serum LDL Cholesterol", "unit": "mg/dL", "panel": "Lipid Panel", "lower": 50.0, "upper": 100.0, "mag": -0.35},
-            {"id": "bio_triglycerides", "label": "Serum Triglycerides", "unit": "mg/dL", "panel": "Lipid Panel", "lower": 40.0, "upper": 150.0, "mag": 0.20},
-            {"id": "bio_blood_pressure", "label": "Systolic Blood Pressure", "unit": "mmHg", "panel": "Vitals", "lower": 90, "upper": 120, "mag": 0.4},
-        ],
-        "phenotypes": [
-            {"id": "pheno_gynecomastia_risk", "label": "Glandular Gynecomastia & Estrogenic Breast Tissue Proliferation Risk", "cat": "adverse_effect", "sev": "moderate", "mag": 0.85},
-            {"id": "pheno_fluid_retention", "label": "Estrogen-Mediated Renal Sodium & Subcutaneous Fluid Retention", "cat": "adverse_effect", "sev": "moderate", "mag": 0.75},
-        ],
-        "bridges": [
-            {
-                "target_node_pattern": r"(?:pathway_raas_signaling|phys_arteriolar_tone|mineralocorticoid|phys_renal_k_sparing)",
-                "edge_type": EdgeType.ACTIVATES_PATHWAY,
-                "vector_magnitude": 0.5,
-                "description": "Nuclear ER signaling transactivates renal sodium transport and hepatic renin substrate pathways",
-            },
-        ],
-    },
-    {
-        "target_pattern": r"(?:erythropoietin|erythropoiesis|\bepo\b|red blood cell)",
-        "target_name": "Renal Erythropoietin (EPO) Signaling",
-        "node_type": "receptor",
-        "pathway": {
-            "id": "pathway_erythropoiesis",
-            "label": "Renal Erythropoietin Synthesis & Bone Marrow Erythropoiesis",
-            "db": "Reactome",
-        },
-        "physiology": {
-            "id": "phys_red_cell_mass",
-            "label": "Red Blood Cell Accrual & Oxygen-Carrying Capacity",
-            "organ": "Hematologic / Renal",
-        },
-        "biomarkers": [
-            {"id": "bio_hematocrit", "label": "Blood Hematocrit", "unit": "%", "panel": "Hematology Panel", "lower": 38.5, "upper": 50.0, "mag": 0.85},
-            {"id": "bio_hemoglobin", "label": "Hemoglobin Concentration", "unit": "g/dL", "panel": "Hematology Panel", "lower": 13.5, "upper": 17.5, "mag": 0.8},
-            {"id": "bio_blood_pressure", "label": "Systolic Blood Pressure", "unit": "mmHg", "panel": "Vitals", "lower": 90, "upper": 120, "mag": 0.35},
-        ],
-        "phenotypes": [
-            {"id": "pheno_erythrocytosis_hyperviscosity", "label": "Secondary Polycythemia, Elevated Hematocrit & Hyperviscosity Risk", "cat": "adverse_effect", "sev": "moderate", "mag": 0.85},
-        ],
-    },
-    {
-        "target_pattern": r"(?:circulating.*testosterone|exogenous testosterone|testosterone replacement|serum testosterone pool)",
-        "target_name": "Circulating Serum Testosterone Pool",
-        "node_type": "target",
-        "pathway": {
-            "id": "pathway_testosterone_homeostasis",
-            "label": "Systemic Circulating Androgen Homeostasis & Bioavailability",
-            "db": "Reactome",
-        },
-        "physiology": {
-            "id": "phys_systemic_androgen_pool",
-            "label": "Circulating Bioavailable Androgen Concentration",
-            "organ": "Endocrine / Systemic",
-        },
-        "biomarkers": [
-            {"id": "bio_testosterone", "label": "Total Serum Testosterone", "unit": "ng/dL", "panel": "Endocrine Panel", "lower": 300, "upper": 1000, "mag": 1.0},
-        ],
-        "phenotypes": [
-            {"id": "pheno_androgen_replacement", "label": "Androgen Optimization & Hypogonadal Resolution", "cat": "therapeutic_benefit", "sev": "high", "mag": 0.9},
-        ],
-        "bridges": [
-            {
-                "target_node_pattern": r"(?:cyp19a1|aromatase|pathway_estrogen_biosynthesis|phys_estrogenic_tone|bio_estradiol)",
-                "edge_type": EdgeType.ACTIVATES_PATHWAY,
-                "vector_magnitude": 0.75,
-                "description": "Circulating testosterone supplies substrate for peripheral CYP19A1 aromatization into 17β-estradiol",
-            },
-        ],
-    },
-    {
-        "target_pattern": r"(?:cyp19a1|aromatase|estrogen synthase|anastrozole|letrozole|exemestane)",
-        "target_name": "Aromatase (CYP19A1)",
-        "node_type": "enzyme",
-        "pathway": {
-            "id": "pathway_aromatization",
-            "label": "Cytochrome P450 Aromatase Estrogen Biosynthesis (R-HSA-211859)",
-            "db": "Reactome",
-        },
-        "physiology": {
-            "id": "phys_estrogenic_tone",
-            "label": "Endogenous 17β-Estradiol Synthesis & Endothelial Preservation",
-            "organ": "Endocrine / Systemic",
-        },
-        "biomarkers": [
-            {"id": "bio_estradiol", "label": "Serum Estradiol (E2)", "unit": "pg/mL", "panel": "Endocrine Panel", "lower": 15.0, "upper": 45.0, "mag": 0.95},
-            {"id": "bio_blood_pressure", "label": "Systolic Blood Pressure", "unit": "mmHg", "panel": "Vitals", "lower": 90, "upper": 120, "mag": 0.35},
-            {"id": "bio_hdl_c", "label": "Serum HDL Cholesterol", "unit": "mg/dL", "panel": "Lipid Panel", "lower": 40.0, "upper": 90.0, "mag": 0.35},
-        ],
-        "phenotypes": [
-            {"id": "pheno_estrogen_optimization", "label": "Physiological Estradiol & Joint/Vascular Protection", "cat": "therapeutic_benefit", "sev": "high", "mag": 0.85},
-            {"id": "pheno_gynecomastia_risk", "label": "Mammary Gland Estrogenic Proliferation & Gynecomastia Risk", "cat": "adverse_effect", "sev": "moderate", "mag": 0.65},
-            {"id": "pheno_hypoestrogenemia", "label": "Hypoestrogenic Joint Arthralgia & Atherogenic Dyslipidemia", "cat": "toxicity", "sev": "high", "mag": -0.85},
-        ],
-    },
-    {
-        "target_pattern": r"(?:hypothalamic-pituitary-gonadal|hpg|gnrh|gonadotropin|lh/fsh)",
-        "target_name": "Hypothalamic-Pituitary-Gonadal (HPG) Axis",
-        "node_type": "receptor",
-        "pathway": {
-            "id": "pathway_hpg_feedback",
-            "label": "Hypothalamic GnRH Pulsatility & Pituitary Gonadotropin Secretion",
-            "db": "Reactome",
-        },
-        "physiology": {
-            "id": "phys_gonadotropin_release",
-            "label": "Pituitary LH/FSH Secretion & Endogenous Steroidogenesis",
-            "organ": "Endocrine / Reproductive",
-        },
-        "biomarkers": [
-            {"id": "bio_luteinizing_hormone", "label": "Luteinizing Hormone (LH)", "unit": "IU/L", "panel": "Endocrine Panel", "lower": 1.5, "upper": 9.3, "mag": 0.85},
-            {"id": "bio_fsh", "label": "Follicle-Stimulating Hormone (FSH)", "unit": "IU/L", "panel": "Endocrine Panel", "lower": 1.4, "upper": 12.4, "mag": 0.8},
-            {"id": "bio_testosterone", "label": "Total Serum Testosterone", "unit": "ng/dL", "panel": "Endocrine Panel", "lower": 300, "upper": 1000, "mag": 0.95},
-        ],
-        "phenotypes": [
-            {"id": "pheno_hpg_axis_suppression", "label": "Endogenous HPG Axis Suppression & Secondary Hypogonadism", "cat": "toxicity", "sev": "high", "mag": -0.9},
-        ],
-    },
-    {
-        "target_pattern": r"(?:androgen|nr3c4|\bar\b|testosterone receptor)",
-        "target_name": "Androgen Receptor (AR / NR3C4)",
-        "node_type": "receptor",
-        "pathway": {
-            "id": "pathway_androgen_transactivation",
-            "label": "Nuclear Androgen Receptor Transactivation & Protein Synthesis",
-            "db": "Reactome",
-        },
-        "physiology": {
-            "id": "phys_anabolic_trophism",
-            "label": "Skeletal Muscle Myofibrillar Protein Accrual & Virilization",
-            "organ": "Musculoskeletal / Endocrine",
-        },
-        "biomarkers": [
-            {"id": "bio_luteinizing_hormone", "label": "Luteinizing Hormone (LH)", "unit": "IU/L", "panel": "Endocrine Panel", "lower": 1.5, "upper": 9.3, "mag": -0.85},
-            {"id": "bio_fsh", "label": "Follicle-Stimulating Hormone (FSH)", "unit": "IU/L", "panel": "Endocrine Panel", "lower": 1.4, "upper": 12.4, "mag": -0.85},
-            {"id": "bio_hematocrit", "label": "Blood Hematocrit", "unit": "%", "panel": "Hematology Panel", "lower": 38.5, "upper": 50.0, "mag": 0.6},
-            {"id": "bio_hdl_c", "label": "Serum HDL Cholesterol", "unit": "mg/dL", "panel": "Lipid Panel", "lower": 40.0, "upper": 90.0, "mag": -0.65},
-            {"id": "bio_ldl_c", "label": "Serum LDL Cholesterol", "unit": "mg/dL", "panel": "Lipid Panel", "lower": 50.0, "upper": 100.0, "mag": 0.55},
-            {"id": "bio_triglycerides", "label": "Serum Triglycerides", "unit": "mg/dL", "panel": "Lipid Panel", "lower": 40.0, "upper": 150.0, "mag": 0.35},
-        ],
-        "phenotypes": [
-            {"id": "pheno_muscle_hypertrophy", "label": "Enhanced Anabolic Muscle Mass & Bone Mineral Density", "cat": "therapeutic_benefit", "sev": "high", "mag": 0.9},
-            {"id": "pheno_androgenic_alopecia", "label": "Follicular Miniaturization & Prostatic Hypertrophy Risk", "cat": "adverse_effect", "sev": "moderate", "mag": 0.7},
-        ],
-        "bridges": [
-            {
-                "target_node_pattern": r"(?:at1|agtr1|angiotensin|pathway_raas_signaling|phys_arteriolar_tone)",
-                "edge_type": EdgeType.ACTIVATES_PATHWAY,
-                "vector_magnitude": 0.55,
-                "description": "Androgen Receptor transactivation stimulates hepatic Angiotensinogen synthesis, activating downstream Angiotensin II / RAAS vasoconstrictor signaling",
-            },
-            {
-                "target_node_pattern": r"(?:pathway_erythropoiesis|phys_red_cell_mass|bio_hematocrit|erythropoietin)",
-                "edge_type": EdgeType.ACTIVATES_PATHWAY,
-                "vector_magnitude": 0.75,
-                "description": "Renal Androgen Receptor activation stimulates renal Erythropoietin (EPO) secretion and bone marrow erythropoiesis",
-            },
-            {
-                "target_node_pattern": r"(?:pathway_hpg_feedback|phys_gonadotropin_release|bio_luteinizing_hormone)",
-                "edge_type": EdgeType.INHIBITS_PATHWAY,
-                "vector_magnitude": -0.9,
-                "description": "Elevated circulating androgens exert negative feedback at hypothalamic GnRH and pituitary gonadotrophs, suppressing LH and FSH secretion",
-            },
-        ],
-    },
-    {
-        "target_pattern": r"(?:thyroid hormone receptor|thra|thrb|nr1a1|nr1a2|liothyronine|levothyroxine|\bt3\b|\bt4\b)",
-        "target_name": "Thyroid Hormone Receptor Alpha & Beta (THRA/THRB / NR1A1/NR1A2)",
-        "node_type": "receptor",
-        "pathway": {
-            "id": "pathway_thyroid_hormone_signaling",
-            "label": "Thyroid Hormone Receptor Transactivation & Basal Metabolic Uncoupling (R-HSA-9010553)",
-            "db": "Reactome",
-        },
-        "physiology": {
-            "id": "phys_metabolic_rate_thyroid",
-            "label": "Basal Caloric Expenditure & Pituitary TSH Negative Feedback",
-            "organ": "Endocrine / Metabolic",
-        },
-        "biomarkers": [
-            {"id": "bio_tsh", "label": "Thyroid-Stimulating Hormone (TSH)", "unit": "mIU/L", "panel": "Endocrine Panel", "lower": 0.4, "upper": 4.0, "mag": -0.85},
-            {"id": "bio_free_t3", "label": "Free Triiodothyronine (FT3)", "unit": "pg/mL", "panel": "Endocrine Panel", "lower": 2.3, "upper": 4.2, "mag": 0.85},
-            {"id": "bio_heart_rate", "label": "Resting Heart Rate", "unit": "bpm", "panel": "Vitals", "lower": 50, "upper": 90, "mag": 0.50},
-        ],
-        "phenotypes": [
-            {"id": "pheno_hypermetabolism", "label": "Elevated Basal Metabolic Rate & Lipolysis", "cat": "therapeutic_benefit", "sev": "high", "mag": 0.85},
-            {"id": "pheno_tsh_suppression", "label": "Iatrogenic Pituitary TSH Shutdown & Secondary Hypothyroidism Risk", "cat": "toxicity", "sev": "high", "mag": -0.85},
-        ],
-    },
-    {
-        "target_pattern": r"(?:progesterone receptor|pgr\b|nr3c3|19-nor|nandrolone|trenbolone)",
-        "target_name": "Progesterone Receptor (PGR / NR3C3)",
-        "node_type": "receptor",
-        "pathway": {
-            "id": "pathway_progesterone_signaling",
-            "label": "Progesterone Receptor Transactivation & Pituitary Lactotroph Signaling",
-            "db": "Reactome",
-        },
-        "physiology": {
-            "id": "phys_progestogenic_tone",
-            "label": "Pituitary Prolactin Secretion & Mammary Gland Responsiveness",
-            "organ": "Endocrine / Pituitary",
-        },
-        "biomarkers": [
-            {"id": "bio_prolactin", "label": "Serum Prolactin", "unit": "ng/mL", "panel": "Endocrine Panel", "lower": 2.0, "upper": 18.0, "mag": 0.85},
-            {"id": "bio_luteinizing_hormone", "label": "Luteinizing Hormone (LH)", "unit": "IU/L", "panel": "Endocrine Panel", "lower": 1.5, "upper": 9.3, "mag": -0.75},
-        ],
-        "phenotypes": [
-            {"id": "pheno_hyperprolactinemia", "label": "Progestogenic Hyperprolactinemia & Galactorrhea Risk", "cat": "toxicity", "sev": "high", "mag": 0.85},
-        ],
-    },
-    {
-        "target_pattern": r"(?:adra1|alpha-1|alpha_1|prazosin|tamsulosin|terazosin)",
-        "target_name": "Alpha-1 Adrenergic Receptor (ADRA1A/1B/1D)",
-        "node_type": "receptor",
-        "pathway": {
-            "id": "pathway_alpha1_vasoconstriction",
-            "label": "Gq/11 PLC-IP3/DAG Calcium Mobilization Cascade",
-            "db": "Reactome",
-        },
-        "physiology": {
-            "id": "phys_vascular_tone",
-            "label": "Arteriolar Smooth Muscle Tone & Prostatic Urethral Resistance",
-            "organ": "Cardiovascular / Genitourinary",
-        },
-        "biomarkers": [
-            {"id": "bio_blood_pressure", "label": "Systolic Blood Pressure", "unit": "mmHg", "panel": "Vitals", "lower": 90, "upper": 120, "mag": 0.75},
-        ],
-        "phenotypes": [
-            {"id": "pheno_antihypertensive", "label": "Smooth Muscle Relaxation & Blood Pressure Normalization", "cat": "therapeutic_benefit", "sev": "high", "mag": -0.85},
-            {"id": "pheno_orthostatic_hypotension", "label": "Postural Orthostatic Hypotension & Reflex Tachycardia", "cat": "adverse_effect", "sev": "moderate", "mag": -0.7},
-        ],
-    },
-    {
-        "target_pattern": r"(?:htr1a|htr2a|htr2c|5-ht1a|5-ht2a|5-ht2c)",
-        "target_name": "Serotonin Receptors (5-HT1A/2A/2C)",
-        "node_type": "receptor",
-        "pathway": {
-            "id": "pathway_5ht_gpcr_signaling",
-            "label": "Corticolimbic Serotonergic GPCR Signal Transduction",
-            "db": "Reactome",
-        },
-        "physiology": {
-            "id": "phys_cortical_5ht_modulation",
-            "label": "Prefrontal Neurotransmission & Limbic Affective Modulation",
-            "organ": "Central Nervous System",
-        },
-        "biomarkers": [
-            {"id": "bio_acetylcholine_cns", "label": "Central Neurotransmission Index", "unit": "index", "panel": "Neurologic Index", "lower": 50, "upper": 100, "mag": 0.7},
-        ],
-        "phenotypes": [
-            {"id": "pheno_mood_stabilization", "label": "Affective Stabilization & Anxiolytic Modulation", "cat": "therapeutic_benefit", "sev": "high", "mag": 0.85},
-        ],
-    },
-    {
-        "target_pattern": r"(?:nr3c1|glucocorticoid|cortisol receptor|dexamethasone|prednisone)",
-        "target_name": "Glucocorticoid Receptor (GR / NR3C1)",
-        "node_type": "receptor",
-        "pathway": {
-            "id": "pathway_glucocorticoid_transactivation",
-            "label": "Nuclear Glucocorticoid Response Transactivation & NF-kB Suppression",
-            "db": "Reactome",
-        },
-        "physiology": {
-            "id": "phys_immunosuppression",
-            "label": "Systemic Leukocyte Suppression & Hepatic Gluconeogenesis",
-            "organ": "Immune / Endocrine",
-        },
-        "biomarkers": [
-            {"id": "bio_acth", "label": "Adrenocorticotropic Hormone (ACTH)", "unit": "pg/mL", "panel": "Endocrine Panel", "lower": 7.2, "upper": 63.3, "mag": -0.85},
-            {"id": "bio_cortisol", "label": "Serum Cortisol Concentration", "unit": "μg/dL", "panel": "Endocrine Panel", "lower": 6.0, "upper": 18.0, "mag": -0.85},
-            {"id": "bio_crp", "label": "High-Sensitivity C-Reactive Protein (hs-CRP)", "unit": "mg/L", "panel": "Inflammatory Panel", "lower": 0.0, "upper": 1.0, "mag": -0.8},
-            {"id": "bio_glucose", "label": "Fasting Blood Glucose", "unit": "mg/dL", "panel": "Metabolic Panel", "lower": 70, "upper": 100, "mag": 0.7},
-        ],
-        "phenotypes": [
-            {"id": "pheno_antiinflammatory", "label": "Potent Systemic Anti-Inflammatory Action", "cat": "therapeutic_benefit", "sev": "high", "mag": 0.95},
-            {"id": "pheno_hpa_suppression", "label": "Iatrogenic Cushingoid Features & HPA Axis Suppression", "cat": "toxicity", "sev": "high", "mag": -0.8},
-        ],
-    },
-    {
-        "target_pattern": r"(?:hepatic metabolic clearance|hepatobiliary system|cyp450 clearance|phase i/ii clearance|hepatocyte integrity)",
-        "target_name": "Hepatic Metabolic Clearance & Hepatobiliary System",
-        "node_type": "enzyme",
-        "pathway": {
-            "id": "pathway_hepatic_metabolic_oxidations",
-            "label": "Biological Oxidations & Phase I/II Xenobiotic Clearance (R-HSA-211859)",
-            "db": "Reactome",
-        },
-        "physiology": {
-            "id": "phys_hepatic_metabolic_load",
-            "label": "Hepatocellular Metabolic Clearance & Canalicular Bile Transport",
-            "organ": "Hepatic / Gastrointestinal",
-        },
-        "biomarkers": [
-            {"id": "bio_alt", "label": "Alanine Aminotransferase (ALT)", "unit": "U/L", "panel": "Hepatic Panel", "lower": 10.0, "upper": 45.0, "mag": 0.55},
-            {"id": "bio_ast", "label": "Aspartate Aminotransferase (AST)", "unit": "U/L", "panel": "Hepatic Panel", "lower": 10.0, "upper": 40.0, "mag": 0.50},
-            {"id": "bio_total_bilirubin", "label": "Total Serum Bilirubin", "unit": "mg/dL", "panel": "Hepatic Panel", "lower": 0.2, "upper": 1.2, "mag": 0.40},
-            {"id": "bio_ggt", "label": "Gamma-Glutamyl Transferase (GGT)", "unit": "U/L", "panel": "Hepatic Panel", "lower": 9.0, "upper": 48.0, "mag": 0.45},
-            {"id": "bio_alp", "label": "Alkaline Phosphatase (ALP)", "unit": "U/L", "panel": "Hepatic Panel", "lower": 40.0, "upper": 129.0, "mag": 0.35},
-        ],
-        "phenotypes": [
-            {"id": "pheno_hepatotoxicity_risk", "label": "Hepatocellular Stress, Transaminitis & Metabolic Overload", "cat": "adverse_effect", "sev": "high", "mag": 0.85},
-            {"id": "pheno_cholestasis_risk", "label": "Canalicular Transporter Congestion & Biliary Strain Risk", "cat": "adverse_effect", "sev": "moderate", "mag": 0.70},
-        ],
-    },
-    {
-        "target_pattern": r"(?:glomerular filtration|renal tubular transport|nephron clearance|renal hemodynamic stress)",
-        "target_name": "Glomerular Filtration & Renal Tubular Transport",
-        "node_type": "transporter",
-        "pathway": {
-            "id": "pathway_renal_tubular_transport",
-            "label": "Glomerular Filtration & Tubular Secretion Dynamics (R-HSA-216083)",
-            "db": "Reactome",
-        },
-        "physiology": {
-            "id": "phys_renal_hemodynamic_stress",
-            "label": "Glomerular Hydraulic Perfusion & Tubular Clearance Load",
-            "organ": "Renal / Excretory",
-        },
-        "biomarkers": [
-            {"id": "bio_serum_creatinine", "label": "Serum Creatinine", "unit": "mg/dL", "panel": "Renal Panel", "lower": 0.6, "upper": 1.3, "mag": 0.60},
-            {"id": "bio_egfr", "label": "Estimated Glomerular Filtration Rate (eGFR)", "unit": "mL/min/1.73m²", "panel": "Renal Panel", "lower": 90.0, "upper": 125.0, "mag": -0.60},
-            {"id": "bio_bun", "label": "Blood Urea Nitrogen (BUN)", "unit": "mg/dL", "panel": "Renal Panel", "lower": 7.0, "upper": 20.0, "mag": 0.50},
-            {"id": "bio_cystatin_c", "label": "Serum Cystatin C", "unit": "mg/L", "panel": "Renal Panel", "lower": 0.5, "upper": 1.05, "mag": 0.55},
-        ],
-        "phenotypes": [
-            {"id": "pheno_acute_kidney_injury_risk", "label": "Renal Hemodynamic Strain & Tubular Secretory Congestion", "cat": "adverse_effect", "sev": "high", "mag": 0.85},
-            {"id": "pheno_nephroprotection", "label": "Glomerular Hyperfiltration Mitigation & Long-Term Renal Preservation", "cat": "therapeutic_benefit", "sev": "high", "mag": -0.80},
-        ],
-    },
-    {
-        "target_pattern": r"(?:renal cytoprotection|glomerular perfusion|nephroprotection|renal protection|tubular protection)",
-        "target_name": "Renal Tubular Cytoprotection & Glomerular Perfusion (NAC / ARB / ALA)",
-        "node_type": "transporter",
-        "pathway": {
-            "id": "pathway_renal_cytoprotection",
-            "label": "Glomerular Filtration Dynamics & Tubular Cytoprotection (R-HSA-216083)",
-            "db": "Reactome",
-        },
-        "physiology": {
-            "id": "phys_renal_protection_dynamics",
-            "label": "Renal Perfusion Preservation & Tubular Antioxidant Defense",
-            "organ": "Renal / Excretory",
-        },
-        "biomarkers": [
-            {"id": "bio_egfr", "label": "Estimated Glomerular Filtration Rate (eGFR)", "unit": "mL/min/1.73m²", "panel": "Renal Panel", "lower": 90.0, "upper": 125.0, "mag": 0.60},
-            {"id": "bio_serum_creatinine", "label": "Serum Creatinine", "unit": "mg/dL", "panel": "Renal Panel", "lower": 0.6, "upper": 1.3, "mag": -0.60},
-            {"id": "bio_bun", "label": "Blood Urea Nitrogen (BUN)", "unit": "mg/dL", "panel": "Renal Panel", "lower": 7.0, "upper": 20.0, "mag": -0.50},
-            {"id": "bio_cystatin_c", "label": "Serum Cystatin C", "unit": "mg/L", "panel": "Renal Panel", "lower": 0.5, "upper": 1.05, "mag": -0.55},
-        ],
-        "phenotypes": [
-            {"id": "pheno_nephroprotection", "label": "Glomerular Perfusion Preservation & Tubular Cytoprotection", "cat": "therapeutic_benefit", "sev": "high", "mag": 0.90},
-        ],
-    },
-    {
-        "target_pattern": r"(?:cellular redox homeostasis|ros detoxification|oxidative stress|mitochondrial bioenergetics)",
-        "target_name": "Cellular Redox Homeostasis & Mitochondrial Bioenergetics",
-        "node_type": "enzyme",
-        "pathway": {
-            "id": "pathway_ros_detoxification",
-            "label": "Detoxification of Reactive Oxygen Species & Nrf2-ARE Signaling (R-HSA-3299685)",
-            "db": "Reactome",
-        },
-        "physiology": {
-            "id": "phys_oxidative_stress_redox_tone",
-            "label": "Systemic Redox Homeostasis & Mitochondrial Respiratory Coupling",
-            "organ": "Systemic / Mitochondrial",
-        },
-        "biomarkers": [
-            {"id": "bio_gsh_redox_ratio", "label": "Glutathione Redox Index (GSH:GSSG)", "unit": "index", "panel": "Redox Panel", "lower": 80.0, "upper": 120.0, "mag": -0.85},
-            {"id": "bio_mda", "label": "Serum Malondialdehyde (MDA / Lipid Peroxidation)", "unit": "μmol/L", "panel": "Redox Panel", "lower": 1.0, "upper": 2.5, "mag": 0.80},
-            {"id": "bio_crp", "label": "High-Sensitivity C-Reactive Protein (hs-CRP)", "unit": "mg/L", "panel": "Inflammatory Panel", "lower": 0.0, "upper": 1.0, "mag": 0.70},
-        ],
-        "phenotypes": [
-            {"id": "pheno_oxidative_stress_mitochondrial_strain", "label": "Systemic Oxidative Stress, Lipid Peroxidation & Mitochondrial Strain", "cat": "adverse_effect", "sev": "moderate", "mag": 0.85},
-        ],
-    },
-    {
-        "target_pattern": r"(?:slc6a3|drd2|dopamine transporter|dopamine receptor|dat\b)",
-        "target_name": "Dopamine Transporter & Receptors (SLC6A3 / DRD2)",
-        "node_type": "transporter",
-        "pathway": {
-            "id": "pathway_dopaminergic_neurotransmission",
-            "label": "Mesocorticolimbic Dopaminergic Neurotransmission (R-HSA-112316)",
-            "db": "Reactome",
-        },
-        "physiology": {
-            "id": "phys_mesolimbic_dopamine_tone",
-            "label": "Prefrontal Executive Focus & Mesolimbic Motivational Tone",
-            "organ": "Central Nervous System",
-        },
-        "biomarkers": [
-            {"id": "bio_dopamine_tone", "label": "Central Dopaminergic Tone Index", "unit": "index", "panel": "Neurologic Index", "lower": 40.0, "upper": 90.0, "mag": 0.85},
-            {"id": "bio_prolactin", "label": "Serum Prolactin", "unit": "ng/mL", "panel": "Endocrine Panel", "lower": 2.0, "upper": 18.0, "mag": -0.75},
-            {"id": "bio_cns_arousal", "label": "Central CNS Arousal State", "unit": "index", "panel": "Neurologic Index", "lower": 40.0, "upper": 80.0, "mag": 0.70},
-        ],
-        "phenotypes": [
-            {"id": "pheno_executive_function", "label": "Enhanced Executive Focus & Dopaminergic Vigilance", "cat": "therapeutic_benefit", "sev": "high", "mag": 0.85},
-            {"id": "pheno_hyperprolactinemia", "label": "Dopamine Disinhibition Hyperprolactinemia & Galactorrhea Risk", "cat": "adverse_effect", "sev": "moderate", "mag": -0.80},
-        ],
-    },
-    {
-        "target_pattern": r"(?:pde5|pde-5|phosphodiesterase 5|tadalafil|sildenafil|vardenafil)",
-        "target_name": "Phosphodiesterase 5A (PDE5)",
-        "node_type": "enzyme",
-        "pathway": {
-            "id": "pathway_cgmp_pde5_signaling",
-            "label": "Nitric Oxide / cGMP Signaling & PDE5 Breakdown (R-HSA-111469)",
-            "db": "Reactome",
-        },
-        "physiology": {
-            "id": "phys_vascular_smooth_muscle_relaxation",
-            "label": "Vascular Endothelial Nitric Oxide & Smooth Muscle Relaxation",
-            "organ": "Cardiovascular / Endothelial",
-        },
-        "biomarkers": [
-            {"id": "bio_blood_pressure", "label": "Systolic Blood Pressure", "unit": "mmHg", "panel": "Vitals", "lower": 90, "upper": 120, "mag": 0.45},
-            {"id": "bio_heart_rate", "label": "Resting Heart Rate", "unit": "bpm", "panel": "Vitals", "lower": 50, "upper": 90, "mag": -0.15},
-        ],
-        "phenotypes": [
-            {"id": "pheno_endothelial_vasodilation", "label": "cGMP-Mediated Arteriolar Vasodilation & Endothelial Flow Enhancement", "cat": "therapeutic_benefit", "sev": "high", "mag": 0.85},
-            {"id": "pheno_hypotension_risk", "label": "Additive Hypotension & Syncope Vulnerability", "cat": "adverse_effect", "sev": "moderate", "mag": 0.65},
-        ],
-    },
-    {
-        "target_pattern": r"(?:astaxanthin|carotenoid free radical|nfe2l2|asta\b)",
-        "target_name": "Lipophilic Carotenoid Free Radical Scavenging & Nrf2 Activation (Astaxanthin)",
-        "node_type": "enzyme",
-        "pathway": {
-            "id": "pathway_nrf2_antioxidant_response",
-            "label": "Nrf2-ARE Redox Signaling & Membrane Singlet Oxygen Quenching (R-HSA-3299685)",
-            "db": "Reactome",
-        },
-        "physiology": {
-            "id": "phys_carotenoid_membrane_antioxidant",
-            "label": "Cellular Membrane Bilayer Stabilization & ROS Neutralization",
-            "organ": "Systemic / Cellular Bilayer",
-        },
-        "biomarkers": [
-            {"id": "bio_mda", "label": "Serum Malondialdehyde (MDA / Lipid Peroxidation)", "unit": "μmol/L", "panel": "Redox Panel", "lower": 1.0, "upper": 2.5, "mag": -0.85},
-            {"id": "bio_gsh_redox_ratio", "label": "Glutathione Redox Index (GSH:GSSG)", "unit": "index", "panel": "Redox Panel", "lower": 80.0, "upper": 120.0, "mag": 0.80},
-            {"id": "bio_crp", "label": "High-Sensitivity C-Reactive Protein (hs-CRP)", "unit": "mg/L", "panel": "Inflammatory Panel", "lower": 0.0, "upper": 1.0, "mag": -0.75},
-        ],
-        "phenotypes": [
-            {"id": "pheno_lipid_peroxidation_inhibition", "label": "Inhibition of Membrane Lipid Peroxidation & Singlet Oxygen Cytoprotection", "cat": "therapeutic_benefit", "sev": "high", "mag": 0.90},
-            {"id": "pheno_antiinflammatory", "label": "Systemic hs-CRP & Inflammatory Cascade Attenuation", "cat": "therapeutic_benefit", "sev": "high", "mag": 0.85},
-        ],
-    },
-    {
-        "target_pattern": r"(?:mitochondrial ubiquinone|coq10|ubiquinol|ubiquinone|coq2)",
-        "target_name": "Mitochondrial Ubiquinone Electron Transport & Bioenergetics (CoQ10 / Ubiquinol)",
-        "node_type": "enzyme",
-        "pathway": {
-            "id": "pathway_mitochondrial_electron_transport",
-            "label": "Mitochondrial Respiratory Electron Transport & ATP Synthesis (R-HSA-163200)",
-            "db": "Reactome",
-        },
-        "physiology": {
-            "id": "phys_mitochondrial_bioenergetics",
-            "label": "Myocardial & Intracellular Bioenergetic Coupling",
-            "organ": "Cardiovascular / Mitochondrial",
-        },
-        "biomarkers": [
-            {"id": "bio_gsh_redox_ratio", "label": "Glutathione Redox Index (GSH:GSSG)", "unit": "index", "panel": "Redox Panel", "lower": 80.0, "upper": 120.0, "mag": 0.75},
-            {"id": "bio_mda", "label": "Serum Malondialdehyde (MDA / Lipid Peroxidation)", "unit": "μmol/L", "panel": "Redox Panel", "lower": 1.0, "upper": 2.5, "mag": -0.70},
-            {"id": "bio_nt_probnp", "label": "N-Terminal Pro-B-Type Natriuretic Peptide (NT-proBNP)", "unit": "pg/mL", "panel": "Cardiovascular Panel", "lower": 0.0, "upper": 125.0, "mag": -0.40},
-        ],
-        "phenotypes": [
-            {"id": "pheno_mitochondrial_atp_enhancement", "label": "Mitochondrial ATP Regeneration & Myocardial Redox Defense", "cat": "therapeutic_benefit", "sev": "high", "mag": 0.85},
-        ],
-    },
-    {
-        "target_pattern": r"(?:silymarin|milk thistle|silybin|hepatocellular silymarin|polr1a)",
-        "target_name": "Hepatocellular Silymarin Membrane Stabilization & Protein Synthesis (Milk Thistle)",
-        "node_type": "enzyme",
-        "pathway": {
-            "id": "pathway_hepatocellular_regeneration",
-            "label": "RNA Polymerase I Transcription & Hepatocyte Regeneration (R-HSA-8877330)",
-            "db": "Reactome",
-        },
-        "physiology": {
-            "id": "phys_hepatocyte_membrane_preservation",
-            "label": "Hepatocyte Plasma Membrane Stabilization & Free Radical Defense",
-            "organ": "Hepatic Parenchymal",
-        },
-        "biomarkers": [
-            {"id": "bio_alt", "label": "Alanine Aminotransferase (ALT)", "unit": "U/L", "panel": "Hepatic Panel", "lower": 10.0, "upper": 45.0, "mag": -0.70},
-            {"id": "bio_ast", "label": "Aspartate Aminotransferase (AST)", "unit": "U/L", "panel": "Hepatic Panel", "lower": 10.0, "upper": 40.0, "mag": -0.65},
-            {"id": "bio_ggt", "label": "Gamma-Glutamyl Transferase (GGT)", "unit": "U/L", "panel": "Hepatic Panel", "lower": 9.0, "upper": 48.0, "mag": -0.55},
-            {"id": "bio_mda", "label": "Serum Malondialdehyde (MDA / Lipid Peroxidation)", "unit": "μmol/L", "panel": "Redox Panel", "lower": 1.0, "upper": 2.5, "mag": -0.60},
-        ],
-        "phenotypes": [
-            {"id": "pheno_hepatoprotection", "label": "Hepatocellular Membrane Stabilization & Transaminase Protection", "cat": "therapeutic_benefit", "sev": "high", "mag": 0.90},
-        ],
-    },
-    {
-        "target_pattern": r"(?:curcumin|nfkb1|nf-kb suppression|polyphenolic nf-kb)",
-        "target_name": "Polyphenolic NF-κB & Inflammatory Cytokine Suppression (Curcumin)",
-        "node_type": "enzyme",
-        "pathway": {
-            "id": "pathway_nfkb_inflammatory_signaling",
-            "label": "NF-kB RelA/p50 Complex Translocation & Pro-Inflammatory Cytokine Gene Regulation (R-HSA-446203)",
-            "db": "Reactome",
-        },
-        "physiology": {
-            "id": "phys_systemic_inflammatory_tone",
-            "label": "Systemic Endothelial & Synovial Inflammatory Cascades",
-            "organ": "Systemic Endothelial / Immune",
-        },
-        "biomarkers": [
-            {"id": "bio_crp", "label": "High-Sensitivity C-Reactive Protein (hs-CRP)", "unit": "mg/L", "panel": "Inflammatory Panel", "lower": 0.0, "upper": 1.0, "mag": 0.85},
-            {"id": "bio_mda", "label": "Serum Malondialdehyde (MDA / Lipid Peroxidation)", "unit": "μmol/L", "panel": "Redox Panel", "lower": 1.0, "upper": 2.5, "mag": 0.65},
-        ],
-        "phenotypes": [
-            {"id": "pheno_antiinflammatory", "label": "Systemic hs-CRP & Inflammatory Cytokine Attenuation", "cat": "therapeutic_benefit", "sev": "high", "mag": 0.90},
-        ],
-    },
-    {
-        "target_pattern": r"(?:canalicular bile salt|bsep|abcb11|gpbar1|tgr5|tudca|bile acid export)",
-        "target_name": "Canalicular Bile Salt Export & Hepatoprotection (TUDCA / BSEP / ABCB11)",
-        "node_type": "transporter",
-        "pathway": {
-            "id": "pathway_canalicular_bile_secretion",
-            "label": "Bile Salt Export Pump (BSEP) Canalicular Transport & ER Stress Mitigation (R-HSA-194068)",
-            "db": "Reactome",
-        },
-        "physiology": {
-            "id": "phys_canalicular_biliary_flow",
-            "label": "Canalicular Biliary Clearance & Hepatoprotective Flow Dynamics",
-            "organ": "Hepatic / Biliary",
-        },
-        "biomarkers": [
-            {"id": "bio_total_bilirubin", "label": "Total Serum Bilirubin", "unit": "mg/dL", "panel": "Hepatic Panel", "lower": 0.2, "upper": 1.2, "mag": -0.75},
-            {"id": "bio_alt", "label": "Alanine Aminotransferase (ALT)", "unit": "U/L", "panel": "Hepatic Panel", "lower": 10.0, "upper": 45.0, "mag": -0.65},
-            {"id": "bio_ast", "label": "Aspartate Aminotransferase (AST)", "unit": "U/L", "panel": "Hepatic Panel", "lower": 10.0, "upper": 40.0, "mag": -0.60},
-            {"id": "bio_ggt", "label": "Gamma-Glutamyl Transferase (GGT)", "unit": "U/L", "panel": "Hepatic Panel", "lower": 9.0, "upper": 48.0, "mag": -0.70},
-            {"id": "bio_alp", "label": "Alkaline Phosphatase (ALP)", "unit": "U/L", "panel": "Hepatic Panel", "lower": 40.0, "upper": 129.0, "mag": -0.55},
-        ],
-        "phenotypes": [
-            {"id": "pheno_cholestasis_mitigation", "label": "Relief of Canalicular Bile Stasis, Hepatocellular Membrane Protection & ER Stress Reduction", "cat": "therapeutic_benefit", "sev": "high", "mag": 0.90},
-            {"id": "pheno_hepatoprotection", "label": "Transaminase Normalization & Parenchymal Hepatoprotection", "cat": "therapeutic_benefit", "sev": "high", "mag": 0.85},
-        ],
-    },
-]
+from app.services.pathway_service import PathwayService
+
+_PATHWAY_SERVICE_SINGLETON: Optional[PathwayService] = None
 
 
-# -----------------------------------------------------------------------------
-# Deterministic Biomedical Target Ontology Registry (UniProt / HGNC / ChEMBL)
-# Zero regex heuristics: indexed by UniProt Accession, HGNC Gene Symbol, and ChEMBL ID
-# -----------------------------------------------------------------------------
+def get_pathway_service() -> PathwayService:
+    global _PATHWAY_SERVICE_SINGLETON
+    if _PATHWAY_SERVICE_SINGLETON is None:
+        _PATHWAY_SERVICE_SINGLETON = PathwayService()
+    return _PATHWAY_SERVICE_SINGLETON
 
-TARGET_REGISTRY: List[Dict[str, Any]] = [
-    {
-        "gene_symbol": "GABRA1",
-        "uniprot_ids": ["P14867"],
-        "chembl_target_ids": ["CHEMBL2094111", "CHEMBL2111394"],
-        "canonical_name": "Gamma-Aminobutyric Acid Type A Receptor Subunit Alpha-1 (GABRA1)",
-        "aliases": ["gabra1", "gaba-a", "gaba a receptor", "gaba_a", "gaba-a receptor complex", "gaba receptor"],
-    },
-    {
-        "gene_symbol": "CYP19A1",
-        "uniprot_ids": ["P11511"],
-        "chembl_target_ids": ["CHEMBL1978"],
-        "canonical_name": "Aromatase (CYP19A1)",
-        "aliases": ["aromatase", "cyp19a1", "estrogen synthase", "cytochrome p450 19a1"],
-    },
-    {
-        "gene_symbol": "AR",
-        "uniprot_ids": ["P10275"],
-        "chembl_target_ids": ["CHEMBL1871"],
-        "canonical_name": "Androgen Receptor (AR / NR3C4)",
-        "aliases": ["androgen receptor", "ar", "nr3c4", "dihydrotestosterone receptor"],
-    },
-    {
-        "gene_symbol": "TESTOSTERONE_POOL",
-        "uniprot_ids": [],
-        "chembl_target_ids": [],
-        "canonical_name": "Circulating Serum Testosterone Pool",
-        "aliases": ["circulating serum testosterone pool", "circulating testosterone pool", "exogenous testosterone pool", "serum testosterone pool", "circulating testosterone"],
-    },
-    {
-        "gene_symbol": "ESR1",
-        "uniprot_ids": ["P03372"],
-        "chembl_target_ids": ["CHEMBL206"],
-        "canonical_name": "Estrogen Receptor Alpha (ESR1 / ER-Alpha)",
-        "aliases": ["estrogen receptor alpha", "esr1", "er-alpha", "eralpha"],
-    },
-    {
-        "gene_symbol": "ESR2",
-        "uniprot_ids": ["Q92731"],
-        "chembl_target_ids": ["CHEMBL242"],
-        "canonical_name": "Estrogen Receptor Beta (ESR2 / ER-Beta)",
-        "aliases": ["estrogen receptor beta", "esr2", "er-beta", "erbeta"],
-    },
-    {
-        "gene_symbol": "PGR",
-        "uniprot_ids": ["P06401"],
-        "chembl_target_ids": ["CHEMBL240"],
-        "canonical_name": "Progesterone Receptor (PGR)",
-        "aliases": ["progesterone receptor", "pgr", "nr3c3", "progestin receptor"],
-    },
-    {
-        "gene_symbol": "TH",
-        "uniprot_ids": ["P07101"],
-        "chembl_target_ids": ["CHEMBL3525"],
-        "canonical_name": "Tyrosine Hydroxylase (TH)",
-        "aliases": ["tyrosine hydroxylase", "th", "tyrosine 3-monooxygenase"],
-    },
-    {
-        "gene_symbol": "SRD5A1",
-        "uniprot_ids": ["P18405", "P31213"],
-        "chembl_target_ids": ["CHEMBL1782", "CHEMBL1783"],
-        "canonical_name": "5-Alpha Reductase Subtype 1 & 2",
-        "aliases": ["5-alpha reductase", "srd5a1", "srd5a2", "steroid 5-alpha reductase", "5ar"],
-    },
-    {
-        "gene_symbol": "EPO",
-        "uniprot_ids": ["P01588", "P19235"],
-        "chembl_target_ids": ["CHEMBL3714088"],
-        "canonical_name": "Renal Erythropoietin (EPO) Signaling",
-        "aliases": ["erythropoietin", "epo", "erythropoietin receptor", "epor"],
-    },
-    {
-        "gene_symbol": "SHBG",
-        "uniprot_ids": ["P04278"],
-        "chembl_target_ids": ["CHEMBL2530"],
-        "canonical_name": "Sex Hormone-Binding Globulin (SHBG)",
-        "aliases": ["shbg", "sex hormone binding globulin", "sex hormone-binding globulin"],
-    },
-    {
-        "gene_symbol": "ADRB1",
-        "uniprot_ids": ["P08588"],
-        "chembl_target_ids": ["CHEMBL213"],
-        "canonical_name": "Beta-1 Adrenergic Receptor (ADRB1)",
-        "aliases": ["beta-1 adrenergic", "beta 1 adrenergic", "adrb1", "beta-1 receptor"],
-    },
-    {
-        "gene_symbol": "ADRB2",
-        "uniprot_ids": ["P07550"],
-        "chembl_target_ids": ["CHEMBL210"],
-        "canonical_name": "Beta-2 Adrenergic Receptor (ADRB2)",
-        "aliases": ["beta-2 adrenergic", "beta 2 adrenergic", "adrb2", "beta-2 receptor"],
-    },
-    {
-        "gene_symbol": "ADRA2A",
-        "uniprot_ids": ["P08913"],
-        "chembl_target_ids": ["CHEMBL241"],
-        "canonical_name": "Alpha-2A Adrenergic Receptor (ADRA2A)",
-        "aliases": ["alpha-2a adrenergic", "alpha 2a adrenergic", "adra2a", "alpha-2a receptor"],
-    },
-    {
-        "gene_symbol": "ADRA2B",
-        "uniprot_ids": ["P18089"],
-        "chembl_target_ids": ["CHEMBL243"],
-        "canonical_name": "Alpha-2B Adrenergic Receptor (ADRA2B)",
-        "aliases": ["alpha-2b adrenergic", "alpha 2b adrenergic", "adra2b"],
-    },
-    {
-        "gene_symbol": "ADRA2C",
-        "uniprot_ids": ["P18825"],
-        "chembl_target_ids": ["CHEMBL244"],
-        "canonical_name": "Alpha-2C Adrenergic Receptor (ADRA2C)",
-        "aliases": ["alpha-2c adrenergic", "alpha 2c adrenergic", "adra2c"],
-    },
-    {
-        "gene_symbol": "ADRA1A",
-        "uniprot_ids": ["P35348"],
-        "chembl_target_ids": ["CHEMBL225"],
-        "canonical_name": "Alpha-1A Adrenergic Receptor (ADRA1A)",
-        "aliases": ["alpha-1a adrenergic", "alpha 1a adrenergic", "adra1a"],
-    },
-    {
-        "gene_symbol": "AGTR1",
-        "uniprot_ids": ["P30556"],
-        "chembl_target_ids": ["CHEMBL228"],
-        "canonical_name": "Angiotensin II Type-1 Receptor (AGTR1)",
-        "aliases": [
-            "angiotensin ii type-1",
-            "type-1 angiotensin ii receptor",
-            "type-1 angiotensin ii receptor a",
-            "type-1 angiotensin ii receptor b",
-            "type 1 angiotensin ii receptor",
-            "type-1 angiotensin",
-            "at1 receptor",
-            "agtr1",
-            "angiotensin receptor",
-            "angiotensin ii receptor",
-        ],
-    },
-    {
-        "gene_symbol": "AGT",
-        "uniprot_ids": ["P01019"],
-        "chembl_target_ids": ["CHEMBL2835"],
-        "canonical_name": "Angiotensinogen (AGT / Hepatic RAAS Precursor)",
-        "aliases": [
-            "angiotensinogen",
-            "hepatic angiotensinogen",
-            "hepatic angiotensinogen / raas cascade",
-            "agt",
-            "raas precursor",
-            "raas",
-        ],
-    },
-    {
-        "gene_symbol": "PPARG",
-        "uniprot_ids": ["P37231"],
-        "chembl_target_ids": ["CHEMBL235"],
-        "canonical_name": "Peroxisome Proliferator-Activated Receptor Gamma (PPARG)",
-        "aliases": ["pparg", "ppar-gamma", "ppargamma", "peroxisome proliferator-activated receptor gamma"],
-    },
-    {
-        "gene_symbol": "NR3C2",
-        "uniprot_ids": ["P08235"],
-        "chembl_target_ids": ["CHEMBL2034"],
-        "canonical_name": "Mineralocorticoid Receptor (NR3C2)",
-        "aliases": ["mineralocorticoid receptor", "aldosterone receptor", "nr3c2"],
-    },
-    {
-        "gene_symbol": "KCNH2",
-        "uniprot_ids": ["Q12809"],
-        "chembl_target_ids": ["CHEMBL240"],
-        "canonical_name": "Voltage-Gated Potassium Channel (hERG / KCNH2)",
-        "aliases": ["herg", "kcnh2", "potassium voltage-gated channel subfamily h member 2"],
-    },
-    {
-        "gene_symbol": "GLP1R",
-        "uniprot_ids": ["P43220"],
-        "chembl_target_ids": ["CHEMBL1784"],
-        "canonical_name": "GLP-1 Receptor (GLP1R)",
-        "aliases": ["glp-1 receptor", "glp1r", "glucagon-like peptide 1 receptor"],
-    },
-    {
-        "gene_symbol": "PDE5A",
-        "uniprot_ids": ["O76074"],
-        "chembl_target_ids": ["CHEMBL1827", "CHEMBL1824"],
-        "canonical_name": "Phosphodiesterase 5A (PDE5)",
-        "aliases": ["pde5", "pde5a", "phosphodiesterase 5a", "cgmp-specific 3',5'-cyclic phosphodiesterase"],
-    },
-    {
-        "gene_symbol": "SLC6A4",
-        "uniprot_ids": ["P31645"],
-        "chembl_target_ids": ["CHEMBL228"],
-        "canonical_name": "Serotonin Transporter (SERT / SLC6A4)",
-        "aliases": ["sert", "slc6a4", "serotonin transporter", "sodium-dependent serotonin transporter"],
-    },
-    {
-        "gene_symbol": "SLC6A3",
-        "uniprot_ids": ["Q01959"],
-        "chembl_target_ids": ["CHEMBL238"],
-        "canonical_name": "Dopamine Transporter (DAT / SLC6A3)",
-        "aliases": ["dat", "slc6a3", "dopamine transporter", "sodium-dependent dopamine transporter"],
-    },
-    {
-        "gene_symbol": "GABRA1",
-        "uniprot_ids": ["P14867"],
-        "chembl_target_ids": ["CHEMBL2094112"],
-        "canonical_name": "GABA-A Receptor (GABRA1)",
-        "aliases": ["gaba-a", "gabra1", "gaba a", "gamma-aminobutyric acid receptor subunit alpha-1"],
-    },
-    {
-        "gene_symbol": "OPRM1",
-        "uniprot_ids": ["P35372"],
-        "chembl_target_ids": ["CHEMBL233"],
-        "canonical_name": "Mu-Opioid Receptor (OPRM1)",
-        "aliases": ["mu-opioid", "oprm1", "mu opioid receptor", "morphine receptor"],
-    },
-    {
-        "gene_symbol": "HTR1A",
-        "uniprot_ids": ["P08908"],
-        "chembl_target_ids": ["CHEMBL214"],
-        "canonical_name": "5-HT1A Receptor (HTR1A)",
-        "aliases": ["5-ht1a", "htr1a", "5-hydroxytryptamine receptor 1a", "serotonin 1a receptor"],
-    },
-    {
-        "gene_symbol": "ADORA1",
-        "uniprot_ids": ["P30542", "P29274"],
-        "chembl_target_ids": ["CHEMBL226", "CHEMBL251"],
-        "canonical_name": "Adenosine A1/A2A Receptor",
-        "aliases": ["a1 receptor", "a2a receptor", "adenosine a1", "adenosine a2a", "adora1", "adora2a", "adenosine receptor", "a1", "a2a"],
-    },
-    {
-        "gene_symbol": "SLC5A2",
-        "uniprot_ids": ["P31639"],
-        "chembl_target_ids": ["CHEMBL1963778"],
-        "canonical_name": "Sodium-Glucose Cotransporter 2 (SGLT2 / SLC5A2)",
-        "aliases": ["sglt2", "slc5a2", "sodium/glucose cotransporter 2"],
-    },
-    {
-        "gene_symbol": "SLC7A11",
-        "uniprot_ids": ["Q16478", "P48506", "P48507", "Q16236"],
-        "chembl_target_ids": ["CHEMBL3714090"],
-        "canonical_name": "Glutathione Biosynthesis & Cellular Antioxidant Defense (System xc- / Nrf2 / GCL)",
-        "aliases": [
-            "glutathione synthesis system",
-            "cystine-glutamate antiporter (system xc-)",
-            "system xc-",
-            "slc7a11",
-            "gclc",
-            "gclm",
-            "nrf2",
-            "nfe2l2",
-            "glutathione biosynthesis",
-            "glutathione",
-            "antioxidant defense",
-        ],
-    },
-    {
-        "gene_symbol": "NFE2L2",
-        "uniprot_ids": ["Q16236"],
-        "chembl_target_ids": [],
-        "canonical_name": "Nuclear Factor Erythroid 2-Related Factor 2 (Nrf2 / NFE2L2)",
-        "aliases": ["nrf2", "nfe2l2", "astaxanthin", "carotenoid free radical"],
-    },
-    {
-        "gene_symbol": "COQ2",
-        "uniprot_ids": ["Q96H96"],
-        "chembl_target_ids": [],
-        "canonical_name": "Mitochondrial Ubiquinone Electron Transport & Bioenergetics (CoQ10 / Ubiquinol)",
-        "aliases": ["coq2", "coq10", "ubiquinol", "ubiquinone", "coenzyme q10"],
-    },
-    {
-        "gene_symbol": "POLR1A",
-        "uniprot_ids": ["O95602"],
-        "chembl_target_ids": [],
-        "canonical_name": "RNA Polymerase I Subunit A (POLR1A / Silymarin)",
-        "aliases": ["polr1a", "silymarin", "silybin", "milk thistle"],
-    },
-    {
-        "gene_symbol": "NFKB1",
-        "uniprot_ids": ["P19838"],
-        "chembl_target_ids": [],
-        "canonical_name": "Nuclear Factor NF-kappa-B p50 Subunit (NFKB1)",
-        "aliases": ["nfkb1", "nf-kb", "curcumin", "nfkb"],
-    },
-    {
-        "gene_symbol": "GPBAR1",
-        "uniprot_ids": ["Q8TDU6"],
-        "chembl_target_ids": ["CHEMBL5075"],
-        "canonical_name": "G-Protein Coupled Bile Acid Receptor 1 (TGR5 / GPBAR1)",
-        "aliases": ["tgr5", "gpbar1", "tudca", "bile acid receptor"],
-    },
-    {
-        "gene_symbol": "ABCB11",
-        "uniprot_ids": ["O95342"],
-        "chembl_target_ids": [],
-        "canonical_name": "Bile Salt Export Pump (BSEP / ABCB11)",
-        "aliases": ["bsep", "abcb11", "biliary transport"],
-    },
-    {
-        "gene_symbol": "PRKAA1",
-        "uniprot_ids": ["Q13131"],
-        "chembl_target_ids": ["CHEMBL2148"],
-        "canonical_name": "AMP-Activated Protein Kinase (AMPK / PRKAA1)",
-        "aliases": ["ampk", "prkaa1", "amp-activated protein kinase"],
-    },
-    {
-        "gene_symbol": "MTNR1A",
-        "uniprot_ids": ["P48039"],
-        "chembl_target_ids": ["CHEMBL237"],
-        "canonical_name": "Melatonin Receptor 1A (MT1 / MTNR1A)",
-        "aliases": ["mt1", "mtnr1a", "melatonin receptor 1a"],
-    },
-    {
-        "gene_symbol": "MTNR1B",
-        "uniprot_ids": ["P49286"],
-        "chembl_target_ids": ["CHEMBL238"],
-        "canonical_name": "Melatonin Receptor 1B (MT2 / MTNR1B)",
-        "aliases": ["mt2", "mtnr1b", "melatonin receptor 1b"],
-    },
-]
 
-# Build high-speed O(1) identifier index
+# Dynamically load registered biological targets from PathwayService & SQLite database
+TARGET_REGISTRY: List[Dict[str, Any]] = get_pathway_service().get_all_target_registries()
+
+# Dynamic high-speed O(1) identifier index
 TARGET_LOOKUP_INDEX: Dict[str, Dict[str, Any]] = {}
 for _target_entry in TARGET_REGISTRY:
     for _uid in _target_entry.get("uniprot_ids", []):
@@ -1646,69 +158,27 @@ for _target_entry in TARGET_REGISTRY:
         TARGET_LOOKUP_INDEX[canonicalize_match_token(_alias)] = _target_entry
 
 
-CASCADE_EXACT_GENE_SYMBOLS: Dict[str, List[str]] = {
-    "Alpha-2 Adrenergic Receptor (ADRA2A/2B/2C)": ["ADRA2A", "ADRA2B", "ADRA2C"],
-    "Adenosine A1/A2A Receptor": ["ADORA1", "ADORA2A"],
-    "Skeletal Muscle ATP-PCr System": ["CKMT2", "CKM"],
-    "GABA-A Receptor Complex": ["GABRA1"],
-    "Angiotensin II Type-1 (AT1) Receptor / ACE": ["AGTR1", "ACE", "AGT"],
-    "Mineralocorticoid Receptor (Aldosterone Receptor / NR3C2)": ["NR3C2"],
-    "HMG-CoA Reductase": ["HMGCR", "PRKAA1"],
-    "Dopamine / Norepinephrine Transporter (DAT/NET)": ["SLC6A3", "SLC6A2", "DRD2", "TH"],
-    "Serotonin Transporter (SERT / SLC6A4)": ["SLC6A4"],
-    "Aromatase (CYP19A1)": ["CYP19A1"],
-    "5-Alpha Reductase Subtype 1 & 2": ["SRD5A1", "SRD5A2"],
-    "Androgen Receptor (AR / NR3C4)": ["AR"],
-    "Glucocorticoid Receptor (GR / NR3C1)": ["NR3C1"],
-    "Beta-1 Adrenergic Receptor (ADRB1)": ["ADRB1"],
-    "Beta-2 Adrenergic Receptor (ADRB2)": ["ADRB2"],
-    "L-Type Voltage-Gated Calcium Channel (CACNA1C)": ["CACNA1C"],
-    "Coagulation Cascade (Thrombin / Factor Xa / Platelet P2Y12)": ["F2", "F10", "P2RY12"],
-    "Muscarinic Acetylcholine Receptors (CHRM1-5)": ["CHRM1", "CHRM2", "CHRM3", "CHRM4", "CHRM5"],
-    "Cyclooxygenase 1 & 2 (COX-1/2)": ["PTGS1", "PTGS2"],
-    "Mu-Opioid Receptor (OPRM1)": ["OPRM1"],
-    "Peroxisome Proliferator-Activated Receptor (PPAR-γ/α/δ)": ["PPARG", "PPARA", "PPARD"],
-    "Sodium-Glucose Cotransporter 2 (SGLT2 / SLC5A2)": ["SLC5A2"],
-    "Glutathione Biosynthesis & Cellular Antioxidant Defense (System xc- / Nrf2 / GCL)": ["SLC7A11", "GCLC", "GCLM", "GPX1", "SOD1", "SOD2", "CAT"],
-    "Voltage-Gated Potassium Channel (hERG / KCNH2 / IKr)": ["KCNH2"],
-    "Phosphodiesterase 5A (PDE5)": ["PDE5A"],
-    "Lipophilic Carotenoid Free Radical Scavenging & Nrf2 Activation (Astaxanthin)": ["NFE2L2"],
-    "Mitochondrial Ubiquinone Electron Transport & Bioenergetics (CoQ10 / Ubiquinol)": ["COQ2"],
-    "Hepatocellular Silymarin Membrane Stabilization & Protein Synthesis (Milk Thistle)": ["POLR1A"],
-    "Polyphenolic NF-κB & Inflammatory Cytokine Suppression (Curcumin)": ["NFKB1", "PTGS2"],
-    "Canalicular Bile Salt Export & Hepatoprotection (TUDCA / BSEP / ABCB11)": ["ABCB11", "GPBAR1"],
-    "Hepatic Metabolic Clearance & Hepatobiliary System": ["CYP3A4", "CYP2D6", "CYP1A2", "CYP2C9"],
-    "Glomerular Filtration & Renal Tubular Transport": ["SLC22A2", "SLC22A6", "SLC22A8"],
-    "Cellular Redox Homeostasis & Mitochondrial Bioenergetics": ["NOX1", "NOX2", "NOX4", "CYP2E1", "MAOA", "MAOB"],
-}
+# Dynamically load target cascades from PathwayService & SQLite database
+CANONICAL_TARGET_CASCADES: List[Dict[str, Any]] = get_pathway_service().get_all_target_cascades()
 
-# Build high-speed exact O(1) identifier index for Target Cascades (Zero regexes)
+CASCADE_EXACT_GENE_SYMBOLS: Dict[str, List[str]] = {}
+for _target_entry in TARGET_REGISTRY:
+    _name = _target_entry.get("canonical_name", "")
+    _sym = _target_entry.get("gene_symbol", "")
+    if _name and _sym:
+        CASCADE_EXACT_GENE_SYMBOLS.setdefault(_name, []).append(_sym)
+
+# Dynamic high-speed exact O(1) identifier index for Target Cascades
 EXACT_CASCADE_LOOKUP: Dict[str, Dict[str, Any]] = {}
 for _cascade in CANONICAL_TARGET_CASCADES:
     _t_name = _cascade.get("target_name", "")
     if _t_name:
         EXACT_CASCADE_LOOKUP[_t_name.lower()] = _cascade
         EXACT_CASCADE_LOOKUP[canonicalize_match_token(_t_name)] = _cascade
-
-    # Map gene symbols and their exact UniProt/ChEMBL identifiers to this cascade
-    _genes = CASCADE_EXACT_GENE_SYMBOLS.get(_t_name, [])
-    for _gene in _genes:
-        EXACT_CASCADE_LOOKUP[_gene.lower()] = _cascade
-        # Find all registry entries matching this gene symbol
-        for _reg in TARGET_REGISTRY:
-            if _reg.get("gene_symbol", "").upper() == _gene.upper():
-                for _uid in _reg.get("uniprot_ids", []):
-                    EXACT_CASCADE_LOOKUP[_uid.lower()] = _cascade
-                for _cid in _reg.get("chembl_target_ids", []):
-                    EXACT_CASCADE_LOOKUP[_cid.lower()] = _cascade
-                for _alias in _reg.get("aliases", []):
-                    EXACT_CASCADE_LOOKUP[_alias.lower()] = _cascade
-                    EXACT_CASCADE_LOOKUP[canonicalize_match_token(_alias)] = _cascade
-
-    # Index explicit identifiers if defined
-    for _key in _cascade.get("exact_identifiers", []):
-        EXACT_CASCADE_LOOKUP[_key.lower()] = _cascade
-        EXACT_CASCADE_LOOKUP[canonicalize_match_token(_key)] = _cascade
+    if _cascade.get("symbol"):
+        EXACT_CASCADE_LOOKUP[_cascade["symbol"].lower()] = _cascade
+    if _cascade.get("uniprot_id"):
+        EXACT_CASCADE_LOOKUP[_cascade["uniprot_id"].lower()] = _cascade
 
 
 def get_exact_target_cascade_blueprint(
@@ -1718,8 +188,9 @@ def get_exact_target_cascade_blueprint(
     chembl_target_id: Optional[str] = None,
 ) -> Optional[Dict[str, Any]]:
     """
-    Zero-regex exact O(1) lookup of downstream signaling pathway, physiology, and biomarker cascade blueprints.
-    Matches deterministically on UniProt Accession, HGNC Gene Symbol, ChEMBL Target ID, or Canonical Target Name.
+    Dynamic O(1) lookup of downstream signaling pathway, physiology, and biomarker cascade blueprints.
+    Matches deterministically on UniProt Accession, HGNC Gene Symbol, ChEMBL Target ID, or Canonical Target Name,
+    and dynamically resolves novel/unmapped targets via PathwayService (with SQLite caching).
     """
     candidates = [
         uniprot_id,
@@ -1736,6 +207,12 @@ def get_exact_target_cascade_blueprint(
         c_tok = canonicalize_match_token(cand)
         if c_tok in EXACT_CASCADE_LOOKUP:
             return EXACT_CASCADE_LOOKUP[c_tok]
+        if c_str in TARGET_LOOKUP_INDEX:
+            c_name = TARGET_LOOKUP_INDEX[c_str]["canonical_name"]
+            if c_name.lower() in EXACT_CASCADE_LOOKUP:
+                return EXACT_CASCADE_LOOKUP[c_name.lower()]
+            if canonicalize_match_token(c_name) in EXACT_CASCADE_LOOKUP:
+                return EXACT_CASCADE_LOOKUP[canonicalize_match_token(c_name)]
 
     # Check via TARGET_LOOKUP_INDEX canonical normalization
     norm_name = _normalize_target_node_id(target_name, chembl_target_id, uniprot_id)
@@ -1746,7 +223,32 @@ def get_exact_target_cascade_blueprint(
         if norm_tok in EXACT_CASCADE_LOOKUP:
             return EXACT_CASCADE_LOOKUP[norm_tok]
 
-    return None
+    # Dynamic fallback to PathwayService live Reactome/OpenTargets query & SQLite caching
+    effective_name = target_name
+    if (not effective_name or effective_name.lower() == "unknown") and norm_name and norm_name.lower() != "unknown":
+        effective_name = norm_name
+    elif (not effective_name or effective_name.lower() == "unknown") and uniprot_id and uniprot_id.lower() in TARGET_LOOKUP_INDEX:
+        effective_name = TARGET_LOOKUP_INDEX[uniprot_id.lower()]["canonical_name"]
+    elif (not effective_name or effective_name.lower() == "unknown") and gene_symbol and gene_symbol.lower() in TARGET_LOOKUP_INDEX:
+        effective_name = TARGET_LOOKUP_INDEX[gene_symbol.lower()]["canonical_name"]
+    elif (not effective_name or effective_name.lower() == "unknown") and chembl_target_id and chembl_target_id.lower() in TARGET_LOOKUP_INDEX:
+        effective_name = TARGET_LOOKUP_INDEX[chembl_target_id.lower()]["canonical_name"]
+
+    pw_service = get_pathway_service()
+    dynamic_cascade = pw_service.get_dynamic_target_cascade(
+        effective_name,
+        {"label": effective_name, "uniprot_id": uniprot_id, "gene_symbol": gene_symbol, "target_id": chembl_target_id}
+    )
+    if dynamic_cascade:
+        EXACT_CASCADE_LOOKUP[effective_name.lower()] = dynamic_cascade
+        EXACT_CASCADE_LOOKUP[canonicalize_match_token(effective_name)] = dynamic_cascade
+        if gene_symbol:
+            EXACT_CASCADE_LOOKUP[gene_symbol.lower()] = dynamic_cascade
+        if uniprot_id:
+            EXACT_CASCADE_LOOKUP[uniprot_id.lower()] = dynamic_cascade
+        if chembl_target_id:
+            EXACT_CASCADE_LOOKUP[chembl_target_id.lower()] = dynamic_cascade
+        return dynamic_cascade
 
 
 def _normalize_target_node_id(
@@ -1755,11 +257,8 @@ def _normalize_target_node_id(
     accessions: Optional[str] = None,
 ) -> str:
     """
-    Normalize molecular target to standard clinical node label using O(1) biomedical ontology indexing:
-    1. UniProt Accession ID (e.g., P11511 -> Aromatase)
-    2. ChEMBL Target ID (e.g., CHEMBL1978 -> Aromatase)
-    3. HGNC Gene Symbol (e.g., CYP19A1 -> Aromatase)
-    4. Exact Canonical Token Index
+    Normalize molecular target to standard clinical node label using O(1) biomedical ontology indexing
+    with dynamic UniProt / HGNC / ChEMBL metadata resolution.
     """
     # 1. Check UniProt Accession
     if accessions:
@@ -1779,12 +278,13 @@ def _normalize_target_node_id(
     clean_token = canonicalize_match_token(raw_name)
     if clean_token in TARGET_LOOKUP_INDEX:
         return TARGET_LOOKUP_INDEX[clean_token]["canonical_name"]
+    if str(raw_name).strip().lower() in TARGET_LOOKUP_INDEX:
+        return TARGET_LOOKUP_INDEX[str(raw_name).strip().lower()]["canonical_name"]
 
-    # 4. Partial substring key lookup across registered standard targets
-    for key, entry in TARGET_LOOKUP_INDEX.items():
-        if len(key) >= 3 and (key in clean_token or (len(clean_token) >= 4 and clean_token in key)):
-            return entry["canonical_name"]
-
+    # 4. Dynamic fallback to PathwayService metadata resolution
+    pw_meta = get_pathway_service().resolve_target_metadata(raw_name)
+    if pw_meta.get("name") and pw_meta.get("name") != "Unknown Target":
+        return pw_meta["name"]
     cleaned = str(raw_name or "").strip()
     return cleaned
 
@@ -2015,15 +515,6 @@ def build_selected_compound_graph(stack: List[Any], catalog_service: CatalogServ
                     "intrinsic_efficacy": 0.85,
                     "pre_computed_stress": True,
                 })
-            if not has_bioidentical_test_in_stack:
-                if not any("hypothalamic-pituitary-gonadal" in str(t.get("target", "")).lower() for t in receptor_targets):
-                    receptor_targets.append({
-                        "target": "Hypothalamic-Pituitary-Gonadal (HPG) Axis",
-                        "action": "inhibitor",
-                        "family": "Endocrine Axis",
-                        "intrinsic_efficacy": -0.92,
-                        "pre_computed_stress": True,
-                    })
 
         # 19-nor progestogenic stimulation (Trenbolone, Nandrolone)
         is_19nor = any(w in c_name_lower or w in drug_class_lower or w in mechanism_text for w in ["19-nor", "nandrolone", "trenbolone", "nortestosterone", "progest"])
@@ -2078,6 +569,33 @@ def build_selected_compound_graph(stack: List[Any], catalog_service: CatalogServ
         warnings_text = str(compound.get("warnings") or "").lower()
         is_17aa = any(w in c_name_lower for w in ["methyl", "stanozolol", "superdrol", "anadrol", "oxymetholone", "halotestin", "fluoxymesterone", "dianabol", "methandrostenolone", "turinabol", "winstrol"])
 
+        is_blocker = any(w in drug_class_lower for w in ["blocker", "antagonist", "inhibitor"])
+        comp_class_lower = str(compound.get("compound_class") or "").lower()
+        is_antioxidant = any(
+            w in drug_class_lower or w in mechanism_text or w in comp_class_lower or w in c_name_lower
+            for w in [
+                "antioxidant",
+                "glutathione",
+                "scavenger",
+                "n-acetylcysteine",
+                "acetylcysteine",
+                "tudca",
+                "mucolytic",
+                "reductant",
+                "neutralizing reactive oxygen",
+                "protects against oxidative",
+                "radical scavenger",
+                "lipoic acid",
+                "coq10",
+                "ubiquinone",
+                "ubiquinol",
+                "tocopherol",
+                "ascorbic",
+                "curcumin",
+                "omega",
+            ]
+        )
+
         # 1. Dynamic Hepatic Metabolic Clearance & Hepatobiliary Stress
         # Routine hepatic metabolism is normal physiology — NOT hepatotoxicity.
         # Only structurally hepatotoxic features should drive meaningful transaminase elevation.
@@ -2090,7 +608,7 @@ def build_selected_compound_graph(stack: List[Any], catalog_service: CatalogServ
             or is_steroidal_androgen(compound)
             or logp_val >= 3.2
         )
-        if has_hep_clearance and not any("hepatic metabolic clearance" in str(t.get("target", "")).lower() for t in receptor_targets):
+        if has_hep_clearance and not is_antioxidant and not any("hepatic metabolic clearance" in str(t.get("target", "")).lower() for t in receptor_targets):
             # Tiered hepatotoxicity scoring based on structural features
             hep_risk_score = 0.0
 
@@ -2365,9 +883,11 @@ def build_selected_compound_graph(stack: List[Any], catalog_service: CatalogServ
 
             # Check Canonical Cascade Mapping
             if matched_cascade:
+                clean_tgt = re.sub(r"[^a-z0-9_]", "_", str(target_id).lower()).strip("_")
                 p_info = matched_cascade["pathway"]
                 phys_info = matched_cascade["physiology"]
-                p_id = p_info["id"]
+                p_id = f"{p_info['id']}_{clean_tgt}"
+                phys_id = f"{phys_info['id']}_{clean_tgt}"
                 reactome_pws = dyn_cascade.get("raw_pathways", [])
                 p_label = f"{p_info['label']} ({reactome_pws[0]['pathway_name']})" if reactome_pws else p_info["label"]
 
@@ -2390,7 +910,6 @@ def build_selected_compound_graph(stack: List[Any], catalog_service: CatalogServ
 
                 # Add dynamic Reactome pathway node if available
                 if reactome_pws and reactome_pws[0].get("pathway_id"):
-                    clean_tgt = re.sub(r"[^a-z0-9_]", "_", str(target_id).lower()).strip("_")
                     r_id = f"{reactome_pws[0]['pathway_id']}_{clean_tgt}"
                     graph.add_node(
                         SignalingPathwayNode(
@@ -2409,7 +928,7 @@ def build_selected_compound_graph(stack: List[Any], catalog_service: CatalogServ
                 # Add Physiology Node
                 graph.add_node(
                     PhysiologyNode(
-                        node_id=phys_info["id"],
+                        node_id=phys_id,
                         label=phys_info["label"],
                         organ_system=phys_info["organ"],
                     )
@@ -2418,7 +937,7 @@ def build_selected_compound_graph(stack: List[Any], catalog_service: CatalogServ
                 # Edge 3: Pathway -> Physiology
                 graph.add_edge(
                     p_id,
-                    phys_info["id"],
+                    phys_id,
                     edge_type=EdgeType.ALTERS_PHYSIOLOGY,
                     edge_data=EdgeData(vector_magnitude=1.0),
                 )
@@ -2441,7 +960,7 @@ def build_selected_compound_graph(stack: List[Any], catalog_service: CatalogServ
                     )
                     b_mag = float(b_info.get("mag", 1.0))
                     graph.add_edge(
-                        phys_info["id"],
+                        phys_id,
                         b_info["id"],
                         edge_type=EdgeType.MODIFIES_BIOMARKER,
                         edge_data=EdgeData(vector_magnitude=b_mag),
@@ -2459,7 +978,7 @@ def build_selected_compound_graph(stack: List[Any], catalog_service: CatalogServ
                     )
                     pheno_mag = float(pheno.get("mag", 1.0))
                     graph.add_edge(
-                        phys_info["id"],
+                        phys_id,
                         pheno["id"],
                         edge_type=EdgeType.DRIVES_PHENOTYPE if pheno_mag > 0 else EdgeType.MITIGATES_PHENOTYPE,
                         edge_data=EdgeData(vector_magnitude=pheno_mag),

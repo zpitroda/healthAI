@@ -19,6 +19,7 @@ import time
 from typing import Any, Dict, List, Optional, Set, Tuple
 
 import httpx
+from app.knowledge_graph.models import EdgeType
 
 logger = logging.getLogger(__name__)
 
@@ -51,10 +52,11 @@ INITIAL_TARGET_SEED_METADATA: Dict[str, Dict[str, str]] = {
     "srd5a2": {"symbol": "SRD5A2", "uniprot": "P31213", "ensembl": "ENSG00000099958", "name": "5-Alpha Reductase Subtype 2 (SRD5A2)"},
     "5-alpha reductase": {"symbol": "SRD5A2", "uniprot": "P31213", "ensembl": "ENSG00000099958", "name": "5-Alpha Reductase Subtype 1 & 2"},
     "hmgcr": {"symbol": "HMGCR", "uniprot": "P04035", "ensembl": "ENSG00000112972", "name": "HMG-CoA Reductase"},
-    "pde5a": {"symbol": "PDE5A", "uniprot": "O76074", "ensembl": "ENSG00000138735", "name": "Phosphodiesterase 5A (PDE5)"},
+    "pde5a": {"symbol": "PDE5A", "uniprot": "O76074", "ensembl": "ENSG00000138735", "chembl": "CHEMBL1824", "name": "Phosphodiesterase 5A (PDE5)"},
+    "chembl1824": {"symbol": "PDE5A", "uniprot": "O76074", "ensembl": "ENSG00000138735", "chembl": "CHEMBL1824", "name": "Phosphodiesterase 5A (PDE5)"},
     "slc5a2": {"symbol": "SLC5A2", "uniprot": "P31930", "ensembl": "ENSG00000140675", "name": "Sodium-Glucose Cotransporter 2 (SGLT2 / SLC5A2)"},
     "sglt2": {"symbol": "SLC5A2", "uniprot": "P31930", "ensembl": "ENSG00000140675", "name": "Sodium-Glucose Cotransporter 2 (SGLT2 / SLC5A2)"},
-    "glp1r": {"symbol": "GLP1R", "uniprot": "P43220", "ensembl": "ENSG00000048816", "name": "GLP-1 Receptor (GLP1R)"},
+    "glp1r": {"symbol": "GLP1R", "uniprot": "P43220", "ensembl": "ENSG00000048816", "name": "Glucagon-Like Peptide 1 Receptor (GLP1R)"},
     "pparg": {"symbol": "PPARG", "uniprot": "P37231", "ensembl": "ENSG00000132170", "name": "Peroxisome Proliferator-Activated Receptor Gamma (PPARG)"},
     "kcnh2": {"symbol": "KCNH2", "uniprot": "Q12809", "ensembl": "ENSG00000055118", "name": "Voltage-Gated Potassium Channel (hERG / KCNH2 / IKr)"},
     "cacna1c": {"symbol": "CACNA1C", "uniprot": "Q13936", "ensembl": "ENSG00000151067", "name": "L-Type Voltage-Gated Calcium Channel (CACNA1C)"},
@@ -67,6 +69,18 @@ INITIAL_TARGET_SEED_METADATA: Dict[str, Dict[str, str]] = {
     "cyp3a4": {"symbol": "CYP3A4", "uniprot": "P08684", "ensembl": "ENSG00000160868", "name": "Cytochrome P450 3A4 (CYP3A4)"},
     "cyp2c19": {"symbol": "CYP2C19", "uniprot": "P33261", "ensembl": "ENSG00000165841", "name": "Cytochrome P450 2C19 (CYP2C19)"},
     "abcb1": {"symbol": "ABCB1", "uniprot": "P08183", "ensembl": "ENSG00000085563", "name": "P-Glycoprotein (P-gp / ABCB1)"},
+    "slc7a11": {"symbol": "SLC7A11", "uniprot": "Q16478", "ensembl": "ENSG00000151012", "name": "Glutathione Biosynthesis & Cellular Antioxidant Defense (System xc- / Nrf2 / GCL)"},
+    "glutathione": {"symbol": "SLC7A11", "uniprot": "Q16478", "ensembl": "ENSG00000151012", "name": "Glutathione Biosynthesis & Cellular Antioxidant Defense (System xc- / Nrf2 / GCL)"},
+    "ghsr": {"symbol": "GHSR", "uniprot": "Q92847", "ensembl": "ENSG00000121858", "name": "Growth Hormone Secretagogue Receptor (GHSR / Ghrelin Receptor)"},
+    "ghrhr": {"symbol": "GHRHR", "uniprot": "Q02643", "ensembl": "ENSG00000106128", "name": "Growth Hormone-Releasing Hormone Receptor (GHRHR)"},
+    "gipr": {"symbol": "GIPR", "uniprot": "P48546", "ensembl": "ENSG00000135898", "name": "Gastric Inhibitory Polypeptide Receptor (GIPR)"},
+    "gcgr": {"symbol": "GCGR", "uniprot": "P47871", "ensembl": "ENSG00000215644", "name": "Glucagon Receptor (GCGR)"},
+    "mc1r": {"symbol": "MC1R", "uniprot": "Q01726", "ensembl": "ENSG00000258839", "name": "Melanocortin 1 Receptor (MC1R)"},
+    "mc4r": {"symbol": "MC4R", "uniprot": "P32245", "ensembl": "ENSG00000166603", "name": "Melanocortin 4 Receptor (MC4R)"},
+    "kdr": {"symbol": "KDR", "uniprot": "P35968", "ensembl": "ENSG00000128052", "name": "Vascular Endothelial Growth Factor Receptor 2 (VEGFR2 / KDR)"},
+    "tmsb4x": {"symbol": "TMSB4X", "uniprot": "P62328", "ensembl": "ENSG00000205542", "name": "Thymosin Beta-4 (TMSB4X / G-Actin Sequestration)"},
+    "oxtr": {"symbol": "OXTR", "uniprot": "P30559", "ensembl": "ENSG00000180914", "name": "Oxytocin Receptor (OXTR)"},
+    "avpr2": {"symbol": "AVPR2", "uniprot": "P30518", "ensembl": "ENSG00000126895", "name": "Vasopressin V2 Receptor (AVPR2)"},
 }
 
 # Backward compatibility alias
@@ -183,6 +197,43 @@ class PathwayService:
                     )
                 conn.commit()
 
+    def get_all_target_registries(self) -> List[Dict[str, Any]]:
+        """Dynamically load all registered biological targets from SQLite metadata table."""
+        with self._connect() as conn:
+            rows = conn.execute("SELECT * FROM cached_target_metadata").fetchall()
+            by_symbol: Dict[str, Dict[str, Any]] = {}
+            for r in rows:
+                sym = r["symbol"]
+                tq = str(r["target_query"] or "").lower()
+                if sym not in by_symbol:
+                    by_symbol[sym] = {
+                        "gene_symbol": sym,
+                        "uniprot_ids": [r["uniprot_id"]] if r["uniprot_id"] else [],
+                        "chembl_target_ids": [tq] if tq.startswith("chembl") else [],
+                        "canonical_name": r["canonical_name"] or sym,
+                        "aliases": [sym.lower()],
+                    }
+                else:
+                    if r["uniprot_id"] and r["uniprot_id"] not in by_symbol[sym]["uniprot_ids"]:
+                        by_symbol[sym]["uniprot_ids"].append(r["uniprot_id"])
+                    if tq.startswith("chembl") and tq not in by_symbol[sym]["chembl_target_ids"]:
+                        by_symbol[sym]["chembl_target_ids"].append(tq)
+                if tq and tq not in by_symbol[sym]["aliases"]:
+                    by_symbol[sym]["aliases"].append(tq)
+            return list(by_symbol.values())
+
+    def get_all_target_cascades(self) -> List[Dict[str, Any]]:
+        """Dynamically retrieve all active target cascades from SQLite cache."""
+        with self._connect() as conn:
+            rows = conn.execute("SELECT cascade_json FROM cached_target_cascades").fetchall()
+            cascades: List[Dict[str, Any]] = []
+            for r in rows:
+                try:
+                    cascades.append(json.loads(r[0]))
+                except Exception:
+                    pass
+            return cascades
+
     def resolve_target_metadata(self, target_str: str) -> Dict[str, str]:
         """Resolves target string to canonical Symbol, UniProt ID, and Ensembl ID dynamically."""
         cleaned = re.sub(r"[^\w\s-]", " ", str(target_str).lower()).strip()
@@ -201,26 +252,12 @@ class PathwayService:
                 _PATHWAY_METADATA_CACHE[cache_key] = meta
                 return copy.deepcopy(meta)
 
-            # Check substring match in cache
-            rows = conn.execute("SELECT * FROM cached_target_metadata").fetchall()
-            for r in rows:
-                tq = r["target_query"]
-                if tq in cleaned or cleaned in tq:
-                    meta = {"symbol": r["symbol"], "uniprot": r["uniprot_id"] or "", "ensembl": r["ensembl_id"] or "", "name": r["canonical_name"] or target_str}
-                    _PATHWAY_METADATA_CACHE[cache_key] = meta
-                    return copy.deepcopy(meta)
-
-        # 2. Check seed metadata fallback
+        # 2. Check seed metadata fallback with whole-word token precision
+        cleaned_words = set(cleaned.split())
+        cleaned_tok = re.sub(r"[^a-z0-9]", "", cleaned)
         for k, v in INITIAL_TARGET_SEED_METADATA.items():
-            if k in cleaned or cleaned in k:
-                self._save_cached_metadata(cleaned, v["symbol"], v["uniprot"], v["ensembl"], v["name"])
-                meta = dict(v)
-                _PATHWAY_METADATA_CACHE[cache_key] = meta
-                return copy.deepcopy(meta)
-        tokens = cleaned.split()
-        for token in tokens:
-            if token in INITIAL_TARGET_SEED_METADATA:
-                v = INITIAL_TARGET_SEED_METADATA[token]
+            k_tok = re.sub(r"[^a-z0-9]", "", k)
+            if k == cleaned or k_tok == cleaned_tok or k in cleaned_words:
                 self._save_cached_metadata(cleaned, v["symbol"], v["uniprot"], v["ensembl"], v["name"])
                 meta = dict(v)
                 _PATHWAY_METADATA_CACHE[cache_key] = meta
@@ -461,49 +498,90 @@ class PathwayService:
         bridges: List[Dict[str, Any]],
     ) -> Dict[str, Any]:
         """Constructs standardized pathway, physiology, biomarker, and phenotype node specs with genuine Reactome IDs."""
+        if (not target_name or target_name.lower() == "unknown") and meta.get("name") and meta.get("name").lower() != "unknown":
+            target_name = meta["name"]
+
         sym = meta.get("symbol", target_node_id).upper()
+        sym_key = sym if sym and sym != "UNKNOWN" else target_name
+        clean_key = re.sub(r"[^a-zA-Z0-9_]", "_", str(sym_key).lower()).strip("_")
         primary_pw = pathways[0] if pathways else None
 
-        pw_id = primary_pw.get("pathway_id") if primary_pw else f"R-HSA-{abs(hash(sym)) % 9000000 + 1000000}"
+        pw_id = primary_pw.get("pathway_id") if primary_pw else f"R-HSA-{abs(hash(clean_key)) % 9000000 + 1000000}_{clean_key}"
         pw_label = primary_pw.get("pathway_name") if primary_pw else f"{target_name} Transduction Cascade"
 
         phys_id = f"phys_{sym.lower()}_tone"
         phys_label = f"{target_name} Downstream Physiological Function"
+        organ = "Systemic"
 
-        biomarkers = []
-        pheno_nodes = []
+        biomarkers: List[Dict[str, Any]] = []
+        pheno_nodes: List[Dict[str, Any]] = []
+        target_bridges: List[Dict[str, Any]] = list(bridges)
 
         t_lower = target_name.lower()
-        if "cyp19a1" in t_lower or "aromatase" in t_lower:
+
+        # 1. Estrogen / Aromatase (CYP19A1 / ESR1 / ESR2)
+        if "aromatase" in t_lower or "cyp19" in t_lower or "esr" in t_lower or "estrogen" in t_lower or sym in ("CYP19A1", "ESR1", "ESR2"):
+            organ = "Endocrine / Reproductive"
             biomarkers.extend([
-                {"id": "bio_estradiol", "label": "Serum Estradiol (E2)", "unit": "pg/mL", "panel": "Endocrine Panel", "lower": 15.0, "upper": 45.0, "mag": 1.0},
-                {"id": "bio_hdl_c", "label": "Serum HDL Cholesterol", "unit": "mg/dL", "panel": "Lipid Panel", "lower": 40.0, "upper": 90.0, "mag": 0.45},
-                {"id": "bio_blood_pressure", "label": "Systolic Blood Pressure", "unit": "mmHg", "panel": "Vitals", "lower": 90, "upper": 120, "mag": 0.10},
+                {"id": "bio_estradiol", "label": "Serum Estradiol (E2)", "unit": "pg/mL", "panel": "Endocrine Panel", "lower": 15.0, "upper": 45.0, "mag": 0.95},
+                {"id": "bio_hdl_c", "label": "Serum HDL Cholesterol", "unit": "mg/dL", "panel": "Lipid Panel", "lower": 40.0, "upper": 90.0, "mag": 0.15},
+                {"id": "bio_ldl_c", "label": "Serum LDL Cholesterol", "unit": "mg/dL", "panel": "Lipid Panel", "lower": 50.0, "upper": 100.0, "mag": -0.20},
+                {"id": "bio_blood_pressure", "label": "Systolic Blood Pressure", "unit": "mmHg", "panel": "Vitals", "lower": 90, "upper": 120, "mag": 0.35},
             ])
             pheno_nodes.extend([
+                {"id": "pheno_estrogen_optimization", "label": "Physiological Estradiol & Joint/Vascular Protection", "cat": "therapeutic_benefit", "sev": "high", "mag": 0.85},
                 {"id": "pheno_gynecomastia_risk", "label": "Glandular Gynecomastia & Estrogenic Breast Tissue Proliferation Risk", "cat": "adverse_effect", "sev": "moderate", "mag": 0.8},
                 {"id": "pheno_fluid_retention", "label": "Estrogen-Mediated Renal Sodium & Subcutaneous Fluid Retention", "cat": "adverse_effect", "sev": "moderate", "mag": 0.75},
             ])
+
+        # 2. Mineralocorticoid / Aldosterone (NR3C2)
         elif "mineralocorticoid" in t_lower or "aldosterone" in t_lower or "nr3c2" in t_lower or sym == "NR3C2":
+            organ = "Renal / Adrenal"
             biomarkers.extend([
-                {"id": "bio_potassium", "label": "Serum Potassium (K+)", "unit": "mEq/L", "panel": "Electrolytes", "lower": 3.5, "upper": 5.0, "mag": -0.5},
-                {"id": "bio_blood_pressure", "label": "Systolic Blood Pressure", "unit": "mmHg", "panel": "Vitals", "lower": 90, "upper": 120, "mag": 0.15},
+                {"id": "bio_potassium", "label": "Serum Potassium (K+)", "unit": "mEq/L", "panel": "Electrolytes", "lower": 3.5, "upper": 5.0, "mag": -0.55},
+                {"id": "bio_blood_pressure", "label": "Systolic Blood Pressure", "unit": "mmHg", "panel": "Vitals", "lower": 90, "upper": 120, "mag": 0.12},
             ])
             pheno_nodes.extend([
+                {"id": "pheno_bp_reduction", "label": "Aldosterone Antagonism & Antihypertensive Response", "cat": "therapeutic_benefit", "sev": "high", "mag": -0.85},
                 {"id": "pheno_hyperkalemia_risk", "label": "Severe Hyperkalemia Risk & Cardiac Conduction Vulnerability", "cat": "toxicity", "sev": "severe", "mag": -0.85},
                 {"id": "pheno_aldosterone_blockade", "label": "Aldosterone Breakthrough Suppression & Antifibrotic Cardioprotection", "cat": "therapeutic_benefit", "sev": "high", "mag": -0.8},
             ])
-        elif "androgen" in t_lower or sym == "AR":
+
+        # 3. Androgen Receptor (AR / NR3C4)
+        elif "androgen receptor" in t_lower or "nr3c4" in t_lower or sym == "AR":
+            organ = "Endocrine / Musculoskeletal"
             biomarkers.extend([
                 {"id": "bio_hematocrit", "label": "Blood Hematocrit", "unit": "%", "panel": "Hematology Panel", "lower": 38.5, "upper": 50.0, "mag": 0.6},
                 {"id": "bio_luteinizing_hormone", "label": "Luteinizing Hormone (LH)", "unit": "IU/L", "panel": "Endocrine Panel", "lower": 1.5, "upper": 9.3, "mag": -0.85},
+                {"id": "bio_fsh", "label": "Follicle-Stimulating Hormone (FSH)", "unit": "IU/L", "panel": "Endocrine Panel", "lower": 1.4, "upper": 12.4, "mag": -0.85},
+                {"id": "bio_hdl_c", "label": "Serum HDL Cholesterol", "unit": "mg/dL", "panel": "Lipid Panel", "lower": 40.0, "upper": 90.0, "mag": -0.65},
+                {"id": "bio_ldl_c", "label": "Serum LDL Cholesterol", "unit": "mg/dL", "panel": "Lipid Panel", "lower": 50.0, "upper": 100.0, "mag": 0.55},
+                {"id": "bio_triglycerides", "label": "Serum Triglycerides", "unit": "mg/dL", "panel": "Lipid Panel", "lower": 40.0, "upper": 150.0, "mag": 0.35},
                 {"id": "bio_blood_pressure", "label": "Systolic Blood Pressure", "unit": "mmHg", "panel": "Vitals", "lower": 90, "upper": 120, "mag": 0.40},
             ])
             pheno_nodes.extend([
                 {"id": "pheno_anabolism", "label": "Skeletal Muscle Protein Synthesis & Myofibrillar Hypertrophy", "cat": "therapeutic_benefit", "sev": "high", "mag": 0.95},
+                {"id": "pheno_hpg_axis_shutdown", "label": "Profound Endogenous Androgen Suppression & Testicular Dysfunction", "cat": "toxicity", "sev": "severe", "mag": -0.95},
+                {"id": "pheno_atherogenic_dyslipidemia", "label": "Severe HDL-C Suppression & Atherogenic Shift", "cat": "adverse_effect", "sev": "high", "mag": 0.85},
+                {"id": "pheno_polycythemia_risk", "label": "Secondary Polycythemia & Hyperviscosity Vulnerability", "cat": "adverse_effect", "sev": "moderate", "mag": 0.7},
+                {"id": "pheno_androgenic_alopecia", "label": "Follicular Miniaturization & Prostatic Hypertrophy Risk", "cat": "adverse_effect", "sev": "moderate", "mag": 0.7},
                 {"id": "pheno_lvh", "label": "Left Ventricular Concentric Hypertrophy & Myocardial Remodeling", "cat": "adverse_effect", "sev": "moderate", "mag": 0.65},
             ])
-        elif "agtr1" in t_lower or "angiotensin" in t_lower:
+
+        # 3b. Circulating Serum Testosterone / Bioidentical Androgen Pool
+        elif "testosterone pool" in t_lower or "circulating serum testosterone" in t_lower or sym == "TESTO":
+            organ = "Endocrine / Circulating Pool"
+            biomarkers.extend([
+                {"id": "bio_testosterone", "label": "Serum Total Testosterone", "unit": "ng/dL", "panel": "Endocrine Panel", "lower": 300.0, "upper": 1000.0, "mag": 0.95},
+                {"id": "bio_hematocrit", "label": "Blood Hematocrit", "unit": "%", "panel": "Hematology Panel", "lower": 38.5, "upper": 50.0, "mag": 0.4},
+            ])
+            pheno_nodes.extend([
+                {"id": "pheno_androgen_replacement", "label": "Exogenous Androgen Pool Expansion & Anabolic Milieu", "cat": "therapeutic_benefit", "sev": "high", "mag": 0.95},
+            ])
+
+        # 4. Renin-Angiotensin System (AGTR1 / ACE)
+        elif "agtr1" in t_lower or "angiotensin" in t_lower or sym == "AGTR1":
+            organ = "Cardiovascular / Renal"
             biomarkers.extend([
                 {"id": "bio_blood_pressure", "label": "Systolic Blood Pressure", "unit": "mmHg", "panel": "Vitals", "lower": 90, "upper": 120, "mag": 0.7},
                 {"id": "bio_potassium", "label": "Serum Potassium (K+)", "unit": "mEq/L", "panel": "Electrolytes", "lower": 3.5, "upper": 5.0, "mag": -0.4},
@@ -512,15 +590,215 @@ class PathwayService:
                 {"id": "pheno_bp_control", "label": "Cardiovascular Risk Reduction & Blood Pressure Normalization", "cat": "therapeutic_benefit", "sev": "high", "mag": -0.9},
                 {"id": "pheno_nephroprotection", "label": "Renal Glomerular Protection & Reduced Microalbuminuria", "cat": "therapeutic_benefit", "sev": "high", "mag": -0.8},
             ])
-        elif "adrb1" in t_lower or "adrb2" in t_lower or "beta" in t_lower:
+
+        # 5. Adrenergic Receptors (Beta-1 / Beta-2)
+        elif "adrb1" in t_lower or "adrb2" in t_lower or "beta-1" in t_lower or "beta-2" in t_lower or sym in ("ADRB1", "ADRB2"):
+            organ = "Cardiovascular / Pulmonary"
             biomarkers.extend([
                 {"id": "bio_heart_rate", "label": "Resting Heart Rate", "unit": "bpm", "panel": "Vitals", "lower": 50, "upper": 90, "mag": 0.8},
                 {"id": "bio_blood_pressure", "label": "Systolic Blood Pressure", "unit": "mmHg", "panel": "Vitals", "lower": 90, "upper": 120, "mag": 0.6},
             ])
             pheno_nodes.extend([
                 {"id": "pheno_inotropic", "label": "Myocardial Inotropy & Chronotropic Acceleration", "cat": "therapeutic_benefit", "sev": "high", "mag": 0.85},
+                {"id": "pheno_bradycardia", "label": "Resting Bradycardia & Negative Inotropic Sparing", "cat": "therapeutic_benefit", "sev": "moderate", "mag": -0.8},
                 {"id": "pheno_arrhythmia_risk", "label": "Ventricular Arrhythmogenic & Tachycardic Risk", "cat": "adverse_effect", "sev": "moderate", "mag": 0.7},
             ])
+
+        # 6. Alpha-2 Adrenergic Receptors (ADRA2A)
+        elif "adra2" in t_lower or "alpha-2" in t_lower or sym == "ADRA2A":
+            organ = "Autonomic / Cardiovascular"
+            biomarkers.extend([
+                {"id": "bio_heart_rate", "label": "Resting Heart Rate", "unit": "bpm", "panel": "Vitals", "lower": 50, "upper": 90, "mag": -0.7},
+                {"id": "bio_blood_pressure", "label": "Systolic Blood Pressure", "unit": "mmHg", "panel": "Vitals", "lower": 90, "upper": 120, "mag": -0.6},
+            ])
+            pheno_nodes.extend([
+                {"id": "pheno_sympathetic_activation", "label": "Sympathoadrenal Arousal, Lipolysis & Chronotropic Stimulation", "cat": "therapeutic_benefit", "sev": "moderate", "mag": -0.85},
+                {"id": "pheno_tachycardia", "label": "Resting Tachycardia & Sympathetic Vasoconstriction", "cat": "adverse_effect", "sev": "moderate", "mag": -0.75},
+            ])
+
+        # 7. Adenosine Receptors (ADORA1 / ADORA2A)
+        elif "adenosine" in t_lower or "adora" in t_lower or sym in ("ADORA1", "ADORA2A"):
+            organ = "Central Nervous System"
+            biomarkers.extend([
+                {"id": "bio_heart_rate", "label": "Resting Heart Rate", "unit": "bpm", "panel": "Vitals", "lower": 50, "upper": 90, "mag": -0.6},
+                {"id": "bio_blood_pressure", "label": "Systolic Blood Pressure", "unit": "mmHg", "panel": "Vitals", "lower": 90, "upper": 120, "mag": -0.5},
+            ])
+            pheno_nodes.extend([
+                {"id": "pheno_vigilance", "label": "Heightened Cognitive Vigilance & Reaction Time", "cat": "therapeutic_benefit", "sev": "moderate", "mag": -0.8},
+                {"id": "pheno_insomnia", "label": "Sleep Onset Latency Increase & Sleep Fragmentation", "cat": "adverse_effect", "sev": "moderate", "mag": -0.7},
+                {"id": "pheno_tachycardia", "label": "Resting Tachycardia & Sympathetic Chronotropy", "cat": "adverse_effect", "sev": "moderate", "mag": -0.65},
+            ])
+            target_bridges.append({
+                "target_node_pattern": r"(?:dopamine|dat|net|vmat|pathway_monoamine_reuptake|phys_mesolimbic_tone)",
+                "edge_type": EdgeType.MODULATES,
+                "vector_magnitude": -0.7,
+                "description": "Adenosine receptor antagonism removes tonic purinergic inhibition, facilitating central catecholaminergic and dopaminergic neurotransmission",
+            })
+
+        # 7b. GABA-A / Glutamatergic Neurotransmission (Theanine, GABA)
+        elif "gaba" in t_lower or "theanine" in t_lower or "glutamat" in t_lower or sym in ("GABRA1", "GABRA2", "GRIN1", "GRIN2A"):
+            organ = "Central Nervous System"
+            biomarkers.extend([
+                {"id": "bio_heart_rate", "label": "Resting Heart Rate", "unit": "bpm", "panel": "Vitals", "lower": 50, "upper": 90, "mag": -0.5},
+                {"id": "bio_cortisol", "label": "Serum Cortisol Concentration", "unit": "μg/dL", "panel": "Endocrine Panel", "lower": 6.0, "upper": 18.0, "mag": -0.6},
+            ])
+            pheno_nodes.extend([
+                {"id": "pheno_anxiolysis", "label": "Rapid Anxiolysis & Somatic Stress Reduction", "cat": "therapeutic_benefit", "sev": "high", "mag": 0.85},
+                {"id": "pheno_sedation", "label": "Central Sedation & Sleep Consolidation", "cat": "therapeutic_benefit", "sev": "high", "mag": 0.8},
+            ])
+
+        # 7c. Skeletal Muscle ATP-PCr Phosphagen System (Creatine)
+        elif "creatine" in t_lower or "phosphagen" in t_lower or "atp-pcr" in t_lower or sym in ("CKM", "CKMT2", "SLC6A8"):
+            organ = "Skeletal Muscle"
+            biomarkers.extend([
+                {"id": "bio_pcr_stores", "label": "Intramuscular Phosphocreatine Concentration", "unit": "mmol/kg dw", "panel": "Muscle Panel", "lower": 100, "upper": 150, "mag": 0.85},
+                {"id": "bio_serum_creatinine", "label": "Serum Creatinine Lab Artifact", "unit": "mg/dL", "panel": "Renal Panel", "lower": 0.6, "upper": 1.2, "mag": 0.2},
+            ])
+            pheno_nodes.extend([
+                {"id": "pheno_power_output", "label": "Enhanced Anaerobic Peak Power & Repeated Sprint Capacity", "cat": "therapeutic_benefit", "sev": "high", "mag": 0.9},
+                {"id": "pheno_lean_mass", "label": "Accelerated Resistance Training Lean Mass Adaptation", "cat": "therapeutic_benefit", "sev": "high", "mag": 0.8},
+            ])
+
+        # 8. Growth Hormone Axis (GHSR / GHRHR)
+        elif "ghsr" in t_lower or "ghrelin" in t_lower or "growth hormone secretagogue" in t_lower or sym in ("GHSR", "GHRHR"):
+            organ = "Pituitary / Endocrine"
+            biomarkers.extend([
+                {"id": "bio_igf1", "label": "Serum Insulin-Like Growth Factor 1 (IGF-1)", "unit": "ng/mL", "panel": "Endocrine Panel", "lower": 115.0, "upper": 307.0, "mag": 0.85},
+                {"id": "bio_glucose", "label": "Fasting Blood Glucose", "unit": "mg/dL", "panel": "Metabolic Panel", "lower": 70.0, "upper": 100.0, "mag": 0.20},
+            ])
+            pheno_nodes.extend([
+                {"id": "pheno_gh_pulsatility", "label": "Enhanced Pulsatile Growth Hormone Secretion & Cellular Repair", "cat": "therapeutic_benefit", "sev": "high", "mag": 0.90},
+                {"id": "pheno_lean_mass_retention", "label": "Nitrogen Retention, Connective Tissue Healing & Lean Mass Accretion", "cat": "therapeutic_benefit", "sev": "high", "mag": 0.85},
+            ])
+
+        # 9. Incretin Receptors (GLP1R / GIPR / GCGR)
+        elif "glp1r" in t_lower or "glp-1" in t_lower or "gipr" in t_lower or sym in ("GLP1R", "GIPR", "GCGR"):
+            organ = "Endocrine / Central Nervous System"
+            biomarkers.extend([
+                {"id": "bio_hba1c", "label": "Hemoglobin A1c (HbA1c)", "unit": "%", "panel": "Glycemic Panel", "lower": 4.0, "upper": 5.6, "mag": -0.85},
+                {"id": "bio_glucose", "label": "Fasting Blood Glucose", "unit": "mg/dL", "panel": "Metabolic Panel", "lower": 70.0, "upper": 100.0, "mag": -0.80},
+            ])
+            pheno_nodes.extend([
+                {"id": "pheno_glycemic_control", "label": "Glucose-Dependent Insulinotropic Action & Glycemic Normalization", "cat": "therapeutic_benefit", "sev": "high", "mag": 0.95},
+                {"id": "pheno_appetite_suppression", "label": "Hypothalamic POMC Appetite Suppression & Sustained Weight Loss", "cat": "therapeutic_benefit", "sev": "high", "mag": 0.90},
+            ])
+
+        # 10. Phosphodiesterases (PDE5A / Tadalafil)
+        elif "pde5" in t_lower or "phosphodiesterase" in t_lower or sym == "PDE5A":
+            organ = "Cardiovascular / Endothelial"
+            biomarkers.extend([
+                {"id": "bio_blood_pressure", "label": "Systolic Blood Pressure", "unit": "mmHg", "panel": "Vitals", "lower": 90, "upper": 120, "mag": 0.6},
+                {"id": "bio_cgmp", "label": "Endothelial Cyclic GMP Index", "unit": "index", "panel": "Vascular Panel", "lower": 10, "upper": 50, "mag": -0.8},
+            ])
+            pheno_nodes.extend([
+                {"id": "pheno_vasodilation", "label": "Systemic Arteriolar Vasodilation & Endothelial Shear Stress Reduction", "cat": "therapeutic_benefit", "sev": "high", "mag": -0.9},
+                {"id": "pheno_hyperemia", "label": "Microvascular Hyperemia & Skeletal Muscle Perfusion Enhancement", "cat": "therapeutic_benefit", "sev": "high", "mag": -0.85},
+            ])
+
+        # 11. 5-Alpha Reductase (SRD5A1 / SRD5A2 / Finasteride / Dutasteride)
+        elif "5-alpha" in t_lower or "srd5a" in t_lower or "5ar" in t_lower or sym in ("SRD5A1", "SRD5A2"):
+            organ = "Endocrine / Integumentary"
+            biomarkers.extend([
+                {"id": "bio_dht", "label": "Serum Dihydrotestosterone (DHT)", "unit": "pg/mL", "panel": "Endocrine Panel", "lower": 100, "upper": 850, "mag": 0.95},
+                {"id": "bio_prostate_volume", "label": "Prostate Specific Tissue Volume Index", "unit": "index", "panel": "Prostate Panel", "lower": 10, "upper": 30, "mag": 0.7},
+            ])
+            pheno_nodes.extend([
+                {"id": "pheno_androgenic_alopecia", "label": "Follicular Miniaturization & Androgenic Hair Thinning", "cat": "adverse_effect", "sev": "moderate", "mag": 0.8},
+                {"id": "pheno_dht_suppression", "label": "Target Tissue DHT Suppression & Follicular Preservation", "cat": "therapeutic_benefit", "sev": "high", "mag": -0.9},
+            ])
+
+        # 12. Hepatic Metabolic Clearance & Hepatobiliary System (ALT / AST / Bilirubin)
+        elif ("hepatic" in t_lower or "hepatobiliary" in t_lower or "xenobiotic" in t_lower or "cholestasis" in t_lower or "bsep" in t_lower or "mrp2" in t_lower or "parenchymal" in t_lower) and "tgr5" not in t_lower and "gpbar1" not in t_lower:
+            organ = "Hepatic / Systemic"
+            biomarkers.extend([
+                {"id": "bio_alt", "label": "Alanine Aminotransferase (ALT)", "unit": "U/L", "panel": "Hepatic Panel", "lower": 7, "upper": 56, "mag": 0.75},
+                {"id": "bio_ast", "label": "Aspartate Aminotransferase (AST)", "unit": "U/L", "panel": "Hepatic Panel", "lower": 10, "upper": 40, "mag": 0.70},
+                {"id": "bio_total_bilirubin", "label": "Total Bilirubin", "unit": "mg/dL", "panel": "Hepatic Panel", "lower": 0.2, "upper": 1.2, "mag": 0.60},
+            ])
+            pheno_nodes.extend([
+                {"id": "pheno_hepatic_strain", "label": "Hepatocellular Transaminase Elevation & Metabolic Load", "cat": "toxicity", "sev": "moderate", "mag": 0.75},
+            ])
+
+        # 13. Renal Glomerular Filtration & Tubular Transport
+        elif "renal" in t_lower or "glomerular" in t_lower or "tubular" in t_lower:
+            organ = "Renal / Excretory"
+            biomarkers.extend([
+                {"id": "bio_egfr", "label": "Glomerular Filtration Rate (eGFR)", "unit": "mL/min/1.73m²", "panel": "Renal Panel", "lower": 60, "upper": 120, "mag": -0.5},
+                {"id": "bio_serum_creatinine", "label": "Serum Creatinine", "unit": "mg/dL", "panel": "Renal Panel", "lower": 0.6, "upper": 1.2, "mag": 0.6},
+            ])
+            pheno_nodes.extend([
+                {"id": "pheno_renal_strain", "label": "Renal Hemodynamic Filtration Load & Osmotic Demand", "cat": "toxicity", "sev": "moderate", "mag": 0.7},
+            ])
+
+        # 14. Cellular Redox Homeostasis & Mitochondrial Bioenergetics
+        elif "redox" in t_lower or "mitochondrial" in t_lower or "reactive oxygen" in t_lower:
+            organ = "Systemic / Cellular"
+            biomarkers.extend([
+                {"id": "bio_mda", "label": "Malondialdehyde (Lipid Peroxidation)", "unit": "μmol/L", "panel": "Redox Panel", "lower": 0.5, "upper": 2.0, "mag": 0.8},
+                {"id": "bio_gsh_redox_ratio", "label": "Glutathione Redox Ratio (GSH:GSSG)", "unit": "ratio", "panel": "Redox Panel", "lower": 100.0, "upper": 300.0, "mag": -0.8},
+                {"id": "bio_ros_level", "label": "Cellular Reactive Oxygen Species Index", "unit": "index", "panel": "Redox Panel", "lower": 10, "upper": 50, "mag": 0.8},
+                {"id": "bio_crp", "label": "High-Sensitivity C-Reactive Protein (hs-CRP)", "unit": "mg/L", "panel": "Inflammatory Panel", "lower": 0.0, "upper": 1.0, "mag": 0.5},
+            ])
+            pheno_nodes.extend([
+                {"id": "pheno_oxidative_stress", "label": "Mitochondrial ROS Production & Cellular Oxidative Stress", "cat": "toxicity", "sev": "high", "mag": 0.85},
+            ])
+
+        # 15. Glutathione Biosynthesis & Antioxidant Defense
+        elif "glutathione" in t_lower or "antioxidant defense" in t_lower or "cystine" in t_lower or "xc-" in t_lower or "gcl" in t_lower or "astaxanthin" in t_lower or "nrf2" in t_lower or "curcumin" in t_lower or "omega" in t_lower or sym in ("SLC7A11", "GCLC", "GCLM", "NFE2L2"):
+            organ = "Systemic / Cytoprotective"
+            biomarkers.extend([
+                {"id": "bio_mda", "label": "Malondialdehyde (Lipid Peroxidation)", "unit": "μmol/L", "panel": "Redox Panel", "lower": 0.5, "upper": 2.0, "mag": -0.8},
+                {"id": "bio_gsh_redox_ratio", "label": "Glutathione Redox Ratio (GSH:GSSG)", "unit": "ratio", "panel": "Redox Panel", "lower": 100.0, "upper": 300.0, "mag": 0.85},
+                {"id": "bio_crp", "label": "High-Sensitivity C-Reactive Protein (hs-CRP)", "unit": "mg/L", "panel": "Inflammatory Panel", "lower": 0.0, "upper": 1.0, "mag": -0.70},
+            ])
+            pheno_nodes.extend([
+                {"id": "pheno_cytoprotection", "label": "Cytoprotective Nrf2 Induction & Radical Scavenging", "cat": "therapeutic_benefit", "sev": "high", "mag": 0.9},
+            ])
+
+        # 16. Cyclooxygenase & NF-kB Inflammatory Cascade (PTGS1 / PTGS2 / NFKB1)
+        elif "cox" in t_lower or "ptgs" in t_lower or "cyclooxygenase" in t_lower or "nfkb" in t_lower or "nf-kb" in t_lower or "inflammatory cytokine" in t_lower or sym in ("PTGS1", "PTGS2", "NFKB1", "RELA"):
+            organ = "Systemic / Inflammatory"
+            biomarkers.extend([
+                {"id": "bio_crp", "label": "High-Sensitivity C-Reactive Protein (hs-CRP)", "unit": "mg/L", "panel": "Inflammatory Panel", "lower": 0.0, "upper": 1.0, "mag": 0.85},
+            ])
+            pheno_nodes.extend([
+                {"id": "pheno_anti_inflammatory", "label": "Suppression of Systemic Inflammatory Eicosanoids & Cytokines", "cat": "therapeutic_benefit", "sev": "high", "mag": -0.85},
+            ])
+
+        # 17. Regenerative & Angiogenic (VEGFR2 / KDR / TMSB4X)
+        elif "vegfr2" in t_lower or "kdr" in t_lower or "tmsb4x" in t_lower or sym in ("KDR", "TMSB4X"):
+            organ = "Vascular Endothelial / Connective"
+            biomarkers.extend([
+                {"id": "bio_crp", "label": "High-Sensitivity C-Reactive Protein (hs-CRP)", "unit": "mg/L", "panel": "Inflammatory Panel", "lower": 0.0, "upper": 1.0, "mag": -0.70},
+            ])
+            pheno_nodes.extend([
+                {"id": "pheno_tissue_healing", "label": "Accelerated Tendon, Ligament & Gastrointestinal Mucosal Repair", "cat": "therapeutic_benefit", "sev": "high", "mag": 0.90},
+            ])
+
+        # 17. Melanocortin Receptors (MC1R / MC4R)
+        elif "mc1r" in t_lower or "mc4r" in t_lower or "melanocortin" in t_lower or sym in ("MC1R", "MC4R"):
+            organ = "Integumentary / Central Nervous System"
+            biomarkers.extend([
+                {"id": "bio_blood_pressure", "label": "Systolic Blood Pressure", "unit": "mmHg", "panel": "Vitals", "lower": 90.0, "upper": 120.0, "mag": 0.35},
+            ])
+            pheno_nodes.extend([
+                {"id": "pheno_melanogenesis_tanning", "label": "Melanin Synthesis, Skin Photoprotection & Central Sexual Arousal", "cat": "therapeutic_benefit", "sev": "high", "mag": 0.90},
+            ])
+
+        # 18. Peroxisome Proliferator-Activated Receptor Gamma (PPARG)
+        elif "ppar" in t_lower or sym in ("PPARG", "PPARA", "PPARD"):
+            organ = "Adipose / Metabolic"
+            biomarkers.extend([
+                {"id": "bio_hba1c", "label": "Hemoglobin A1c (HbA1c)", "unit": "%", "panel": "Glycemic Panel", "lower": 4.0, "upper": 5.6, "mag": -0.75},
+                {"id": "bio_glucose", "label": "Fasting Blood Glucose", "unit": "mg/dL", "panel": "Metabolic Panel", "lower": 70.0, "upper": 100.0, "mag": -0.70},
+                {"id": "bio_triglycerides", "label": "Serum Triglycerides", "unit": "mg/dL", "panel": "Lipid Panel", "lower": 40.0, "upper": 150.0, "mag": -0.50},
+            ])
+            pheno_nodes.extend([
+                {"id": "pheno_insulin_sensitization", "label": "Adipose & Peripheral Insulin Sensitization", "cat": "therapeutic_benefit", "sev": "high", "mag": 0.90},
+                {"id": "pheno_glycemic_control", "label": "Enhanced Glycemic Regulation & Free Fatty Acid Clearance", "cat": "therapeutic_benefit", "sev": "high", "mag": 0.85},
+            ])
+
+        # 19. Generic / Dynamic OpenTargets Phenotypes Fallback
         else:
             for p in phenotypes[:3]:
                 p_id = f"pheno_{re.sub(r'[^a-zA-Z0-9_]', '_', p.get('phenotype_id', 'term')).lower()}"
@@ -532,7 +810,7 @@ class PathwayService:
                     "mag": round(p.get("score", 0.5), 2),
                 })
 
-        return {
+        cascade_result = {
             "target_name": target_name,
             "symbol": sym,
             "uniprot_id": meta.get("uniprot"),
@@ -545,12 +823,29 @@ class PathwayService:
             "physiology": {
                 "id": phys_id,
                 "label": phys_label,
-                "organ": "Systemic",
+                "organ": organ,
             },
             "biomarkers": biomarkers,
             "phenotypes": pheno_nodes,
-            "bridges": bridges,
+            "bridges": target_bridges,
             "raw_pathways": pathways,
             "raw_phenotypes": phenotypes,
         }
+
+        # Save assembled cascade into SQLite cache
+        now = time.time()
+        try:
+            with self._connect() as conn:
+                conn.execute(
+                    """
+                    INSERT OR REPLACE INTO cached_target_cascades (target_id, cascade_json, updated_at)
+                    VALUES (?, ?, ?)
+                    """,
+                    (target_node_id, json.dumps(cascade_result), now),
+                )
+                conn.commit()
+        except Exception as e:
+            logger.debug("Failed to cache assembled cascade for %s: %s", target_node_id, e)
+
+        return cascade_result
 

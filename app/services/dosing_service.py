@@ -133,6 +133,43 @@ SEED_CLINICAL_REFERENCE_DOSES_MG: Dict[str, float] = {
     "gabapentin": 300.0,      # 300 mg
     "pregabalin": 75.0,       # 75 mg
     "melatonin": 3.0,         # 3 mg
+
+    # Peptides & Incretin Mimetics
+    "bpc_157": 0.5,           # 500 mcg (0.5 mg)
+    "bpc157": 0.5,
+    "tb_500": 2.5,            # 2.5 mg
+    "tb500": 2.5,
+    "ghk_cu": 2.0,            # 2 mg
+    "kpv": 0.5,               # 500 mcg
+    "ara_290": 4.0,           # 4 mg
+    "ipamorelin": 0.2,        # 200 mcg
+    "cjc_1295": 0.1,          # 100 mcg
+    "sermorelin": 0.3,        # 300 mcg
+    "tesamorelin": 2.0,       # 2 mg
+    "ghrp_2": 0.1,            # 100 mcg
+    "ghrp_6": 0.1,            # 100 mcg
+    "hexarelin": 0.1,         # 100 mcg
+    "aod_9604": 0.3,          # 300 mcg
+    "semaglutide": 0.5,       # 0.5 mg/week
+    "tirzepatide": 5.0,       # 5 mg/week
+    "retatrutide": 2.0,       # 2 mg/week
+    "cagrilintide": 0.6,      # 0.6 mg/week
+    "melanotan_ii": 0.5,      # 500 mcg
+    "bremelanotide": 1.75,    # 1.75 mg
+    "semax": 0.6,             # 600 mcg
+    "selank": 0.4,            # 400 mcg
+    "epithalon": 5.0,         # 5 mg
+    "epitalon": 5.0,
+    "dsip": 0.1,              # 100 mcg
+    "oxytocin": 0.05,         # 50 mcg (30 IU)
+    "mots_c": 5.0,            # 5 mg
+    "elamipretide": 10.0,     # 10 mg
+    "ss31": 10.0,
+    "thymosin_alpha_1": 1.6,  # 1.6 mg
+    "kisspeptin_10": 0.1,     # 100 mcg
+    "desmopressin": 0.1,      # 100 mcg (0.1 mg)
+    "octreotide": 0.1,        # 100 mcg
+    "leuprolide": 3.75,       # 3.75 mg
 }
 
 # Compatibility reference mapping

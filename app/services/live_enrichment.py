@@ -159,12 +159,32 @@ class LiveEnrichmentService:
                             action = (m.get("action_type") or "MODULATOR").lower()
                             t_chembl = m.get("target_chembl_id")
 
-                            result["receptor_targets"].append({
+                            target_entry = {
                                 "target": t_name,
                                 "action": action,
                                 "family": "ChEMBL Mechanism",
                                 "target_id": t_chembl,
-                            })
+                            }
+
+                            # Fetch target component UniProt accession & Gene Symbol if target_id available
+                            if t_chembl:
+                                try:
+                                    t_detail_resp = client.get(f"https://www.ebi.ac.uk/chembl/api/data/target/{t_chembl}?format=json")
+                                    if t_detail_resp.status_code == 200:
+                                        t_data = t_detail_resp.json()
+                                        comps = t_data.get("target_components", [])
+                                        if comps:
+                                            first_comp = comps[0]
+                                            if first_comp.get("accession"):
+                                                target_entry["uniprot_id"] = first_comp["accession"]
+                                            for syn in first_comp.get("target_component_synonyms", []):
+                                                if syn.get("syn_type") == "GENE_SYMBOL" and syn.get("component_synonym"):
+                                                    target_entry["gene_symbol"] = syn["component_synonym"].upper()
+                                                    break
+                                except Exception as te:
+                                    logger.debug("Failed to resolve target %s: %s", t_chembl, te)
+
+                            result["receptor_targets"].append(target_entry)
 
                     # 2. Fetch multi-target bioactivities (Ki, IC50, Kd, Km assays) prioritizing Human targets
                     act_url = "https://www.ebi.ac.uk/chembl/api/data/activity.json"
@@ -190,6 +210,7 @@ class LiveEnrichmentService:
                             val_str = act.get("standard_value")
                             std_type = str(act.get("standard_type") or "").upper()
                             unit = str(act.get("standard_units") or "").lower()
+                            t_chembl = act.get("target_chembl_id")
 
                             # Convert value to float nM if possible
                             affinity_val = None
@@ -211,6 +232,7 @@ class LiveEnrichmentService:
 
                             parsed_acts.append({
                                 "target": t_name,
+                                "target_id": t_chembl,
                                 "std_type": std_type,
                                 "affinity_val": affinity_val if affinity_val is not None else 999999.0,
                                 "raw_val": affinity_val,
@@ -224,14 +246,15 @@ class LiveEnrichmentService:
                             t_lower = t_name.lower()
                             std_type = item["std_type"]
                             affinity_val = item["raw_val"]
+                            t_chembl = item["target_id"]
 
-                            if t_lower not in seen_targets and len(result["receptor_targets"]) < 8:
+                            if t_lower not in seen_targets and len(result["receptor_targets"]) < 10:
                                 seen_targets.add(t_lower)
                                 
                                 # Default actions for known receptor families
-                                if any(s in t_lower for s in ["androgen", "progesterone", "estrogen", "glucocorticoid", "growth hormone secretagogue"]):
+                                if any(s in t_lower for s in ["androgen", "progesterone", "estrogen", "glucocorticoid", "growth hormone secretagogue", "ghrelin", "incretin", "glp", "gip", "glucagon", "oxytocin", "vasopressin", "melanocortin"]):
                                     action_type = "agonist"
-                                elif any(s in t_lower for s in ["transporter", "reductase", "aromatase", "dehydrogenase", "synthase", "kinase", "pde5"]):
+                                elif any(s in t_lower for s in ["transporter", "reductase", "aromatase", "dehydrogenase", "synthase", "kinase", "pde5", "neprilysin", "enkephalinase"]):
                                     action_type = "inhibitor"
                                 elif std_type in ("IC50", "INHIBITION"):
                                     action_type = "inhibitor"
@@ -244,6 +267,7 @@ class LiveEnrichmentService:
                                     "target": t_name,
                                     "action": action_type,
                                     "family": "ChEMBL Bioactivity Assay",
+                                    "target_id": t_chembl,
                                 }
                                 if std_type in ("KI", "KD") and affinity_val:
                                     target_entry["affinity_ki"] = affinity_val
@@ -255,6 +279,24 @@ class LiveEnrichmentService:
                                     target_entry["km_nm"] = affinity_val
                                 elif affinity_val and affinity_val < 900000.0:
                                     target_entry["affinity_ki"] = affinity_val
+
+                                # Fetch target component UniProt accession & Gene Symbol if target_id available
+                                if t_chembl:
+                                    try:
+                                        t_detail_resp = client.get(f"https://www.ebi.ac.uk/chembl/api/data/target/{t_chembl}?format=json")
+                                        if t_detail_resp.status_code == 200:
+                                            t_data = t_detail_resp.json()
+                                            comps = t_data.get("target_components", [])
+                                            if comps:
+                                                first_comp = comps[0]
+                                                if first_comp.get("accession"):
+                                                    target_entry["uniprot_id"] = first_comp["accession"]
+                                                for syn in first_comp.get("target_component_synonyms", []):
+                                                    if syn.get("syn_type") == "GENE_SYMBOL" and syn.get("component_synonym"):
+                                                        target_entry["gene_symbol"] = syn["component_synonym"].upper()
+                                                        break
+                                    except Exception as te:
+                                        logger.debug("Failed to resolve target %s: %s", t_chembl, te)
 
                                 result["receptor_targets"].append(target_entry)
 

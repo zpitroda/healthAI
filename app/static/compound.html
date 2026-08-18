@@ -90,6 +90,8 @@
         border-radius: 14px;
         box-shadow: var(--shadow-card);
         margin-bottom: 16px;
+        position: relative;
+        z-index: 100;
       }
 
       .brand-wrap {
@@ -108,10 +110,11 @@
         justify-content: center;
         font-size: 1.1rem;
         box-shadow: 0 0 16px rgba(0, 242, 254, 0.4);
+        flex-shrink: 0;
       }
 
       .brand-title {
-        font-size: 1.12rem;
+        font-size: clamp(0.98rem, 2.4vw, 1.12rem);
         font-weight: 800;
         letter-spacing: -0.02em;
         background: linear-gradient(135deg, #ffffff 40%, #94a3b8 100%);
@@ -131,6 +134,26 @@
         text-transform: uppercase;
       }
 
+      .mobile-menu-toggle {
+        display: none;
+        background: rgba(13, 20, 38, 0.85);
+        border: 1px solid var(--border-subtle);
+        color: var(--text-primary);
+        font-size: 1.2rem;
+        width: 38px;
+        height: 38px;
+        border-radius: 8px;
+        cursor: pointer;
+        align-items: center;
+        justify-content: center;
+        transition: all 0.15s ease;
+      }
+
+      .mobile-menu-toggle:hover {
+        border-color: #00f2fe;
+        color: #00f2fe;
+      }
+
       .nav-links {
         display: flex;
         align-items: center;
@@ -145,6 +168,7 @@
         border-radius: 8px;
         border: 1px solid transparent;
         transition: all 0.15s ease;
+        white-space: nowrap;
       }
 
       .nav-link:hover {
@@ -620,10 +644,141 @@
       @media (max-width: 1024px) {
         .layout {
           grid-template-columns: 1fr;
+          gap: 16px;
         }
         .graph-panel {
           position: static;
-          min-height: 540px;
+          min-height: 480px;
+        }
+      }
+
+      @media (max-width: 768px) {
+        .container {
+          padding: 12px 14px 40px;
+        }
+
+        .topbar {
+          padding: 10px 14px;
+        }
+
+        .mobile-menu-toggle {
+          display: flex;
+        }
+
+        .nav-links {
+          display: none;
+          position: absolute;
+          top: calc(100% + 8px);
+          left: 0;
+          right: 0;
+          background: rgba(10, 16, 31, 0.96);
+          backdrop-filter: blur(24px);
+          -webkit-backdrop-filter: blur(24px);
+          border: 1px solid var(--border-subtle);
+          border-radius: 12px;
+          box-shadow: 0 16px 36px rgba(0, 0, 0, 0.7);
+          padding: 10px;
+          flex-direction: column;
+          gap: 6px;
+          z-index: 120;
+        }
+
+        .nav-links.open {
+          display: flex;
+          animation: slideDownCompoundNav 0.2s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+        }
+
+        @keyframes slideDownCompoundNav {
+          from { opacity: 0; transform: translateY(-8px); }
+          to { opacity: 1; transform: translateY(0); }
+        }
+
+        .nav-link {
+          width: 100%;
+          padding: 9px 12px;
+          font-size: 0.85rem;
+        }
+
+        .panel {
+          padding: 16px;
+          border-radius: 14px;
+        }
+
+        .hero {
+          flex-direction: column;
+          align-items: flex-start;
+          gap: 12px;
+        }
+
+        .risk-badge-box {
+          width: 100%;
+          text-align: left;
+          display: flex;
+          justify-content: space-between;
+          align-items: center;
+          padding: 10px 14px;
+        }
+
+        .risk-badge-box strong {
+          margin-top: 0;
+        }
+
+        .detail-grid {
+          grid-template-columns: repeat(2, 1fr);
+          gap: 8px;
+        }
+
+        .graph-panel {
+          min-height: 420px;
+        }
+
+        .graph-header {
+          flex-direction: column;
+          align-items: flex-start;
+          gap: 8px;
+        }
+
+        .graph-toolbar {
+          width: 100%;
+          justify-content: flex-start;
+        }
+
+        .target-modal-card {
+          width: min(520px, calc(100vw - 24px));
+          margin: 12px;
+        }
+      }
+
+      @media (max-width: 480px) {
+        .container {
+          padding: 8px 10px 30px;
+        }
+
+        .brand-logo {
+          width: 28px;
+          height: 28px;
+          font-size: 0.95rem;
+        }
+
+        .hero-title {
+          font-size: 1.5rem;
+        }
+
+        .detail-grid {
+          grid-template-columns: 1fr;
+        }
+
+        .meta-row {
+          gap: 4px;
+        }
+
+        .pill {
+          padding: 3px 8px;
+          font-size: 0.7rem;
+        }
+
+        .graph-panel {
+          min-height: 360px;
         }
       }
     </style>
@@ -640,7 +795,12 @@
           <span class="brand-tag">PK/PD Engine</span>
         </div>
 
-        <nav class="nav-links">
+        <button class="mobile-menu-toggle" id="mobile-menu-toggle" aria-label="Toggle navigation menu">
+          <span>☰</span>
+        </button>
+
+        <nav class="nav-links" id="nav-links">
+          <a href="/" class="nav-link">Safety Lab</a>
           <a href="/admin" class="nav-link">← Catalog</a>
           <a href="/graph" class="nav-link">Knowledge Graph</a>
           <a href="#" id="openInGraphBtn" class="nav-link btn-primary">Open in Graph Studio ↗</a>
@@ -1749,6 +1909,22 @@
                 btnDeepEnrich.style.opacity = '1';
               }, 2500);
             });
+        });
+      }
+
+      // Mobile menu toggle handling
+      const compoundMobileMenuBtn = document.getElementById('mobile-menu-toggle');
+      const compoundNavLinks = document.getElementById('nav-links');
+      if (compoundMobileMenuBtn && compoundNavLinks) {
+        compoundMobileMenuBtn.addEventListener('click', (e) => {
+          e.stopPropagation();
+          compoundNavLinks.classList.toggle('open');
+        });
+
+        document.addEventListener('click', (e) => {
+          if (!compoundNavLinks.contains(e.target) && !compoundMobileMenuBtn.contains(e.target)) {
+            compoundNavLinks.classList.remove('open');
+          }
         });
       }
 

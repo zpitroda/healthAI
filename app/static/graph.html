@@ -233,6 +233,27 @@
         box-shadow: 0 0 16px rgba(0, 242, 254, 0.4);
       }
 
+      .mobile-menu-toggle {
+        display: none;
+        background: rgba(13, 20, 38, 0.85);
+        border: 1px solid var(--border-subtle);
+        color: var(--text-primary);
+        font-size: 1.15rem;
+        width: 34px;
+        height: 34px;
+        border-radius: 8px;
+        cursor: pointer;
+        align-items: center;
+        justify-content: center;
+        transition: all 0.15s ease;
+        flex-shrink: 0;
+      }
+
+      .mobile-menu-toggle:hover {
+        border-color: #00f2fe;
+        color: #00f2fe;
+      }
+
       .nav-links {
         display: flex;
         align-items: center;
@@ -247,6 +268,7 @@
         padding: 5px 10px;
         border-radius: 7px;
         transition: all 0.15s ease;
+        white-space: nowrap;
       }
 
       .nav-link:hover, .nav-link.active {
@@ -1305,6 +1327,236 @@
       }
       .range-safe { background: rgba(16, 185, 129, 0.15); color: #6ee7b7; border: 1px solid rgba(16, 185, 129, 0.35); }
       .range-alert { background: rgba(244, 63, 94, 0.15); color: #fda4af; border: 1px solid rgba(244, 63, 94, 0.35); }
+
+      /* ==========================================================================
+         RESPONSIVE MOBILE BREAKPOINTS & TOUCH OPTIMIZATIONS
+         ========================================================================== */
+      @media (max-width: 992px) {
+        .app-shell {
+          padding: 8px 10px 10px;
+          gap: 6px;
+        }
+
+        .hud-top-filters {
+          max-width: calc(100% - 24px);
+        }
+      }
+
+      @media (max-width: 768px) {
+        .app-shell {
+          padding: 6px 8px 8px;
+          gap: 6px;
+        }
+
+        .toolbar {
+          padding: 8px 12px;
+          flex-wrap: wrap;
+          gap: 8px;
+          border-radius: 10px;
+          position: relative;
+        }
+
+        .brand-wrap {
+          gap: 8px;
+        }
+
+        .brand-logo {
+          width: 28px;
+          height: 28px;
+          font-size: 0.95rem;
+        }
+
+        .brand-title {
+          font-size: 0.94rem;
+        }
+
+        .mobile-menu-toggle {
+          display: flex;
+        }
+
+        .nav-links {
+          display: none;
+          position: absolute;
+          top: calc(100% + 6px);
+          left: 0;
+          right: 0;
+          background: rgba(10, 16, 31, 0.97);
+          backdrop-filter: blur(24px);
+          -webkit-backdrop-filter: blur(24px);
+          border: 1px solid var(--border-subtle);
+          border-radius: 12px;
+          box-shadow: 0 16px 36px rgba(0, 0, 0, 0.7);
+          padding: 10px;
+          flex-direction: column;
+          gap: 6px;
+          z-index: 150;
+        }
+
+        .nav-links.open {
+          display: flex;
+          animation: slideDownGraphNav 0.2s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+        }
+
+        @keyframes slideDownGraphNav {
+          from { opacity: 0; transform: translateY(-8px); }
+          to { opacity: 1; transform: translateY(0); }
+        }
+
+        .nav-link {
+          width: 100%;
+          padding: 8px 12px;
+          font-size: 0.85rem;
+        }
+
+        .controls-bar {
+          width: 100%;
+          overflow-x: auto;
+          -webkit-overflow-scrolling: touch;
+          scrollbar-width: none;
+          flex-wrap: nowrap;
+          padding-bottom: 2px;
+          gap: 4px;
+        }
+
+        .controls-bar::-webkit-scrollbar {
+          display: none;
+        }
+
+        .search-box {
+          flex-shrink: 0;
+        }
+
+        .search-input {
+          width: 135px;
+          font-size: 0.75rem;
+          padding: 4px 8px 4px 26px;
+        }
+
+        .search-input:focus {
+          width: 170px;
+        }
+
+        .select-custom {
+          flex-shrink: 0;
+          font-size: 0.72rem;
+          padding: 4px 8px;
+        }
+
+        .btn-icon {
+          flex-shrink: 0;
+          font-size: 0.72rem;
+          padding: 0 7px;
+          height: 28px;
+        }
+
+        .stack-bar {
+          flex-direction: column;
+          align-items: stretch;
+          gap: 8px;
+          padding: 8px 10px;
+        }
+
+        .stack-search-container {
+          width: 100%;
+        }
+
+        .stack-add-input {
+          width: 100% !important;
+          box-sizing: border-box;
+        }
+
+        .autocomplete-popup {
+          width: 100%;
+          left: 0;
+          right: 0;
+        }
+
+        .hud-top-filters {
+          top: 6px;
+          left: 6px;
+          right: 6px;
+          max-width: none;
+          gap: 4px;
+        }
+
+        .graph-filter-matrix, .hud-tier-filters {
+          overflow-x: auto;
+          -webkit-overflow-scrolling: touch;
+          scrollbar-width: none;
+          flex-wrap: nowrap;
+          padding: 4px 6px;
+        }
+
+        .graph-filter-matrix::-webkit-scrollbar, .hud-tier-filters::-webkit-scrollbar {
+          display: none;
+        }
+
+        .filter-btn, .filter-pill {
+          flex-shrink: 0;
+          white-space: nowrap;
+          font-size: 0.68rem;
+          padding: 3px 8px;
+        }
+
+        .hud-legend {
+          left: 6px;
+          bottom: 6px;
+          max-width: calc(100% - 12px);
+          overflow-x: auto;
+          -webkit-overflow-scrolling: touch;
+          scrollbar-width: none;
+          flex-wrap: nowrap;
+          border-radius: 8px;
+          padding: 4px 8px;
+          font-size: 0.62rem;
+        }
+
+        .hud-legend::-webkit-scrollbar {
+          display: none;
+        }
+
+        .legend-item {
+          flex-shrink: 0;
+          white-space: nowrap;
+        }
+
+        .hud-status {
+          display: none;
+        }
+
+        /* BOTTOM SHEET DRAWER ON MOBILE */
+        .inspector-drawer {
+          top: auto;
+          bottom: 0;
+          left: 0;
+          right: 0;
+          width: 100%;
+          height: 62vh;
+          max-height: 82vh;
+          border-radius: 16px 16px 0 0;
+          border-bottom: none;
+          box-shadow: 0 -10px 40px rgba(0, 0, 0, 0.85);
+          transform: translateY(0);
+          z-index: 80;
+        }
+
+        .inspector-drawer.hidden {
+          transform: translateY(100%);
+          opacity: 0;
+          pointer-events: none;
+        }
+      }
+
+      @media (max-width: 480px) {
+        .brand-tag {
+          display: none;
+        }
+
+        .cascade-strip {
+          padding: 4px 8px;
+          font-size: 0.7rem;
+        }
+      }
     </style>
   </head>
   <body>
@@ -1346,7 +1598,11 @@
           <button id="togglePanel" class="btn-icon" title="Toggle Inspector">Inspector</button>
         </div>
 
-        <nav class="nav-links">
+        <button class="mobile-menu-toggle" id="mobile-menu-toggle" aria-label="Toggle navigation menu">
+          <span>☰</span>
+        </button>
+
+        <nav class="nav-links" id="nav-links">
           <a href="/" class="nav-link">Safety Lab</a>
           <a href="/graph" class="nav-link active">Knowledge Graph</a>
           <a href="/admin" class="nav-link">Catalog DB</a>
@@ -3138,6 +3394,22 @@
             console.error('Failed to load graph data', error);
             statusEl.textContent = 'Graph data unavailable';
           });
+      }
+
+      // Mobile menu toggle handling
+      const graphMobileMenuBtn = document.getElementById('mobile-menu-toggle');
+      const graphNavLinks = document.getElementById('nav-links');
+      if (graphMobileMenuBtn && graphNavLinks) {
+        graphMobileMenuBtn.addEventListener('click', (e) => {
+          e.stopPropagation();
+          graphNavLinks.classList.toggle('open');
+        });
+
+        document.addEventListener('click', (e) => {
+          if (!graphNavLinks.contains(e.target) && !graphMobileMenuBtn.contains(e.target)) {
+            graphNavLinks.classList.remove('open');
+          }
+        });
       }
 
       window.addEventListener('storage', (event) => {

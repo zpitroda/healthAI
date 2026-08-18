@@ -1076,6 +1076,7 @@ class InteractionEngine:
             },
             "conflict_count": conflict_count,
             "synergy_count": synergy_count,
+            "synergies": synergistic_benefits,
             "full_stack_balance": full_stack_balance,
         }
 
@@ -1930,6 +1931,18 @@ class InteractionEngine:
                     if p in targets_a or _normalize_name(p) in targets_a:
                         syn_item = syn
                         break
+        if not syn_item:
+            is_tudca = any(w in key_a or w in name_a.lower() for w in ["tudca", "tauroursodeoxycholic"]) or any(w in key_b or w in name_b.lower() for w in ["tudca", "tauroursodeoxycholic"])
+            is_oral_aas = (
+                any(w in key_a or w in name_a.lower() or w in str(comp_a.get("drug_class", "")).lower() for w in ["superdrol", "methyldrostanolone", "dianabol", "winstrol", "anadrol", "oxandrolone", "17aa", "17-alpha", "methyltestosterone"])
+                or any(w in key_b or w in name_b.lower() or w in str(comp_b.get("drug_class", "")).lower() for w in ["superdrol", "methyldrostanolone", "dianabol", "winstrol", "anadrol", "oxandrolone", "17aa", "17-alpha", "methyltestosterone"])
+            )
+            if is_tudca and is_oral_aas:
+                syn_item = {
+                    "partner": name_b if any(w in name_a.lower() for w in ["tudca", "tauroursodeoxycholic"]) else name_a,
+                    "effect": "Hepatobiliary Cytoprotection & Cholestasis Prevention",
+                    "description": "TUDCA hydrophilic bile acid conjugation prevents canalicular cholestasis and membrane injury induced by 17α-alkylated oral androgens.",
+                }
 
         if syn_item:
             return {

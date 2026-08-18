@@ -663,6 +663,104 @@ BIOMARKER_CLINICAL_CALIBRATION: Dict[str, Dict[str, Any]] = {
 }
 
 
+TIMELINE_HORIZONS: Dict[str, Dict[str, Any]] = {
+    "1_day": {
+        "key": "1_day",
+        "label": "1 Day (Acute)",
+        "days": 1.0,
+        "description": "Immediate acute response, autonomic chronotropics, and rapid vascular tone reactivity",
+    },
+    "3_days": {
+        "key": "3_days",
+        "label": "3 Days (Early Adaptation)",
+        "days": 3.0,
+        "description": "Autonomic equilibrium, renal electrolyte excretion, and acute-phase reactant shifts",
+    },
+    "1_week": {
+        "key": "1_week",
+        "label": "1 Week (Sub-acute Tone)",
+        "days": 7.0,
+        "description": "Sub-acute receptor adaptation, endocrine feedback loops, transaminases, and glycemic shifts",
+    },
+    "2_weeks": {
+        "key": "2_weeks",
+        "label": "2 Weeks (Endocrine Equilibrium)",
+        "days": 14.0,
+        "description": "HPTA axis equilibrium, transaminase peak, and initial hepatic lipid remodeling",
+    },
+    "1_month": {
+        "key": "1_month",
+        "label": "1 Month (4 Weeks / Lipid Remodeling)",
+        "days": 28.0,
+        "description": "Hepatic lipid receptor remodeling, SHBG equilibrium, and 4-week clinical bloodwork milestone",
+    },
+    "2_months": {
+        "key": "2_months",
+        "label": "2 Months (8 Weeks / Reticulocyte Turn)",
+        "days": 56.0,
+        "description": "Bone marrow reticulocyte maturation and cumulative erythropoietic response",
+    },
+    "3_months": {
+        "key": "3_months",
+        "label": "3 Months (12 Weeks / HbA1c & RBC Turn)",
+        "days": 84.0,
+        "description": "Full ~120-day erythrocyte turnover (peak HbA1c, hematocrit, and long-term equilibrium)",
+    },
+    "steady_state": {
+        "key": "steady_state",
+        "label": "Steady State (Full Equilibrium)",
+        "days": None,
+        "description": "Theoretical asymptotic steady-state biological equilibrium (~100% response)",
+    },
+}
+
+
+def parse_timeline_days(timeline: Optional[str | float | int] = None) -> Tuple[Optional[float], str, str]:
+    """
+    Parse a timeline spec (e.g. '1_day', '2_weeks', '1_month', 'steady_state', or numeric days)
+    into (days_or_none, key, display_label).
+    """
+    if timeline is None:
+        return None, "steady_state", "Steady State (Full Equilibrium)"
+
+    if isinstance(timeline, (int, float)):
+        d = float(timeline)
+        if d <= 0 or d >= 365:
+            return None, "steady_state", "Steady State (Full Equilibrium)"
+        return d, f"{d:g}_days", f"{d:g} Day{'s' if d != 1 else ''}"
+
+    t_str = str(timeline).strip().lower().replace("-", "_").replace(" ", "_")
+    if t_str in TIMELINE_HORIZONS:
+        meta = TIMELINE_HORIZONS[t_str]
+        return meta["days"], meta["key"], meta["label"]
+
+    if t_str in ["1d", "day_1", "1day"]:
+        return 1.0, "1_day", "1 Day (Acute)"
+    if t_str in ["3d", "day_3", "3days"]:
+        return 3.0, "3_days", "3 Days (Early Adaptation)"
+    if t_str in ["1w", "week_1", "1week", "7d", "7days"]:
+        return 7.0, "1_week", "1 Week (Sub-acute Tone)"
+    if t_str in ["2w", "week_2", "2weeks", "14d", "14days"]:
+        return 14.0, "2_weeks", "2 Weeks (Endocrine Equilibrium)"
+    if t_str in ["4w", "month_1", "1month", "28d", "30d", "month"]:
+        return 28.0, "1_month", "1 Month (4 Weeks / Lipid Remodeling)"
+    if t_str in ["8w", "month_2", "2months", "56d", "60d"]:
+        return 56.0, "2_months", "2 Months (8 Weeks / Reticulocyte Turn)"
+    if t_str in ["12w", "month_3", "3months", "84d", "90d"]:
+        return 84.0, "3_months", "3 Months (12 Weeks / HbA1c & RBC Turn)"
+    if t_str in ["full", "all", "equilibrium", "inf", "infinity"]:
+        return None, "steady_state", "Steady State (Full Equilibrium)"
+
+    try:
+        val = float(t_str)
+        if val > 0 and val < 365:
+            return val, f"{val:g}_days", f"{val:g} Day{'s' if val != 1 else ''}"
+    except ValueError:
+        pass
+
+    return None, "steady_state", "Steady State (Full Equilibrium)"
+
+
 class BiologicalGraph:
     model_config = ConfigDict(arbitrary_types_allowed=True)
 
@@ -756,6 +854,8 @@ class BiologicalGraph:
         max_depth: int = 5,
         affinity_decay: bool = True,
         combined_effects: Optional[Dict[str, Any]] = None,
+        timeline: Optional[str | float | int] = None,
+        timeline_days: Optional[float] = None,
     ) -> Dict[str, Any]:
         """
         Dynamically traverses directed cascade paths starting from input compounds/ligands,
@@ -763,17 +863,30 @@ class BiologicalGraph:
         and computing predicted biomarker shifts, pathway activations, and phenotype probabilities.
         When combined_effects are provided, signal magnitude downstream of targets is calibrated
         to the target's exact dose-dependent receptor saturation and net activation (E_net).
+        When timeline or timeline_days is specified (e.g. 1 day, 2 weeks, 1 month, steady state),
+        calculates dynamic kinetic outcomes according to onset latency (t_onset) and turnover half-time (t_1/2).
         """
+        effective_days, timeline_key, timeline_label = parse_timeline_days(
+            timeline_days if timeline_days is not None else timeline
+        )
+
         starts = [start_node_ids] if isinstance(start_node_ids, str) else list(start_node_ids)
         valid_starts: List[str] = []
-        for s in starts:
+        for raw_s in starts:
+            s = (raw_s.get("key") or raw_s.get("name") or "") if isinstance(raw_s, dict) else str(raw_s).split(":")[0].strip()
+            if not s:
+                continue
             if s in self.graph:
                 if s not in valid_starts:
                     valid_starts.append(s)
             else:
                 # Resolve by label or case-insensitive ID match
                 for n, d in self.graph.nodes(data=True):
-                    if str(n).lower() == str(s).lower() or str(d.get("label", "")).lower() == str(s).lower():
+                    if (
+                        str(n).lower() == str(s).lower()
+                        or str(d.get("label", "")).lower() == str(s).lower()
+                        or str(d.get("canonical_key", "")).lower() == str(s).lower()
+                    ):
                         if n not in valid_starts:
                             valid_starts.append(n)
 
@@ -783,6 +896,9 @@ class BiologicalGraph:
                 "biomarker_shifts": [],
                 "phenotypes": [],
                 "cascade_traces": [],
+                "timeline": timeline_key,
+                "timeline_days": effective_days,
+                "timeline_label": timeline_label,
                 "summary": "No active knowledge graph nodes found for the requested entities.",
             }
 
@@ -922,8 +1038,9 @@ class BiologicalGraph:
             if delta_val < -baseline:
                 delta_val = -baseline
 
-            est_val = round(baseline + delta_val, 1 if baseline >= 10 else 2)
-            pct_change = round((delta_val / baseline) * 100.0, 1) if baseline != 0 else 0.0
+            ss_delta = delta_val
+            ss_est_val = round(baseline + ss_delta, 1 if baseline >= 10 else 2)
+            ss_pct_change = round((ss_delta / baseline) * 100.0, 1) if baseline != 0 else 0.0
 
             onset_days = float(calib.get("onset_days", bio_data.get("onset_days", 1.0))) if calib else float(bio_data.get("onset_days", 1.0))
             half_time_days = float(calib.get("half_time_days", bio_data.get("half_time_days", 3.0))) if calib else float(bio_data.get("half_time_days", 3.0))
@@ -931,17 +1048,50 @@ class BiologicalGraph:
             profile = str(calib.get("kinetic_profile", bio_data.get("kinetic_profile", "direct_receptor"))) if calib else str(bio_data.get("kinetic_profile", "direct_receptor"))
             time_desc = str(calib.get("time_course_description")) if (calib and calib.get("time_course_description")) else f"Reaches 50% shift in ~{half_time_days} days and steady state in ~{steady_state_weeks} weeks."
 
+            # Calculate kinetic progress fraction at requested timeline
+            if effective_days is not None:
+                t_days = float(effective_days)
+                if t_days < onset_days:
+                    kinetic_frac = 0.0
+                else:
+                    kinetic_frac = 1.0 - math.exp(-math.log(2.0) * (t_days - onset_days) / max(0.1, half_time_days))
+                kinetic_frac = max(0.0, min(1.0, kinetic_frac))
+                curr_delta = round(ss_delta * kinetic_frac, 1 if baseline >= 10 else 2)
+                curr_est_val = round(baseline + curr_delta, 1 if baseline >= 10 else 2)
+                curr_pct_change = round((curr_delta / baseline) * 100.0, 1) if baseline != 0 else 0.0
+                progress_pct = round(kinetic_frac * 100.0, 1)
+
+                # Scale compound contribution shares by timeline fraction
+                timeline_c_shares = []
+                for c in c_shares:
+                    c_pt_delta = round(c["estimated_delta"] * kinetic_frac, 1 if baseline >= 10 else 2)
+                    timeline_c_shares.append({
+                        "compound_id": c["compound_id"],
+                        "compound_label": c["compound_label"],
+                        "contribution_mag": round(c["contribution_mag"] * kinetic_frac, 3),
+                        "steady_state_delta": c["estimated_delta"],
+                        "estimated_delta": c_pt_delta,
+                        "formatted_delta": f"{'+' if c_pt_delta > 0 else ''}{c_pt_delta} {unit}",
+                    })
+            else:
+                kinetic_frac = 1.0
+                curr_delta = ss_delta
+                curr_est_val = ss_est_val
+                curr_pct_change = ss_pct_change
+                progress_pct = 100.0
+                timeline_c_shares = c_shares
+
             # Compute discrete dynamic time course progression points
             time_course = []
-            milestone_days = [0.5, 1.0, 3.0, 7.0, 14.0, 28.0, 56.0]
+            milestone_days = [0.5, 1.0, 3.0, 7.0, 14.0, 28.0, 56.0, 84.0]
             for day in milestone_days:
-                if day <= steady_state_weeks * 7.0 + 7.0:
+                if day <= max(84.0, steady_state_weeks * 7.0 + 14.0):
                     if day < onset_days:
                         frac = 0.0
                     else:
                         frac = 1.0 - math.exp(-math.log(2.0) * (day - onset_days) / max(0.1, half_time_days))
                     frac = max(0.0, min(1.0, frac))
-                    pt_delta = round(delta_val * frac, 1 if baseline >= 10 else 2)
+                    pt_delta = round(ss_delta * frac, 1 if baseline >= 10 else 2)
                     pt_val = round(baseline + pt_delta, 1 if baseline >= 10 else 2)
                     time_course.append({
                         "day": day,
@@ -955,28 +1105,33 @@ class BiologicalGraph:
                 "biomarker_id": bio_id,
                 "label": bio_data.get("label", bio_id),
                 "name": bio_data.get("label", bio_id),
-                "net_shift": round(net_mag, 3),
-                "direction": "INCREASE" if (delta_val > 0.05 or net_mag >= 0.01) else ("DECREASE" if (delta_val < -0.05 or net_mag <= -0.01) else "NEUTRAL"),
-                "arrow": "↑" if (delta_val > 0.05 or net_mag >= 0.01) else ("↓" if (delta_val < -0.05 or net_mag <= -0.01) else "→"),
+                "net_shift": round(net_mag * kinetic_frac, 3),
+                "steady_state_net_shift": round(net_mag, 3),
+                "direction": "INCREASE" if (curr_delta > 0.05 or (net_mag * kinetic_frac) >= 0.01) else ("DECREASE" if (curr_delta < -0.05 or (net_mag * kinetic_frac) <= -0.01) else "NEUTRAL"),
+                "arrow": "↑" if (curr_delta > 0.05 or (net_mag * kinetic_frac) >= 0.01) else ("↓" if (curr_delta < -0.05 or (net_mag * kinetic_frac) <= -0.01) else "→"),
                 "unit": unit,
                 "baseline_value": baseline,
-                "estimated_value": est_val,
-                "estimated_delta": delta_val,
-                "estimated_pct_change": pct_change,
-                "formatted_change": f"{'+' if delta_val > 0 else ''}{delta_val} {unit} ({'+' if pct_change > 0 else ''}{pct_change}%)",
-                "formatted_display": f"{baseline} → {est_val} {unit} ({'+' if delta_val > 0 else ''}{delta_val} {unit})",
+                "estimated_value": curr_est_val,
+                "estimated_delta": curr_delta,
+                "estimated_pct_change": curr_pct_change,
+                "steady_state_delta": ss_delta,
+                "steady_state_value": ss_est_val,
+                "steady_state_pct_change": ss_pct_change,
+                "kinetic_progress_pct": progress_pct,
+                "formatted_change": f"{'+' if curr_delta > 0 else ''}{curr_delta} {unit} ({'+' if curr_pct_change > 0 else ''}{curr_pct_change}%)",
+                "formatted_display": f"{baseline} → {curr_est_val} {unit} ({'+' if curr_delta > 0 else ''}{curr_delta} {unit})",
                 "biomarker_panel": bio_data.get("biomarker_panel", "General"),
                 "safe_range": f"{safe_lower} - {safe_upper}",
                 "safe_lower": safe_lower,
                 "safe_upper": safe_upper,
-                "in_safe_range": safe_lower <= est_val <= safe_upper,
+                "in_safe_range": safe_lower <= curr_est_val <= safe_upper,
                 "onset_days": onset_days,
                 "half_time_days": half_time_days,
                 "time_to_steady_state_weeks": steady_state_weeks,
                 "kinetic_profile": profile,
                 "time_course_description": time_desc,
                 "time_progression_curve": time_course,
-                "compound_contributions": c_shares,
+                "compound_contributions": timeline_c_shares,
             })
 
         # Compute Pathway Impacts with Bounded Per-Compound Aggregation
@@ -984,10 +1139,23 @@ class BiologicalGraph:
         for path_id, start_map in pathway_path_signals.items():
             pathway_impacts[path_id] = max(-1.0, min(1.0, sum(_aggregate_compound_paths(p_list) for p_list in start_map.values())))
 
+        pathway_kinetic_frac = 1.0
+        if effective_days is not None:
+            pathway_kinetic_frac = min(1.0, max(0.1, 1.0 - math.exp(-float(effective_days) / 1.5)))
+
         formatted_pathways = []
         for path_id, net_mag in sorted(pathway_impacts.items(), key=lambda x: abs(x[1]), reverse=True):
             pdata = self.graph.nodes[path_id]
-            formatted_pathways.append({"pathway_id": path_id, "label": pdata.get("label", path_id), "name": pdata.get("label", path_id), "net_activation": round(net_mag, 3), "status": "UPREGULATED" if net_mag > 0.03 else ("DOWNREGULATED" if net_mag < -0.03 else "MODULATED"), "database": pdata.get("pathway_database", "Reactome")})
+            curr_act = round(net_mag * pathway_kinetic_frac, 3)
+            formatted_pathways.append({
+                "pathway_id": path_id,
+                "label": pdata.get("label", path_id),
+                "name": pdata.get("label", path_id),
+                "net_activation": curr_act,
+                "steady_state_activation": round(net_mag, 3),
+                "status": "UPREGULATED" if curr_act > 0.03 else ("DOWNREGULATED" if curr_act < -0.03 else "MODULATED"),
+                "database": pdata.get("pathway_database", "Reactome"),
+            })
 
         # Compute Phenotype Impacts with Bounded Per-Compound Aggregation
         phenotype_impacts: Dict[str, float] = {}
@@ -998,23 +1166,55 @@ class BiologicalGraph:
                 phenotype_contributions[pheno_id][c_id] = _aggregate_compound_paths(p_list)
             phenotype_impacts[pheno_id] = max(-1.0, min(1.0, sum(phenotype_contributions[pheno_id].values())))
 
+        pheno_kinetic_frac = 1.0
+        if effective_days is not None:
+            pheno_kinetic_frac = min(1.0, max(0.05, 1.0 - math.exp(-math.log(2.0) * float(effective_days) / 7.0)))
+
         formatted_phenotypes = []
         for pheno_id, net_mag in sorted(phenotype_impacts.items(), key=lambda x: abs(x[1]), reverse=True):
             pdata = self.graph.nodes[pheno_id]
-            risk_pct = round(net_mag * 100.0, 1)
-            risk_status = "HIGH_RISK" if net_mag > 0.4 else ("MODERATE_RISK" if net_mag > 0.15 else ("MILD_RISK" if net_mag > 0.03 else ("SUPPRESSED" if net_mag < -0.15 else ("MILD_SUPPRESSION" if net_mag < -0.03 else "NEUTRAL"))))
+            curr_pheno_mag = net_mag * pheno_kinetic_frac
+            risk_pct = round(curr_pheno_mag * 100.0, 1)
+            ss_risk_pct = round(net_mag * 100.0, 1)
+            risk_status = "HIGH_RISK" if curr_pheno_mag > 0.4 else ("MODERATE_RISK" if curr_pheno_mag > 0.15 else ("MILD_RISK" if curr_pheno_mag > 0.03 else ("SUPPRESSED" if curr_pheno_mag < -0.15 else ("MILD_SUPPRESSION" if curr_pheno_mag < -0.03 else "NEUTRAL"))))
             c_shares = []
             for c_id, c_mag in phenotype_contributions.get(pheno_id, {}).items():
-                c_risk = round(c_mag * 100.0, 1)
-                c_shares.append({"compound_id": c_id, "compound_label": self.graph.nodes[c_id].get("label", c_id), "contribution_mag": round(c_mag, 3), "risk_delta_pct": c_risk, "formatted_risk": f"{'+' if c_risk > 0 else ''}{c_risk}%"})
-            formatted_phenotypes.append({"phenotype_id": pheno_id, "label": pdata.get("label", pheno_id), "name": pdata.get("label", pheno_id), "net_score": round(net_mag, 3), "risk_delta_pct": risk_pct, "risk_status": risk_status, "risk_badge": "High Elevation" if risk_status == "HIGH_RISK" else ("Moderate Elevation" if risk_status == "MODERATE_RISK" else ("Mild Elevation" if risk_status == "MILD_RISK" else ("Strong Suppression" if risk_status == "SUPPRESSED" else ("Mild Suppression" if risk_status == "MILD_SUPPRESSION" else "Neutral / Basal")))), "formatted_risk": f"{'+' if risk_pct > 0 else ''}{risk_pct}%", "category": pdata.get("phenotype_category", "clinical_outcome"), "severity": pdata.get("severity", "moderate"), "description": pdata.get("description", ""), "compound_contributions": c_shares})
+                c_risk = round(c_mag * pheno_kinetic_frac * 100.0, 1)
+                c_shares.append({
+                    "compound_id": c_id,
+                    "compound_label": self.graph.nodes[c_id].get("label", c_id),
+                    "contribution_mag": round(c_mag * pheno_kinetic_frac, 3),
+                    "risk_delta_pct": c_risk,
+                    "formatted_risk": f"{'+' if c_risk > 0 else ''}{c_risk}%",
+                })
+            formatted_phenotypes.append({
+                "phenotype_id": pheno_id,
+                "label": pdata.get("label", pheno_id),
+                "name": pdata.get("label", pheno_id),
+                "net_score": round(curr_pheno_mag, 3),
+                "steady_state_score": round(net_mag, 3),
+                "risk_delta_pct": risk_pct,
+                "steady_state_risk_pct": ss_risk_pct,
+                "risk_status": risk_status,
+                "risk_badge": "High Elevation" if risk_status == "HIGH_RISK" else ("Moderate Elevation" if risk_status == "MODERATE_RISK" else ("Mild Elevation" if risk_status == "MILD_RISK" else ("Strong Suppression" if risk_status == "SUPPRESSED" else ("Mild Suppression" if risk_status == "MILD_SUPPRESSION" else "Neutral / Basal")))),
+                "formatted_risk": f"{'+' if risk_pct > 0 else ''}{risk_pct}%",
+                "category": pdata.get("phenotype_category", "clinical_outcome"),
+                "severity": pdata.get("severity", "moderate"),
+                "description": pdata.get("description", ""),
+                "compound_contributions": c_shares,
+            })
+
+        timeline_summary_suffix = f" at {timeline_label} timeline horizon." if effective_days is not None else " at steady-state equilibrium."
 
         return {
             "activated_pathways": formatted_pathways,
             "biomarker_shifts": formatted_biomarkers,
             "phenotypes": formatted_phenotypes,
             "cascade_traces": traces[:25],
-            "summary": f"Cascade simulation across {len(valid_starts)} origin entity(ies) mapped {len(formatted_pathways)} intracellular pathway(s), {len(formatted_biomarkers)} clinical biomarker shift(s), and {len(formatted_phenotypes)} downstream phenotype outcome(s)."
+            "timeline": timeline_key,
+            "timeline_days": effective_days,
+            "timeline_label": timeline_label,
+            "summary": f"Cascade simulation across {len(valid_starts)} origin entity(ies) mapped {len(formatted_pathways)} intracellular pathway(s), {len(formatted_biomarkers)} clinical biomarker shift(s), and {len(formatted_phenotypes)} downstream phenotype outcome(s){timeline_summary_suffix}"
         }
 
     def summarize(self) -> Dict[str, Any]:

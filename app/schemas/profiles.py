@@ -68,3 +68,5 @@ class InteractionWorkbenchRequest(BaseModel):
     sleep_hours: float = 7.5
     blood_pressure: float = 120.0
     weight_kg: float = 75.0
+    timeline: Optional[str] = "steady_state"
+    timeline_days: Optional[float] = None

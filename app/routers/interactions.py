@@ -35,13 +35,18 @@ def evaluate_interaction_matrix(payload: InteractionWorkbenchRequest) -> JSONRes
         if comp:
             comp_copy = dict(comp)
             comp_copy["key"] = str(key)
-            comp_copy["dose"] = item.get("dose") if isinstance(item, dict) and item.get("dose") is not None else parsed.get("dose_mg")
-            comp_copy["unit"] = item.get("unit") if isinstance(item, dict) and item.get("unit") else "mg"
+            comp_copy["dose"] = item.get("dose") if isinstance(item, dict) and item.get("dose") is not None else parsed.get("dose_val", parsed.get("dose_mg"))
+            comp_copy["unit"] = item.get("unit") if isinstance(item, dict) and item.get("unit") else parsed.get("dose_unit", "mg")
             comp_copy["dose_mg"] = parsed.get("dose_mg", 10.0)
             comp_copy["dose_str"] = parsed.get("dose_str", f"{comp_copy['dose_mg']:g} mg")
+            comp_copy["frequency"] = parsed.get("frequency", "daily")
+            comp_copy["frequency_multiplier"] = parsed.get("frequency_multiplier", 1.0)
+            comp_copy["effective_daily_dose_mg"] = parsed.get("effective_daily_dose_mg", comp_copy["dose_mg"])
+            comp_copy["effective_daily_display"] = parsed.get("effective_daily_display", f"{comp_copy['dose_mg']:g} mg/day")
             if isinstance(item, dict):
                 comp_copy["timing"] = item.get("timing", "morning")
-                comp_copy["frequency"] = item.get("frequency", "daily")
+                if item.get("frequency"):
+                    comp_copy["frequency"] = item.get("frequency")
             raw_compounds.append(comp_copy)
         elif key:
             raw_compounds.append({
@@ -49,12 +54,15 @@ def evaluate_interaction_matrix(payload: InteractionWorkbenchRequest) -> JSONRes
                 "name": str(key).strip().title(),
                 "drug_class": "custom compound",
                 "mechanism": "Custom compound added in safety workbench.",
-                "dose": item.get("dose") if isinstance(item, dict) and item.get("dose") is not None else parsed.get("dose_mg"),
-                "unit": item.get("unit") if isinstance(item, dict) and item.get("unit") else "mg",
+                "dose": item.get("dose") if isinstance(item, dict) and item.get("dose") is not None else parsed.get("dose_val", parsed.get("dose_mg")),
+                "unit": item.get("unit") if isinstance(item, dict) and item.get("unit") else parsed.get("dose_unit", "mg"),
                 "dose_mg": parsed.get("dose_mg", 10.0),
                 "dose_str": parsed.get("dose_str", "10 mg"),
+                "frequency": parsed.get("frequency", "daily"),
+                "frequency_multiplier": parsed.get("frequency_multiplier", 1.0),
+                "effective_daily_dose_mg": parsed.get("effective_daily_dose_mg", parsed.get("dose_mg", 10.0)),
+                "effective_daily_display": parsed.get("effective_daily_display", "10 mg/day"),
                 "timing": item.get("timing", "morning") if isinstance(item, dict) else "morning",
-                "frequency": item.get("frequency", "daily") if isinstance(item, dict) else "daily",
                 "receptor_targets": [],
                 "cyp_enzymes": {"substrates": [], "inhibitors": [], "inducers": []},
                 "organ_burdens": {},

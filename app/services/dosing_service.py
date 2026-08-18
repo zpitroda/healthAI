@@ -385,33 +385,343 @@ def get_default_compound_dose(
     }
 
 
-def parse_dose_string_or_spec(spec_str: str) -> Dict[str, Any]:
-    """
-    Parse strings like 'clenbuterol:40ug', 'nebivolol:5mg', 'creatine:5g', or 'caffeine'.
-    Returns structured { key, dose_mg, dose_val, dose_unit, dose_display }.
-    """
-    spec = str(spec_str or "").strip()
-    if not spec:
-        return {"key": "", "dose_mg": 10.0, "dose_val": 10.0, "dose_unit": "mg", "dose_display": "10 mg"}
+DOSING_FREQUENCY_METADATA: Dict[str, Dict[str, Any]] = {
+    "daily": {
+        "key": "daily",
+        "label": "Once Daily (QD)",
+        "multiplier": 1.0,
+        "interval_hours": 24.0,
+        "daily_doses": 1.0,
+        "description": "Standard once-daily administration (every 24 hours)",
+    },
+    "once_daily": {
+        "key": "daily",
+        "label": "Once Daily (QD)",
+        "multiplier": 1.0,
+        "interval_hours": 24.0,
+        "daily_doses": 1.0,
+        "description": "Standard once-daily administration (every 24 hours)",
+    },
+    "qd": {
+        "key": "daily",
+        "label": "Once Daily (QD)",
+        "multiplier": 1.0,
+        "interval_hours": 24.0,
+        "daily_doses": 1.0,
+        "description": "Standard once-daily administration (every 24 hours)",
+    },
+    "twice_daily": {
+        "key": "twice_daily",
+        "label": "Twice Daily (BID)",
+        "multiplier": 2.0,
+        "interval_hours": 12.0,
+        "daily_doses": 2.0,
+        "description": "Twice-daily administration (every 12 hours)",
+    },
+    "bid": {
+        "key": "twice_daily",
+        "label": "Twice Daily (BID)",
+        "multiplier": 2.0,
+        "interval_hours": 12.0,
+        "daily_doses": 2.0,
+        "description": "Twice-daily administration (every 12 hours)",
+    },
+    "three_times_daily": {
+        "key": "three_times_daily",
+        "label": "Three Times Daily (TID)",
+        "multiplier": 3.0,
+        "interval_hours": 8.0,
+        "daily_doses": 3.0,
+        "description": "Three-times-daily administration (every 8 hours)",
+    },
+    "tid": {
+        "key": "three_times_daily",
+        "label": "Three Times Daily (TID)",
+        "multiplier": 3.0,
+        "interval_hours": 8.0,
+        "daily_doses": 3.0,
+        "description": "Three-times-daily administration (every 8 hours)",
+    },
+    "four_times_daily": {
+        "key": "four_times_daily",
+        "label": "Four Times Daily (QID)",
+        "multiplier": 4.0,
+        "interval_hours": 6.0,
+        "daily_doses": 4.0,
+        "description": "Four-times-daily administration (every 6 hours)",
+    },
+    "qid": {
+        "key": "four_times_daily",
+        "label": "Four Times Daily (QID)",
+        "multiplier": 4.0,
+        "interval_hours": 6.0,
+        "daily_doses": 4.0,
+        "description": "Four-times-daily administration (every 6 hours)",
+    },
+    "every_other_day": {
+        "key": "every_other_day",
+        "label": "Every Other Day (QOD)",
+        "multiplier": 0.5,
+        "interval_hours": 48.0,
+        "daily_doses": 0.5,
+        "description": "Every-other-day administration (every 48 hours)",
+    },
+    "qod": {
+        "key": "every_other_day",
+        "label": "Every Other Day (QOD)",
+        "multiplier": 0.5,
+        "interval_hours": 48.0,
+        "daily_doses": 0.5,
+        "description": "Every-other-day administration (every 48 hours)",
+    },
+    "twice_weekly": {
+        "key": "twice_weekly",
+        "label": "Twice Weekly (2x/wk)",
+        "multiplier": 2.0 / 7.0,
+        "interval_hours": 84.0,
+        "daily_doses": 2.0 / 7.0,
+        "description": "Administered twice weekly (e.g. Mon / Thu, ~every 3.5 days)",
+    },
+    "biw": {
+        "key": "twice_weekly",
+        "label": "Twice Weekly (2x/wk)",
+        "multiplier": 2.0 / 7.0,
+        "interval_hours": 84.0,
+        "daily_doses": 2.0 / 7.0,
+        "description": "Administered twice weekly (e.g. Mon / Thu, ~every 3.5 days)",
+    },
+    "weekly": {
+        "key": "weekly",
+        "label": "Once Weekly (QW)",
+        "multiplier": 1.0 / 7.0,
+        "interval_hours": 168.0,
+        "daily_doses": 1.0 / 7.0,
+        "description": "Administered once weekly (every 7 days)",
+    },
+    "once_weekly": {
+        "key": "weekly",
+        "label": "Once Weekly (QW)",
+        "multiplier": 1.0 / 7.0,
+        "interval_hours": 168.0,
+        "daily_doses": 1.0 / 7.0,
+        "description": "Administered once weekly (every 7 days)",
+    },
+    "qw": {
+        "key": "weekly",
+        "label": "Once Weekly (QW)",
+        "multiplier": 1.0 / 7.0,
+        "interval_hours": 168.0,
+        "daily_doses": 1.0 / 7.0,
+        "description": "Administered once weekly (every 7 days)",
+    },
+    "biweekly": {
+        "key": "biweekly",
+        "label": "Every 2 Weeks (Q2W)",
+        "multiplier": 1.0 / 14.0,
+        "interval_hours": 336.0,
+        "daily_doses": 1.0 / 14.0,
+        "description": "Administered every 2 weeks (every 14 days)",
+    },
+    "q2w": {
+        "key": "biweekly",
+        "label": "Every 2 Weeks (Q2W)",
+        "multiplier": 1.0 / 14.0,
+        "interval_hours": 336.0,
+        "daily_doses": 1.0 / 14.0,
+        "description": "Administered every 2 weeks (every 14 days)",
+    },
+    "monthly": {
+        "key": "monthly",
+        "label": "Monthly (QM)",
+        "multiplier": 1.0 / 30.0,
+        "interval_hours": 720.0,
+        "daily_doses": 1.0 / 30.0,
+        "description": "Administered once monthly (~every 30 days)",
+    },
+    "qm": {
+        "key": "monthly",
+        "label": "Monthly (QM)",
+        "multiplier": 1.0 / 30.0,
+        "interval_hours": 720.0,
+        "daily_doses": 1.0 / 30.0,
+        "description": "Administered once monthly (~every 30 days)",
+    },
+    "as_needed": {
+        "key": "as_needed",
+        "label": "As Needed (PRN)",
+        "multiplier": 0.5,
+        "interval_hours": 48.0,
+        "daily_doses": 0.5,
+        "description": "Administered occasionally on an as-needed basis",
+    },
+    "prn": {
+        "key": "as_needed",
+        "label": "As Needed (PRN)",
+        "multiplier": 0.5,
+        "interval_hours": 48.0,
+        "daily_doses": 0.5,
+        "description": "Administered occasionally on an as-needed basis",
+    },
+}
 
-    parts = spec.split(":", 1)
+
+def normalize_dosing_frequency(freq: Any) -> str:
+    """Normalize dosing frequency token to standard key (e.g. 'weekly', 'twice_daily', 'daily')."""
+    raw = str(freq or "").strip().lower().replace("-", "_").replace(" ", "_")
+    if not raw:
+        return "daily"
+    meta = DOSING_FREQUENCY_METADATA.get(raw)
+    if meta:
+        return meta["key"]
+    if "bid" in raw or "twice" in raw and "week" not in raw:
+        return "twice_daily"
+    if "tid" in raw or "three" in raw:
+        return "three_times_daily"
+    if "qid" in raw or "four" in raw:
+        return "four_times_daily"
+    if "qod" in raw or "other" in raw:
+        return "every_other_day"
+    if "biw" in raw or "twice" in raw and "week" in raw:
+        return "twice_weekly"
+    if "qw" in raw or "week" in raw and "2" not in raw and "bi" not in raw:
+        return "weekly"
+    if "q2w" in raw or "2_week" in raw or "biweek" in raw or "every_2_weeks" in raw:
+        return "biweekly"
+    if "qm" in raw or "month" in raw:
+        return "monthly"
+    if "prn" in raw or "needed" in raw:
+        return "as_needed"
+    return "daily"
+
+
+def get_frequency_multiplier(frequency: Any) -> float:
+    """Return effective daily dosing multiplier for a given frequency."""
+    norm = normalize_dosing_frequency(frequency)
+    meta = DOSING_FREQUENCY_METADATA.get(norm)
+    return float(meta["multiplier"]) if meta else 1.0
+
+
+def get_frequency_interval_hours(frequency: Any) -> float:
+    """Return dosing interval tau in hours for a given frequency."""
+    norm = normalize_dosing_frequency(frequency)
+    meta = DOSING_FREQUENCY_METADATA.get(norm)
+    return float(meta["interval_hours"]) if meta else 24.0
+
+
+def parse_dose_string_or_spec(spec_input: Any) -> Dict[str, Any]:
+    """
+    Parse strings like 'clenbuterol:40ug', 'nebivolol:5mg:daily', 'testosterone:200mg:weekly',
+    or 'creatine:5g', or dict specs.
+    Returns structured { key, dose_mg, dose_val, dose_unit, dose_display, frequency, frequency_multiplier, effective_daily_dose_mg, effective_daily_display }.
+    """
+    if isinstance(spec_input, dict):
+        key = str(spec_input.get("key") or spec_input.get("name") or "").strip()
+        dose_val = spec_input.get("dose_val") if spec_input.get("dose_val") is not None else spec_input.get("dose")
+        if dose_val is None:
+            dose_val = spec_input.get("dose_mg")
+        dose_unit = str(spec_input.get("dose_unit") or spec_input.get("unit") or "mg").strip()
+        freq = str(spec_input.get("frequency") or spec_input.get("dosing_frequency") or "daily").strip()
+        frequency = normalize_dosing_frequency(freq)
+        freq_mult = get_frequency_multiplier(frequency)
+
+        if dose_val is not None:
+            val = float(dose_val)
+            unit = dose_unit.lower()
+            if unit in ["ug", "mcg"]:
+                dose_mg = val / 1000.0
+                unit = "μg"
+            elif unit == "g":
+                dose_mg = val * 1000.0
+            else:
+                dose_mg = val
+                unit = "mg" if unit not in ["iu", "u"] else unit
+            
+            eff_daily = dose_mg * freq_mult
+            eff_display = f"{eff_daily:g} mg/day" if eff_daily >= 1.0 else f"{eff_daily * 1000.0:g} μg/day"
+            return {
+                "key": key,
+                "dose_mg": dose_mg,
+                "dose_val": val,
+                "dose_unit": unit,
+                "dose_display": f"{val:g} {unit}",
+                "frequency": frequency,
+                "frequency_multiplier": freq_mult,
+                "effective_daily_dose_mg": round(eff_daily, 4),
+                "effective_daily_display": eff_display,
+            }
+        else:
+            default_info = get_default_compound_dose(key)
+            dose_mg = float(default_info["dose_mg"])
+            eff_daily = dose_mg * freq_mult
+            eff_display = f"{eff_daily:g} mg/day" if eff_daily >= 1.0 else f"{eff_daily * 1000.0:g} μg/day"
+            return {
+                "key": key,
+                "dose_mg": dose_mg,
+                "dose_val": default_info["dose_val"],
+                "dose_unit": default_info["dose_unit"],
+                "dose_display": default_info["dose_display"],
+                "frequency": frequency,
+                "frequency_multiplier": freq_mult,
+                "effective_daily_dose_mg": round(eff_daily, 4),
+                "effective_daily_display": eff_display,
+            }
+
+    spec = str(spec_input or "").strip()
+    if not spec:
+        return {
+            "key": "",
+            "dose_mg": 10.0,
+            "dose_val": 10.0,
+            "dose_unit": "mg",
+            "dose_display": "10 mg",
+            "frequency": "daily",
+            "frequency_multiplier": 1.0,
+            "effective_daily_dose_mg": 10.0,
+            "effective_daily_display": "10 mg/day",
+        }
+
+    parts = spec.split(":")
     key = parts[0].strip()
+    freq_candidate = "daily"
+
+    # Check if a frequency token is included in parts
+    if len(parts) >= 3:
+        freq_candidate = parts[2].strip()
+    elif len(parts) == 2 and any(k in parts[1].lower() for k in ["daily", "weekly", "bid", "tid", "qid", "qod", "biw", "qw", "prn", "month"]):
+        # e.g. key:weekly or key:10mg_weekly
+        if not re.search(r"\d", parts[1]):
+            freq_candidate = parts[1].strip()
+            parts = [key]
+
+    frequency = normalize_dosing_frequency(freq_candidate)
+    freq_mult = get_frequency_multiplier(frequency)
 
     if len(parts) == 1:
         default_info = get_default_compound_dose(key)
+        dose_mg = float(default_info["dose_mg"])
+        eff_daily = dose_mg * freq_mult
+        eff_display = f"{eff_daily:g} mg/day" if eff_daily >= 1.0 else f"{eff_daily * 1000.0:g} μg/day"
         return {
             "key": key,
-            "dose_mg": default_info["dose_mg"],
+            "dose_mg": dose_mg,
             "dose_val": default_info["dose_val"],
             "dose_unit": default_info["dose_unit"],
             "dose_display": default_info["dose_display"],
+            "frequency": frequency,
+            "frequency_multiplier": freq_mult,
+            "effective_daily_dose_mg": round(eff_daily, 4),
+            "effective_daily_display": eff_display,
         }
 
     dose_part = parts[1].strip()
-    match = re.match(r"^([\d.]+)\s*([a-zA-Zμ]+)$", dose_part)
+    match = re.match(r"^([\d.]+)\s*([a-zA-Zμ]+)(?:_([a-zA-Z0-9_]+))?$", dose_part)
     if match:
         val = float(match.group(1))
         unit = match.group(2).lower()
+        if match.group(3):
+            frequency = normalize_dosing_frequency(match.group(3))
+            freq_mult = get_frequency_multiplier(frequency)
+
         if unit in ("ug", "mcg", "μg", "microgram", "micrograms"):
             clean_unit = "μg"
             dose_mg = val / 1000.0
@@ -425,29 +735,50 @@ def parse_dose_string_or_spec(spec_str: str) -> Dict[str, Any]:
             clean_unit = "mg"
             dose_mg = val
 
+        eff_daily = dose_mg * freq_mult
+        eff_display = f"{eff_daily:g} mg/day" if eff_daily >= 1.0 else f"{eff_daily * 1000.0:g} μg/day"
+
         return {
             "key": key,
             "dose_mg": dose_mg,
             "dose_val": val,
             "dose_unit": clean_unit,
             "dose_display": f"{val:g} {clean_unit}",
+            "frequency": frequency,
+            "frequency_multiplier": freq_mult,
+            "effective_daily_dose_mg": round(eff_daily, 4),
+            "effective_daily_display": eff_display,
         }
 
     try:
         val = float(dose_part)
+        dose_mg = val
+        eff_daily = dose_mg * freq_mult
+        eff_display = f"{eff_daily:g} mg/day" if eff_daily >= 1.0 else f"{eff_daily * 1000.0:g} μg/day"
         return {
             "key": key,
             "dose_mg": val,
             "dose_val": val,
             "dose_unit": "mg",
             "dose_display": f"{val:g} mg",
+            "frequency": frequency,
+            "frequency_multiplier": freq_mult,
+            "effective_daily_dose_mg": round(eff_daily, 4),
+            "effective_daily_display": eff_display,
         }
     except ValueError:
         default_info = get_default_compound_dose(key)
+        dose_mg = float(default_info["dose_mg"])
+        eff_daily = dose_mg * freq_mult
+        eff_display = f"{eff_daily:g} mg/day" if eff_daily >= 1.0 else f"{eff_daily * 1000.0:g} μg/day"
         return {
             "key": key,
-            "dose_mg": default_info["dose_mg"],
+            "dose_mg": dose_mg,
             "dose_val": default_info["dose_val"],
             "dose_unit": default_info["dose_unit"],
             "dose_display": default_info["dose_display"],
+            "frequency": frequency,
+            "frequency_multiplier": freq_mult,
+            "effective_daily_dose_mg": round(eff_daily, 4),
+            "effective_daily_display": eff_display,
         }

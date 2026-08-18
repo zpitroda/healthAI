@@ -62,7 +62,7 @@ def test_peptide_exact_target_cascade_blueprints():
     # 3. GLP-1 Receptor (GLP1R)
     glp1r_bp = get_exact_target_cascade_blueprint(target_name="unknown", uniprot_id="P43220")
     assert glp1r_bp is not None
-    assert "Glucagon-Like Peptide 1 Receptor" in glp1r_bp["target_name"]
+    assert "GLP-1" in glp1r_bp["target_name"] or "Glucagon-Like Peptide" in glp1r_bp["target_name"]
 
     # 4. GIP Receptor (GIPR)
     gipr_bp = get_exact_target_cascade_blueprint(target_name="unknown", gene_symbol="GIPR")

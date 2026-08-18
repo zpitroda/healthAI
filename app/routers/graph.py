@@ -61,6 +61,8 @@ def graph_data(
     focus: Optional[str] = None,
     depth: int = 5,
     stack: Optional[List[str]] = Query(default=None),
+    timeline: Optional[str] = Query(default=None),
+    timeline_days: Optional[float] = Query(default=None),
 ) -> JSONResponse:
     """Return JSON node and edge network graph data, dynamic cascade simulation, and combined target receptor activation for the active compound stack."""
     focus_str = focus if isinstance(focus, str) else None
@@ -95,20 +97,25 @@ def graph_data(
     graph = build_selected_compound_graph(parsed_stack)
     graph = filter_graph_by_stack(graph, parsed_stack, max_depth=max(depth_val, 2))
 
-    # Parse custom doses from parsed_stack (e.g. 'eplerenone:12.5mg')
-    custom_doses: dict[str, float] = {}
+    # Parse custom doses from parsed_stack (e.g. 'eplerenone:12.5mg:daily')
+    custom_doses: dict[str, Any] = {}
     for item in parsed_stack:
         parsed = parse_compound_spec(item)
-        if parsed.get("key") and parsed.get("dose_mg") is not None:
-            custom_doses[parsed["key"].lower()] = parsed["dose_mg"]
-            custom_doses[canonicalize_match_token(parsed["key"])] = parsed["dose_mg"]
+        if parsed.get("key"):
+            custom_doses[parsed["key"].lower()] = parsed
+            custom_doses[canonicalize_match_token(parsed["key"])] = parsed
 
     # Compute multi-compound combined receptor effects & occupancy
     combined_effects = compute_target_combined_effects(graph, custom_doses=custom_doses)
 
-    # Run dynamic cascade propagation with saturation & net activation calibration
+    # Run dynamic cascade propagation with saturation, net activation, and timeline calibration
     resolved_keys = resolve_stack_to_catalog_keys(parsed_stack)
-    cascade_results = graph.propagate_cascade(resolved_keys or parsed_stack, combined_effects=combined_effects)
+    cascade_results = graph.propagate_cascade(
+        resolved_keys or parsed_stack,
+        combined_effects=combined_effects,
+        timeline=timeline,
+        timeline_days=timeline_days,
+    )
 
     if focus_str:
         if focus_str not in graph.graph:

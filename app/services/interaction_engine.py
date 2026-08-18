@@ -651,9 +651,13 @@ class InteractionEngine:
 
     def analyze_stack(
         self,
-        compounds: List[Dict[str, Any]],
+        compounds: List[Dict[str, Any]] | Dict[str, Any],
         profile: Optional[Dict[str, Any]] = None,
     ) -> Dict[str, Any]:
+        if isinstance(compounds, dict):
+            profile = compounds
+            compounds = profile.get("compounds") or profile.get("stack") or []
+
         if not compounds:
             return {
                 "matrix": [],
@@ -740,27 +744,41 @@ class InteractionEngine:
             canonicalize_match_token,
         )
 
-        stack_specs: List[str] = []
-        custom_doses: Dict[str, float] = {}
+        timeline = profile_data.get("timeline")
+        timeline_days = profile_data.get("timeline_days")
+
+        stack_specs: List[Any] = []
+        custom_doses: Dict[str, Any] = {}
         for c in compounds:
             k = str(c.get("key") or c.get("name") or "").strip()
             if not k:
                 continue
             dose_val = c.get("dose") if c.get("dose") is not None else c.get("dose_mg")
             unit_val = str(c.get("unit") or "mg").strip()
+            freq_val = str(c.get("frequency") or c.get("dosing_frequency") or "daily").strip()
             if dose_val is not None:
-                spec_str = f"{k}:{dose_val}{unit_val}"
-                stack_specs.append(spec_str)
-                parsed = parse_compound_spec(spec_str)
-                custom_doses[k.lower()] = parsed["dose_mg"]
-                custom_doses[canonicalize_match_token(k)] = parsed["dose_mg"]
+                spec_dict = {
+                    "key": k,
+                    "dose": dose_val,
+                    "unit": unit_val,
+                    "frequency": freq_val,
+                }
+                stack_specs.append(spec_dict)
+                parsed = parse_compound_spec(spec_dict)
+                custom_doses[k.lower()] = parsed
+                custom_doses[canonicalize_match_token(k)] = parsed
             else:
-                stack_specs.append(k)
+                stack_specs.append({"key": k, "frequency": freq_val})
 
         graph = build_selected_compound_graph(stack_specs)
         combined_effects = compute_target_combined_effects(graph, custom_doses=custom_doses)
         resolved_keys = resolve_stack_to_catalog_keys(stack_specs)
-        cascade_results = graph.propagate_cascade(resolved_keys or stack_specs, combined_effects=combined_effects)
+        cascade_results = graph.propagate_cascade(
+            resolved_keys or stack_specs,
+            combined_effects=combined_effects,
+            timeline=timeline,
+            timeline_days=timeline_days,
+        )
 
         # ---------------------------------------------------------
         # 2. HOLISTIC FULL STACK BALANCE EVALUATION
@@ -1872,6 +1890,9 @@ class InteractionEngine:
             "health_index": health_index,
             "status": overall_status,
             "status_label": status_label,
+            "timeline": cascade_results.get("timeline", "steady_state"),
+            "timeline_days": cascade_results.get("timeline_days"),
+            "timeline_label": cascade_results.get("timeline_label", "Steady State (Full Equilibrium)"),
             "axes": axes,
             "active_mitigations": active_mitigations,
             "uncompensated_risks": uncompensated_risks,

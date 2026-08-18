@@ -2022,7 +2022,52 @@
         },
         analysis: null,
         activeTab: 'matrix-tab',
+        timeline: 'steady_state',
+        axesFilter: 'all',
+        axesSort: 'priority',
       };
+
+      function getFrequencyMultiplierClient(freq) {
+        const f = (freq || '').toLowerCase().replace(/[^a-z0-9]/g, '_');
+        if (f.includes('bid') || (f.includes('twice') && !f.includes('week'))) return 2.0;
+        if (f.includes('tid') || f.includes('three')) return 3.0;
+        if (f.includes('qid') || f.includes('four')) return 4.0;
+        if (f.includes('qod') || f.includes('other')) return 0.5;
+        if (f.includes('biw') || (f.includes('twice') && f.includes('week'))) return 2.0 / 7.0;
+        if (f.includes('qw') || (f.includes('week') && !f.includes('2') && !f.includes('bi'))) return 1.0 / 7.0;
+        if (f.includes('q2w') || f.includes('2_week') || f.includes('biweek')) return 1.0 / 14.0;
+        if (f.includes('qm') || f.includes('month')) return 1.0 / 30.0;
+        if (f.includes('prn') || f.includes('needed')) return 0.5;
+        return 1.0;
+      }
+
+      function getTimelineDescription(tl) {
+        const map = {
+          '1_day': 'Immediate acute response: autonomic tone, heart rate, acute blood pressure reactivity, and immediate peak biophase saturation.',
+          '3_days': 'Early adaptation: autonomic steady state, renal electrolyte reabsorption shifts, and acute-phase inflammatory markers.',
+          '1_week': 'Sub-acute tone: initial receptor downregulation/upregulation, transaminase elevations, and early glycemic adaptations.',
+          '2_weeks': 'Endocrine equilibrium: HPTA axis feedback suppression, steady transaminase enzyme response, and initial lipid receptor modulation.',
+          '1_month': 'Hepatic lipid remodeling (4 weeks): LDL-C / HDL-C remodeling, SHBG adaptation, and standard 4-week clinical bloodwork milestone.',
+          '2_months': 'Reticulocyte maturation (8 weeks): Cumulative bone marrow erythropoietic stimulation and hematological adaptation.',
+          '3_months': 'Full ~120-day erythrocyte turnover (12 weeks): Full steady-state HbA1c, hematocrit, and long-term multi-organ equilibrium.',
+          'steady_state': 'Theoretical long-term asymptotic steady-state biological equilibrium (100% full saturation & turnover).',
+        };
+        return map[tl] || map['steady_state'];
+      }
+
+      function getTimelineNarrativePill(tl) {
+        const map = {
+          '1_day': 'Day 1 • Acute Autonomic',
+          '3_days': 'Day 3 • Early Adaptation',
+          '1_week': 'Week 1 • Sub-acute Tone',
+          '2_weeks': 'Week 2 • Endocrine Equilibrium',
+          '1_month': 'Week 4 • Lipid Remodeling',
+          '2_months': 'Week 8 • Reticulocyte Response',
+          '3_months': 'Week 12 • RBC Turnover',
+          'steady_state': 'Steady State • Full Equilibrium',
+        };
+        return map[tl] || map['steady_state'];
+      }
 
       // DOM ELEMENTS
       const searchInput = document.getElementById('compound-search-input');
@@ -2201,12 +2246,13 @@
           console.warn('localStorage error', e);
         }
 
-        // Update nav link and tab button URLs with compound + dose params
+        // Update nav link and tab button URLs with compound + dose + frequency params
         const keys = state.stack.map(c => {
           const u = (c.unit || 'mg').replace('μg', 'ug');
-          return `${encodeURIComponent(c.key)}:${c.dose}${u}`;
+          const freq = c.frequency || 'daily';
+          return `${encodeURIComponent(c.key)}:${c.dose}${u}:${freq}`;
         }).join(',');
-        const targetUrl = keys ? `/graph?stack=${keys}` : '/graph';
+        const targetUrl = keys ? `/graph?stack=${keys}&timeline=${state.timeline || 'steady_state'}` : '/graph';
         const graphLink = document.getElementById('nav-graph-link');
         if (graphLink) graphLink.href = targetUrl;
         const openBtn = document.getElementById('open-full-graph-btn');
@@ -2222,6 +2268,13 @@
         emptyPlaceholder.style.display = 'none';
         stackItemsWrap.innerHTML = state.stack.map(c => {
           const unit = c.unit || 'mg';
+          const freq = c.frequency || 'daily';
+          const mult = getFrequencyMultiplierClient(freq);
+          const effDaily = c.dose * mult;
+          const effDisplay = mult !== 1.0 
+            ? `≈ ${effDaily >= 1.0 ? effDaily.toFixed(effDaily >= 10 ? 1 : 2) : (effDaily * 1000).toFixed(1)} ${effDaily >= 1.0 ? unit : (unit === 'mg' ? 'μg' : unit)}/day`
+            : '';
+
           return `
             <div class="stack-item-card" data-key="${c.key}">
               <div class="stack-item-top">
@@ -2231,36 +2284,58 @@
                 </div>
                 <button class="stack-item-remove-btn" onclick="removeCompoundKey('${c.key}')" title="Remove">&times;</button>
               </div>
-              <div class="stack-item-controls" style="display:flex; gap:6px; align-items:center;">
-                <div style="display:flex; align-items:center; gap:4px; flex:1;">
-                  <input 
-                    type="number" 
-                    class="control-input" 
-                    style="width:72px; padding:4px 8px; font-weight:600;" 
-                    min="0" 
-                    step="any" 
-                    value="${c.dose}" 
-                    onchange="updateDoseVal('${c.key}', this.value)" 
-                    title="Change administered dose"
-                  />
-                  <select 
-                    class="control-select" 
-                    style="width:62px; padding:4px 6px; font-weight:600;" 
-                    onchange="updateDoseUnit('${c.key}', this.value)"
-                    title="Select dose unit"
-                  >
-                    <option value="mg" ${unit === 'mg' ? 'selected' : ''}>mg</option>
-                    <option value="μg" ${unit === 'μg' || unit === 'ug' || unit === 'mcg' ? 'selected' : ''}>μg</option>
-                    <option value="g" ${unit === 'g' ? 'selected' : ''}>g</option>
-                    <option value="IU" ${unit === 'IU' ? 'selected' : ''}>IU</option>
+              <div class="stack-item-controls" style="display:flex; flex-direction:column; gap:6px;">
+                <div style="display:flex; gap:6px; align-items:center;">
+                  <div style="display:flex; align-items:center; gap:4px; flex:1;">
+                    <input 
+                      type="number" 
+                      class="control-input" 
+                      style="width:72px; padding:4px 8px; font-weight:600;" 
+                      min="0" 
+                      step="any" 
+                      value="${c.dose}" 
+                      onchange="updateDoseVal('${c.key}', this.value)" 
+                      title="Change administered dose"
+                    />
+                    <select 
+                      class="control-select" 
+                      style="width:62px; padding:4px 6px; font-weight:600;" 
+                      onchange="updateDoseUnit('${c.key}', this.value)"
+                      title="Select dose unit"
+                    >
+                      <option value="mg" ${unit === 'mg' ? 'selected' : ''}>mg</option>
+                      <option value="μg" ${unit === 'μg' || unit === 'ug' || unit === 'mcg' ? 'selected' : ''}>μg</option>
+                      <option value="g" ${unit === 'g' ? 'selected' : ''}>g</option>
+                      <option value="IU" ${unit === 'IU' ? 'selected' : ''}>IU</option>
+                    </select>
+                  </div>
+                  <select class="control-select" style="flex:1;" onchange="updateTiming('${c.key}', this.value)" title="Dosing timing">
+                    <option value="morning" ${c.timing === 'morning' ? 'selected' : ''}>Morning</option>
+                    <option value="pre-workout" ${c.timing === 'pre-workout' ? 'selected' : ''}>Pre-Workout</option>
+                    <option value="evening" ${c.timing === 'evening' ? 'selected' : ''}>Evening</option>
+                    <option value="before bed" ${c.timing === 'before bed' ? 'selected' : ''}>Before Bed</option>
                   </select>
                 </div>
-                <select class="control-select" style="flex:1;" onchange="updateTiming('${c.key}', this.value)" title="Dosing timing">
-                  <option value="morning" ${c.timing === 'morning' ? 'selected' : ''}>Morning</option>
-                  <option value="pre-workout" ${c.timing === 'pre-workout' ? 'selected' : ''}>Pre-Workout</option>
-                  <option value="evening" ${c.timing === 'evening' ? 'selected' : ''}>Evening</option>
-                  <option value="before bed" ${c.timing === 'before bed' ? 'selected' : ''}>Before Bed</option>
-                </select>
+                <div style="display:flex; gap:6px; align-items:center; justify-content:space-between;">
+                  <select 
+                    class="control-select" 
+                    style="flex:1; font-size:0.75rem; font-weight:600;" 
+                    onchange="updateFrequency('${c.key}', this.value)" 
+                    title="Select dosing frequency / administration interval"
+                  >
+                    <option value="daily" ${freq === 'daily' ? 'selected' : ''}>Once Daily (QD)</option>
+                    <option value="twice_daily" ${freq === 'twice_daily' ? 'selected' : ''}>Twice Daily (BID)</option>
+                    <option value="three_times_daily" ${freq === 'three_times_daily' ? 'selected' : ''}>Three Times Daily (TID)</option>
+                    <option value="four_times_daily" ${freq === 'four_times_daily' ? 'selected' : ''}>Four Times Daily (QID)</option>
+                    <option value="every_other_day" ${freq === 'every_other_day' ? 'selected' : ''}>Every Other Day (QOD)</option>
+                    <option value="twice_weekly" ${freq === 'twice_weekly' ? 'selected' : ''}>Twice Weekly (2x/wk)</option>
+                    <option value="weekly" ${freq === 'weekly' ? 'selected' : ''}>Once Weekly (QW)</option>
+                    <option value="biweekly" ${freq === 'biweekly' ? 'selected' : ''}>Every 2 Weeks (Q2W)</option>
+                    <option value="monthly" ${freq === 'monthly' ? 'selected' : ''}>Monthly (QM)</option>
+                    <option value="as_needed" ${freq === 'as_needed' ? 'selected' : ''}>As Needed (PRN)</option>
+                  </select>
+                  ${effDisplay ? `<span style="font-size:0.68rem; color:#38bdf8; font-family:'JetBrains Mono',monospace; white-space:nowrap; font-weight:700;" title="Effective continuous daily load">${effDisplay}</span>` : ''}
+                </div>
               </div>
             </div>
           `;
@@ -2291,6 +2366,19 @@
           item.timing = val;
           syncAndEvaluateStack();
         }
+      };
+
+      window.updateFrequency = (key, val) => {
+        const item = state.stack.find(c => c.key === key);
+        if (item) {
+          item.frequency = val;
+          syncAndEvaluateStack();
+        }
+      };
+
+      window.setStackTimeline = (timelineKey) => {
+        state.timeline = timelineKey;
+        evaluateStack();
       };
 
       window.removeCompoundKey = removeCompoundKey;
@@ -2341,10 +2429,11 @@
             dose: c.dose,
             unit: c.unit || 'mg',
             timing: c.timing,
-            frequency: c.frequency,
+            frequency: c.frequency || 'daily',
           })),
           blood_pressure: state.biomarkers.blood_pressure,
           sleep_hours: state.biomarkers.sleep_hours,
+          timeline: state.timeline || 'steady_state',
           labs: {
             alt_u_l: state.biomarkers.alt_u_l,
             hematocrit_pct: state.biomarkers.hematocrit_pct,
@@ -2654,7 +2743,7 @@
                 </span>
               </div>
               <p class="balance-hero-desc">
-                Evaluates your complete compound regimen as a unified interconnected network accounting for administered doses. Detects whether co-administered compounds neutralize monotherapy hazards (e.g. AI + Androgen balancing E2, ARB + Androgen stabilizing blood pressure).
+                Evaluates your complete compound regimen as a unified interconnected network accounting for administered doses and dosing frequencies. Detects whether co-administered compounds neutralize monotherapy hazards (e.g. AI + Androgen balancing E2, ARB + Androgen stabilizing blood pressure).
               </p>
             </div>
             <div class="balance-hero-badge-wrap">
@@ -2662,6 +2751,50 @@
                 <span class="balance-index-num" style="color: ${heroBadgeColor};">${healthIndex}</span>
                 <span class="balance-index-label">Equilibrium Index</span>
               </div>
+            </div>
+          </div>
+
+          <div class="timeline-controller-card" style="background: rgba(12, 24, 38, 0.85); border: 1px solid var(--border); border-radius: var(--radius-md); padding: 14px 18px; margin-bottom: 16px; display: flex; flex-direction: column; gap: 10px;">
+            <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 8px;">
+              <div style="display: flex; align-items: center; gap: 8px;">
+                <span style="font-size: 0.88rem; font-weight: 800; color: #38bdf8; display: flex; align-items: center; gap: 6px;">
+                  ⏱️ Equilibrium Timeline Horizon
+                </span>
+                <span style="font-size: 0.72rem; color: var(--text-muted); font-family: 'JetBrains Mono', monospace;">
+                  Active Horizon: <strong style="color: #00f2fe;">${balance.timeline_label || 'Steady State (Full Equilibrium)'}</strong>
+                </span>
+              </div>
+              <span style="font-size: 0.72rem; color: var(--text-secondary); background: rgba(0,242,254,0.08); border: 1px solid rgba(0,242,254,0.25); padding: 3px 8px; border-radius: 9999px;">
+                ${getTimelineNarrativePill(state.timeline)}
+              </span>
+            </div>
+
+            <div class="timeline-presets-bar" style="display: flex; flex-wrap: wrap; gap: 6px; align-items: center;">
+              ${[
+                { key: '1_day', label: '1 Day', sub: 'Acute Autonomic' },
+                { key: '3_days', label: '3 Days', sub: 'Early Adapt' },
+                { key: '1_week', label: '1 Week', sub: 'Sub-acute Tone' },
+                { key: '2_weeks', label: '2 Weeks', sub: 'Endocrine Eq' },
+                { key: '1_month', label: '1 Month', sub: 'Lipids (4w)' },
+                { key: '2_months', label: '2 Months', sub: 'Reticulocyte (8w)' },
+                { key: '3_months', label: '3 Months', sub: 'HbA1c & RBC (12w)' },
+                { key: 'steady_state', label: 'Steady State', sub: 'Full Equilibrium' },
+              ].map(t => `
+                <button 
+                  type="button" 
+                  class="axis-filter-btn ${state.timeline === t.key ? 'active' : ''}" 
+                  style="padding: 5px 10px; font-size: 0.74rem;" 
+                  onclick="setStackTimeline('${t.key}')"
+                  title="${t.sub}"
+                >
+                  <span>${t.label}</span>
+                  <span style="font-size: 0.64rem; opacity: 0.75; margin-left: 2px;">(${t.sub})</span>
+                </button>
+              `).join('')}
+            </div>
+
+            <div style="font-size: 0.75rem; color: var(--text-secondary); line-height: 1.45; padding: 7px 12px; background: rgba(0, 0, 0, 0.3); border-radius: var(--radius-sm); border-left: 3px solid #38bdf8;">
+              ${getTimelineDescription(state.timeline)}
             </div>
           </div>
 

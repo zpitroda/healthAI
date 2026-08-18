@@ -36,41 +36,101 @@ def canonicalize_match_token(value: Any) -> str:
 
 
 def parse_compound_spec(spec: Any) -> Dict[str, Any]:
-    """Parse compound name/key and optional dose specification (e.g., 'clenbuterol:40ug', 'nebivolol:5mg', or structured dict)."""
-    from app.services.dosing_service import get_default_compound_dose, parse_dose_string_or_spec
+    """Parse compound name/key, optional dose specification, and dosing frequency (e.g., 'clenbuterol:40ug', 'nebivolol:5mg:daily', or structured dict)."""
+    from app.services.dosing_service import (
+        get_default_compound_dose,
+        parse_dose_string_or_spec,
+        normalize_dosing_frequency,
+        get_frequency_multiplier,
+        DOSING_FREQUENCY_METADATA,
+    )
 
     if isinstance(spec, dict):
         key = str(spec.get("key") or spec.get("compound") or spec.get("name") or "").strip()
         dose = spec.get("dose") or spec.get("dose_val") or spec.get("dose_mg")
         unit = str(spec.get("unit") or spec.get("dose_unit") or "").strip().lower()
+        freq_raw = spec.get("frequency") or spec.get("freq") or spec.get("dosing_frequency") or "daily"
+        frequency = normalize_dosing_frequency(freq_raw)
+        freq_mult = get_frequency_multiplier(frequency)
 
         if isinstance(dose, (int, float)) and float(dose) > 0:
             val = float(dose)
             if unit in ["ug", "mcg", "μg", "µg"]:
                 dose_mg = val / 1000.0
                 fmt_str = f"{val:g} μg"
+                unit_clean = "μg"
             elif unit in ["g", "grams"]:
                 dose_mg = val * 1000.0
                 fmt_str = f"{val:g} g"
+                unit_clean = "g"
             elif unit in ["iu"]:
                 dose_mg = val * 0.025
                 fmt_str = f"{val:g} IU"
+                unit_clean = "IU"
             else:
                 dose_mg = val
                 fmt_str = f"{val:g} mg"
-            return {"key": key, "dose_mg": dose_mg, "dose_str": fmt_str}
+                unit_clean = "mg"
+            
+            eff_daily = dose_mg * freq_mult
+            eff_display = f"{eff_daily:g} mg/day" if eff_daily >= 1.0 else f"{eff_daily * 1000.0:g} μg/day"
+            return {
+                "key": key,
+                "dose_mg": dose_mg,
+                "dose_val": val,
+                "dose_unit": unit_clean,
+                "dose_str": fmt_str,
+                "frequency": frequency,
+                "frequency_multiplier": freq_mult,
+                "effective_daily_dose_mg": round(eff_daily, 4),
+                "effective_daily_display": eff_display,
+            }
         elif isinstance(dose, str) and dose.strip():
-            return parse_compound_spec(f"{key}:{dose.strip()}")
+            p = parse_compound_spec(f"{key}:{dose.strip()}:{frequency}")
+            return p
         else:
             default_info = get_default_compound_dose(key)
-            return {"key": key, "dose_mg": default_info["dose_mg"], "dose_str": default_info["dose_display"]}
+            dose_mg = float(default_info["dose_mg"])
+            eff_daily = dose_mg * freq_mult
+            eff_display = f"{eff_daily:g} mg/day" if eff_daily >= 1.0 else f"{eff_daily * 1000.0:g} μg/day"
+            return {
+                "key": key,
+                "dose_mg": dose_mg,
+                "dose_val": default_info["dose_val"],
+                "dose_unit": default_info["dose_unit"],
+                "dose_str": default_info["dose_display"],
+                "frequency": frequency,
+                "frequency_multiplier": freq_mult,
+                "effective_daily_dose_mg": round(eff_daily, 4),
+                "effective_daily_display": eff_display,
+            }
 
     spec_str = str(spec or "").strip()
     if not spec_str:
-        return {"key": "", "dose_mg": 10.0, "dose_str": "10 mg"}
+        return {
+            "key": "",
+            "dose_mg": 10.0,
+            "dose_val": 10.0,
+            "dose_unit": "mg",
+            "dose_str": "10 mg",
+            "frequency": "daily",
+            "frequency_multiplier": 1.0,
+            "effective_daily_dose_mg": 10.0,
+            "effective_daily_display": "10 mg/day",
+        }
 
     parsed = parse_dose_string_or_spec(spec_str)
-    return {"key": parsed["key"], "dose_mg": parsed["dose_mg"], "dose_str": parsed["dose_display"]}
+    return {
+        "key": parsed["key"],
+        "dose_mg": parsed["dose_mg"],
+        "dose_val": parsed.get("dose_val", parsed["dose_mg"]),
+        "dose_unit": parsed.get("dose_unit", "mg"),
+        "dose_str": parsed["dose_display"],
+        "frequency": parsed.get("frequency", "daily"),
+        "frequency_multiplier": parsed.get("frequency_multiplier", 1.0),
+        "effective_daily_dose_mg": parsed.get("effective_daily_dose_mg", parsed["dose_mg"]),
+        "effective_daily_display": parsed.get("effective_daily_display", f"{parsed['dose_mg']:g} mg/day"),
+    }
 
 
 
@@ -409,6 +469,10 @@ def build_selected_compound_graph(stack: List[Any], catalog_service: CatalogServ
 
         dose_mg = float(compound_entry.get("dose_mg") if compound_entry.get("dose_mg") is not None else compound_entry.get("dose", 10.0))
         dose_str = str(compound_entry.get("dose_str") or (f"{dose_mg:g} mg" if dose_mg >= 1.0 else f"{dose_mg * 1000.0:g} μg"))
+        frequency = str(compound_entry.get("frequency") or "daily")
+        freq_mult = float(compound_entry.get("frequency_multiplier") or 1.0)
+        eff_daily_mg = float(compound_entry.get("effective_daily_dose_mg") or (dose_mg * freq_mult))
+        eff_daily_display = str(compound_entry.get("effective_daily_display") or f"{eff_daily_mg:g} mg/day")
 
         if compound is None:
             graph.add_node(
@@ -418,6 +482,10 @@ def build_selected_compound_graph(stack: List[Any], catalog_service: CatalogServ
                 ),
                 dose_mg=dose_mg,
                 dose_str=dose_str,
+                frequency=frequency,
+                frequency_multiplier=freq_mult,
+                effective_daily_dose_mg=eff_daily_mg,
+                effective_daily_display=eff_daily_display,
             )
             continue
 
@@ -440,6 +508,10 @@ def build_selected_compound_graph(stack: List[Any], catalog_service: CatalogServ
             ),
             dose_mg=dose_mg,
             dose_str=dose_str,
+            frequency=frequency,
+            frequency_multiplier=freq_mult,
+            effective_daily_dose_mg=eff_daily_mg,
+            effective_daily_display=eff_daily_display,
             molecular_weight=compound.get("molecular_weight"),
             oral_bioavailability=compound.get("oral_bioavailability") or compound.get("bioavailability_f"),
             volume_of_distribution=compound.get("volume_of_distribution") or compound.get("volume_of_distribution_l_kg"),
@@ -451,13 +523,14 @@ def build_selected_compound_graph(stack: List[Any], catalog_service: CatalogServ
         c_name_lower = str(compound.get("canonical_name") or compound.get("name") or compound_key).lower()
         drug_class_lower = str(compound.get("drug_class") or "").lower()
 
-        # Connect exogenous bioidentical testosterone to circulating hormone pool (while excluding synthetic derivatives)
+        # Connect exogenous bioidentical testosterone to circulating hormone pool (scaling with effective daily continuous rate)
         is_bioidentical_test = "testosterone" in c_name_lower and not any(w in c_name_lower for w in ["trenbolone", "nandrolone", "drostanolone", "oxandrolone", "boldenone", "stanozolol", "dihydrotestosterone", "epitestosterone", "sarm", "rad140", "lgd"])
         if is_bioidentical_test:
-            if dose_mg <= 10.0:
-                exo_efficacy = 0.62 * (max(0.1, dose_mg) / 10.0)
+            ref_dose = eff_daily_mg
+            if ref_dose <= 10.0:
+                exo_efficacy = 0.62 * (max(0.1, ref_dose) / 10.0)
             else:
-                exo_efficacy = 0.62 + 0.015 * (dose_mg - 10.0)
+                exo_efficacy = 0.62 + 0.015 * (ref_dose - 10.0)
             
             existing_pool = next((t for t in receptor_targets if "circulating" in str(t.get("target", "")).lower() or "serum testosterone pool" in str(t.get("target", "")).lower()), None)
             if existing_pool:
@@ -1432,6 +1505,8 @@ def compute_target_combined_effects(
 
             # Resolve Dose (mg) & Dose Display
             dose_mg = custom_doses.get(pred) or custom_doses.get(pred.lower()) or custom_doses.get(canonicalize_match_token(pred))
+            if isinstance(dose_mg, dict):
+                dose_mg = dose_mg.get("dose_mg") or dose_mg.get("dose") or 10.0
             if dose_mg is None:
                 dose_mg = edge_data.get("dose_mg") or pred_attrs.get("dose_mg") or DEFAULT_THERAPEUTIC_DOSES_MG.get(pred.lower()) or DEFAULT_THERAPEUTIC_DOSES_MG.get(canonicalize_match_token(pred)) or DEFAULT_THERAPEUTIC_DOSES_MG.get(canonicalize_match_token(pred_label)) or 10.0
 
@@ -1443,6 +1518,18 @@ def compute_target_combined_effects(
                 dose_val = round(dose_mg * 1000.0, 2)
                 dose_unit = "μg"
                 dose_display = f"{dose_mg * 1000.0:g} μg"
+
+            # Resolve Dosing Frequency & Continuous Daily Exposure Rate
+            from app.services.dosing_service import normalize_dosing_frequency, get_frequency_multiplier, DOSING_FREQUENCY_METADATA
+            freq_candidate = pred_attrs.get("frequency") or edge_data.get("frequency") or "daily"
+            if isinstance(custom_doses.get(pred), dict):
+                freq_candidate = custom_doses[pred].get("frequency") or freq_candidate
+            frequency = normalize_dosing_frequency(freq_candidate)
+            freq_mult = get_frequency_multiplier(frequency)
+            eff_daily_mg = dose_mg * freq_mult
+            eff_daily_display = f"{eff_daily_mg:g} mg/day" if eff_daily_mg >= 1.0 else f"{eff_daily_mg * 1000.0:g} μg/day"
+            freq_meta = DOSING_FREQUENCY_METADATA.get(frequency, {})
+            freq_label = freq_meta.get("label", frequency.replace("_", " ").title())
 
             # Pharmacokinetic free biophase concentration estimation (in nM) directly from node ADMET properties
             def _parse_num(v: Any, default: float) -> float:
@@ -1478,14 +1565,14 @@ def compute_target_combined_effects(
             # Effective bioavailable fraction in tissue biophases (accounting for rapid albumin dissociation and cellular uptake)
             fu = max(0.005, min(1.0, 1.0 - (pb_pct / 100.0)))
             fu_eff = max(fu, min(1.0, 1.0 - (pb_pct / 100.0) * 0.98))
-            c_free_nm = (dose_mg * f_bio * fu_eff * 1e6) / (vd_lkg * 70.0 * mw)
+            c_free_nm = (eff_daily_mg * f_bio * fu_eff * 1e6) / (vd_lkg * 70.0 * mw)
 
             # Calculate Biophysical Receptor Binding Drive W_i = [L_free] / K_i
             affinity_val = ki or ic50 or ec50
             if affinity_val and float(affinity_val) > 0:
                 potency_weight = max(0.0001, c_free_nm / float(affinity_val))
             else:
-                potency_weight = max(0.05, abs(mag) * (dose_mg / 10.0))
+                potency_weight = max(0.05, abs(mag) * (eff_daily_mg / 10.0))
 
             incoming_compounds.append({
                 "compound_id": pred,
@@ -1500,7 +1587,13 @@ def compute_target_combined_effects(
                 "dose_mg": round(dose_mg, 4),
                 "dose_val": dose_val,
                 "dose_unit": dose_unit,
-                "dose_display": dose_display,
+                "dose_display": f"{dose_display} ({freq_label})" if frequency != "daily" else dose_display,
+                "raw_dose_display": dose_display,
+                "frequency": frequency,
+                "frequency_label": freq_label,
+                "frequency_multiplier": round(freq_mult, 4),
+                "effective_daily_dose_mg": round(eff_daily_mg, 4),
+                "effective_daily_display": eff_daily_display,
                 "c_free_nm": round(c_free_nm, 3),
                 "potency_weight": round(potency_weight, 4),
                 "is_allosteric": is_allosteric,

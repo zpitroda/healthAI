@@ -1629,10 +1629,31 @@
       </div>
 
       <!-- CASCADE PREVIEW STRIP -->
-      <div id="cascadeResultsBar" class="cascade-strip">
-        <span class="cascade-title">⚡ Cascade Effects:</span>
-        <div id="cascadeChipsList" style="display:inline-flex; gap:5px;">
-          <span class="cascade-badge">Computing multi-tier cascade predictions…</span>
+      <div id="cascadeResultsBar" class="cascade-strip" style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:8px;">
+        <div style="display:flex; align-items:center; gap:8px; flex-wrap:wrap; flex:1;">
+          <span class="cascade-title">⚡ Cascade Effects:</span>
+          <div id="cascadeChipsList" style="display:inline-flex; gap:5px; flex-wrap:wrap;">
+            <span class="cascade-badge">Computing multi-tier cascade predictions…</span>
+          </div>
+        </div>
+        <div id="cascadeTimelineBar" style="display:inline-flex; align-items:center; gap:5px; margin-left:auto;">
+          <span style="font-size:0.70rem; color:var(--text-muted); font-weight:700; text-transform:uppercase; letter-spacing:0.5px;">Timeline:</span>
+          <select 
+            id="cascadeTimelineSelect"
+            class="chip-unit-select" 
+            style="background:rgba(12,24,38,0.95); border:1px solid rgba(0,242,254,0.35); color:#00f2fe; font-weight:700; padding:3px 8px; border-radius:12px; font-size:0.74rem; cursor:pointer;"
+            onchange="setGraphTimeline(this.value)"
+            title="Set kinetic timeline horizon for cascade effect modeling"
+          >
+            <option value="1_day">1 Day (Acute)</option>
+            <option value="3_days">3 Days (Early)</option>
+            <option value="1_week">1 Week (Sub-acute)</option>
+            <option value="2_weeks">2 Weeks (Endocrine)</option>
+            <option value="1_month">1 Month (Lipids)</option>
+            <option value="2_months">2 Months (Reticulocyte)</option>
+            <option value="3_months">3 Months (HbA1c & RBC)</option>
+            <option value="steady_state" selected>Steady State (Full Eq)</option>
+          </select>
         </div>
       </div>
 
@@ -1753,8 +1774,44 @@
         simulating: false,
         cy: null,
         stack: [],
+        timeline: 'steady_state',
         loadRequestId: 0,
         localDoseMultipliers: {}, // targetId -> { compId: multiplier }
+      };
+
+      function getFrequencyMultiplierClient(freq) {
+        const f = (freq || '').toLowerCase().replace(/[^a-z0-9]/g, '_');
+        if (f.includes('bid') || (f.includes('twice') && !f.includes('week'))) return 2.0;
+        if (f.includes('tid') || f.includes('three')) return 3.0;
+        if (f.includes('qid') || f.includes('four')) return 4.0;
+        if (f.includes('qod') || f.includes('other')) return 0.5;
+        if (f.includes('biw') || (f.includes('twice') && f.includes('week'))) return 2.0 / 7.0;
+        if (f.includes('qw') || (f.includes('week') && !f.includes('2') && !f.includes('bi'))) return 1.0 / 7.0;
+        if (f.includes('q2w') || f.includes('2_week') || f.includes('biweek')) return 1.0 / 14.0;
+        if (f.includes('qm') || f.includes('month')) return 1.0 / 30.0;
+        if (f.includes('prn') || f.includes('needed')) return 0.5;
+        return 1.0;
+      }
+
+      function getTimelineDescription(tl) {
+        const map = {
+          '1_day': 'Immediate acute response: autonomic tone, heart rate, acute blood pressure reactivity, and immediate peak biophase saturation.',
+          '3_days': 'Early adaptation: autonomic steady state, renal electrolyte reabsorption shifts, and acute-phase inflammatory markers.',
+          '1_week': 'Sub-acute tone: initial receptor downregulation/upregulation, transaminase elevations, and early glycemic adaptations.',
+          '2_weeks': 'Endocrine equilibrium: HPTA axis feedback suppression, steady transaminase enzyme response, and initial lipid receptor modulation.',
+          '1_month': 'Hepatic lipid remodeling (4 weeks): LDL-C / HDL-C remodeling, SHBG adaptation, and standard 4-week clinical bloodwork milestone.',
+          '2_months': 'Reticulocyte maturation (8 weeks): Cumulative bone marrow erythropoietic stimulation and hematological adaptation.',
+          '3_months': 'Full ~120-day erythrocyte turnover (12 weeks): Full steady-state HbA1c, hematocrit, and long-term multi-organ equilibrium.',
+          'steady_state': 'Theoretical long-term asymptotic steady-state biological equilibrium (100% full saturation & turnover).',
+        };
+        return map[tl] || map['steady_state'];
+      }
+
+      window.setGraphTimeline = function(tl) {
+        state.timeline = tl || 'steady_state';
+        const select = document.getElementById('cascadeTimelineSelect');
+        if (select && select.value !== state.timeline) select.value = state.timeline;
+        loadGraphData();
       };
 
       function colorForNode(nodeType) {
@@ -2261,6 +2318,28 @@
             <div>
               <div class="node-hero-title">Cascade Forecast & Biomarker Estimation</div>
               <p style="color:var(--text-secondary); font-size:0.75rem; margin-top:4px;">Multi-tier signal propagation from active stack through intracellular pathways to clinical outcomes.</p>
+            </div>
+            <div style="background:rgba(12,24,38,0.85); border:1px solid rgba(0,242,254,0.25); border-radius:8px; padding:10px 12px; display:flex; flex-direction:column; gap:6px;">
+              <div style="display:flex; justify-content:space-between; align-items:center;">
+                <span style="font-size:0.75rem; font-weight:700; color:#38bdf8; display:flex; align-items:center; gap:4px;">⏱️ Timeline Horizon:</span>
+                <select 
+                  class="chip-unit-select" 
+                  style="background:rgba(0,0,0,0.4); border:1px solid rgba(0,242,254,0.3); color:#00f2fe; font-weight:700; padding:2px 8px; border-radius:6px; font-size:0.72rem;"
+                  onchange="setGraphTimeline(this.value)"
+                >
+                  <option value="1_day" ${state.timeline === '1_day' ? 'selected' : ''}>1 Day (Acute)</option>
+                  <option value="3_days" ${state.timeline === '3_days' ? 'selected' : ''}>3 Days (Early)</option>
+                  <option value="1_week" ${state.timeline === '1_week' ? 'selected' : ''}>1 Week (Sub-acute)</option>
+                  <option value="2_weeks" ${state.timeline === '2_weeks' ? 'selected' : ''}>2 Weeks (Endocrine)</option>
+                  <option value="1_month" ${state.timeline === '1_month' ? 'selected' : ''}>1 Month (Lipids)</option>
+                  <option value="2_months" ${state.timeline === '2_months' ? 'selected' : ''}>2 Months (Reticulocyte)</option>
+                  <option value="3_months" ${state.timeline === '3_months' ? 'selected' : ''}>3 Months (HbA1c & RBC)</option>
+                  <option value="steady_state" ${state.timeline === 'steady_state' || !state.timeline ? 'selected' : ''}>Steady State (Full)</option>
+                </select>
+              </div>
+              <div style="font-size:0.68rem; color:var(--text-secondary); line-height:1.35;">
+                ${getTimelineDescription(state.timeline)}
+              </div>
             </div>
             ${compoundGlobalDoseCard}
             ${combinedWidgetHtml}
@@ -2935,10 +3014,29 @@
       }
 
       function parseStackKey(item) {
-        if (!item) return { raw: '', key: '', val: 10, unit: 'mg', display: '10 mg' };
+        if (!item) return { raw: '', key: '', val: 10, unit: 'mg', frequency: 'daily', display: '10 mg', effDisplay: '' };
         const parts = String(item).split(':');
         const key = parts[0].trim();
-        if (parts.length < 2) {
+        let val = 10;
+        let unit = 'mg';
+        let freq = 'daily';
+
+        if (parts.length >= 3) {
+          freq = parts[2].trim();
+        }
+
+        if (parts.length >= 2) {
+          const spec = parts[1].trim();
+          const match = spec.match(/^([\d.]+)\s*([a-zA-Zμ]+)(?:_([a-zA-Z0-9_]+))?$/);
+          if (match) {
+            val = parseFloat(match[1]) || 1.0;
+            unit = match[2];
+            if (unit === 'ug' || unit === 'mcg') unit = 'μg';
+            if (match[3] && parts.length < 3) freq = match[3];
+          } else {
+            val = parseFloat(spec) || 10;
+          }
+        } else {
           const node = (state.data && state.data.nodes || []).find(n => 
             n.id.toLowerCase() === key.toLowerCase() || 
             (n.label && n.label.toLowerCase() === key.toLowerCase())
@@ -2953,19 +3051,17 @@
             else if (kl.includes('creatine')) doseMg = 5000.0;
             else doseMg = 10.0;
           }
-          const val = doseMg >= 1.0 ? roundTo(doseMg, 2) : roundTo(doseMg * 1000.0, 2);
-          const unit = doseMg >= 1.0 ? 'mg' : 'μg';
-          return { raw: item, key, val, unit, display: `${val} ${unit}` };
+          val = doseMg >= 1.0 ? roundTo(doseMg, 2) : roundTo(doseMg * 1000.0, 2);
+          unit = doseMg >= 1.0 ? 'mg' : 'μg';
         }
-        const spec = parts[1].trim();
-        const match = spec.match(/^([\d.]+)\s*([a-zA-Zμ]+)$/);
-        if (match) {
-          const val = parseFloat(match[1]) || 1.0;
-          let unit = match[2];
-          if (unit === 'ug' || unit === 'mcg') unit = 'μg';
-          return { raw: item, key, val, unit, display: `${val} ${unit}` };
-        }
-        return { raw: item, key, val: parseFloat(spec) || 10, unit: 'mg', display: spec };
+
+        const mult = getFrequencyMultiplierClient(freq);
+        const effVal = val * mult;
+        const effDisplay = mult !== 1.0 
+          ? `≈ ${effVal >= 1.0 ? effVal.toFixed(effVal >= 10 ? 1 : 2) : (effVal * 1000).toFixed(1)} ${effVal >= 1.0 ? unit : (unit === 'mg' ? 'μg' : unit)}/d`
+          : '';
+
+        return { raw: item, key, val, unit, frequency: freq, display: `${val} ${unit}`, effDisplay };
       }
 
       const compoundNameCache = {
@@ -3068,17 +3164,18 @@
         }
       };
 
-      window.handleGlobalDoseUpdate = (key, val, unit) => {
+      window.handleGlobalDoseUpdate = (key, val, unit, freq) => {
         const parsedVal = parseFloat(val);
         if (isNaN(parsedVal) || parsedVal <= 0) return;
         const cleanUnit = unit || 'mg';
+        const cleanFreq = freq || 'daily';
 
         const idx = state.stack.findIndex(s => {
           const p = parseStackKey(s);
           return p.key.toLowerCase() === key.toLowerCase();
         });
 
-        const formatted = `${key}:${parsedVal}${cleanUnit}`;
+        const formatted = `${key}:${parsedVal}${cleanUnit}:${cleanFreq}`;
         if (idx >= 0) {
           state.stack[idx] = formatted;
         } else {
@@ -3107,13 +3204,13 @@
                 step="any"
                 min="0"
                 value="${p.val}" 
-                onchange="handleGlobalDoseUpdate('${p.key}', this.value, this.nextElementSibling.value)"
-                onkeydown="if(event.key==='Enter'){event.preventDefault(); this.blur(); handleGlobalDoseUpdate('${p.key}', this.value, this.nextElementSibling.value);}"
-                title="Change global dose"
+                onchange="handleGlobalDoseUpdate('${p.key}', this.value, this.nextElementSibling.value, this.nextElementSibling.nextElementSibling.value)"
+                onkeydown="if(event.key==='Enter'){event.preventDefault(); this.blur(); handleGlobalDoseUpdate('${p.key}', this.value, this.nextElementSibling.value, this.nextElementSibling.nextElementSibling.value);}"
+                title="Change administered dose"
               />
               <select 
                 class="chip-unit-select" 
-                onchange="handleGlobalDoseUpdate('${p.key}', this.previousElementSibling.value, this.value)"
+                onchange="handleGlobalDoseUpdate('${p.key}', this.previousElementSibling.value, this.value, this.nextElementSibling.value)"
                 title="Change dose unit"
               >
                 <option value="mg" ${p.unit === 'mg' ? 'selected' : ''}>mg</option>
@@ -3121,6 +3218,23 @@
                 <option value="g" ${p.unit === 'g' ? 'selected' : ''}>g</option>
                 <option value="IU" ${p.unit === 'IU' ? 'selected' : ''}>IU</option>
               </select>
+              <select 
+                class="chip-unit-select" 
+                style="width: 58px; font-weight:700;"
+                onchange="handleGlobalDoseUpdate('${p.key}', this.previousElementSibling.previousElementSibling.value, this.previousElementSibling.value, this.value)"
+                title="Dosing frequency"
+              >
+                <option value="daily" ${p.frequency === 'daily' ? 'selected' : ''}>QD</option>
+                <option value="twice_daily" ${p.frequency === 'twice_daily' ? 'selected' : ''}>BID</option>
+                <option value="three_times_daily" ${p.frequency === 'three_times_daily' ? 'selected' : ''}>TID</option>
+                <option value="every_other_day" ${p.frequency === 'every_other_day' ? 'selected' : ''}>QOD</option>
+                <option value="twice_weekly" ${p.frequency === 'twice_weekly' ? 'selected' : ''}>2x/w</option>
+                <option value="weekly" ${p.frequency === 'weekly' ? 'selected' : ''}>QW</option>
+                <option value="biweekly" ${p.frequency === 'biweekly' ? 'selected' : ''}>Q2W</option>
+                <option value="monthly" ${p.frequency === 'monthly' ? 'selected' : ''}>QM</option>
+                <option value="as_needed" ${p.frequency === 'as_needed' ? 'selected' : ''}>PRN</option>
+              </select>
+              ${p.effDisplay ? `<span style="font-size:0.65rem; color:#38bdf8; font-family:'JetBrains Mono',monospace; padding:0 2px;" title="Continuous daily rate">${p.effDisplay}</span>` : ''}
               <button type="button" class="chip-del" onclick="removeCompoundFromGraph('${item}')" title="Remove from graph">&times;</button>
             </span>
           `;
@@ -3158,7 +3272,7 @@
               dose: p.val,
               unit: p.unit,
               timing: 'morning',
-              frequency: 'daily'
+              frequency: p.frequency || 'daily'
             };
           });
           localStorage.setItem('healthai_stack', JSON.stringify(structured));
@@ -3168,6 +3282,7 @@
         }
         const newUrl = new URL(window.location);
         newUrl.searchParams.set('stack', state.stack.join(','));
+        newUrl.searchParams.set('timeline', state.timeline || 'steady_state');
         window.history.replaceState({}, '', newUrl);
       }
 
@@ -3324,6 +3439,13 @@
         const saved = localStorage.getItem('healthai_stack');
         let stack = stackFromUrl.length ? stackFromUrl : [];
 
+        const tlFromUrl = urlParams.get('timeline');
+        if (tlFromUrl) {
+          state.timeline = tlFromUrl;
+          const select = document.getElementById('cascadeTimelineSelect');
+          if (select) select.value = tlFromUrl;
+        }
+
         if (!stack.length && saved) {
           try {
             const parsed = JSON.parse(saved);
@@ -3336,11 +3458,12 @@
                     if (item.name && !/^chembl\d+$/i.test(item.name)) {
                       compoundNameCache[String(k).toLowerCase()] = item.name;
                     }
+                    const freq = item.frequency || 'daily';
                     if (item.dose !== undefined && item.dose !== null && !isNaN(parseFloat(item.dose))) {
                       const u = (item.unit || 'mg').replace('μg', 'ug');
-                      return `${k}:${item.dose}${u}`;
+                      return `${k}:${item.dose}${u}:${freq}`;
                     }
-                    return k;
+                    return `${k}:10mg:${freq}`;
                   }
                   return '';
                 })
@@ -3352,7 +3475,7 @@
         }
 
         if (!stack.length) {
-          stack = ['caffeine', 'creatine', 'theanine'];
+          stack = ['caffeine:200mg:daily', 'creatine:5g:daily', 'theanine:200mg:daily'];
         }
 
         state.stack = Array.from(new Set(stack));
@@ -3362,6 +3485,7 @@
         const params = new URLSearchParams();
         state.stack.forEach(item => params.append('stack', item));
         params.set('depth', '5');
+        params.set('timeline', state.timeline || 'steady_state');
 
         fetch(`/graph-data?${params.toString()}`, { cache: 'no-store' })
           .then(response => response.json())

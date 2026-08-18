@@ -296,12 +296,12 @@
       .compound-chip {
         display: inline-flex;
         align-items: center;
-        gap: 5px;
+        gap: 6px;
         background: rgba(0, 242, 254, 0.08);
         border: 1px solid rgba(0, 242, 254, 0.3);
         color: var(--text-primary);
-        padding: 3px 9px;
-        border-radius: 999px;
+        padding: 3px 8px;
+        border-radius: 8px;
         font-size: 0.76rem;
         font-weight: 600;
         box-shadow: 0 2px 6px rgba(0, 0, 0, 0.2);
@@ -310,7 +310,54 @@
 
       .compound-chip:hover {
         border-color: #00f2fe;
-        background: rgba(0, 242, 254, 0.16);
+        background: rgba(0, 242, 254, 0.14);
+      }
+
+      .chip-name {
+        cursor: pointer;
+        color: #ffffff;
+        font-weight: 700;
+        transition: color 0.15s ease;
+      }
+      .chip-name:hover {
+        color: #38bdf8;
+        text-decoration: underline;
+      }
+
+      .chip-dose-input {
+        width: 52px;
+        background: rgba(0, 0, 0, 0.55);
+        border: 1px solid rgba(255, 255, 255, 0.2);
+        color: #38bdf8;
+        font-family: 'JetBrains Mono', monospace;
+        font-weight: 700;
+        font-size: 0.72rem;
+        padding: 2px 4px;
+        border-radius: 4px;
+        outline: none;
+        text-align: right;
+        transition: all 0.15s ease;
+      }
+      .chip-dose-input:focus {
+        border-color: #00f2fe;
+        box-shadow: 0 0 6px rgba(0, 242, 254, 0.4);
+      }
+
+      .chip-unit-select {
+        background: rgba(0, 0, 0, 0.55);
+        border: 1px solid rgba(255, 255, 255, 0.2);
+        color: var(--text-primary);
+        font-family: 'Inter', sans-serif;
+        font-size: 0.7rem;
+        font-weight: 600;
+        padding: 2px 4px;
+        border-radius: 4px;
+        outline: none;
+        cursor: pointer;
+      }
+      .chip-unit-select option {
+        background: #0f172a;
+        color: #f8fafc;
       }
 
       .compound-chip .chip-del {
@@ -319,12 +366,22 @@
         color: var(--text-muted);
         cursor: pointer;
         padding: 0;
-        font-size: 0.95rem;
+        font-size: 1.05rem;
         line-height: 1;
         display: inline-flex;
         align-items: center;
+        margin-left: 2px;
+        transition: color 0.15s ease;
       }
       .compound-chip .chip-del:hover { color: #ef4444; }
+
+      .global-dose-card {
+        background: rgba(0, 242, 254, 0.05);
+        border: 1px solid rgba(0, 242, 254, 0.25);
+        border-radius: 8px;
+        padding: 10px 12px;
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.25);
+      }
 
       .stack-search-container {
         position: relative;
@@ -817,6 +874,437 @@
         font-size: 0.74rem;
         font-weight: 600;
       }
+
+      /* ==========================================================================
+         MULTI-COMPOUND RECEPTOR CONVERGENCE & PHARMACODYNAMICS STYLES
+         ========================================================================== */
+      .convergence-card {
+        background: linear-gradient(145deg, rgba(13, 20, 38, 0.95), rgba(18, 28, 54, 0.85));
+        border: 1px solid rgba(0, 242, 254, 0.35);
+        border-radius: 12px;
+        padding: 12px;
+        display: flex;
+        flex-direction: column;
+        gap: 10px;
+        box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4), inset 0 0 16px rgba(0, 242, 254, 0.06);
+      }
+
+      .convergence-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        gap: 6px;
+      }
+
+      .convergence-tag {
+        font-family: 'JetBrains Mono', monospace;
+        font-size: 0.65rem;
+        font-weight: 800;
+        padding: 2px 7px;
+        border-radius: 6px;
+        background: rgba(0, 242, 254, 0.12);
+        border: 1px solid rgba(0, 242, 254, 0.4);
+        color: #00f2fe;
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
+        display: inline-flex;
+        align-items: center;
+        gap: 4px;
+      }
+
+      .receptor-state-badge {
+        font-size: 0.68rem;
+        font-weight: 700;
+        padding: 3px 8px;
+        border-radius: 6px;
+        text-align: right;
+        display: inline-block;
+      }
+      .state-agonism { background: rgba(0, 242, 254, 0.15); color: #00f2fe; border: 1px solid rgba(0, 242, 254, 0.4); }
+      .state-antagonism { background: rgba(255, 75, 114, 0.15); color: #ff4b72; border: 1px solid rgba(255, 75, 114, 0.4); }
+      .state-balanced { background: rgba(192, 132, 252, 0.15); color: #c084fc; border: 1px solid rgba(192, 132, 252, 0.4); }
+
+      /* BIDIRECTIONAL RECEPTOR ACTIVATION GAUGE */
+      .gauge-container {
+        display: flex;
+        flex-direction: column;
+        gap: 5px;
+        background: rgba(6, 10, 20, 0.75);
+        border-radius: 9px;
+        padding: 10px;
+        border: 1px solid rgba(255, 255, 255, 0.06);
+      }
+
+      .gauge-title-row {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        font-size: 0.72rem;
+      }
+
+      .gauge-value-readout {
+        font-family: 'JetBrains Mono', monospace;
+        font-size: 1.05rem;
+        font-weight: 800;
+        letter-spacing: -0.02em;
+      }
+
+      .gauge-track-wrap {
+        position: relative;
+        height: 14px;
+        background: linear-gradient(90deg, #ff4b72 0%, #fb7185 30%, #334155 50%, #38bdf8 70%, #00f2fe 100%);
+        border-radius: 999px;
+        margin: 6px 0;
+        box-shadow: inset 0 2px 5px rgba(0, 0, 0, 0.6);
+        border: 1px solid rgba(255, 255, 255, 0.12);
+      }
+
+      .gauge-center-notch {
+        position: absolute;
+        left: 50%;
+        top: -3px;
+        bottom: -3px;
+        width: 2px;
+        background: rgba(255, 255, 255, 0.8);
+        transform: translateX(-50%);
+        z-index: 2;
+      }
+
+      .gauge-marker {
+        position: absolute;
+        top: 50%;
+        width: 18px;
+        height: 18px;
+        border-radius: 50%;
+        background: #ffffff;
+        border: 3px solid #00f2fe;
+        box-shadow: 0 0 12px #00f2fe, 0 2px 6px rgba(0, 0, 0, 0.6);
+        transform: translate(-50%, -50%);
+        transition: left 0.15s cubic-bezier(0.16, 1, 0.3, 1), border-color 0.15s ease, box-shadow 0.15s ease;
+        z-index: 3;
+      }
+
+      .gauge-labels {
+        display: flex;
+        justify-content: space-between;
+        font-size: 0.62rem;
+        font-family: 'JetBrains Mono', monospace;
+        color: var(--text-muted);
+        text-transform: uppercase;
+      }
+
+      /* COMPOUND INFLUENCE BREAKDOWN ROWS & SLIDERS */
+      .compound-influence-list {
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+      }
+
+      .compound-card {
+        background: rgba(10, 16, 31, 0.85);
+        border: 1px solid rgba(255, 255, 255, 0.08);
+        border-radius: 8px;
+        padding: 8px 10px;
+        display: flex;
+        flex-direction: column;
+        gap: 6px;
+        transition: all 0.2s ease;
+      }
+      .compound-card:hover {
+        border-color: rgba(0, 242, 254, 0.3);
+        background: rgba(14, 22, 42, 0.95);
+      }
+
+      .compound-row-top {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        gap: 6px;
+      }
+
+      .compound-row-title {
+        font-weight: 700;
+        font-size: 0.78rem;
+        color: var(--text-primary);
+        display: flex;
+        align-items: center;
+        gap: 5px;
+      }
+
+      .compound-action-pill {
+        font-family: 'JetBrains Mono', monospace;
+        font-size: 0.62rem;
+        font-weight: 700;
+        padding: 1px 6px;
+        border-radius: 4px;
+        text-transform: uppercase;
+      }
+      .pill-agonist { background: rgba(0, 242, 254, 0.14); color: #00f2fe; border: 1px solid rgba(0, 242, 254, 0.4); }
+      .pill-antagonist { background: rgba(255, 75, 114, 0.14); color: #ff4b72; border: 1px solid rgba(255, 75, 114, 0.4); }
+      .pill-pam { background: rgba(245, 158, 11, 0.14); color: #f59e0b; border: 1px solid rgba(245, 158, 11, 0.4); }
+      .pill-nam { background: rgba(239, 68, 68, 0.14); color: #ef4444; border: 1px solid rgba(239, 68, 68, 0.4); }
+      .pill-modulator { background: rgba(168, 85, 247, 0.14); color: #a855f7; border: 1px solid rgba(168, 85, 247, 0.4); }
+
+      .occupancy-bar-wrap {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        font-size: 0.68rem;
+      }
+
+      .occupancy-track {
+        flex: 1;
+        height: 6px;
+        background: rgba(255, 255, 255, 0.08);
+        border-radius: 999px;
+        overflow: hidden;
+      }
+
+      .occupancy-fill {
+        height: 100%;
+        border-radius: 999px;
+        transition: width 0.15s ease;
+      }
+
+      .dose-input-row {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 6px;
+        background: rgba(0, 0, 0, 0.35);
+        border: 1px solid rgba(255, 255, 255, 0.12);
+        padding: 5px 8px;
+        border-radius: 6px;
+        margin-top: 5px;
+      }
+
+      .dose-number-input {
+        width: 76px;
+        background: rgba(255, 255, 255, 0.08);
+        border: 1px solid rgba(255, 255, 255, 0.2);
+        color: #38bdf8;
+        font-family: 'JetBrains Mono', monospace;
+        font-weight: 700;
+        font-size: 0.76rem;
+        padding: 3px 6px;
+        border-radius: 4px;
+        outline: none;
+        text-align: right;
+        transition: all 0.15s ease;
+      }
+      .dose-number-input:focus {
+        border-color: #00f2fe;
+        box-shadow: 0 0 8px rgba(0, 242, 254, 0.4);
+        background: rgba(0, 242, 254, 0.08);
+      }
+
+      .dose-unit-select {
+        background: rgba(255, 255, 255, 0.08);
+        border: 1px solid rgba(255, 255, 255, 0.2);
+        color: var(--text-primary);
+        font-family: 'Inter', sans-serif;
+        font-size: 0.72rem;
+        font-weight: 600;
+        padding: 3px 6px;
+        border-radius: 4px;
+        outline: none;
+        cursor: pointer;
+        transition: border-color 0.15s ease;
+      }
+      .dose-unit-select:focus {
+        border-color: #00f2fe;
+      }
+      .dose-unit-select option {
+        background: #0f172a;
+        color: #f8fafc;
+      }
+
+      .saturation-pool-wrap {
+        background: rgba(0, 0, 0, 0.25);
+        border: 1px solid rgba(255, 255, 255, 0.08);
+        border-radius: 6px;
+        padding: 6px 9px;
+        margin-top: 8px;
+        margin-bottom: 8px;
+      }
+
+      .saturation-pool-bar {
+        display: flex;
+        height: 6px;
+        background: rgba(255, 255, 255, 0.08);
+        border-radius: 999px;
+        overflow: hidden;
+        margin: 5px 0 3px 0;
+      }
+
+      .saturation-pool-fill {
+        height: 100%;
+        transition: width 0.15s ease;
+      }
+
+      /* QUANTITATIVE CASCADE & CLINICAL OUTCOME STYLES */
+      .cascade-badge {
+        display: inline-flex;
+        align-items: center;
+        gap: 5px;
+        padding: 4px 9px;
+        border-radius: 6px;
+        font-size: 0.72rem;
+        cursor: pointer;
+        transition: all 0.15s ease;
+      }
+      .cascade-badge:hover {
+        transform: translateY(-1px);
+        filter: brightness(1.15);
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.35);
+      }
+      .cascade-badge strong {
+        font-family: 'JetBrains Mono', monospace;
+      }
+      .cascade-badge .badge-sub {
+        font-size: 0.65rem;
+        opacity: 0.85;
+      }
+
+      .cascade-dashboard {
+        display: flex;
+        flex-direction: column;
+        gap: 12px;
+      }
+
+      .cascade-section-title {
+        font-size: 0.75rem;
+        font-weight: 700;
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
+        color: #38bdf8;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        margin-bottom: 2px;
+        padding-bottom: 4px;
+        border-bottom: 1px solid rgba(56, 189, 248, 0.2);
+      }
+
+      .biomarker-card {
+        background: rgba(13, 20, 38, 0.85);
+        border: 1px solid rgba(255, 255, 255, 0.08);
+        border-radius: 9px;
+        padding: 9px 11px;
+        display: flex;
+        flex-direction: column;
+        gap: 7px;
+        transition: border-color 0.2s ease, background 0.2s ease;
+      }
+      .biomarker-card:hover {
+        border-color: rgba(0, 242, 254, 0.35);
+        background: rgba(16, 25, 48, 0.95);
+      }
+
+      .biomarker-header-row {
+        display: flex;
+        justify-content: space-between;
+        align-items: flex-start;
+        gap: 6px;
+      }
+
+      .biomarker-title {
+        font-size: 0.78rem;
+        font-weight: 700;
+        color: var(--text-primary);
+        display: flex;
+        align-items: center;
+        gap: 6px;
+      }
+
+      .biomarker-value-display {
+        font-family: 'JetBrains Mono', monospace;
+        font-size: 0.84rem;
+        font-weight: 700;
+      }
+      .biomarker-value-display.shift-up { color: #f43f5e; }
+      .biomarker-value-display.shift-down { color: #10b981; }
+      .biomarker-value-display.shift-neutral { color: var(--text-secondary); }
+
+      .biomarker-meta-row {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        font-size: 0.68rem;
+        color: var(--text-muted);
+        font-family: 'JetBrains Mono', monospace;
+      }
+
+      .biomarker-gauge-wrap {
+        height: 6px;
+        background: rgba(255, 255, 255, 0.06);
+        border-radius: 999px;
+        position: relative;
+        overflow: hidden;
+        margin: 2px 0;
+      }
+      .biomarker-gauge-fill {
+        height: 100%;
+        border-radius: 999px;
+        transition: width 0.2s ease;
+      }
+
+      .contrib-chips-list {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 4px;
+        margin-top: 2px;
+      }
+
+      .contrib-chip {
+        font-size: 0.65rem;
+        font-family: 'JetBrains Mono', monospace;
+        padding: 2px 6px;
+        border-radius: 4px;
+        background: rgba(255, 255, 255, 0.04);
+        border: 1px solid rgba(255, 255, 255, 0.08);
+        color: var(--text-secondary);
+      }
+      .contrib-chip strong {
+        color: #38bdf8;
+      }
+
+      .phenotype-forecast-card {
+        background: rgba(13, 20, 38, 0.85);
+        border: 1px solid rgba(255, 255, 255, 0.08);
+        border-radius: 9px;
+        padding: 9px 11px;
+        display: flex;
+        flex-direction: column;
+        gap: 6px;
+        transition: border-color 0.2s ease;
+      }
+      .phenotype-forecast-card:hover {
+        border-color: rgba(244, 63, 94, 0.35);
+      }
+
+      .pheno-risk-tag {
+        font-family: 'JetBrains Mono', monospace;
+        font-size: 0.64rem;
+        font-weight: 700;
+        padding: 2px 6px;
+        border-radius: 4px;
+        text-transform: uppercase;
+      }
+      .risk-high { background: rgba(244, 63, 94, 0.16); color: #fda4af; border: 1px solid rgba(244, 63, 94, 0.4); }
+      .risk-moderate { background: rgba(245, 158, 11, 0.16); color: #fcd34d; border: 1px solid rgba(245, 158, 11, 0.4); }
+      .risk-suppressed { background: rgba(16, 185, 129, 0.16); color: #6ee7b7; border: 1px solid rgba(16, 185, 129, 0.4); }
+      .risk-neutral { background: rgba(148, 163, 184, 0.12); color: #94a3b8; border: 1px solid rgba(148, 163, 184, 0.3); }
+
+      .range-status-pill {
+        font-family: 'JetBrains Mono', monospace;
+        font-size: 0.62rem;
+        font-weight: 700;
+        padding: 1px 5px;
+        border-radius: 3px;
+      }
+      .range-safe { background: rgba(16, 185, 129, 0.15); color: #6ee7b7; border: 1px solid rgba(16, 185, 129, 0.35); }
+      .range-alert { background: rgba(244, 63, 94, 0.15); color: #fda4af; border: 1px solid rgba(244, 63, 94, 0.35); }
     </style>
   </head>
   <body>
@@ -900,6 +1388,7 @@
         <div class="hud-top-filters">
           <div class="graph-filter-matrix" id="domainFilters">
             <button class="filter-btn active" data-filter="all">All Interactions</button>
+            <button class="filter-btn" data-filter="convergence" id="btnFilterConvergence" title="Show molecular targets with multiple compound inputs">⚔️ Converging Targets</button>
             <button class="filter-btn" data-filter="pd">⚡ Pharmacodynamics (PD)</button>
             <button class="filter-btn" data-filter="pk">💊 Pharmacokinetics (PK)</button>
             <button class="filter-btn" data-filter="outcomes">📊 Biomarkers & Outcomes</button>
@@ -995,8 +1484,8 @@
       };
 
       const state = {
-        baseData: { nodes: [], edges: [], cascade_simulation: {} },
-        data: { nodes: [], edges: [], cascade_simulation: {} },
+        baseData: { nodes: [], edges: [], cascade_simulation: {}, combined_effects: {} },
+        data: { nodes: [], edges: [], cascade_simulation: {}, combined_effects: {} },
         filtered: { nodes: [], edges: [] },
         filterMode: 'all',
         typeFilter: new Set(),
@@ -1009,6 +1498,7 @@
         cy: null,
         stack: [],
         loadRequestId: 0,
+        localDoseMultipliers: {}, // targetId -> { compId: multiplier }
       };
 
       function colorForNode(nodeType) {
@@ -1107,6 +1597,130 @@
         };
       }
 
+
+      // MULTI-COMPOUND RECEPTOR VISUALIZER WIDGET
+      function renderCombinedReceptorWidget(node, combined) {
+        if (!combined || !combined.compounds || !combined.compounds.length) return '';
+
+        const dynamicCombined = combined;
+        const net = dynamicCombined.net_activation_score;
+        const netPct = dynamicCombined.net_activation_pct;
+        const satPct = dynamicCombined.receptor_saturation_pct !== undefined ? dynamicCombined.receptor_saturation_pct : 0;
+        const reservePct = dynamicCombined.unoccupied_reserve_pct !== undefined ? dynamicCombined.unoccupied_reserve_pct : 100;
+        
+        // Dial needle: 0% at left (-100% blockade), 50% at center (0% basal), 100% at right (+100% agonism)
+        const needlePos = Math.min(96, Math.max(4, 50 + (net * 50)));
+
+        const isPositive = net > 0.05;
+        const isNegative = net < -0.05;
+        const netColor = isPositive ? '#00f2fe' : (isNegative ? '#ff4b72' : '#c084fc');
+        const stateClass = isPositive ? 'state-agonism' : (isNegative ? 'state-antagonism' : 'state-balanced');
+
+        const compoundRows = dynamicCombined.compounds.map((c, idx) => {
+          let pillClass = 'pill-modulator';
+          if (c.is_agonist) pillClass = 'pill-agonist';
+          else if (c.is_antagonist) pillClass = 'pill-antagonist';
+          else if (c.is_pam) pillClass = 'pill-pam';
+          else if (c.is_nam) pillClass = 'pill-nam';
+
+          const barColor = c.intrinsic_efficacy > 0 ? '#00f2fe' : (c.intrinsic_efficacy < 0 ? '#ff4b72' : '#f59e0b');
+          const concStr = c.c_free_nm ? `C<sub>free</sub>: <strong>${c.c_free_nm.toFixed(3)} nM</strong>` : '';
+          const affinityStr = c.affinity_ki ? `K<sub>i</sub>: <strong>${c.affinity_ki} nM</strong>` : (c.inhibition_ic50 ? `IC<sub>50</sub>: <strong>${c.inhibition_ic50} nM</strong>` : '');
+
+          return `
+            <div class="compound-card">
+              <div class="compound-row-top">
+                <span class="compound-row-title" style="cursor:pointer;" onclick="focusAndSelectNode('${c.compound_id}')" title="Click to view & adjust global dose">
+                  <span style="display:inline-block; width:7px; height:7px; border-radius:50%; background:${barColor}; box-shadow:0 0 6px ${barColor};"></span>
+                  ${c.compound_label}
+                  <span style="font-size:0.64rem; color:#38bdf8; font-family:'JetBrains Mono',monospace; margin-left:4px; font-weight:700;">(${c.dose_display || 'Standard Dose'})</span>
+                </span>
+                <span class="compound-action-pill ${pillClass}">${c.action.split(' ')[0]}</span>
+              </div>
+
+              <div style="display:flex; justify-content:space-between; font-size:0.68rem; color:var(--text-muted); margin-top:2px;">
+                <span>Efficacy: <strong style="color:${barColor};">${c.individual_effect_pct > 0 ? '+' : ''}${c.individual_effect_pct}%</strong></span>
+                <span>${[concStr, affinityStr].filter(Boolean).join(' • ') || `Potency: ${c.potency_weight.toFixed(1)}`}</span>
+              </div>
+
+              <div class="occupancy-bar-wrap" style="margin-top:4px;">
+                <span style="color:var(--text-secondary); min-width:86px;">Receptor Sat:</span>
+                <div class="occupancy-track">
+                  <div class="occupancy-fill" style="width:${c.absolute_saturation_pct}%; background:${barColor};"></div>
+                </div>
+                <span style="font-family:'JetBrains Mono',monospace; font-weight:700; color:var(--text-primary); min-width:44px; text-align:right;">${c.absolute_saturation_pct}%</span>
+              </div>
+
+              <div class="occupancy-bar-wrap" style="font-size:0.64rem; opacity:0.8;">
+                <span style="color:var(--text-muted); min-width:86px;">Bound Share:</span>
+                <div class="occupancy-track" style="height:4px;">
+                  <div class="occupancy-fill" style="width:${c.fractional_occupancy_pct}%; background:rgba(255,255,255,0.3);"></div>
+                </div>
+                <span style="font-family:'JetBrains Mono',monospace; color:var(--text-muted); min-width:44px; text-align:right;">${c.fractional_occupancy_pct}%</span>
+              </div>
+            </div>
+          `;
+        }).join('');
+
+        return `
+          <div class="convergence-card">
+            <div class="convergence-header">
+              <span class="convergence-tag">
+                ⚔️ Receptor Saturation & PD • ${dynamicCombined.ligand_count} Compound${dynamicCombined.ligand_count > 1 ? 's' : ''}
+              </span>
+              <span class="receptor-state-badge ${stateClass}">
+                ${dynamicCombined.receptor_state}
+              </span>
+            </div>
+
+            <!-- TOTAL RECEPTOR POOL SATURATION BAR -->
+            <div class="saturation-pool-wrap">
+              <div style="display:flex; justify-content:space-between; font-size:0.66rem; text-transform:uppercase; letter-spacing:0.04em;">
+                <span style="color:var(--text-secondary);">Receptor Pool Saturation</span>
+                <span style="font-family:'JetBrains Mono',monospace; font-weight:700; color:#38bdf8;">${satPct}% Bound • ${reservePct}% Reserve</span>
+              </div>
+              <div class="saturation-pool-bar">
+                <div class="saturation-pool-fill" style="width:${satPct}%; background:linear-gradient(90deg, #38bdf8, #c084fc);"></div>
+              </div>
+            </div>
+
+            <!-- BIDIRECTIONAL ACTIVATION GAUGE -->
+            <div class="gauge-container">
+              <div class="gauge-title-row">
+                <span style="color:var(--text-muted); text-transform:uppercase; letter-spacing:0.04em; font-size:0.66rem;">Net Biological Activation</span>
+                <span class="gauge-value-readout" style="color:${netColor};">
+                  ${netPct > 0 ? '+' : ''}${netPct}%
+                </span>
+              </div>
+
+              <div class="gauge-track-wrap">
+                <div class="gauge-center-notch" title="0% Basal Tone"></div>
+                <div class="gauge-marker" style="left:${needlePos}%; border-color:${netColor}; box-shadow:0 0 12px ${netColor};"></div>
+              </div>
+
+              <div class="gauge-labels">
+                <span style="color:#ff4b72;">-100% Blockade</span>
+                <span style="color:var(--text-muted); text-align:center;">0% Basal Tone</span>
+                <span style="color:#00f2fe; text-align:right;">+100% Agonism</span>
+              </div>
+            </div>
+
+            <!-- PER-COMPOUND BREAKDOWN -->
+            <div class="compound-influence-list">
+              ${compoundRows}
+            </div>
+
+            <!-- MECHANISM SUMMARY -->
+            <div class="mechanism-summary-card">
+              <div style="font-weight:700; color:#38bdf8; margin-bottom:3px; display:flex; align-items:center; gap:4px;">
+                🔬 Pharmacodynamic Convergence
+              </div>
+              ${dynamicCombined.pharmacological_summary}
+            </div>
+          </div>
+        `;
+      }
+
       function renderNodePanel() {
         if (!state.selectedNode) {
           nodePanel.innerHTML = `
@@ -1144,6 +1758,88 @@
             `).join('')
           : '<div style="color:var(--text-muted); font-size:0.75rem;">No downstream targets.</div>';
 
+        // Check if node has combined effect
+        const comb = (state.data.combined_effects && state.data.combined_effects[node.id]) || node.combined_effect;
+        const combinedWidgetHtml = comb ? renderCombinedReceptorWidget(node, comb) : '';
+
+        // If node is a compound, provide global dose regimen controller
+        let compoundGlobalDoseCard = '';
+        let compoundConvergingTargetsHtml = '';
+        if (node.node_type === 'compound') {
+          const stackItem = state.stack.find(s => {
+            const p = parseStackKey(s);
+            return p.key.toLowerCase() === node.id.toLowerCase() || (node.label && p.key.toLowerCase() === node.label.toLowerCase());
+          });
+          const parsedDose = stackItem ? parseStackKey(stackItem) : parseStackKey(node.id);
+
+          compoundGlobalDoseCard = `
+            <div class="global-dose-card">
+              <div style="font-size:0.68rem; text-transform:uppercase; font-weight:700; color:#38bdf8; letter-spacing:0.04em; margin-bottom:6px; display:flex; justify-content:space-between; align-items:center;">
+                <span>💊 Global Regimen & Dose</span>
+                <span style="font-family:'JetBrains Mono',monospace; color:var(--text-muted); font-size:0.62rem;">Applies network-wide</span>
+              </div>
+              <div style="display:flex; align-items:center; justify-content:space-between; gap:8px;">
+                <span style="font-size:0.75rem; color:var(--text-secondary); font-weight:600;">Administered Dose:</span>
+                <div style="display:flex; align-items:center; gap:6px;">
+                  <input 
+                    type="number" 
+                    class="dose-number-input" 
+                    id="compound_dose_val_${node.id}"
+                    step="any"
+                    min="0"
+                    value="${parsedDose.val}"
+                    onchange="handleGlobalDoseUpdate('${node.id}', this.value, document.getElementById('compound_dose_unit_${node.id}').value)"
+                  />
+                  <select 
+                    id="compound_dose_unit_${node.id}" 
+                    class="dose-unit-select"
+                    onchange="handleGlobalDoseUpdate('${node.id}', document.getElementById('compound_dose_val_${node.id}').value, this.value)"
+                  >
+                    <option value="mg" ${parsedDose.unit === 'mg' ? 'selected' : ''}>mg</option>
+                    <option value="μg" ${parsedDose.unit === 'μg' || parsedDose.unit === 'ug' || parsedDose.unit === 'mcg' ? 'selected' : ''}>μg</option>
+                    <option value="g" ${parsedDose.unit === 'g' ? 'selected' : ''}>g</option>
+                    <option value="IU" ${parsedDose.unit === 'IU' ? 'selected' : ''}>IU</option>
+                  </select>
+                </div>
+              </div>
+              <div style="margin-top:6px; font-size:0.68rem; color:var(--text-muted); display:flex; justify-content:space-between;">
+                <span>Assigned Regimen:</span>
+                <strong style="color:#00f2fe; font-family:'JetBrains Mono',monospace;">${parsedDose.display}</strong>
+              </div>
+            </div>
+          `;
+
+          const targets = outgoing.map(e => {
+            const targetNode = (state.data.nodes || []).find(n => n.id === e.target);
+            const targetComb = (state.data.combined_effects && state.data.combined_effects[e.target]) || (targetNode && targetNode.combined_effect);
+            return { edge: e, targetNode, targetComb };
+          }).filter(t => t.targetComb && t.targetComb.has_multiple_ligands);
+
+          if (targets.length) {
+            compoundConvergingTargetsHtml = `
+              <div class="convergence-card" style="margin-top:4px;">
+                <div class="convergence-header">
+                  <span class="convergence-tag">⚔️ Converging Target Receptors</span>
+                </div>
+                <div style="display:flex; flex-direction:column; gap:5px;">
+                  ${targets.map(t => {
+                    const tc = t.targetComb;
+                    const netColor = tc.net_activation_score > 0.05 ? '#00f2fe' : (tc.net_activation_score < -0.05 ? '#ff4b72' : '#c084fc');
+                    return `
+                      <div class="neighbor-pill" onclick="focusAndSelectNode('${t.edge.target}')">
+                        <strong>${t.edge.target}</strong>
+                        <span style="color:${netColor}; font-size:0.72rem; font-weight:700;">
+                          Net Activation: ${tc.net_activation_pct > 0 ? '+' : ''}${tc.net_activation_pct}% (${tc.receptor_state})
+                        </span>
+                      </div>
+                    `;
+                  }).join('')}
+                </div>
+              </div>
+            `;
+          }
+        }
+
         if (state.selectedTab === 'overview') {
           const metaRows = [];
           if (node.smiles) metaRows.push(`<div style="grid-column: span 2; background:rgba(0,0,0,0.35); padding:6px 8px; border-radius:6px; font-family:'JetBrains Mono',monospace; font-size:0.68rem; word-break:break-all; border:1px solid rgba(255,255,255,0.06);"><div style="color:var(--text-muted); margin-bottom:2px; font-size:0.62rem;">SMILES</div>${node.smiles}</div>`);
@@ -1165,6 +1861,10 @@
                 <span class="node-badge" style="font-family:'JetBrains Mono',monospace;">${node.id}</span>
               </div>
             </div>
+
+            ${compoundGlobalDoseCard}
+            ${combinedWidgetHtml}
+            ${compoundConvergingTargetsHtml}
 
             ${metaRows.length ? `<div class="metrics-grid">${metaRows.join('')}</div>` : ''}
 
@@ -1193,8 +1893,11 @@
           nodePanel.innerHTML = `
             <div>
               <div class="node-hero-title">${getNodeLabel(node)}</div>
-              <p style="color:var(--text-secondary); font-size:0.75rem; margin-top:4px;">Direct molecular binding kinetics & target interactions.</p>
+              <p style="color:var(--text-secondary); font-size:0.75rem; margin-top:4px;">Direct molecular binding kinetics & multi-compound receptor cross-talk.</p>
             </div>
+            ${compoundGlobalDoseCard}
+            ${combinedWidgetHtml}
+            ${compoundConvergingTargetsHtml}
             <div>
               <div class="neighbor-group-title">Upstream Ligand Binding</div>
               <div class="neighbor-pill-list">${incomingTexts}</div>
@@ -1205,24 +1908,136 @@
             </div>
           `;
         } else if (state.selectedTab === 'cascade') {
+          const cascade = (state.data && state.data.cascade_simulation) ? state.data.cascade_simulation : null;
+          
+          let biomarkersHtml = '<p style="color:var(--text-muted); font-size:0.75rem;">No active clinical biomarker shifts mapped.</p>';
+          if (cascade && cascade.biomarker_shifts && cascade.biomarker_shifts.length) {
+            biomarkersHtml = cascade.biomarker_shifts.map(b => {
+              const isUp = b.direction === 'INCREASE';
+              const isDown = b.direction === 'DECREASE';
+              const cls = isUp ? 'shift-up' : (isDown ? 'shift-down' : 'shift-neutral');
+              const arrow = b.arrow || (isUp ? '↑' : (isDown ? '↓' : '→'));
+              const inSafe = b.in_safe_range !== false;
+              const rangePill = inSafe 
+                ? '<span class="range-status-pill range-safe">IN RANGE</span>' 
+                : '<span class="range-status-pill range-alert">OUT OF RANGE</span>';
+              
+              const contribPills = (b.compound_contributions || []).map(c => {
+                return `<span class="contrib-chip"><strong>${c.compound_label}:</strong> ${c.formatted_delta}</span>`;
+              }).join('');
+
+              return `
+                <div class="biomarker-card" id="cascade-item-${b.biomarker_id}">
+                  <div class="biomarker-header-row">
+                    <div class="biomarker-title" onclick="focusAndSelectNode('${b.biomarker_id}')" style="cursor:pointer;" title="Click to inspect node on graph">
+                      <span>${arrow}</span>
+                      <span>${b.label || b.name}</span>
+                    </div>
+                    <div class="biomarker-value-display ${cls}">
+                      ${b.formatted_change || b.direction}
+                    </div>
+                  </div>
+                  <div class="biomarker-meta-row">
+                    <span>Baseline: <strong>${b.baseline_value} ${b.unit}</strong> → Projected: <strong>${b.estimated_value} ${b.unit}</strong></span>
+                    ${rangePill}
+                  </div>
+                  <div class="biomarker-meta-row" style="margin-top:-2px;">
+                    <span>Safe Reference: <strong>${b.safe_range} ${b.unit}</strong></span>
+                    <span>Net Shift: <strong>${b.net_shift > 0 ? '+' : ''}${b.net_shift}</strong></span>
+                  </div>
+                  <div class="biomarker-meta-row" style="margin-top:1px; font-size:0.65rem; color:#38bdf8; border-top:1px dashed rgba(255,255,255,0.06); padding-top:2px;" title="${b.time_course_description || ''}">
+                    <span>⏱️ Steady-State: <strong>~${b.time_to_steady_state_weeks || 1} wks</strong> (t½: ${b.half_time_days || 3}d)</span>
+                    <span style="text-transform:capitalize; color:var(--text-muted);">${(b.kinetic_profile || '').replace(/_/g, ' ')}</span>
+                  </div>
+                  ${contribPills ? `<div class="contrib-chips-list">${contribPills}</div>` : ''}
+                </div>
+              `;
+            }).join('');
+          }
+
+          let phenosHtml = '<p style="color:var(--text-muted); font-size:0.75rem;">No clinical phenotype outcomes forecasted.</p>';
+          if (cascade && cascade.phenotypes && cascade.phenotypes.length) {
+            phenosHtml = cascade.phenotypes.map(p => {
+              const isSuppressed = (p.net_score || 0) < -0.03;
+              const isHigh = p.risk_status === 'HIGH_RISK';
+              const isMod = p.risk_status === 'MODERATE_RISK';
+              const tagCls = isSuppressed ? 'risk-suppressed' : (isHigh ? 'risk-high' : (isMod ? 'risk-moderate' : 'risk-neutral'));
+              const icon = isSuppressed ? '🛡️' : (p.severity === 'high' || p.severity === 'critical' ? '⚠️' : '🎯');
+              
+              const contribPills = (p.compound_contributions || []).map(c => {
+                return `<span class="contrib-chip"><strong>${c.compound_label}:</strong> ${c.formatted_risk}</span>`;
+              }).join('');
+
+              return `
+                <div class="phenotype-forecast-card" id="cascade-item-${p.phenotype_id}">
+                  <div style="display:flex; justify-content:space-between; align-items:flex-start; gap:6px;">
+                    <div style="font-weight:700; font-size:0.78rem; color:var(--text-primary); cursor:pointer;" onclick="focusAndSelectNode('${p.phenotype_id}')" title="Click to inspect node on graph">
+                      ${icon} ${p.label || p.name}
+                    </div>
+                    <span class="pheno-risk-tag ${tagCls}">${p.risk_badge || p.risk_status || 'OUTCOME'}</span>
+                  </div>
+                  <div style="display:flex; justify-content:space-between; font-size:0.70rem; color:var(--text-secondary); font-family:'JetBrains Mono', monospace;">
+                    <span>Estimated Risk Shift: <strong style="color:var(--text-primary);">${p.formatted_risk || `${p.risk_delta_pct}%`}</strong></span>
+                    <span style="text-transform:capitalize;">Severity: <strong>${p.severity || 'Moderate'}</strong></span>
+                  </div>
+                  ${p.description ? `<p style="font-size:0.68rem; color:var(--text-muted); margin:0;">${p.description}</p>` : ''}
+                  ${contribPills ? `<div class="contrib-chips-list">${contribPills}</div>` : ''}
+                </div>
+              `;
+            }).join('');
+          }
+
+          let pathwaysHtml = '<p style="color:var(--text-muted); font-size:0.75rem;">No active intracellular pathways.</p>';
+          if (cascade && cascade.activated_pathways && cascade.activated_pathways.length) {
+            pathwaysHtml = cascade.activated_pathways.map(pw => {
+              const isUp = pw.status === 'UPREGULATED';
+              const isDown = pw.status === 'DOWNREGULATED';
+              return `
+                <div style="display:flex; justify-content:space-between; align-items:center; padding:6px 9px; background:rgba(13,20,38,0.75); border:1px solid rgba(255,255,255,0.06); border-radius:6px; font-size:0.72rem; cursor:pointer;" onclick="focusAndSelectNode('${pw.pathway_id}')" title="Click to focus pathway node">
+                  <span style="font-weight:600; color:var(--text-primary);">⚡ ${pw.label || pw.name}</span>
+                  <span class="compound-action-pill ${isUp ? 'pill-agonist' : (isDown ? 'pill-antagonist' : 'pill-modulator')}">${pw.status || 'ACTIVE'}</span>
+                </div>
+              `;
+            }).join('');
+          }
+
           nodePanel.innerHTML = `
             <div>
-              <div class="node-hero-title">${getNodeLabel(node)}</div>
-              <p style="color:var(--text-secondary); font-size:0.75rem; margin-top:4px;">Intracellular signal cascade propagation & physiological impact.</p>
+              <div class="node-hero-title">Cascade Forecast & Biomarker Estimation</div>
+              <p style="color:var(--text-secondary); font-size:0.75rem; margin-top:4px;">Multi-tier signal propagation from active stack through intracellular pathways to clinical outcomes.</p>
             </div>
-            <div class="metrics-grid">
-              <div class="metric-card">
-                <div class="metric-label">Cascade In-Degree</div>
-                <div class="metric-value" style="color:#38bdf8;">${incoming.length}</div>
+            ${compoundGlobalDoseCard}
+            ${combinedWidgetHtml}
+            <div class="cascade-dashboard">
+              <div>
+                <div class="cascade-section-title">
+                  <span>🩸 Quantitative Biomarker Predictions</span>
+                  <span style="font-size:0.65rem; color:var(--text-muted); font-weight:normal;">Baseline vs Projected</span>
+                </div>
+                <div style="display:flex; flex-direction:column; gap:7px; margin-top:6px;">
+                  ${biomarkersHtml}
+                </div>
               </div>
-              <div class="metric-card">
-                <div class="metric-label">Cascade Out-Degree</div>
-                <div class="metric-value" style="color:#a855f7;">${outgoing.length}</div>
+
+              <div>
+                <div class="cascade-section-title">
+                  <span>🎯 Clinical Outcome & Risk Forecast</span>
+                  <span style="font-size:0.65rem; color:var(--text-muted); font-weight:normal;">Safety Endpoints</span>
+                </div>
+                <div style="display:flex; flex-direction:column; gap:7px; margin-top:6px;">
+                  ${phenosHtml}
+                </div>
               </div>
-            </div>
-            <div>
-              <div class="neighbor-group-title">Cascade Signaling Links</div>
-              <div class="neighbor-pill-list">${outgoingTexts}</div>
+
+              <div>
+                <div class="cascade-section-title">
+                  <span>⚡ Intracellular Signaling Pathways</span>
+                  <span style="font-size:0.65rem; color:var(--text-muted); font-weight:normal;">Reactome/KEGG</span>
+                </div>
+                <div style="display:flex; flex-direction:column; gap:5px; margin-top:6px;">
+                  ${pathwaysHtml}
+                </div>
+              </div>
             </div>
           `;
         }
@@ -1240,9 +2055,41 @@
         });
       });
 
+      window.openCascadeInspector = (targetId) => {
+        state.selectedTab = 'cascade';
+        document.querySelectorAll('.inspector-tab').forEach(t => {
+          if (t.dataset.tab === 'cascade') t.classList.add('active');
+          else t.classList.remove('active');
+        });
+        nodePanelContainer.classList.remove('hidden');
+        renderNodePanel();
+        if (targetId) {
+          setTimeout(() => {
+            const el = document.getElementById(`cascade-item-${targetId}`);
+            if (el) {
+              el.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+              el.style.borderColor = '#00f2fe';
+              el.style.boxShadow = '0 0 12px rgba(0, 242, 254, 0.4)';
+              setTimeout(() => {
+                el.style.borderColor = '';
+                el.style.boxShadow = '';
+              }, 1600);
+            }
+          }, 50);
+        }
+      };
+
       window.focusAndSelectNode = (nodeId) => {
         if (!state.cy) return;
-        const targetEle = state.cy.getElementById(nodeId);
+        let targetEle = state.cy.getElementById(nodeId);
+        if (!targetEle.length) {
+          targetEle = state.cy.nodes().filter(n => {
+            const nid = n.id().toLowerCase();
+            const nlabel = (n.data('label') || '').toLowerCase();
+            const query = nodeId.toLowerCase();
+            return nid === query || nlabel === query;
+          });
+        }
         if (targetEle && targetEle.length) {
           state.selectedNode = nodeId;
           state.cy.elements().removeClass('highlighted');
@@ -1270,9 +2117,11 @@
           const isDown = shift.direction === 'DECREASE';
           const arrow = shift.arrow || (isUp ? '↑' : (isDown ? '↓' : '→'));
           const badgeClass = isUp ? 'shift-up' : (isDown ? 'shift-down' : 'shift-neutral');
+          const valText = shift.formatted_change ? shift.formatted_change : (shift.direction || 'MODULATED');
+          const estSub = shift.estimated_value ? `<span class="badge-sub">(${shift.estimated_value} ${shift.unit})</span>` : '';
           chips.push(`
-            <span class="cascade-badge ${badgeClass}" title="${name} (${shift.unit || ''})">
-              ${arrow} ${name}: <strong>${shift.direction || 'MODULATED'}</strong>
+            <span class="cascade-badge ${badgeClass}" onclick="openCascadeInspector('${shift.biomarker_id}')" title="${name}: ${shift.formatted_display || shift.direction} (Click to inspect detailed forecast)">
+              ${arrow} ${name}: <strong>${valText}</strong> ${estSub}
             </span>
           `);
         });
@@ -1280,17 +2129,24 @@
         (cascade.activated_pathways || []).forEach(p => {
           const name = p.label || p.name || p.pathway_id || 'Pathway';
           chips.push(`
-            <span class="cascade-badge pathway" title="${name} (${p.status || ''})">
-              ⚡ ${name}
+            <span class="cascade-badge pathway" onclick="openCascadeInspector('${p.pathway_id}')" title="${name} (${p.status || ''})">
+              ⚡ ${name}: <strong>${p.status || 'ACTIVE'}</strong>
             </span>
           `);
         });
 
         (cascade.phenotypes || []).forEach(pheno => {
           const name = pheno.label || pheno.name || pheno.phenotype_id || 'Phenotype';
+          const isSuppressed = (pheno.net_score || 0) < -0.03;
+          const isSevere = pheno.severity === 'high' || pheno.severity === 'critical';
+          const icon = isSuppressed ? '🛡️' : (isSevere ? '⚠️' : '🎯');
+          const riskStyle = isSuppressed 
+            ? 'border-color:rgba(16,185,129,0.45); color:#6ee7b7; background:rgba(16,185,129,0.08);' 
+            : 'border-color:rgba(244,63,94,0.45); color:#fda4af; background:rgba(244,63,94,0.08);';
+          const riskVal = pheno.formatted_risk || `${pheno.risk_delta_pct || 0}%`;
           chips.push(`
-            <span class="cascade-badge" style="border-color:rgba(244,63,94,0.45); color:#fda4af; background:rgba(244,63,94,0.08);" title="${name}">
-              🎯 ${name}
+            <span class="cascade-badge" style="${riskStyle}" onclick="openCascadeInspector('${pheno.phenotype_id}')" title="${name}: ${pheno.formatted_risk || ''} (Click to inspect forecast)">
+              ${icon} ${name}: <strong>${riskVal}</strong>
             </span>
           `);
         });
@@ -1305,7 +2161,23 @@
 
         state.filtered.nodes = state.data.nodes.filter(node => {
           if (mode !== 'all') {
-            if (mode === 'pd') {
+            if (mode === 'convergence') {
+              const isConvergingTarget = Boolean(
+                node.has_multiple_ligands || 
+                (node.combined_effect && node.combined_effect.has_multiple_ligands)
+              );
+              if (isConvergingTarget) return true;
+
+              if (node.node_type === 'compound') {
+                const targetsConverging = state.data.edges.some(e => {
+                  if (e.source !== node.id) return false;
+                  const tNode = state.data.nodes.find(n => n.id === e.target);
+                  return Boolean(tNode && (tNode.has_multiple_ligands || (tNode.combined_effect && tNode.combined_effect.has_multiple_ligands)));
+                });
+                if (targetsConverging) return true;
+              }
+              return false;
+            } else if (mode === 'pd') {
               const isPD = node.node_type === 'compound' || node.pk_pd_class === 'PD' || ['receptor', 'signaling_pathway', 'physiology', 'biomarker', 'phenotype', 'ion_channel', 'target'].includes(node.node_type);
               if (!isPD) return false;
             } else if (mode === 'pk') {
@@ -1392,6 +2264,26 @@
                 'min-zoomed-font-size': 5,
                 'transition-property': 'background-color, border-color, shadow-blur, opacity',
                 'transition-duration': '0.2s',
+              }
+            },
+            {
+              selector: 'node[?has_multiple_ligands]',
+              style: {
+                'border-width': 4.0,
+                'border-color': ele => {
+                  const net = ele.data('net_activation_score') !== undefined ? ele.data('net_activation_score') : 0;
+                  if (net > 0.15) return '#00f2fe';
+                  if (net < -0.15) return '#ff4b72';
+                  return '#c084fc';
+                },
+                'shadow-blur': 26,
+                'shadow-color': ele => {
+                  const net = ele.data('net_activation_score') !== undefined ? ele.data('net_activation_score') : 0;
+                  if (net > 0.15) return '#00f2fe';
+                  if (net < -0.15) return '#ff4b72';
+                  return '#c084fc';
+                },
+                'shadow-opacity': 0.88,
               }
             },
             {
@@ -1503,7 +2395,15 @@
           tooltipTitle.textContent = nodeData.label || nodeData.id;
           tooltipSub.textContent = `Type: ${(nodeData.node_type || 'Node').toUpperCase()}`;
           const col = colorForNode(nodeData.node_type);
-          tooltipBadge.innerHTML = `<span class="tooltip-badge" style="background:${col}22; color:${col}; border:1px solid ${col}66;">Tier ${nodeData.tier !== undefined ? nodeData.tier : 1}: ${nodeData.tier_name || 'Entity'}</span>`;
+          
+          let badgesHtml = `<span class="tooltip-badge" style="background:${col}22; color:${col}; border:1px solid ${col}66;">Tier ${nodeData.tier !== undefined ? nodeData.tier : 1}: ${nodeData.tier_name || 'Entity'}</span>`;
+          if (nodeData.combined_effect && nodeData.combined_effect.has_multiple_ligands) {
+            const comb = nodeData.combined_effect;
+            const net = comb.net_activation_pct;
+            const netCol = net > 0 ? '#00f2fe' : (net < 0 ? '#ff4b72' : '#c084fc');
+            badgesHtml += `<span class="tooltip-badge" style="background:${netCol}22; color:${netCol}; border:1px solid ${netCol}66; margin-left:4px;">⚔️ ${comb.ligand_count} Ligands • Net: ${net > 0 ? '+' : ''}${net}%</span>`;
+          }
+          tooltipBadge.innerHTML = badgesHtml;
 
           graphTooltip.style.left = `${renderedPos.x}px`;
           graphTooltip.style.top = `${renderedPos.y}px`;
@@ -1598,16 +2498,23 @@
         if (!cy) return;
 
         const elements = {
-          nodes: state.filtered.nodes.map(node => ({
-            data: {
-              id: node.id,
-              label: getNodeLabel(node),
-              node_type: node.node_type,
-              tier: node.tier,
-              tier_name: node.tier_name,
-              degree: node.degree,
-            },
-          })),
+          nodes: state.filtered.nodes.map(node => {
+            const comb = (state.data.combined_effects && state.data.combined_effects[node.id]) || node.combined_effect;
+            return {
+              data: {
+                id: node.id,
+                label: getNodeLabel(node),
+                node_type: node.node_type,
+                tier: node.tier,
+                tier_name: node.tier_name,
+                degree: node.degree,
+                combined_effect: comb,
+                has_multiple_ligands: Boolean(comb && comb.has_multiple_ligands),
+                net_activation_score: comb ? comb.net_activation_score : 0,
+                net_activation_pct: comb ? comb.net_activation_pct : 0,
+              },
+            };
+          }),
           edges: state.filtered.edges.map(edge => ({
             data: {
               id: `${edge.source}->${edge.target}`,
@@ -1766,28 +2673,218 @@
         link.click();
       });
 
+      function roundTo(num, decimals) {
+        const factor = Math.pow(10, decimals);
+        return Math.round(num * factor) / factor;
+      }
+
+      function parseStackKey(item) {
+        if (!item) return { raw: '', key: '', val: 10, unit: 'mg', display: '10 mg' };
+        const parts = String(item).split(':');
+        const key = parts[0].trim();
+        if (parts.length < 2) {
+          const node = (state.data && state.data.nodes || []).find(n => 
+            n.id.toLowerCase() === key.toLowerCase() || 
+            (n.label && n.label.toLowerCase() === key.toLowerCase())
+          );
+          let doseMg = (node && node.dose_mg !== undefined) ? node.dose_mg : null;
+          if (doseMg === null) {
+            const kl = key.toLowerCase();
+            if (kl.includes('clenbuterol')) doseMg = 0.04;
+            else if (kl.includes('nebivolol')) doseMg = 5.0;
+            else if (kl.includes('caffeine')) doseMg = 200.0;
+            else if (kl.includes('theanine')) doseMg = 200.0;
+            else if (kl.includes('creatine')) doseMg = 5000.0;
+            else doseMg = 10.0;
+          }
+          const val = doseMg >= 1.0 ? roundTo(doseMg, 2) : roundTo(doseMg * 1000.0, 2);
+          const unit = doseMg >= 1.0 ? 'mg' : 'μg';
+          return { raw: item, key, val, unit, display: `${val} ${unit}` };
+        }
+        const spec = parts[1].trim();
+        const match = spec.match(/^([\d.]+)\s*([a-zA-Zμ]+)$/);
+        if (match) {
+          const val = parseFloat(match[1]) || 1.0;
+          let unit = match[2];
+          if (unit === 'ug' || unit === 'mcg') unit = 'μg';
+          return { raw: item, key, val, unit, display: `${val} ${unit}` };
+        }
+        return { raw: item, key, val: parseFloat(spec) || 10, unit: 'mg', display: spec };
+      }
+
+      const compoundNameCache = {
+        'chembl49080': 'Clenbuterol',
+        'chembl434394': 'Nebivolol',
+        'chembl27': 'Propranolol',
+        'chembl18': 'Metoprolol',
+        'chembl25': 'Atenolol',
+        'chembl39': 'Clonidine',
+        'chembl714': 'Albuterol',
+        'chembl723': 'Telmisartan',
+        'chembl1201127': 'Eplerenone',
+        'chembl1415': 'Spironolactone',
+        'chembl12': 'Diazepam',
+        'chembl779': 'Tadalafil',
+        'chembl192': 'Sildenafil',
+      };
+
+      function resolveCompoundDisplayName(key) {
+        if (!key) return '';
+        const lowerKey = key.trim().toLowerCase();
+        
+        // 1. Direct cache lookup
+        if (compoundNameCache[lowerKey]) {
+          return compoundNameCache[lowerKey];
+        }
+
+        // 2. Check current graph data nodes
+        if (state.data && Array.isArray(state.data.nodes)) {
+          const match = state.data.nodes.find(n => {
+            if (!n) return false;
+            const nid = String(n.id || '').toLowerCase();
+            const nkey = String((n.data && (n.data.key || n.data.canonical_key || n.data.inchikey)) || '').toLowerCase();
+            return nid === lowerKey || nkey === lowerKey;
+          });
+          if (match && match.label && !/^chembl\d+$/i.test(match.label)) {
+            compoundNameCache[lowerKey] = match.label;
+            return match.label;
+          }
+        }
+
+        // 3. Check localStorage saved stack
+        try {
+          const saved = localStorage.getItem('healthai_stack');
+          if (saved) {
+            const parsed = JSON.parse(saved);
+            if (Array.isArray(parsed)) {
+              const item = parsed.find(it => it && (String(it.key || '').toLowerCase() === lowerKey || String(it.name || '').toLowerCase() === lowerKey));
+              if (item && item.name && !/^chembl\d+$/i.test(item.name)) {
+                compoundNameCache[lowerKey] = item.name;
+                return item.name;
+              }
+            }
+          }
+        } catch (e) {}
+
+        // 4. If key is a ChEMBL ID, fetch and populate asynchronously
+        if (/^chembl\d+$/i.test(lowerKey)) {
+          fetch(`/api/compounds/${encodeURIComponent(lowerKey)}`)
+            .then(res => res.ok ? res.json() : null)
+            .then(c => {
+              if (c && c.name && !/^chembl\d+$/i.test(c.name)) {
+                compoundNameCache[lowerKey] = c.name;
+                renderStackBadges();
+              }
+            })
+            .catch(() => {});
+        }
+
+        // 5. Clean standard keys (e.g. "l_theanine" -> "L Theanine")
+        return key.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
+      }
+
+      window.focusAndSelectNode = (nodeId) => {
+        if (!nodeId) return;
+        state.selectedNode = nodeId;
+        nodePanelContainer.classList.remove('hidden');
+        renderNodePanel();
+        if (state.cy) {
+          let ele = state.cy.getElementById(nodeId);
+          if (!ele.length) {
+            ele = state.cy.nodes().filter(n => {
+              const nid = n.id().toLowerCase();
+              const nlabel = (n.data('label') || '').toLowerCase();
+              const query = nodeId.toLowerCase();
+              return nid === query || nlabel === query;
+            });
+          }
+          if (ele.length) {
+            const targetNode = ele.length > 0 && ele[0] ? ele[0] : ele;
+            state.cy.animate({
+              center: { eles: targetNode },
+              zoom: 1.35,
+              duration: 300
+            });
+            state.cy.elements().removeClass('faded');
+            targetNode.neighborhood().add(targetNode).removeClass('faded');
+            targetNode.select();
+          }
+        }
+      };
+
+      window.handleGlobalDoseUpdate = (key, val, unit) => {
+        const parsedVal = parseFloat(val);
+        if (isNaN(parsedVal) || parsedVal <= 0) return;
+        const cleanUnit = unit || 'mg';
+
+        const idx = state.stack.findIndex(s => {
+          const p = parseStackKey(s);
+          return p.key.toLowerCase() === key.toLowerCase();
+        });
+
+        const formatted = `${key}:${parsedVal}${cleanUnit}`;
+        if (idx >= 0) {
+          state.stack[idx] = formatted;
+        } else {
+          state.stack.push(formatted);
+        }
+
+        syncStackState();
+        loadGraphData();
+      };
+
       function renderStackBadges() {
         if (!state.stack.length) {
           stackPillsList.innerHTML = '<span style="color:var(--text-muted); font-size:0.75rem;">Empty stack. Search below or add compounds to explore cascade interactions.</span>';
           return;
         }
 
-        stackPillsList.innerHTML = state.stack.map(key => `
-          <span class="compound-chip">
-            ${key.replace('_', ' ').replace(/\b\w/g, l => l.toUpperCase())}
-            <button type="button" class="chip-del" onclick="removeCompoundFromGraph('${key}')" title="Remove from graph">&times;</button>
-          </span>
-        `).join('');
+        stackPillsList.innerHTML = state.stack.map(item => {
+          const p = parseStackKey(item);
+          const name = resolveCompoundDisplayName(p.key);
+          return `
+            <span class="compound-chip">
+              <span class="chip-name" onclick="focusAndSelectNode('${p.key}')" title="Click to view & inspect compound">${name}</span>
+              <input 
+                type="number" 
+                class="chip-dose-input" 
+                step="any"
+                min="0"
+                value="${p.val}" 
+                onchange="handleGlobalDoseUpdate('${p.key}', this.value, this.nextElementSibling.value)"
+                onkeydown="if(event.key==='Enter'){event.preventDefault(); this.blur(); handleGlobalDoseUpdate('${p.key}', this.value, this.nextElementSibling.value);}"
+                title="Change global dose"
+              />
+              <select 
+                class="chip-unit-select" 
+                onchange="handleGlobalDoseUpdate('${p.key}', this.previousElementSibling.value, this.value)"
+                title="Change dose unit"
+              >
+                <option value="mg" ${p.unit === 'mg' ? 'selected' : ''}>mg</option>
+                <option value="μg" ${p.unit === 'μg' || p.unit === 'ug' || p.unit === 'mcg' ? 'selected' : ''}>μg</option>
+                <option value="g" ${p.unit === 'g' ? 'selected' : ''}>g</option>
+                <option value="IU" ${p.unit === 'IU' ? 'selected' : ''}>IU</option>
+              </select>
+              <button type="button" class="chip-del" onclick="removeCompoundFromGraph('${item}')" title="Remove from graph">&times;</button>
+            </span>
+          `;
+        }).join('');
       }
 
-      window.removeCompoundFromGraph = (key) => {
-        state.stack = state.stack.filter(k => k !== key);
+      window.removeCompoundFromGraph = (item) => {
+        const p = parseStackKey(item);
+        state.stack = state.stack.filter(s => {
+          const sp = parseStackKey(s);
+          return sp.key.toLowerCase() !== p.key.toLowerCase();
+        });
         syncStackState();
         loadGraphData();
       };
 
       function addCompoundToGraph(key) {
-        if (!key || state.stack.includes(key)) return;
+        if (!key) return;
+        const exists = state.stack.some(s => parseStackKey(s).key.toLowerCase() === key.toLowerCase());
+        if (exists) return;
         state.stack.push(key);
         syncStackState();
         loadGraphData();
@@ -1796,7 +2893,20 @@
       function syncStackState() {
         renderStackBadges();
         try {
-          localStorage.setItem('healthai_stack', JSON.stringify(state.stack.map(k => ({ key: k, name: k }))));
+          const structured = state.stack.map(item => {
+            const p = parseStackKey(item);
+            const name = resolveCompoundDisplayName(p.key);
+            return {
+              key: p.key,
+              name: name,
+              dose: p.val,
+              unit: p.unit,
+              timing: 'morning',
+              frequency: 'daily'
+            };
+          });
+          localStorage.setItem('healthai_stack', JSON.stringify(structured));
+          window.dispatchEvent(new CustomEvent('healthai:stack-updated'));
         } catch (e) {
           console.warn('localStorage sync error', e);
         }
@@ -1804,6 +2914,39 @@
         newUrl.searchParams.set('stack', state.stack.join(','));
         window.history.replaceState({}, '', newUrl);
       }
+
+      // Real-time synchronization with SafetyLab dashboard across tabs & windows
+      window.addEventListener('storage', (e) => {
+        if (e.key === 'healthai_stack' && e.newValue) {
+          try {
+            const parsed = JSON.parse(e.newValue);
+            if (Array.isArray(parsed)) {
+              const newStack = parsed.map(item => {
+                if (typeof item === 'string') return item;
+                if (item && (item.key || item.name)) {
+                  const k = item.key || item.name;
+                  if (item.name && !/^chembl\d+$/i.test(item.name)) {
+                    compoundNameCache[String(k).toLowerCase()] = item.name;
+                  }
+                  if (item.dose !== undefined && item.dose !== null && !isNaN(parseFloat(item.dose))) {
+                    const u = (item.unit || 'mg').replace('μg', 'ug');
+                    return `${k}:${item.dose}${u}`;
+                  }
+                  return k;
+                }
+                return '';
+              }).filter(Boolean);
+              if (newStack.join(',') !== state.stack.join(',')) {
+                state.stack = newStack;
+                renderStackBadges();
+                loadGraphData();
+              }
+            }
+          } catch (err) {
+            console.warn('Storage sync error', err);
+          }
+        }
+      });
 
       // STACK SEARCH AUTOCOMPLETE
       let searchTimeout = null;
@@ -1826,7 +2969,7 @@
               }
 
               stackSearchDropdown.innerHTML = items.map(c => `
-                <div class="autocomplete-row" data-key="${c.key}">
+                <div class="autocomplete-row" data-key="${c.key}" data-name="${c.name || ''}">
                   <span>${c.name}</span>
                   <span style="color:#00f2fe;font-size:0.72rem;font-weight:700;">+ Add</span>
                 </div>
@@ -1836,6 +2979,9 @@
 
               stackSearchDropdown.querySelectorAll('.autocomplete-row').forEach(el => {
                 el.addEventListener('click', () => {
+                  if (el.dataset.key && el.dataset.name) {
+                    compoundNameCache[el.dataset.key.toLowerCase()] = el.dataset.name;
+                  }
                   addCompoundToGraph(el.dataset.key);
                   stackSearchInput.value = '';
                   stackSearchDropdown.style.display = 'none';
@@ -1927,7 +3073,21 @@
             const parsed = JSON.parse(saved);
             if (Array.isArray(parsed)) {
               stack = parsed
-                .map(item => typeof item === 'string' ? item : (item && (item.key || item.compound || item.name) ? (item.key || item.compound || item.name) : ''))
+                .map(item => {
+                  if (typeof item === 'string') return item;
+                  if (item && (item.key || item.name)) {
+                    const k = item.key || item.name;
+                    if (item.name && !/^chembl\d+$/i.test(item.name)) {
+                      compoundNameCache[String(k).toLowerCase()] = item.name;
+                    }
+                    if (item.dose !== undefined && item.dose !== null && !isNaN(parseFloat(item.dose))) {
+                      const u = (item.unit || 'mg').replace('μg', 'ug');
+                      return `${k}:${item.dose}${u}`;
+                    }
+                    return k;
+                  }
+                  return '';
+                })
                 .filter(Boolean);
             }
           } catch (error) {
@@ -1956,6 +3116,15 @@
             state.data = data;
             if (data.nodes && data.nodes.length) {
               state.selectedNode = data.nodes[0].id;
+              data.nodes.forEach(n => {
+                if (n && n.id && n.label && !/^chembl\d+$/i.test(n.label)) {
+                  compoundNameCache[n.id.toLowerCase()] = n.label;
+                  if (n.data && n.data.canonical_key) {
+                    compoundNameCache[n.data.canonical_key.toLowerCase()] = n.label;
+                  }
+                }
+              });
+              renderStackBadges();
             } else {
               state.selectedNode = null;
             }

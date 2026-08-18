@@ -33,8 +33,18 @@ def test_api_get_compound_pkpd():
 
 
 def test_api_enrich_compound_full():
-    response = client.post("/api/compounds/telmisartan/enrich-full")
-    assert response.status_code == 200
-    data = response.json()
-    assert data["key"] == "telmisartan"
-    assert data.get("t_half_numeric") == 24.0
+    from unittest.mock import patch
+    from app.services.live_enrichment import LiveEnrichmentService
+
+    mock_fda = {"pharm_class_epc": ["Angiotensin 2 Receptor Antagonist [EPC]"]}
+    mock_chembl = {"chembl_id": "CHEMBL1082", "mechanisms": []}
+    mock_rx = ["Angiotensin II Receptor Antagonists"]
+
+    with patch.object(LiveEnrichmentService, "fetch_openfda", return_value=mock_fda):
+        with patch.object(LiveEnrichmentService, "fetch_chembl", return_value=mock_chembl):
+            with patch.object(LiveEnrichmentService, "fetch_rxnorm_atc", return_value=mock_rx):
+                response = client.post("/api/compounds/telmisartan/enrich-full")
+                assert response.status_code == 200
+                data = response.json()
+                assert data["key"] == "telmisartan"
+                assert data.get("t_half_numeric") == 24.0

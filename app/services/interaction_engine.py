@@ -1,26 +1,226 @@
 from __future__ import annotations
 
 import re
+from enum import Enum
 from typing import Any, Dict, List, Optional, Set, Tuple
+
+from app.services.catalog_service import CatalogService
+
+
+class ActionType(str, Enum):
+    AGONIST = "agonist"
+    ANTAGONIST = "antagonist"
+    INVERSE_AGONIST = "inverse_agonist"
+    INHIBITOR = "inhibitor"
+    PAM = "pam"  # Positive Allosteric Modulator
+    NAM = "nam"  # Negative Allosteric Modulator
+    SUBSTRATE = "substrate"
+    INDUCER = "inducer"
+    MODULATOR = "modulator"
+    OTHER = "other"
+
+
+def normalize_action(action: Any) -> ActionType:
+    """Deterministically normalizes target pharmacological actions into structured ActionType enums."""
+    if action is None:
+        return ActionType.OTHER
+    if isinstance(action, ActionType):
+        return action
+
+    a_str = str(action).strip().lower()
+    if not a_str:
+        return ActionType.OTHER
+
+    # 1. Antagonists & Blockers (checked before agonist to eliminate substring overlaps)
+    if any(k in a_str for k in ["antagonist", "blocker", "inverse antagonist"]):
+        return ActionType.ANTAGONIST
+    if "inverse" in a_str and "agonist" in a_str:
+        return ActionType.INVERSE_AGONIST
+
+    # 2. Agonists & Activators
+    if any(k in a_str for k in ["agonist", "activator", "stimulator", "opener"]):
+        return ActionType.AGONIST
+
+    # 3. Inhibitors & Suppressors
+    if any(k in a_str for k in ["inhibitor", "inhibition", "suppressor"]):
+        return ActionType.INHIBITOR
+
+    # 4. Allosteric Modulators
+    if "positive allosteric" in a_str or a_str == "pam":
+        return ActionType.PAM
+    if "negative allosteric" in a_str or a_str == "nam":
+        return ActionType.NAM
+
+    # 5. Metabolism / PK
+    if "substrate" in a_str:
+        return ActionType.SUBSTRATE
+    if "inducer" in a_str or "induction" in a_str:
+        return ActionType.INDUCER
+    if "modulator" in a_str:
+        return ActionType.MODULATOR
+
+    return ActionType.OTHER
+
+
+_TARGET_GENE_SYNONYMS: Dict[str, str] = {
+    # Adrenergic
+    "adrb1": "ADRB1", "beta-1": "ADRB1", "beta 1": "ADRB1", "p08588": "ADRB1",
+    "adrb2": "ADRB2", "beta-2": "ADRB2", "beta 2": "ADRB2", "p07550": "ADRB2",
+    "adra1a": "ADRA1A", "alpha-1a": "ADRA1A", "alpha-1": "ADRA1A", "p35348": "ADRA1A",
+    "adra2a": "ADRA2A", "alpha-2a": "ADRA2A", "alpha-2": "ADRA2A", "p08913": "ADRA2A",
+    "adra2b": "ADRA2B", "alpha-2b": "ADRA2B", "p18089": "ADRA2B",
+    "adra2c": "ADRA2C", "alpha-2c": "ADRA2C", "p18825": "ADRA2C",
+    # Purinergic / Adenosine
+    "adora1": "ADORA1", "adenosine a1": "ADORA1", "p30542": "ADORA1",
+    "adora2a": "ADORA2A", "adenosine a2a": "ADORA2A", "p29274": "ADORA2A",
+    "pde5a": "PDE5A", "pde5": "PDE5A", "phosphodiesterase 5": "PDE5A",
+    "pde4": "PDE4", "pde3": "PDE3", "phosphodiesterase": "PDE_NONSPECIFIC",
+    # Renin-Angiotensin-Aldosterone & Renal
+    "agtr1": "AGTR1", "angiotensin ii type-1": "AGTR1", "at1": "AGTR1", "p30556": "AGTR1",
+    "ace": "ACE", "angiotensin-converting enzyme": "ACE", "p12821": "ACE",
+    "nr3c2": "NR3C2", "mineralocorticoid receptor": "NR3C2", "aldosterone receptor": "NR3C2", "p08235": "NR3C2",
+    "scnn1a": "ENAC", "enac": "ENAC", "epithelial sodium channel": "ENAC",
+    "ren": "RENIN", "renin": "RENIN",
+    # Cardiac Electrophysiology & Calcium
+    "kcnh2": "KCNH2", "herg": "KCNH2", "delayed rectifier": "KCNH2", "q12809": "KCNH2",
+    "cacna1c": "CACNA1C", "cav1.2": "CACNA1C", "l-type calcium": "CACNA1C", "q13936": "CACNA1C",
+    "atp1a1": "ATP1A1", "sodium-potassium-transporting atpase": "ATP1A1", "p05023": "ATP1A1",
+    # Serotonergic & Neurotransmitters
+    "slc6a4": "SLC6A4", "sert": "SLC6A4", "serotonin transporter": "SLC6A4", "p31645": "SLC6A4",
+    "htr1a": "HTR1A", "5-ht1a": "HTR1A", "p08908": "HTR1A",
+    "htr1b": "HTR1B", "5-ht1b": "HTR1B", "p28222": "HTR1B",
+    "htr1d": "HTR1D", "5-ht1d": "HTR1D", "p28221": "HTR1D",
+    "htr2a": "HTR2A", "5-ht2a": "HTR2A", "p28223": "HTR2A",
+    "maoa": "MAOA", "monoamine oxidase a": "MAOA", "p21397": "MAOA",
+    "maob": "MAOB", "monoamine oxidase b": "MAOB", "p27338": "MAOB",
+    # Cholinergic
+    "chrm1": "CHRM1", "muscarinic acetylcholine receptor m1": "CHRM1",
+    "chrm2": "CHRM2", "muscarinic acetylcholine receptor m2": "CHRM2",
+    "chrm3": "CHRM3", "muscarinic acetylcholine receptor m3": "CHRM3",
+    "chrm": "CHRM", "muscarinic": "CHRM",
+    # Sedative / Opioid
+    "oprm1": "OPRM1", "mu-type opioid receptor": "OPRM1", "p35372": "OPRM1",
+    "gabra1": "GABRA1", "gaba-a": "GABRA1", "p14867": "GABRA1",
+    "hcrtr1": "HCRTR1", "orexin receptor": "HCRTR1",
+    # Metabolic & Endocrine
+    "insr": "INSR", "insulin receptor": "INSR", "p06213": "INSR",
+    "abcc8": "ABCC8", "sur1": "ABCC8", "katp": "ABCC8", "q09428": "ABCC8",
+    "glp1r": "GLP1R", "glucagon-like peptide 1 receptor": "GLP1R", "p43220": "GLP1R",
+    "slc5a2": "SLC5A2", "sglt2": "SLC5A2", "p31639": "SLC5A2",
+    "pparg": "PPARG", "peroxisome proliferator-activated receptor gamma": "PPARG", "p37231": "PPARG",
+    "ar": "AR", "androgen receptor": "AR", "p10275": "AR",
+    "ghr": "GHR", "growth hormone receptor": "GHR", "p10912": "GHR",
+    # Hemostasis & Coagulation
+    "f10": "F10", "coagulation factor x": "F10", "p00742": "F10",
+    "f2": "F2", "thrombin": "F2", "p00734": "F2",
+    "vkorc1": "VKORC1", "vitamin k epoxide reductase": "VKORC1", "q9bq51": "VKORC1",
+    "p2ry12": "P2RY12", "p2y12": "P2RY12", "q9h244": "P2RY12",
+    "ptgs1": "PTGS1", "cox-1": "PTGS1", "cyclooxygenase-1": "PTGS1", "p23219": "PTGS1",
+    "ptgs2": "PTGS2", "cox-2": "PTGS2", "cyclooxygenase-2": "PTGS2", "p35354": "PTGS2",
+}
 
 
 def _normalize_name(name: str | None) -> str:
     return str(name or "").strip().lower().replace("-", "_").replace(" ", "_")
 
 
+def _get_atc_prefixes(comp: Dict[str, Any]) -> Set[str]:
+    """Extracts a set of all uppercase ATC codes and their hierarchical prefixes."""
+    prefixes: Set[str] = set()
+    raw_codes: List[str] = []
+
+    ext = comp.get("external_ids") or {}
+    if isinstance(ext, dict):
+        raw_codes.extend(ext.get("atc_codes") or [])
+
+    for cat in comp.get("categories", []):
+        cat_str = str(cat).strip()
+        # ATC pattern: e.g. R03AC02, R03AC, C07AB12
+        match = re.match(r"^([A-Z][0-9]{2}[A-Z]?[A-Z]?[0-9]*)", cat_str, re.IGNORECASE)
+        if match:
+            raw_codes.append(match.group(1))
+
+    meta = comp.get("metadata") or {}
+    online = meta.get("online_enrichment") if isinstance(meta, dict) else {}
+    if isinstance(online, dict):
+        raw_codes.extend(online.get("atc_classes") or [])
+
+    for c in raw_codes:
+        clean = re.sub(r"[^A-Z0-9]", "", str(c).upper())
+        if clean:
+            for length in range(1, len(clean) + 1):
+                prefixes.add(clean[:length])
+
+    return prefixes
+
+
+def _get_target_gene_actions(comp: Dict[str, Any]) -> Dict[str, Set[ActionType]]:
+    """Standardizes compound receptor targets into a {GeneSymbol: {ActionType}} dictionary."""
+    gene_map: Dict[str, Set[ActionType]] = {}
+    for r in comp.get("receptor_targets", []):
+        if not isinstance(r, dict):
+            continue
+
+        target_name = str(r.get("target", "")).strip().lower()
+        target_id = str(r.get("target_id", "")).strip().lower()
+        accessions = str(r.get("accessions", "")).strip().lower()
+        action = normalize_action(r.get("action"))
+
+        # Resolve to standard gene symbol
+        matched_gene: Optional[str] = None
+        for syn, sym in _TARGET_GENE_SYNONYMS.items():
+            if syn in target_name or syn == target_id or syn in accessions:
+                matched_gene = sym
+                break
+
+        if not matched_gene and target_name:
+            try:
+                from app.services.pathway_service import PathwayService
+                meta = PathwayService().resolve_target_metadata(target_name)
+                if meta.get("symbol") and meta["symbol"] != "UNKNOWN":
+                    matched_gene = meta["symbol"]
+            except Exception:
+                pass
+
+        if matched_gene:
+            if matched_gene not in gene_map:
+                gene_map[matched_gene] = set()
+            gene_map[matched_gene].add(action)
+
+    return gene_map
+
+
+def _get_epc_classes(comp: Dict[str, Any]) -> Set[str]:
+    """Returns normalized uppercase FDA Established Pharmacologic Classes (EPC)."""
+    epcs: Set[str] = set()
+    meta = comp.get("metadata") or {}
+    online = meta.get("online_enrichment") if isinstance(meta, dict) else {}
+    if isinstance(online, dict):
+        for e in online.get("pharm_class_epc", []):
+            epcs.add(str(e).upper().replace(" ", "_").replace("-", "_"))
+    for c in comp.get("categories", []):
+        epcs.add(str(c).upper().replace(" ", "_").replace("-", "_"))
+    return epcs
+
+
+def _get_usan_stem(comp: Dict[str, Any]) -> str:
+    """Returns standardized lowercase USAN stem."""
+    stem = str(comp.get("usan_stem") or "").strip().lower()
+    if not stem:
+        meta = comp.get("metadata") or {}
+        chembl = meta.get("chembl") if isinstance(meta, dict) else {}
+        if isinstance(chembl, dict):
+            stem = str(chembl.get("usan_stem") or "").strip().lower()
+    return stem
+
+
 def _has_ontology_match(context: str, term: str) -> bool:
-    """
-    Checks if a pharmacological term or code matches in the ontology context.
-    Short acronyms (<= 4 characters, e.g. 'arb', 'ace', 'maoi', 'ssri', 'doac', 'tca', 'nsaid', 'katp', 'dora')
-    require word boundaries to avoid false substring collisions (e.g. 'narbivolol' or 'carbon' matching 'arb').
-    """
+    """Fallback textual match with exact word boundary protection for short acronyms."""
     clean_term = term.strip().lower()
     if not clean_term:
         return False
-
     if len(clean_term) <= 4 and clean_term.isalpha():
         return bool(re.search(rf"\b{re.escape(clean_term)}\b", context))
-
     return clean_term in context
 
 
@@ -29,7 +229,6 @@ def _has_any_ontology_match(context: str, terms: List[str]) -> bool:
 
 
 def _get_compound_pharmacology_tags(comp: Dict[str, Any]) -> str:
-    """Aggregates all formal structural pharmacology tags (EPC, PE, MOA, ATC, targets, drug_class) without indication pollution."""
     meta = comp.get("metadata") or {}
     online = meta.get("online_enrichment") if isinstance(meta, dict) else {}
     ext = comp.get("external_ids") or {}
@@ -62,7 +261,6 @@ def _get_compound_pharmacology_tags(comp: Dict[str, Any]) -> str:
 
 
 def _get_compound_ontology_tags(comp: Dict[str, Any]) -> str:
-    """Aggregates all ontology tags including pharmacology, names, and synonyms (excluding free-text disease indications)."""
     pharm_text = _get_compound_pharmacology_tags(comp)
     parts = [
         pharm_text,
@@ -76,24 +274,43 @@ def _get_compound_ontology_tags(comp: Dict[str, Any]) -> str:
 
 def _is_potassium_sparing_or_raas(comp: Dict[str, Any]) -> tuple[bool, str]:
     """Identify if a compound retains potassium or acts as a RAAS / aldosterone antagonist."""
+    targets = _get_target_gene_actions(comp)
+    atc = _get_atc_prefixes(comp)
+    usan = _get_usan_stem(comp)
     all_context = _get_compound_ontology_tags(comp)
 
-    if _has_any_ontology_match(all_context, ["sartan", "angiotensin 2 receptor blocker", "angiotensin ii receptor antagonist", "arb", "angiotensin receptor", "at1 receptor", "agtr1", "type-1 angiotensin", "c09ca", "c09c"]):
+    # 1. ARBs (Angiotensin II Receptor Blockers)
+    if ActionType.ANTAGONIST in targets.get("AGTR1", set()) or bool(atc & {"C09CA", "C09C"}) or usan.endswith("sartan") or _has_any_ontology_match(all_context, ["sartan", "angiotensin 2 receptor blocker", "angiotensin ii receptor antagonist", "arb", "agtr1"]):
         return True, "Angiotensin II Receptor Blocker (ARB)"
-    if _has_any_ontology_match(all_context, ["pril", "angiotensin-converting enzyme inhibitor", "ace inhibitor", "angiotensin-converting enzyme", "c09aa", "c09a"]):
+
+    # 2. ACE Inhibitors
+    if ActionType.INHIBITOR in targets.get("ACE", set()) or bool(atc & {"C09AA", "C09A"}) or usan.endswith("pril") or _has_any_ontology_match(all_context, ["pril", "angiotensin-converting enzyme inhibitor", "ace inhibitor"]):
         return True, "ACE Inhibitor"
-    if _has_any_ontology_match(all_context, ["aldosterone antagonist", "mineralocorticoid receptor antagonist", "mineralocorticoid antagonist", "renone", "spironolactone", "eplerenone", "finerenone", "nr3c2", "c03da", "c03d"]):
+
+    # 3. Mineralocorticoid / Aldosterone Antagonists (MRA)
+    if ActionType.ANTAGONIST in targets.get("NR3C2", set()) or bool(atc & {"C03DA", "C03D"}) or usan.endswith("renone") or _has_any_ontology_match(all_context, ["aldosterone antagonist", "mineralocorticoid receptor antagonist", "mineralocorticoid antagonist", "spironolactone", "eplerenone", "finerenone"]):
         return True, "Aldosterone / Mineralocorticoid Receptor Antagonist"
-    if _has_any_ontology_match(all_context, ["potassium-sparing", "potassium sparing", "triamterene", "amiloride", "enac inhibitor", "c03db"]):
+
+    # 4. Potassium-Sparing Diuretics
+    if ActionType.INHIBITOR in targets.get("ENAC", set()) or bool(atc & {"C03DB"}) or _has_any_ontology_match(all_context, ["potassium-sparing", "potassium sparing", "triamterene", "amiloride"]):
         return True, "Potassium-Sparing Diuretic"
-    if _has_any_ontology_match(all_context, ["potassium chloride", "potassium citrate", "potassium gluconate", "potassium supplement", "a12ba"]):
+
+    # 5. Potassium Supplements
+    if bool(atc & {"A12BA"}) or _has_any_ontology_match(all_context, ["potassium chloride", "potassium citrate", "potassium supplement"]):
         return True, "Potassium Supplement"
-    if _has_any_ontology_match(all_context, ["calcineurin inhibitor", "tacrolimus", "cyclosporine", "l04ad"]):
+
+    # 6. Calcineurin Inhibitors
+    if bool(atc & {"L04AD"}) or _has_any_ontology_match(all_context, ["calcineurin inhibitor", "tacrolimus", "cyclosporine"]):
         return True, "Calcineurin Inhibitor"
-    if _has_any_ontology_match(all_context, ["trimethoprim", "bactrim", "cotrimoxazole", "j01ea"]):
+
+    # 7. Trimethoprim
+    if bool(atc & {"J01EA"}) or _has_any_ontology_match(all_context, ["trimethoprim", "bactrim", "cotrimoxazole"]):
         return True, "Trimethoprim"
-    if _has_any_ontology_match(all_context, ["direct renin inhibitor", "renin inhibitor", "aliskiren", "c09xa"]):
+
+    # 8. Direct Renin Inhibitors
+    if ActionType.INHIBITOR in targets.get("RENIN", set()) or bool(atc & {"C09XA"}) or _has_any_ontology_match(all_context, ["direct renin inhibitor", "renin inhibitor", "aliskiren"]):
         return True, "Direct Renin Inhibitor"
+
     if _has_any_ontology_match(all_context, ["decreased renal potassium excretion"]):
         return True, "Potassium-Retaining Pharmacologic Agent"
 
@@ -101,28 +318,51 @@ def _is_potassium_sparing_or_raas(comp: Dict[str, Any]) -> tuple[bool, str]:
 
 
 def _is_pde5_inhibitor(comp: Dict[str, Any]) -> bool:
+    targets = _get_target_gene_actions(comp)
+    atc = _get_atc_prefixes(comp)
+    usan = _get_usan_stem(comp)
+    if ActionType.INHIBITOR in targets.get("PDE5A", set()) or bool(atc & {"G04BE"}) or usan.endswith("afil"):
+        return True
     all_context = _get_compound_ontology_tags(comp)
-    return _has_any_ontology_match(all_context, ["phosphodiesterase 5 inhibitor", "phosphodiesterase type 5 inhibitor", "pde5", "pde-5", "g04be", "tadalafil", "sildenafil", "vardenafil", "avanafil"])
+    return _has_any_ontology_match(all_context, ["phosphodiesterase 5 inhibitor", "phosphodiesterase type 5 inhibitor", "pde5", "pde-5", "tadalafil", "sildenafil", "vardenafil", "avanafil"])
 
 
 def _is_nitrate_donor(comp: Dict[str, Any]) -> bool:
+    atc = _get_atc_prefixes(comp)
+    if bool(atc & {"C01DA"}):
+        return True
     all_context = _get_compound_ontology_tags(comp)
-    return _has_any_ontology_match(all_context, ["organic nitrate", "nitrate vasodilator", "nitroglycerin", "isosorbide", "nitroprusside", "c01da", "nitric oxide donor"])
+    return _has_any_ontology_match(all_context, ["organic nitrate", "nitrate vasodilator", "nitroglycerin", "isosorbide", "nitroprusside", "nitric oxide donor"])
 
 
 def _is_alpha1_blocker(comp: Dict[str, Any]) -> bool:
+    targets = _get_target_gene_actions(comp)
+    atc = _get_atc_prefixes(comp)
+    usan = _get_usan_stem(comp)
+    if ActionType.ANTAGONIST in targets.get("ADRA1A", set()) or bool(atc & {"C02CA", "G04CA"}) or usan.endswith("azosin") or usan.endswith("ulosin"):
+        return True
     all_context = _get_compound_ontology_tags(comp)
-    return _has_any_ontology_match(all_context, ["alpha-1 blocker", "alpha 1 blocker", "alpha-adrenoreceptor antagonist", "prazosin", "doxazosin", "terazosin", "tamsulosin", "alfuzosin", "c02ca", "g04ca", "adra1a"])
+    return _has_any_ontology_match(all_context, ["alpha-1 blocker", "alpha 1 blocker", "alpha-adrenoreceptor antagonist", "prazosin", "doxazosin", "terazosin", "tamsulosin", "alfuzosin"])
 
 
 def _is_beta_blocker(comp: Dict[str, Any]) -> bool:
+    targets = _get_target_gene_actions(comp)
+    atc = _get_atc_prefixes(comp)
+    usan = _get_usan_stem(comp)
+    if ActionType.ANTAGONIST in (targets.get("ADRB1", set()) | targets.get("ADRB2", set())):
+        return True
+    if bool(atc & {"C07AA", "C07AB", "C07AG", "C07A", "C07"}) or (usan.endswith("lol") and not usan.endswith("terol")):
+        return True
     all_context = _get_compound_ontology_tags(comp)
-    return _has_any_ontology_match(all_context, ["beta-adrenergic blocker", "beta blocker", "beta-blocker", "c07aa", "c07ab", "c07ag", "c07", "olol", "propranolol", "metoprolol", "atenolol", "bisoprolol", "carvedilol", "nebivolol", "adrb1", "adrb2"])
+    return _has_any_ontology_match(all_context, ["beta-adrenergic blocker", "beta blocker", "beta-blocker", "propranolol", "metoprolol", "atenolol", "bisoprolol", "carvedilol", "nebivolol"])
 
 
 def _is_non_dhp_ccb_or_digoxin(comp: Dict[str, Any]) -> bool:
+    atc = _get_atc_prefixes(comp)
+    if bool(atc & {"C08DB", "C08DA", "C01AA"}):
+        return True
     all_context = _get_compound_ontology_tags(comp)
-    return _has_any_ontology_match(all_context, ["non-dihydropyridine", "calcium channel blocker (phenylalkylamine)", "calcium channel blocker (benzothiazepine)", "verapamil", "diltiazem", "digoxin", "c08db", "c08da", "c01aa", "cacna1c"])
+    return _has_any_ontology_match(all_context, ["non-dihydropyridine", "verapamil", "diltiazem", "digoxin"])
 
 
 def _is_potent_hypoglycemic(comp: Dict[str, Any]) -> tuple[bool, str, str]:
@@ -132,120 +372,257 @@ def _is_potent_hypoglycemic(comp: Dict[str, Any]) -> tuple[bool, str, str]:
     - MODERATE_SENSITIZER: GLP-1 (A10BJ), SGLT2 (A10BK), DPP-4 (A10BH), Biguanides (A10BA), Berberine, TZDs (A10BG). Glucose-dependent action.
     - METABOLIC_MODULATOR: Androgens (G03B), Growth Hormone (H01A). Long-term nutrient partitioning and metabolic modulation.
     """
+    targets = _get_target_gene_actions(comp)
+    atc = _get_atc_prefixes(comp)
     pharm = _get_compound_pharmacology_tags(comp)
 
     # 1. High-Potency Hypoglycemic Secretagogues & Exogenous Insulins
-    if _has_any_ontology_match(pharm, ["insulin agonist", "a10a", "insulin human", "insulin glargine", "insulin lispro", "insulin aspart", "insulin degludec", "insulin detemir"]):
+    if ActionType.AGONIST in targets.get("INSR", set()) or bool(atc & {"A10A"}) or _has_any_ontology_match(pharm, ["insulin agonist", "insulin human", "insulin glargine", "insulin lispro", "insulin aspart", "insulin degludec", "insulin detemir"]):
         return True, "Exogenous Insulin Agonist", "HIGH_POTENCY_SECRETAGOGUE"
-    if _has_any_ontology_match(pharm, ["sulfonylurea", "a10bb", "glimepiride", "glipizide", "glyburide", "gliclazide", "katp", "abcc8", "kcnj11"]):
+    if ActionType.INHIBITOR in targets.get("ABCC8", set()) or bool(atc & {"A10BB"}) or _has_any_ontology_match(pharm, ["sulfonylurea", "glimepiride", "glipizide", "glyburide", "gliclazide", "katp", "abcc8", "kcnj11"]):
         return True, "Sulfonylurea (KATP Blocker)", "HIGH_POTENCY_SECRETAGOGUE"
-    if _has_any_ontology_match(pharm, ["meglitinide", "a10bx", "repaglinide", "nateglinide"]):
+    if bool(atc & {"A10BX"}) or _has_any_ontology_match(pharm, ["meglitinide", "repaglinide", "nateglinide"]):
         return True, "Meglitinide Secretagogue", "HIGH_POTENCY_SECRETAGOGUE"
 
     # 2. Incretins, SGLT2, & Sensitizers
-    if _has_any_ontology_match(pharm, ["glucagon-like peptide", "glp-1 receptor agonist", "glp1r", "a10bj", "semaglutide", "tirzepatide", "liraglutide", "dulaglutide"]):
+    if ActionType.AGONIST in targets.get("GLP1R", set()) or bool(atc & {"A10BJ"}) or _has_any_ontology_match(pharm, ["glucagon-like peptide", "glp-1 receptor agonist", "glp1r", "semaglutide", "tirzepatide", "liraglutide", "dulaglutide"]):
         return True, "GLP-1 Receptor Agonist", "MODERATE_SENSITIZER"
-    if _has_any_ontology_match(pharm, ["sglt2 inhibitor", "sodium-glucose cotransporter 2 inhibitor", "slc5a2", "a10bk", "empagliflozin", "dapagliflozin", "canagliflozin", "flozin"]):
+    if ActionType.INHIBITOR in targets.get("SLC5A2", set()) or bool(atc & {"A10BK"}) or _has_any_ontology_match(pharm, ["sglt2 inhibitor", "sodium-glucose cotransporter 2 inhibitor", "slc5a2", "empagliflozin", "dapagliflozin", "canagliflozin", "flozin"]):
         return True, "SGLT2 Inhibitor", "MODERATE_SENSITIZER"
-    if _has_any_ontology_match(pharm, ["biguanide", "a10ba", "metformin", "berberine", "ampk activator"]):
+    if bool(atc & {"A10BA"}) or _has_any_ontology_match(pharm, ["biguanide", "metformin", "berberine", "ampk activator"]):
         return True, "Biguanide / AMPK Activator", "MODERATE_SENSITIZER"
-    if _has_any_ontology_match(pharm, ["dipeptidyl peptidase 4 inhibitor", "dpp-4 inhibitor", "a10bh", "sitagliptin", "linagliptin", "saxagliptin"]):
+    if bool(atc & {"A10BH"}) or _has_any_ontology_match(pharm, ["dipeptidyl peptidase 4 inhibitor", "dpp-4 inhibitor", "sitagliptin", "linagliptin", "saxagliptin"]):
         return True, "DPP-4 Inhibitor", "MODERATE_SENSITIZER"
-    if _has_any_ontology_match(pharm, ["thiazolidinedione", "a10bg", "pioglitazone"]):
+    if ActionType.AGONIST in targets.get("PPARG", set()) or bool(atc & {"A10BG"}) or _has_any_ontology_match(pharm, ["thiazolidinedione", "pioglitazone"]):
         return True, "Thiazolidinedione (PPAR-gamma Agonist)", "MODERATE_SENSITIZER"
     if _has_any_ontology_match(pharm, ["decreased blood glucose"]):
         return True, "Glucose-Lowering Agent", "MODERATE_SENSITIZER"
 
     # 3. Hormonal Metabolic Modulators
-    is_androgen = _has_any_ontology_match(pharm, ["androgen", "g03ba", "g03b", "androgen receptor agonist", "ar agonist"])
-    is_gh = _has_any_ontology_match(pharm, ["somatropin", "growth hormone receptor agonist", "h01ac", "h01a", "ghr"])
-    if is_androgen:
+    if ActionType.AGONIST in targets.get("AR", set()) or bool(atc & {"G03BA", "G03B"}) or _has_any_ontology_match(pharm, ["androgen", "androgen receptor agonist", "ar agonist"]):
         return False, "Androgen (Mild Peripheral Insulin Sensitizer)", "METABOLIC_MODULATOR"
-    if is_gh:
+    if ActionType.AGONIST in targets.get("GHR", set()) or bool(atc & {"H01AC", "H01A"}) or _has_any_ontology_match(pharm, ["somatropin", "growth hormone receptor agonist", "ghr"]):
         return False, "Growth Hormone (Hepatic Lipolytic Modulator)", "METABOLIC_MODULATOR"
 
     return False, "", ""
 
 
 def _is_anticholinergic_agent(comp: Dict[str, Any]) -> bool:
+    targets = _get_target_gene_actions(comp)
+    atc = _get_atc_prefixes(comp)
+    chrm_actions = targets.get("CHRM1", set()) | targets.get("CHRM2", set()) | targets.get("CHRM3", set()) | targets.get("CHRM", set())
+    if ActionType.ANTAGONIST in chrm_actions or bool(atc & {"R06AA", "G04BD", "N06AA"}):
+        return True
     all_context = _get_compound_ontology_tags(comp)
-    return _has_any_ontology_match(all_context, ["anticholinergic", "antimuscarinic", "muscarinic acetylcholine receptor antagonist", "diphenhydramine", "hydroxyzine", "amitriptyline", "nortriptyline", "oxybutynin", "tolterodine", "cyclobenzaprine", "scopolamine", "r06aa", "g04bd", "n06aa", "chrm1", "chrm2", "chrm3", "chrm4", "chrm5"])
+    return _has_any_ontology_match(all_context, ["anticholinergic", "antimuscarinic", "muscarinic acetylcholine receptor antagonist", "diphenhydramine", "hydroxyzine", "amitriptyline", "nortriptyline", "oxybutynin", "tolterodine", "cyclobenzaprine", "scopolamine"])
 
 
 def _is_direct_nephrotoxic(comp: Dict[str, Any]) -> bool:
+    atc = _get_atc_prefixes(comp)
+    if bool(atc & {"M01AE", "M01AB", "M01A", "J01GB", "J01XA"}):
+        return True
     all_context = _get_compound_ontology_tags(comp)
-    return _has_any_ontology_match(all_context, ["aminoglycoside", "gentamicin", "tobramycin", "amikacin", "vancomycin", "glycopeptide antibiotic", "cisplatin", "amphotericin", "tacrolimus", "cyclosporine", "nsaid", "non-steroidal anti-inflammatory drug", "m01ae", "m01ab", "m01a", "j01gb", "j01xa"])
+    return _has_any_ontology_match(all_context, ["aminoglycoside", "gentamicin", "tobramycin", "amikacin", "vancomycin", "glycopeptide antibiotic", "cisplatin", "amphotericin", "tacrolimus", "cyclosporine", "nsaid", "non-steroidal anti-inflammatory drug"])
 
 
 def _is_qtc_prolonging_agent(comp: Dict[str, Any]) -> tuple[bool, str]:
-    all_context = _get_compound_ontology_tags(comp)
-    if _has_any_ontology_match(all_context, ["kcnh2", "herg", "delayed rectifier", "potassium voltage-gated", "antiarrhythmic", "c01b", "c01ba", "c01bb", "c01bc", "c01bd"]):
+    targets = _get_target_gene_actions(comp)
+    atc = _get_atc_prefixes(comp)
+    if ActionType.INHIBITOR in targets.get("KCNH2", set()) or ActionType.ANTAGONIST in targets.get("KCNH2", set()) or bool(atc & {"C01B", "C01BA", "C01BB", "C01BC", "C01BD"}):
         return True, "Antiarrhythmic / hERG Channel Modulator"
-    if _has_any_ontology_match(all_context, ["delayed cardiac repolarization", "prolonged qtc interval", "prolongation of the qt interval"]):
-        return True, "QTc Prolonging Pharmacologic Agent"
-    if _has_any_ontology_match(all_context, ["antipsychotic", "phenothiazine", "butyrophenone", "n05a", "haloperidol", "thioridazine", "ziprasidone", "quetiapine"]):
+    if bool(atc & {"N05A"}):
         return True, "Antipsychotic (hERG Affinity)"
-    if _has_any_ontology_match(all_context, ["fluoroquinolone", "j01ma", "ciprofloxacin", "levofloxacin", "moxifloxacin"]):
+    if bool(atc & {"J01MA"}):
         return True, "Fluoroquinolone (hERG Blocker)"
-    if _has_any_ontology_match(all_context, ["macrolide", "j01fa", "erythromycin", "azithromycin", "clarithromycin"]):
+    if bool(atc & {"J01FA"}):
         return True, "Macrolide (hERG Blocker)"
-    if _has_any_ontology_match(all_context, ["5-ht3 receptor antagonist", "ondansetron", "granisetron", "a04aa"]):
+    if bool(atc & {"A04AA"}):
         return True, "5-HT3 Receptor Antagonist"
+
+    all_context = _get_compound_ontology_tags(comp)
+    if _has_any_ontology_match(all_context, ["kcnh2", "herg", "delayed rectifier", "potassium voltage-gated", "delayed cardiac repolarization", "prolonged qtc interval", "prolongation of the qt interval"]):
+        return True, "QTc Prolonging Pharmacologic Agent"
     return False, ""
 
 
 def _is_antithrombotic_or_anticoagulant(comp: Dict[str, Any]) -> tuple[bool, str]:
+    targets = _get_target_gene_actions(comp)
+    atc = _get_atc_prefixes(comp)
+    epc = _get_epc_classes(comp)
     all_context = _get_compound_ontology_tags(comp)
-    if _has_any_ontology_match(all_context, ["direct oral anticoagulant", "doac", "factor xa inhibitor", "b01af", "apixaban", "rivaroxaban", "edoxaban"]):
+
+    # 1. Factor Xa Inhibitors (DOACs)
+    if ActionType.INHIBITOR in targets.get("F10", set()) or bool(atc & {"B01AF"}) or any("FACTOR_XA" in e for e in epc) or _has_any_ontology_match(all_context, ["direct oral anticoagulant", "doac", "factor xa inhibitor", "apixaban", "rivaroxaban", "edoxaban"]):
         return True, "Factor Xa Inhibitor (DOAC)"
-    if _has_any_ontology_match(all_context, ["direct thrombin inhibitor", "b01ae", "dabigatran", "argatroban", "bivalirudin"]):
+
+    # 2. Direct Thrombin Inhibitors
+    if ActionType.INHIBITOR in targets.get("F2", set()) or bool(atc & {"B01AE"}) or any("DIRECT_THROMBIN" in e for e in epc) or _has_any_ontology_match(all_context, ["direct thrombin inhibitor", "dabigatran", "argatroban", "bivalirudin"]):
         return True, "Direct Thrombin Inhibitor"
-    if _has_any_ontology_match(all_context, ["vitamin k antagonist", "coumarin", "b01aa", "warfarin"]):
+
+    # 3. Vitamin K Antagonists
+    if ActionType.INHIBITOR in targets.get("VKORC1", set()) or bool(atc & {"B01AA"}) or any("VITAMIN_K_ANTAGONIST" in e for e in epc) or _has_any_ontology_match(all_context, ["vitamin k antagonist", "coumarin", "warfarin"]):
         return True, "Vitamin K Antagonist (Warfarin)"
-    if _has_any_ontology_match(all_context, ["heparin", "low molecular weight heparin", "lmwh", "b01ab", "enoxaparin", "fondaparinux"]):
+
+    # 4. Heparins / LMWH
+    if bool(atc & {"B01AB"}) or any("HEPARIN" in e for e in epc) or _has_any_ontology_match(all_context, ["heparin", "low molecular weight heparin", "lmwh", "enoxaparin", "fondaparinux"]):
         return True, "Heparin / LMWH"
-    if _has_any_ontology_match(all_context, ["platelet aggregation inhibitor", "p2y12", "b01ac", "clopidogrel", "ticagrelor", "prasugrel", "aspirin", "acetylsalicylic acid"]):
+
+    # 5. Platelet Antiaggregants
+    if ActionType.ANTAGONIST in targets.get("P2RY12", set()) or ActionType.INHIBITOR in targets.get("PTGS1", set()) or bool(atc & {"B01AC"}) or any("PLATELET_AGGREGATION_INHIBITOR" in e or "P2Y12" in e for e in epc) or _has_any_ontology_match(all_context, ["platelet aggregation inhibitor", "p2y12", "clopidogrel", "ticagrelor", "prasugrel", "aspirin", "acetylsalicylic acid"]):
         return True, "Platelet Antiaggregant"
-    if _has_any_ontology_match(all_context, ["non-steroidal anti-inflammatory drug", "nsaid", "m01a", "m01ae", "ibuprofen", "naproxen", "ketorolac", "indomethacin"]):
+
+    # 6. NSAIDs
+    if bool(atc & {"M01A", "M01AE"}) or any("NONSTEROIDAL_ANTI_INFLAMMATORY" in e or "NSAID" in e for e in epc) or _has_any_ontology_match(all_context, ["non-steroidal anti-inflammatory drug", "nsaid", "ibuprofen", "naproxen", "ketorolac", "indomethacin"]):
         return True, "NSAID (COX-1 Platelet Suppressor)"
-    if _has_any_ontology_match(all_context, ["selective serotonin reuptake inhibitor", "ssri", "n06ab"]):
+
+    # 7. SSRIs
+    if ActionType.INHIBITOR in targets.get("SLC6A4", set()) or bool(atc & {"N06AB"}) or any("SEROTONIN_REUPTAKE_INHIBITOR" in e for e in epc) or _has_any_ontology_match(all_context, ["selective serotonin reuptake inhibitor", "ssri"]):
         return True, "SSRI (Platelet Serotonin Depletor)"
+
     if _has_any_ontology_match(all_context, ["inhibition of blood coagulation", "decreased platelet aggregation"]):
         return True, "Hemostasis-Impairing Agent"
+
     return False, ""
 
 
 def _is_serotonergic_agent(comp: Dict[str, Any]) -> tuple[bool, str]:
+    targets = _get_target_gene_actions(comp)
+    atc = _get_atc_prefixes(comp)
+    epc = _get_epc_classes(comp)
     all_context = _get_compound_ontology_tags(comp)
-    if _has_any_ontology_match(all_context, ["monoamine oxidase inhibitor", "maoi", "n06af", "n06ag", "phenelzine", "tranylcypromine", "selegiline", "moclobemide", "linezolid", "methylene blue"]):
+
+    # 1. MAOIs
+    if ActionType.INHIBITOR in (targets.get("MAOA", set()) | targets.get("MAOB", set())) or bool(atc & {"N06AF", "N06AG"}) or any("MONOAMINE_OXIDASE_INHIBITOR" in e for e in epc) or _has_any_ontology_match(all_context, ["monoamine oxidase inhibitor", "maoi", "phenelzine", "tranylcypromine", "selegiline", "moclobemide", "linezolid", "methylene blue"]):
         return True, "Monoamine Oxidase Inhibitor (MAOI)"
-    if _has_any_ontology_match(all_context, ["selective serotonin reuptake inhibitor", "ssri", "n06ab"]):
+
+    # 2. SSRIs
+    if ActionType.INHIBITOR in targets.get("SLC6A4", set()) or bool(atc & {"N06AB"}) or any("SEROTONIN_REUPTAKE_INHIBITOR" in e for e in epc) or _has_any_ontology_match(all_context, ["selective serotonin reuptake inhibitor", "ssri", "fluoxetine", "sertraline", "paroxetine", "citalopram", "escitalopram"]):
         return True, "Selective Serotonin Reuptake Inhibitor (SSRI)"
-    if _has_any_ontology_match(all_context, ["serotonin-norepinephrine reuptake inhibitor", "snri", "n06ax", "venlafaxine", "duloxetine", "desvenlafaxine"]):
+
+    # 3. SNRIs
+    if bool(atc & {"N06AX"}) or any("SEROTONIN_NOREPINEPHRINE_REUPTAKE_INHIBITOR" in e for e in epc) or _has_any_ontology_match(all_context, ["serotonin-norepinephrine reuptake inhibitor", "snri", "venlafaxine", "duloxetine", "desvenlafaxine"]):
         return True, "Serotonin-Norepinephrine Reuptake Inhibitor (SNRI)"
-    if _has_any_ontology_match(all_context, ["tricyclic antidepressant", "tca", "n06aa", "amitriptyline", "clomipramine", "imipramine"]):
+
+    # 4. TCAs
+    if bool(atc & {"N06AA"}) or any("TRICYCLIC_ANTIDEPRESSANT" in e for e in epc) or _has_any_ontology_match(all_context, ["tricyclic antidepressant", "tca", "amitriptyline", "clomipramine", "imipramine"]):
         return True, "Tricyclic Antidepressant (TCA)"
-    if _has_any_ontology_match(all_context, ["triptan", "5-ht1b/1d agonist", "n02cc", "sumatriptan", "zolmitriptan", "rizatriptan"]):
+
+    # 5. Triptans (5-HT1B/1D agonists)
+    if ActionType.AGONIST in (targets.get("HTR1B", set()) | targets.get("HTR1D", set())) or bool(atc & {"N02CC"}) or any("TRIPTAN" in e for e in epc) or _has_any_ontology_match(all_context, ["triptan", "5-ht1b/1d agonist", "sumatriptan", "zolmitriptan", "rizatriptan"]):
         return True, "5-HT1 Receptor Agonist (Triptan)"
-    if _has_any_ontology_match(all_context, ["tramadol", "meperidine", "methadone", "fentanyl", "dextromethorphan", "st. john's wort", "hypericum", "slc6a4"]):
+
+    # 6. Modulators / Releasers
+    if _has_any_ontology_match(all_context, ["tramadol", "meperidine", "methadone", "fentanyl", "dextromethorphan", "st. john's wort", "hypericum", "slc6a4", "5-ht reuptake inhibitor", "serotonin releaser"]):
         return True, "Serotonin-Releasing / Reuptake Modulating Agent"
+
     return False, ""
 
 
 def _is_cns_sedative_or_opioid(comp: Dict[str, Any]) -> tuple[bool, str]:
+    targets = _get_target_gene_actions(comp)
+    atc = _get_atc_prefixes(comp)
+    epc = _get_epc_classes(comp)
     all_context = _get_compound_ontology_tags(comp)
-    if _has_any_ontology_match(all_context, ["opioid receptor agonist", "opioid", "n02a", "morphine", "oxycodone", "fentanyl", "hydromorphone", "buprenorphine", "methadone", "codeine", "oprm1"]):
+
+    # 1. Opioids
+    if ActionType.AGONIST in targets.get("OPRM1", set()) or bool(atc & {"N02A"}) or any("OPIOID" in e for e in epc) or _has_any_ontology_match(all_context, ["opioid receptor agonist", "opioid", "morphine", "oxycodone", "fentanyl", "hydromorphone", "buprenorphine", "methadone", "codeine", "oprm1"]):
         return True, "Opioid Agonist"
-    if _has_any_ontology_match(all_context, ["benzodiazepine", "n05ba", "n05cd", "diazepam", "alprazolam", "lorazepam", "clonazepam", "midazolam", "gabra1"]):
+
+    # 2. Benzodiazepines
+    if ActionType.PAM in targets.get("GABRA1", set()) or bool(atc & {"N05BA", "N05CD"}) or any("BENZODIAZEPINE" in e for e in epc) or _has_any_ontology_match(all_context, ["benzodiazepine", "diazepam", "alprazolam", "lorazepam", "clonazepam", "midazolam", "gabra1"]):
         return True, "Benzodiazepine (GABA-A PAM)"
-    if _has_any_ontology_match(all_context, ["z-drug", "gaba-a receptor positive allosteric modulator", "n05cf", "zolpidem", "zopiclone", "eszopiclone"]):
+
+    # 3. Z-Drugs
+    if bool(atc & {"N05CF"}) or any("GABA_A_RECEPTOR_POSITIVE_ALLOSTERIC_MODULATOR" in e for e in epc) or _has_any_ontology_match(all_context, ["z-drug", "gaba-a receptor positive allosteric modulator", "zolpidem", "zopiclone", "eszopiclone"]):
         return True, "Non-Benzodiazepine Hypnotic (Z-Drug)"
-    if _has_any_ontology_match(all_context, ["barbiturate", "n03aa", "phenobarbital"]):
+
+    # 4. Barbiturates
+    if bool(atc & {"N03AA"}) or any("BARBITURATE" in e for e in epc) or _has_any_ontology_match(all_context, ["barbiturate", "phenobarbital"]):
         return True, "Barbiturate"
-    if _has_any_ontology_match(all_context, ["dual orexin receptor antagonist", "dora", "n05cm", "suvorexant", "lemborexant"]):
+
+    # 5. Orexin Antagonists
+    if ActionType.ANTAGONIST in targets.get("HCRTR1", set()) or bool(atc & {"N05CM"}) or any("OREXIN_RECEPTOR_ANTAGONIST" in e for e in epc) or _has_any_ontology_match(all_context, ["dual orexin receptor antagonist", "dora", "suvorexant", "lemborexant"]):
         return True, "Orexin Receptor Antagonist"
-    if _has_any_ontology_match(all_context, ["first-generation antihistamine", "h1 inverse agonist", "r06aa", "r06ab", "diphenhydramine", "hydroxyzine", "promethazine", "doxylamine"]):
+
+    # 6. Sedating Antihistamines
+    if bool(atc & {"R06AA", "R06AB"}) or _has_any_ontology_match(all_context, ["first-generation antihistamine", "h1 inverse agonist", "diphenhydramine", "hydroxyzine", "promethazine", "doxylamine"]):
         return True, "Sedating Antihistamine (H1/Muscarinic Blocker)"
+
+    if _has_any_ontology_match(all_context, ["opioid receptor agonist", "benzodiazepine", "z-drug", "barbiturate", "dual orexin receptor antagonist"]):
+        return True, "CNS Sedative"
+
+    return False, ""
+
+
+def _is_beta_agonist(comp: Dict[str, Any]) -> tuple[bool, str]:
+    """Identify if a compound is a Beta-1 / Beta-2 adrenergic receptor agonist or sympathomimetic bronchodilator."""
+    if _is_beta_blocker(comp):
+        return False, ""
+
+    targets = _get_target_gene_actions(comp)
+    atc = _get_atc_prefixes(comp)
+    usan = _get_usan_stem(comp)
+
+    if ActionType.AGONIST in (targets.get("ADRB1", set()) | targets.get("ADRB2", set())):
+        return True, "Beta-Adrenergic Receptor Agonist"
+    if bool(atc & {"R03AC", "R03CC", "R03A", "R03C", "C01CA"}) or usan.endswith("terol"):
+        return True, "Beta-Adrenergic Receptor Agonist"
+
+    all_context = _get_compound_ontology_tags(comp)
+    if _has_any_ontology_match(all_context, ["beta-2 adrenergic receptor agonist", "beta-2 agonist", "beta-1 agonist", "beta-adrenergic agonist", "adrb2 agonist", "adrb1 agonist"]):
+        return True, "Beta-Adrenergic Receptor Agonist"
+
+    return False, ""
+
+
+def _is_alpha2_antagonist(comp: Dict[str, Any]) -> tuple[bool, str]:
+    """Identify if a compound is an Alpha-2 adrenergic receptor antagonist (presynaptic autoreceptor blocker)."""
+    targets = _get_target_gene_actions(comp)
+    atc = _get_atc_prefixes(comp)
+    if ActionType.ANTAGONIST in (targets.get("ADRA2A", set()) | targets.get("ADRA2B", set()) | targets.get("ADRA2C", set())):
+        return True, "Alpha-2 Adrenergic Antagonist (Presynaptic Autoreceptor Blocker)"
+    if bool(atc & {"C02CA"}):
+        return True, "Alpha-2 Adrenergic Antagonist (Presynaptic Autoreceptor Blocker)"
+
+    all_context = _get_compound_ontology_tags(comp)
+    if _has_any_ontology_match(all_context, ["alpha-2 adrenergic receptor antagonist", "alpha-2 antagonist", "alpha 2 blocker", "adra2a antagonist", "adra2", "yohimbine", "rauwolscine", "idazoxan", "atipamezole"]):
+        return True, "Alpha-2 Adrenergic Antagonist (Presynaptic Autoreceptor Blocker)"
+    return False, ""
+
+
+def _is_adenosine_antagonist_or_pde_inhibitor(comp: Dict[str, Any]) -> tuple[bool, str]:
+    """Identify if a compound is an Adenosine A1/A2A antagonist or non-selective phosphodiesterase inhibitor."""
+    targets = _get_target_gene_actions(comp)
+    atc = _get_atc_prefixes(comp)
+    usan = _get_usan_stem(comp)
+    if ActionType.ANTAGONIST in (targets.get("ADORA1", set()) | targets.get("ADORA2A", set())) or ActionType.INHIBITOR in targets.get("PDE_NONSPECIFIC", set()):
+        return True, "Adenosine Antagonist / Phosphodiesterase Inhibitor"
+    if bool(atc & {"R03DA", "N06BC"}) or usan.endswith("phylline"):
+        return True, "Adenosine Antagonist / Phosphodiesterase Inhibitor"
+
+    all_context = _get_compound_ontology_tags(comp)
+    if _has_any_ontology_match(all_context, ["adenosine receptor antagonist", "adenosine a1", "adenosine a2a", "methylxanthine", "caffeine", "theophylline", "aminophylline", "enprofylline", "xanthine phosphodiesterase"]):
+        return True, "Adenosine Antagonist / Phosphodiesterase Inhibitor"
+    return False, ""
+
+
+def _is_sympathomimetic_stimulant(comp: Dict[str, Any]) -> tuple[bool, str]:
+    """Identify if a compound is a direct or indirect sympathomimetic or psychostimulant."""
+    if _is_beta_blocker(comp):
+        return False, ""
+
+    atc = _get_atc_prefixes(comp)
+    usan = _get_usan_stem(comp)
+    if bool(atc & {"N06BA", "R01BA"}) or usan.endswith("fedrine") or usan.endswith("phrine") or usan.endswith("fetamine") or usan.endswith("phenidate"):
+        return True, "Sympathomimetic Stimulant"
+
+    burdens = comp.get("organ_burdens", {}) or {}
+    if str(burdens.get("cns_stimulant", "none")).lower() in {"moderate", "high"}:
+        return True, "CNS Stimulant"
+
+    all_context = _get_compound_ontology_tags(comp)
+    if _has_any_ontology_match(all_context, ["sympathomimetic", "ephedrine", "pseudoephedrine", "synephrine", "phenylephrine", "amphetamine", "dextroamphetamine", "methylphenidate", "modafinil", "armodafinil", "phentermine"]):
+        return True, "Sympathomimetic Stimulant"
     return False, ""
 
 
@@ -302,6 +679,17 @@ class InteractionEngine:
                 },
                 "conflict_count": 0,
                 "synergy_count": 0,
+                "full_stack_balance": {
+                    "health_index": 100,
+                    "status": "EMPTY",
+                    "status_label": "No Active Compounds",
+                    "axes": [],
+                    "active_mitigations": [],
+                    "uncompensated_risks": [],
+                    "dose_recommendations": [],
+                    "cascade_biomarker_shifts": [],
+                    "target_combined_effects": {},
+                },
             }
 
         profile_data = profile or {}
@@ -334,6 +722,59 @@ class InteractionEngine:
         # Lipids & Glycemia
         ldl_mg_dl = labs.get("ldl_mg_dl") if labs.get("ldl_mg_dl") is not None else 100.0
         hba1c_pct = labs.get("hba1c_pct") if labs.get("hba1c_pct") is not None else 5.2
+
+        # ---------------------------------------------------------
+        # 0. CANONICAL ENTITY RESOLUTION & DOSE AGGREGATION
+        # ---------------------------------------------------------
+        cat_service = CatalogService()
+        compounds = cat_service.canonicalize_and_merge_stack(compounds)
+
+        # ---------------------------------------------------------
+        # 1. UNIFIED GRAPH CASCADE & COMBINED EFFECTS SIMULATION
+        # ---------------------------------------------------------
+        from app.services.graph_service import (
+            build_selected_compound_graph,
+            compute_target_combined_effects,
+            resolve_stack_to_catalog_keys,
+            parse_compound_spec,
+            canonicalize_match_token,
+        )
+
+        stack_specs: List[str] = []
+        custom_doses: Dict[str, float] = {}
+        for c in compounds:
+            k = str(c.get("key") or c.get("name") or "").strip()
+            if not k:
+                continue
+            dose_val = c.get("dose") if c.get("dose") is not None else c.get("dose_mg")
+            unit_val = str(c.get("unit") or "mg").strip()
+            if dose_val is not None:
+                spec_str = f"{k}:{dose_val}{unit_val}"
+                stack_specs.append(spec_str)
+                parsed = parse_compound_spec(spec_str)
+                custom_doses[k.lower()] = parsed["dose_mg"]
+                custom_doses[canonicalize_match_token(k)] = parsed["dose_mg"]
+            else:
+                stack_specs.append(k)
+
+        graph = build_selected_compound_graph(stack_specs)
+        combined_effects = compute_target_combined_effects(graph, custom_doses=custom_doses)
+        resolved_keys = resolve_stack_to_catalog_keys(stack_specs)
+        cascade_results = graph.propagate_cascade(resolved_keys or stack_specs, combined_effects=combined_effects)
+
+        # ---------------------------------------------------------
+        # 2. HOLISTIC FULL STACK BALANCE EVALUATION
+        # ---------------------------------------------------------
+        full_stack_balance = self._evaluate_full_stack_balance(
+            compounds=compounds,
+            profile_data=profile_data,
+            cascade_results=cascade_results,
+            combined_effects=combined_effects,
+            graph=graph,
+        )
+
+        active_mitigations = full_stack_balance.get("active_mitigations", [])
+        uncompensated_risks = full_stack_balance.get("uncompensated_risks", [])
 
         n = len(compounds)
         matrix: List[List[Dict[str, Any]]] = []
@@ -369,7 +810,6 @@ class InteractionEngine:
                 val = str(burdens.get(organ, "none")).lower()
                 organ_scores[organ] += weight.get(val, 0)
 
-            # Narrow therapeutic index adds baseline vigilance
             if comp.get("is_narrow_therapeutic_index"):
                 total_risk_points += 10.0
 
@@ -404,6 +844,21 @@ class InteractionEngine:
                     continue
 
                 cell_result = self._evaluate_pair(comp_a, comp_b, profile_data)
+
+                # Check if this pair participates in an active stack-level mitigation
+                matched_mitigation = next(
+                    (
+                        m for m in active_mitigations
+                        if any(key_a in p.lower() or name_a.lower() in p.lower() for p in m.get("participating_compounds", []))
+                        and any(key_b in p.lower() or name_b.lower() in p.lower() for p in m.get("participating_compounds", []))
+                    ),
+                    None,
+                )
+
+                if matched_mitigation:
+                    cell_result["is_mitigated_by_stack"] = True
+                    cell_result["mitigation_summary"] = matched_mitigation["description"]
+
                 row.append(cell_result)
 
                 if i < j:
@@ -429,12 +884,40 @@ class InteractionEngine:
             syndrome_alerts.append(syn)
             total_risk_points += syn["severity_score"]
 
-        # Dynamic Biomarker Vector Convergence Evaluator (from Knowledge Graph cascade simulation)
+        # Dynamic Biomarker Vector Convergence Evaluator
         vector_alerts = self._evaluate_biomarker_vector_convergence(compounds, labs)
         for valert in vector_alerts:
-            if not any(valert.get("syndrome") == s.get("syndrome") or valert.get("title") == s.get("title") for s in syndrome_alerts):
-                syndrome_alerts.append(valert)
-                total_risk_points += valert["severity_score"]
+            # Check if this alert was successfully counterbalanced by full stack balance
+            is_mitigated = False
+            if "blood pressure" in str(valert.get("title", "")).lower() or "hypertensive" in str(valert.get("title", "")).lower():
+                bp_axis = next((a for a in full_stack_balance.get("axes", []) if a.get("biomarker_id") == "bio_blood_pressure"), None)
+                if bp_axis and bp_axis.get("status") == "BALANCED_NORMOTENSIVE":
+                    is_mitigated = True
+            elif "potassium" in str(valert.get("title", "")).lower():
+                k_axis = next((a for a in full_stack_balance.get("axes", []) if a.get("biomarker_id") == "bio_serum_potassium"), None)
+                if k_axis and k_axis.get("in_safe_range"):
+                    is_mitigated = True
+
+            if not is_mitigated:
+                if not any(valert.get("syndrome") == s.get("syndrome") or valert.get("title") == s.get("title") for s in syndrome_alerts):
+                    syndrome_alerts.append(valert)
+                    total_risk_points += valert["severity_score"]
+
+        # Add uncompensated risk alerts from holistic full-stack analysis
+        for ur in uncompensated_risks:
+            biomarker_warnings.append({
+                "biomarker": ur.get("axis", "Physiological Axis"),
+                "value": ur.get("title"),
+                "severity": ur.get("severity", "HIGH_RISK"),
+                "title": ur.get("title"),
+                "description": ur.get("description"),
+                "clinical_recommendation": ur.get("clinical_recommendation"),
+            })
+            total_risk_points += (22.0 if ur.get("severity") == "HIGH_RISK" else 14.0)
+
+        # Apply active mitigation credit to cumulative score
+        total_mitigation_reduction = sum(float(m.get("risk_reduction_points", 0.0)) for m in active_mitigations)
+        total_risk_points = max(0.0, total_risk_points - total_mitigation_reduction)
 
         # Laboratory & Biomarker Interplay Triggers
         # 1. Hepatic Clearance Strain
@@ -477,8 +960,9 @@ class InteractionEngine:
             biomarker_warnings.append(warning)
             total_risk_points += 20.0
 
-        # 4. Sympathetic Hypertensive Strain
-        if blood_pressure > 130 and (organ_scores["cns_stimulant"] > 15 or organ_scores["cardiovascular"] > 25):
+        # 4. Sympathetic Hypertensive Strain (only if not mitigated by stack)
+        bp_axis_check = next((a for a in full_stack_balance.get("axes", []) if a.get("biomarker_id") == "bio_blood_pressure"), None)
+        if blood_pressure > 130 and (organ_scores["cns_stimulant"] > 15 or organ_scores["cardiovascular"] > 25) and (not bp_axis_check or bp_axis_check.get("status") != "BALANCED_NORMOTENSIVE"):
             warning = {
                 "biomarker": "Blood Pressure",
                 "value": f"{blood_pressure} mmHg",
@@ -538,12 +1022,15 @@ class InteractionEngine:
             len(cyp_conflicts)
             + len(transporter_conflicts)
             + len(phase2_conflicts)
-            + len([c for c in receptor_conflicts if c.get("severity") in {"HIGH_RISK", "SEVERE_CONTRAINDICATION", "MODERATE_RISK"}])
+            + len([c for c in receptor_conflicts if c.get("severity") in {"HIGH_RISK", "SEVERE_CONTRAINDICATION", "MODERATE_RISK"} and not c.get("is_mitigated_by_stack")])
             + len([s for s in syndrome_alerts if s.get("severity") in {"HIGH_RISK", "SEVERE_CONTRAINDICATION"}])
+            + len(uncompensated_risks)
         )
-        synergy_count = len(synergistic_benefits)
+        synergy_count = len(synergistic_benefits) + len(active_mitigations)
 
-        if conflict_count == 0 and synergy_count > 0:
+        if len(active_mitigations) > 0 and len(uncompensated_risks) == 0 and conflict_count <= len(active_mitigations):
+            summary = f"Holistic Stack Equilibrium: Detected {len(active_mitigations)} active protective counterbalance(s) with clean dose compensation ({cumulative_score}/100 cumulative risk)."
+        elif conflict_count == 0 and synergy_count > 0:
             summary = f"Optimal stack synergy detected with {synergy_count} positive pharmacological pairing(s) and clean metabolic compatibility."
         elif conflict_count > 0:
             summary = f"Detected {conflict_count} interaction conflict(s) across metabolism, transporters, and organ pathways with a {risk_band.lower()} risk profile ({cumulative_score}/100)."
@@ -558,6 +1045,12 @@ class InteractionEngine:
                     "name": c.get("name") or c.get("key"),
                     "drug_class": c.get("drug_class"),
                     "risk_band": c.get("risk_band", "low"),
+                    "dose": c.get("dose"),
+                    "unit": c.get("unit", "mg"),
+                    "dose_mg": c.get("dose_mg"),
+                    "dose_str": c.get("dose_str"),
+                    "timing": c.get("timing", "morning"),
+                    "frequency": c.get("frequency", "daily"),
                     "is_narrow_therapeutic_index": bool(c.get("is_narrow_therapeutic_index")),
                 }
                 for c in compounds
@@ -583,7 +1076,809 @@ class InteractionEngine:
             },
             "conflict_count": conflict_count,
             "synergy_count": synergy_count,
+            "full_stack_balance": full_stack_balance,
         }
+
+    def _evaluate_full_stack_balance(
+        self,
+        compounds: List[Dict[str, Any]],
+        profile_data: Dict[str, Any],
+        cascade_results: Dict[str, Any],
+        combined_effects: Dict[str, Any],
+        graph: Any,
+    ) -> Dict[str, Any]:
+        """
+        Evaluates the stack as a unified holistic pharmacological network across all physiological axes.
+        Calculates dose-dependent balance, identifies active therapeutic counterbalances/mitigations,
+        and flags uncompensated monotherapies or compounding strains.
+        """
+        axes: List[Dict[str, Any]] = []
+        active_mitigations: List[Dict[str, Any]] = []
+        uncompensated_risks: List[Dict[str, Any]] = []
+        dose_recommendations: List[Dict[str, Any]] = []
+
+        labs = profile_data.get("labs", {}) or {}
+        shifts_by_id = {b.get("biomarker_id"): b for b in cascade_results.get("biomarker_shifts", [])}
+        processed_bio_ids: Set[str] = set()
+
+        # 1. ESTRADIOL (E2) / ENDOCRINE AXIS
+        e2_shift = shifts_by_id.get("bio_estradiol")
+        if e2_shift:
+            processed_bio_ids.add("bio_estradiol")
+            baseline = float(e2_shift.get("baseline_value", 25.0))
+            est_val = float(e2_shift.get("estimated_value", baseline))
+            delta = float(e2_shift.get("estimated_delta", 0.0))
+            unit = str(e2_shift.get("unit", "pg/mL"))
+            safe_lower = float(e2_shift.get("safe_lower", 20.0))
+            safe_upper = float(e2_shift.get("safe_upper", 35.0))
+
+            contributions = e2_shift.get("compound_contributions") or e2_shift.get("contributions") or []
+            has_ai = (
+                any(c.get("contribution_mag", 0) < -0.05 for c in contributions)
+                or any("aromatase" in str(k).lower() and float(v.get("net_activation_score", 0)) < -0.05 for k, v in combined_effects.items())
+                or any(any("aromatase" in str(r.get("target", "")).lower() and "inhibitor" in str(r.get("action", "")).lower() for r in comp.get("receptor_targets", [])) for comp in compounds)
+                or any("aromatase" in str(comp.get("drug_class", "")).lower() or "ai" in str(comp.get("drug_class", "")).lower() for comp in compounds)
+            )
+            has_androgen = (
+                any(c.get("contribution_mag", 0) > 0.05 for c in contributions)
+                or any(any("aromatase" in str(r.get("target", "")).lower() and "substrate" in str(r.get("action", "")).lower() for r in comp.get("receptor_targets", [])) for comp in compounds)
+                or any("androgen" in str(comp.get("drug_class", "")).lower() or "testosterone" in str(comp.get("key", "")).lower() for comp in compounds)
+            )
+
+            comp_shares = [
+                {
+                    "compound_id": c.get("compound_id"),
+                    "compound_label": c.get("compound_label"),
+                    "delta": c.get("estimated_delta", 0.0),
+                    "formatted_delta": c.get("formatted_delta", f"{c.get('estimated_delta', 0.0):+g} {unit}"),
+                    "direction": "UP" if c.get("contribution_mag", 0) > 0 else "DOWN",
+                }
+                for c in contributions
+            ]
+
+            participating_labels = [c.get("compound_label") for c in contributions] or [c.get("name") for c in compounds if c.get("name")]
+
+            if has_ai and has_androgen and safe_lower <= est_val <= (safe_upper + 5.0):
+                status = "BALANCED_TARGET"
+                status_label = f"Optimal Target E2 ({est_val} {unit})"
+                status_color = "#10b981"
+                mitigation = {
+                    "title": "Aromatase Control & Estrogenic Balance",
+                    "description": (
+                        f"Co-administration of Aromatase Inhibitor with Aromatizable Androgen successfully "
+                        f"balances 17-beta estradiol conversion into target range ({est_val} {unit}, target {safe_lower}-{safe_upper} {unit}), "
+                        f"preventing hyperestrogenic fluid retention/gynecomastia while protecting against monotherapy E2 crash."
+                    ),
+                    "participating_compounds": participating_labels,
+                    "benefited_axis": "Estradiol (E2)",
+                    "risk_reduction_points": 25.0,
+                }
+                active_mitigations.append(mitigation)
+            elif has_ai and (est_val < safe_lower or not has_androgen):
+                status = "HYPOESTROGENIC_CRASH"
+                status_label = f"Crashed E2 Risk ({est_val} {unit})"
+                status_color = "#ef4444"
+                uncompensated_risks.append({
+                    "axis": "Estradiol (E2)",
+                    "severity": "HIGH_RISK",
+                    "title": "Uncompensated Aromatase Inhibition (E2 Crash)",
+                    "description": f"Aromatase inhibition without sufficient androgen substrate crashes serum estradiol to {est_val} {unit}, risking arthralgia, osteopenia, mood depression, and dyslipidemia.",
+                    "clinical_recommendation": "Titrate aromatase inhibitor dose downward or eliminate in the absence of elevated aromatizable androgen substrate.",
+                })
+                dose_recommendations.append({
+                    "compound": next((c.get("compound_label") for c in contributions if c.get("contribution_mag", 0) < 0), "Aromatase Inhibitor"),
+                    "action": "Reduce Dose / Taper",
+                    "reason": f"Elevate serum estradiol from {est_val} {unit} back into healthy {safe_lower}-{safe_upper} {unit} range.",
+                })
+            elif has_androgen and est_val > (safe_upper + 10.0):
+                status = "HYPERESTROGENIC_ELEVATION"
+                status_label = f"Supraphysiological E2 ({est_val} {unit})"
+                status_color = "#f59e0b"
+                uncompensated_risks.append({
+                    "axis": "Estradiol (E2)",
+                    "severity": "MODERATE_RISK",
+                    "title": "Supraphysiological Aromatization (Elevated E2)",
+                    "description": f"Elevated androgen load drives estradiol to {est_val} {unit}, increasing risk of fluid retention, blood pressure elevation, and gynecomastia.",
+                    "clinical_recommendation": "Monitor serum E2 and consider low-dose aromatase inhibitor titration if symptomatic.",
+                })
+            else:
+                status = "NORMAL_PHYSIOLOGICAL"
+                status_label = f"Physiological E2 ({est_val} {unit})"
+                status_color = "#34d399"
+
+            axes.append({
+                "name": "Estradiol (E2) Axis",
+                "biomarker_id": "bio_estradiol",
+                "baseline": baseline,
+                "estimated_value": est_val,
+                "unit": unit,
+                "safe_range": f"{safe_lower} - {safe_upper} {unit}",
+                "safe_lower": safe_lower,
+                "safe_upper": safe_upper,
+                "in_safe_range": safe_lower <= est_val <= safe_upper,
+                "status": status,
+                "status_label": status_label,
+                "status_color": status_color,
+                "net_delta_str": f"{'+' if delta > 0 else ''}{delta} {unit}",
+                "compounds_breakdown": comp_shares,
+            })
+
+        # 2. BLOOD PRESSURE & CARDIOVASCULAR AXIS
+        bp_shift = shifts_by_id.get("bio_blood_pressure") or shifts_by_id.get("bio_systolic_blood_pressure")
+        if bp_shift:
+            processed_bio_ids.add(bp_shift.get("biomarker_id"))
+            baseline = float(bp_shift.get("baseline_value", labs.get("blood_pressure") or 120.0))
+            est_val = float(bp_shift.get("estimated_value", baseline))
+            delta = float(bp_shift.get("estimated_delta", 0.0))
+            unit = str(bp_shift.get("unit", "mmHg"))
+            safe_lower = float(bp_shift.get("safe_lower") or 90.0)
+            safe_upper = max(128.0, float(bp_shift.get("safe_upper") or 128.0))
+
+            contributions = bp_shift.get("compound_contributions") or bp_shift.get("contributions") or []
+            hypertensive_comps = [c for c in contributions if c.get("contribution_mag", 0) > 0.05]
+            antihypertensive_comps = [c for c in contributions if c.get("contribution_mag", 0) < -0.05]
+
+            has_hypertensive = bool(hypertensive_comps)
+            if not has_hypertensive:
+                for comp in compounds:
+                    d_class = str(comp.get("drug_class", "")).lower()
+                    c_key = str(comp.get("key", "")).lower()
+                    if "androgen" in d_class or "testosterone" in c_key or "stimulant" in d_class:
+                        has_hypertensive = True
+                        break
+                    for r in comp.get("receptor_targets", []):
+                        if any(w in str(r.get("target", "")).lower() for w in ["androgen", "erythropoietin", "ephedrine", "adra1"]):
+                            has_hypertensive = True
+                            break
+                    if has_hypertensive:
+                        break
+
+            has_antihypertensive = bool(antihypertensive_comps)
+            if not has_antihypertensive:
+                for comp in compounds:
+                    d_class = str(comp.get("drug_class", "")).lower()
+                    if any(w in d_class for w in ["arb", "angiotensin", "sartan", "beta-blocker", "antihypertensive", "pde5 inhibitor", "calcium channel blocker"]):
+                        has_antihypertensive = True
+                        break
+                    for r in comp.get("receptor_targets", []):
+                        t_name = str(r.get("target", "")).lower()
+                        act = str(r.get("action", "")).lower()
+                        if any(w in t_name for w in ["angiotensin", "agtr1", "mineralocorticoid", "pde5"]):
+                            if any(a in act for a in ["antagonist", "block", "inhib"]):
+                                has_antihypertensive = True
+                                break
+                        elif "adrb1" in t_name and any(a in act for a in ["antagonist", "block"]):
+                                has_antihypertensive = True
+                                break
+                        elif "adra2a" in t_name and any(a in act for a in ["agonist", "activat"]):
+                                has_antihypertensive = True
+                                break
+                    if has_antihypertensive:
+                        break
+
+            comp_shares = [
+                {
+                    "compound_id": c.get("compound_id"),
+                    "compound_label": c.get("compound_label"),
+                    "delta": c.get("estimated_delta", 0.0),
+                    "formatted_delta": c.get("formatted_delta", f"{c.get('estimated_delta', 0.0):+g} {unit}"),
+                    "direction": "UP" if c.get("contribution_mag", 0) > 0 else "DOWN",
+                }
+                for c in contributions
+            ]
+
+            participating_labels = [c.get("compound_label") for c in contributions] or [c.get("name") for c in compounds if c.get("name")]
+
+            if has_hypertensive and has_antihypertensive and 95.0 <= est_val <= 128.0:
+                status = "BALANCED_NORMOTENSIVE"
+                status_label = f"Normotensive Equilibrium ({est_val} {unit})"
+                status_color = "#10b981"
+                mitigation = {
+                    "title": "Hemodynamic & Vascular Counterbalance",
+                    "description": (
+                        f"Antihypertensive / RAAS blockade counteracts androgenic and sympathetic vasoconstrictive pressure, "
+                        f"maintaining stable normotensive resting blood pressure ({est_val} {unit}, target 115-125 {unit})."
+                    ),
+                    "participating_compounds": participating_labels,
+                    "benefited_axis": "Blood Pressure",
+                    "risk_reduction_points": 20.0,
+                }
+                active_mitigations.append(mitigation)
+            elif est_val >= 135.0 and len(hypertensive_comps) >= 2:
+                status = "HYPERTENSIVE_STRAIN"
+                status_label = f"Vascular Shear Stress ({est_val} {unit})"
+                status_color = "#ef4444"
+                uncompensated_risks.append({
+                    "axis": "Blood Pressure",
+                    "severity": "HIGH_RISK",
+                    "title": "Compounded Hypertensive Overload",
+                    "description": f"Multiple concurrent vasoconstrictive and adrenergic agents elevate resting blood pressure to {est_val} {unit}, accelerating endothelial strain.",
+                    "clinical_recommendation": "Introduce RAAS blockade (Telmisartan) or vasodilatory support, and monitor daily BP.",
+                })
+            elif est_val >= 135.0 and any(c.get("drug_class") and any(w in str(c.get("drug_class")).lower() for w in ["arb", "sartan", "angiotensin"]) for c in compounds):
+                status = "HYPERTENSIVE_STRAIN"
+                status_label = f"Vascular Shear Stress ({est_val} {unit})"
+                status_color = "#ef4444"
+                uncompensated_risks.append({
+                    "axis": "Blood Pressure",
+                    "severity": "HIGH_RISK",
+                    "title": "Breakthrough Hypertensive Strain",
+                    "description": f"Despite co-administered antihypertensive support, resting blood pressure remains elevated at {est_val} {unit}, exceeding the safe upper bound ({safe_upper} {unit}).",
+                    "clinical_recommendation": "Titrate RAAS blockade (e.g. increase Telmisartan dose) or reduce vasoconstrictive/androgen load, and monitor daily BP.",
+                })
+            elif est_val < 85.0 and len(antihypertensive_comps) >= 2:
+                status = "HYPOTENSIVE_RISK"
+                status_label = f"Hypotension Vulnerability ({est_val} {unit})"
+                status_color = "#f59e0b"
+                uncompensated_risks.append({
+                    "axis": "Blood Pressure",
+                    "severity": "MODERATE_RISK",
+                    "title": "Additive Blood Pressure Depletion",
+                    "description": f"Concurrent vasodilators depress blood pressure to {est_val} {unit}, risking lightheadedness and orthostatic hypotension.",
+                    "clinical_recommendation": "Titrate antihypertensive dose downward to maintain MAP > 70 mmHg.",
+                })
+            elif est_val > 128.0:
+                if has_hypertensive and has_antihypertensive:
+                    status = "PARTIAL_COUNTERBALANCE_ELEVATED"
+                    status_label = f"Sub-Target Attenuation ({est_val} {unit})"
+                    status_color = "#f59e0b"
+                else:
+                    status = "ELEVATED_VASCULAR_TONE"
+                    status_label = f"Elevated Vascular Tone ({est_val} {unit})"
+                    status_color = "#f59e0b"
+            else:
+                status = "NORMAL_NORMOTENSIVE"
+                status_label = f"Normotensive Baseline ({est_val} {unit})"
+                status_color = "#34d399"
+
+            axes.append({
+                "name": "Blood Pressure & Vascular Axis",
+                "biomarker_id": bp_shift.get("biomarker_id", "bio_blood_pressure"),
+                "baseline": baseline,
+                "estimated_value": est_val,
+                "unit": unit,
+                "safe_range": f"{safe_lower} - {safe_upper} {unit}",
+                "safe_lower": safe_lower,
+                "safe_upper": safe_upper,
+                "in_safe_range": safe_lower <= est_val <= safe_upper,
+                "status": status,
+                "status_label": status_label,
+                "status_color": status_color,
+                "net_delta_str": f"{'+' if delta > 0 else ''}{delta} {unit}",
+                "compounds_breakdown": comp_shares,
+            })
+
+        # 3. ANDROGEN / 5AR-DHT AXIS
+        dht_shift = shifts_by_id.get("bio_dht") or shifts_by_id.get("bio_dihydrotestosterone")
+        if dht_shift:
+            processed_bio_ids.add(dht_shift.get("biomarker_id"))
+            processed_bio_ids.add("bio_dht")
+            processed_bio_ids.add("bio_dihydrotestosterone")
+            baseline = float(dht_shift.get("baseline_value", 45.0))
+            est_val = float(dht_shift.get("estimated_value", baseline))
+            delta = float(dht_shift.get("estimated_delta", 0.0))
+            unit = str(dht_shift.get("unit", "ng/dL"))
+            safe_lower = float(dht_shift.get("safe_lower", 30.0))
+            safe_upper = float(dht_shift.get("safe_upper", 85.0))
+
+            contributions = dht_shift.get("compound_contributions") or dht_shift.get("contributions") or []
+            has_5ari = any(c.get("contribution_mag", 0) < -0.05 for c in contributions) or any(
+                any("5-alpha" in str(r.get("target", "")).lower() and "inhibitor" in str(r.get("action", "")).lower() for r in comp.get("receptor_targets", [])) for comp in compounds
+            )
+            has_androgen = any(c.get("contribution_mag", 0) > 0.05 for c in contributions) or any(
+                any("5-alpha" in str(r.get("target", "")).lower() and "substrate" in str(r.get("action", "")).lower() for r in comp.get("receptor_targets", [])) for comp in compounds
+            )
+
+            comp_shares = [
+                {
+                    "compound_id": c.get("compound_id"),
+                    "compound_label": c.get("compound_label"),
+                    "delta": c.get("estimated_delta", 0.0),
+                    "formatted_delta": c.get("formatted_delta", f"{c.get('estimated_delta', 0.0):+g} {unit}"),
+                    "direction": "UP" if c.get("contribution_mag", 0) > 0 else "DOWN",
+                }
+                for c in contributions
+            ]
+
+            participating_labels = [c.get("compound_label") for c in contributions] or [c.get("name") for c in compounds if c.get("name")]
+
+            if has_5ari and has_androgen and safe_lower <= est_val <= (safe_upper + 10.0):
+                status = "BALANCED_TARGET"
+                status_label = f"Balanced DHT Control ({est_val} {unit})"
+                status_color = "#10b981"
+                mitigation = {
+                    "title": "5-Alpha Reductase & DHT Modulation",
+                    "description": (
+                        f"5-Alpha reductase inhibition successfully mitigates excess DHT accumulation from exogenous androgen substrate, "
+                        f"protecting scalp hair follicles and prostate tissue ({est_val} {unit})."
+                    ),
+                    "participating_compounds": participating_labels,
+                    "benefited_axis": "DHT / Follicular",
+                    "risk_reduction_points": 15.0,
+                }
+                active_mitigations.append(mitigation)
+            elif est_val > 95.0:
+                status = "ELEVATED_DHT"
+                status_label = f"Elevated DHT Load ({est_val} {unit})"
+                status_color = "#f59e0b"
+            elif est_val < 15.0:
+                status = "SUPPRESSED_DHT"
+                status_label = f"Suppressed DHT ({est_val} {unit})"
+                status_color = "#60a5fa"
+            else:
+                status = "NORMAL_RANGE"
+                status_label = f"Baseline DHT ({est_val} {unit})"
+                status_color = "#34d399"
+
+            axes.append({
+                "name": "Androgen & 5AR-DHT Axis",
+                "biomarker_id": dht_shift.get("biomarker_id", "bio_dht"),
+                "baseline": baseline,
+                "estimated_value": est_val,
+                "unit": unit,
+                "safe_range": f"{safe_lower} - {safe_upper} {unit}",
+                "safe_lower": safe_lower,
+                "safe_upper": safe_upper,
+                "in_safe_range": safe_lower <= est_val <= safe_upper,
+                "status": status,
+                "status_label": status_label,
+                "status_color": status_color,
+                "net_delta_str": f"{'+' if delta > 0 else ''}{delta} {unit}",
+                "compounds_breakdown": comp_shares,
+            })
+
+        # 4. AUTONOMIC & CHRONOTROPIC AXIS
+        hr_shift = shifts_by_id.get("bio_resting_heart_rate") or shifts_by_id.get("bio_heart_rate")
+        if hr_shift:
+            processed_bio_ids.add(hr_shift.get("biomarker_id"))
+            processed_bio_ids.add("bio_resting_heart_rate")
+            processed_bio_ids.add("bio_heart_rate")
+            baseline = float(hr_shift.get("baseline_value", labs.get("heart_rate") or 72.0))
+            est_val = float(hr_shift.get("estimated_value", baseline))
+            delta = float(hr_shift.get("estimated_delta", 0.0))
+            unit = str(hr_shift.get("unit", "bpm"))
+            safe_lower = float(hr_shift.get("safe_lower", 60.0))
+            safe_upper = float(hr_shift.get("safe_upper", 85.0))
+
+            contributions = hr_shift.get("compound_contributions") or hr_shift.get("contributions") or []
+            has_stim = any(c.get("contribution_mag", 0) > 0.05 for c in contributions)
+            has_calm = any(c.get("contribution_mag", 0) < -0.05 for c in contributions)
+
+            comp_shares = [
+                {
+                    "compound_id": c.get("compound_id"),
+                    "compound_label": c.get("compound_label"),
+                    "delta": c.get("estimated_delta", 0.0),
+                    "formatted_delta": c.get("formatted_delta", f"{c.get('estimated_delta', 0.0):+g} {unit}"),
+                    "direction": "UP" if c.get("contribution_mag", 0) > 0 else "DOWN",
+                }
+                for c in contributions
+            ]
+
+            participating_labels = [c.get("compound_label") for c in contributions if abs(c.get("contribution_mag", 0)) > 0.03] or [c.get("name") for c in compounds if c.get("name")]
+
+            if has_stim and has_calm and safe_lower <= est_val <= safe_upper and len(participating_labels) >= 2:
+                status = "BALANCED_EUCHRONIC"
+                status_label = f"Euchronic Balance ({est_val} {unit})"
+                status_color = "#10b981"
+                mitigation = {
+                    "title": "Autonomic & Sympatholytic Modulation",
+                    "description": (
+                        f"Calming / beta-blocking co-administration blunts sympathomimetic chronotropic spikes, "
+                        f"maintaining optimal resting heart rate ({est_val} {unit})."
+                    ),
+                    "participating_compounds": participating_labels,
+                    "benefited_axis": "Heart Rate",
+                    "risk_reduction_points": 15.0,
+                }
+                active_mitigations.append(mitigation)
+            elif est_val >= 90.0:
+                status = "TACHYCARDIA_STRAIN"
+                status_label = f"Resting Tachycardia ({est_val} {unit})"
+                status_color = "#ef4444"
+            elif est_val < 55.0:
+                status = "BRADYCARDIA_RISK"
+                status_label = f"Bradycardia Risk ({est_val} {unit})"
+                status_color = "#f59e0b"
+            else:
+                status = "NORMAL_CHRONOTROPY"
+                status_label = f"Euchronic Baseline ({est_val} {unit})"
+                status_color = "#34d399"
+
+            axes.append({
+                "name": "Autonomic & Chronotropic Axis",
+                "biomarker_id": hr_shift.get("biomarker_id", "bio_resting_heart_rate"),
+                "baseline": baseline,
+                "estimated_value": est_val,
+                "unit": unit,
+                "safe_range": f"{safe_lower} - {safe_upper} {unit}",
+                "safe_lower": safe_lower,
+                "safe_upper": safe_upper,
+                "in_safe_range": safe_lower <= est_val <= safe_upper,
+                "status": status,
+                "status_label": status_label,
+                "status_color": status_color,
+                "net_delta_str": f"{'+' if delta > 0 else ''}{delta} {unit}",
+                "compounds_breakdown": comp_shares,
+            })
+
+        # 5. RENAL & POTASSIUM AXIS
+        k_shift = shifts_by_id.get("bio_serum_potassium") or shifts_by_id.get("bio_potassium")
+        if k_shift:
+            processed_bio_ids.add(k_shift.get("biomarker_id"))
+            processed_bio_ids.add("bio_serum_potassium")
+            processed_bio_ids.add("bio_potassium")
+            baseline = float(k_shift.get("baseline_value", labs.get("potassium_meq_l") or 4.2))
+            est_val = float(k_shift.get("estimated_value", baseline))
+            delta = float(k_shift.get("estimated_delta", 0.0))
+            unit = str(k_shift.get("unit", "mEq/L"))
+            safe_lower = float(k_shift.get("safe_lower", 3.5))
+            safe_upper = float(k_shift.get("safe_upper", 5.0))
+
+            contributions = k_shift.get("contributions") or []
+            comp_shares = [
+                {
+                    "compound_id": c.get("compound_id"),
+                    "compound_label": c.get("compound_label"),
+                    "delta": c.get("estimated_delta", 0.0),
+                    "formatted_delta": c.get("formatted_delta", f"{c.get('estimated_delta', 0.0):+g} {unit}"),
+                    "direction": "UP" if c.get("contribution_mag", 0) > 0 else "DOWN",
+                }
+                for c in contributions
+            ]
+
+            status = "EUVOLEMIC_NORMAL" if safe_lower <= est_val <= safe_upper else ("HYPERKALEMIA_RISK" if est_val > safe_upper else "HYPOKALEMIA_RISK")
+            status_color = "#10b981" if safe_lower <= est_val <= safe_upper else "#ef4444"
+
+            axes.append({
+                "name": "Electrolyte & Potassium Axis",
+                "biomarker_id": k_shift.get("biomarker_id", "bio_serum_potassium"),
+                "baseline": baseline,
+                "estimated_value": est_val,
+                "unit": unit,
+                "safe_range": f"{safe_lower} - {safe_upper} {unit}",
+                "safe_lower": safe_lower,
+                "safe_upper": safe_upper,
+                "in_safe_range": safe_lower <= est_val <= safe_upper,
+                "status": status,
+                "status_label": f"Serum K+ ({est_val} {unit})",
+                "status_color": status_color,
+                "net_delta_str": f"{'+' if delta > 0 else ''}{delta} {unit}",
+                "compounds_breakdown": comp_shares,
+            })
+
+        # 6. SYSTEMIC OXIDATIVE STRESS & REDOX AXIS
+        gsh_shift = shifts_by_id.get("bio_gsh_redox_ratio")
+        mda_shift = shifts_by_id.get("bio_mda")
+        if gsh_shift or mda_shift:
+            primary_redox = gsh_shift or mda_shift
+            bio_id = primary_redox.get("biomarker_id")
+            processed_bio_ids.add("bio_gsh_redox_ratio")
+            processed_bio_ids.add("bio_mda")
+            
+            baseline = float(primary_redox.get("baseline_value", 100.0 if bio_id == "bio_gsh_redox_ratio" else 1.8))
+            est_val = float(primary_redox.get("estimated_value", baseline))
+            delta = float(primary_redox.get("estimated_delta", 0.0))
+            unit = str(primary_redox.get("unit", "index" if bio_id == "bio_gsh_redox_ratio" else "μmol/L"))
+            safe_lower = float(primary_redox.get("safe_lower", 80.0 if bio_id == "bio_gsh_redox_ratio" else 1.0))
+            safe_upper = float(primary_redox.get("safe_upper", 120.0 if bio_id == "bio_gsh_redox_ratio" else 2.5))
+            
+            contributions = primary_redox.get("compound_contributions") or primary_redox.get("contributions") or []
+            comp_shares = [
+                {
+                    "compound_id": c.get("compound_id"),
+                    "compound_label": c.get("compound_label"),
+                    "delta": c.get("estimated_delta", 0.0),
+                    "formatted_delta": c.get("formatted_delta", f"{c.get('estimated_delta', 0.0):+g} {unit}"),
+                    "direction": "UP" if c.get("contribution_mag", 0) > 0 else "DOWN",
+                }
+                for c in contributions
+            ]
+
+            is_gsh = bio_id == "bio_gsh_redox_ratio"
+            pos_contribs = [c for c in contributions if (c.get("contribution_mag", 0) > 0.03 if is_gsh else c.get("contribution_mag", 0) < -0.03)]
+            neg_contribs = [c for c in contributions if (c.get("contribution_mag", 0) < -0.03 if is_gsh else c.get("contribution_mag", 0) > 0.03)]
+            in_safe = (est_val >= safe_lower) if is_gsh else (safe_lower <= est_val <= safe_upper)
+
+            if pos_contribs and neg_contribs and in_safe:
+                status = "BALANCED_TARGET"
+                status_label = f"Redox Homeostasis ({est_val} {unit})"
+                status_color = "#10b981"
+                participating_labels = [c.get("compound_label") for c in contributions if abs(c.get("contribution_mag", 0)) > 0.02]
+                active_mitigations.append({
+                    "title": "Oxidative Stress & Redox Protection",
+                    "description": (
+                        f"Co-administration of antioxidant / cytoprotective support successfully neutralizes xenobiotic and metabolic reactive oxygen species, "
+                        f"preserving intracellular glutathione reserves (GSH:GSSG ratio {est_val} {unit}) and suppressing lipid peroxidation."
+                    ),
+                    "participating_compounds": participating_labels,
+                    "benefited_axis": "Systemic Redox / Glutathione",
+                    "risk_reduction_points": 20.0,
+                })
+            elif (is_gsh and est_val < safe_lower) or (not is_gsh and est_val > safe_upper):
+                status = "OXIDATIVE_STRAIN"
+                status_label = f"Elevated Oxidative Stress ({est_val} {unit})"
+                status_color = "#ef4444"
+                uncompensated_risks.append({
+                    "axis": "Oxidative Stress",
+                    "severity": "HIGH_RISK",
+                    "title": "Uncompensated Oxidative Stress & Lipid Peroxidation",
+                    "description": f"Pro-oxidant compound metabolism overwhelms intracellular redox capacity, shifting {primary_redox.get('label', bio_id)} to {est_val} {unit}.",
+                    "clinical_recommendation": "Introduce potent antioxidant cytoprotection (e.g. Astaxanthin, NAC, CoQ10) to mitigate lipid peroxidation and restore GSH reserves.",
+                })
+            else:
+                status = "NORMAL_PHYSIOLOGICAL"
+                status_label = f"Optimal Redox Balance ({est_val} {unit})"
+                status_color = "#34d399"
+
+            axes.append({
+                "name": "Systemic Oxidative Stress & Redox Axis",
+                "biomarker_id": bio_id,
+                "baseline": baseline,
+                "estimated_value": est_val,
+                "unit": unit,
+                "safe_range": f"{safe_lower} - {safe_upper} {unit}",
+                "safe_lower": safe_lower,
+                "safe_upper": safe_upper,
+                "in_safe_range": in_safe,
+                "status": status,
+                "status_label": status_label,
+                "status_color": status_color,
+                "net_delta_str": f"{'+' if delta > 0 else ''}{delta} {unit}",
+                "compounds_breakdown": comp_shares,
+                "panel": "Redox Panel",
+            })
+
+        # 7. SYSTEMIC INFLAMMATION & HS-CRP AXIS
+        crp_shift = shifts_by_id.get("bio_crp")
+        if crp_shift:
+            processed_bio_ids.add("bio_crp")
+            baseline = float(crp_shift.get("baseline_value", labs.get("crp_mg_l") or 0.5))
+            est_val = float(crp_shift.get("estimated_value", baseline))
+            delta = float(crp_shift.get("estimated_delta", 0.0))
+            unit = str(crp_shift.get("unit", "mg/L"))
+            safe_lower = float(crp_shift.get("safe_lower", 0.0))
+            safe_upper = float(crp_shift.get("safe_upper", 1.0))
+
+            contributions = crp_shift.get("compound_contributions") or crp_shift.get("contributions") or []
+            comp_shares = [
+                {
+                    "compound_id": c.get("compound_id"),
+                    "compound_label": c.get("compound_label"),
+                    "delta": c.get("estimated_delta", 0.0),
+                    "formatted_delta": c.get("formatted_delta", f"{c.get('estimated_delta', 0.0):+g} {unit}"),
+                    "direction": "UP" if c.get("contribution_mag", 0) > 0 else "DOWN",
+                }
+                for c in contributions
+            ]
+
+            pro_inf = [c for c in contributions if c.get("contribution_mag", 0) > 0.03]
+            anti_inf = [c for c in contributions if c.get("contribution_mag", 0) < -0.03]
+            in_safe = safe_lower <= est_val <= safe_upper
+
+            if pro_inf and anti_inf and in_safe:
+                status = "BALANCED_TARGET"
+                status_label = f"Controlled hs-CRP ({est_val} {unit})"
+                status_color = "#10b981"
+                participating_labels = [c.get("compound_label") for c in contributions if abs(c.get("contribution_mag", 0)) > 0.02]
+                active_mitigations.append({
+                    "title": "Systemic Inflammation & Endothelial Protection",
+                    "description": (
+                        f"Anti-inflammatory co-administration attenuates pro-inflammatory signaling and NF-kB transactivation, "
+                        f"maintaining low cardiovascular risk hs-CRP ({est_val} {unit}, target < 1.0 {unit})."
+                    ),
+                    "participating_compounds": participating_labels,
+                    "benefited_axis": "hs-CRP / Inflammation",
+                    "risk_reduction_points": 15.0,
+                })
+            elif est_val > 3.0:
+                status = "HIGH_INFLAMMATORY_RISK"
+                status_label = f"Elevated hs-CRP ({est_val} {unit})"
+                status_color = "#ef4444"
+                uncompensated_risks.append({
+                    "axis": "Inflammation (hs-CRP)",
+                    "severity": "HIGH_RISK",
+                    "title": "Marked Inflammatory Activation (hs-CRP > 3.0 mg/L)",
+                    "description": f"Stack triggers acute phase hepatic inflammation, driving hs-CRP to {est_val} {unit}, conferring high cardiovascular risk.",
+                    "clinical_recommendation": "Incorporate anti-inflammatory agents (Curcumin, Omega-3, Astaxanthin) and address underlying systemic stressors.",
+                })
+            elif est_val > safe_upper:
+                status = "MODERATE_INFLAMMATION"
+                status_label = f"Sub-Optimal hs-CRP ({est_val} {unit})"
+                status_color = "#f59e0b"
+            else:
+                status = "NORMAL_PHYSIOLOGICAL"
+                status_label = f"Low Inflammatory Tone ({est_val} {unit})"
+                status_color = "#34d399"
+
+            axes.append({
+                "name": "Systemic Inflammation & hs-CRP Axis",
+                "biomarker_id": "bio_crp",
+                "baseline": baseline,
+                "estimated_value": est_val,
+                "unit": unit,
+                "safe_range": f"{safe_lower} - {safe_upper} {unit}",
+                "safe_lower": safe_lower,
+                "safe_upper": safe_upper,
+                "in_safe_range": in_safe,
+                "status": status,
+                "status_label": status_label,
+                "status_color": status_color,
+                "net_delta_str": f"{'+' if delta > 0 else ''}{delta} {unit}",
+                "compounds_breakdown": comp_shares,
+                "panel": "Inflammatory Panel",
+            })
+
+        # 8. ALL OTHER AFFECTED BIOMARKERS FROM DYNAMIC GRAPH CASCADE
+        for b in cascade_results.get("biomarker_shifts", []):
+            bio_id = str(b.get("biomarker_id") or "")
+            if not bio_id or bio_id in processed_bio_ids:
+                continue
+
+            baseline = float(b.get("baseline_value", 0.0))
+            est_val = float(b.get("estimated_value", baseline))
+            delta = float(b.get("estimated_delta", 0.0))
+            unit = str(b.get("unit") or "")
+            safe_lower = float(b.get("safe_lower", baseline * 0.8 if baseline > 0 else -100.0))
+            safe_upper = float(b.get("safe_upper", baseline * 1.2 if baseline > 0 else 100.0))
+            in_safe = bool(b.get("in_safe_range", safe_lower <= est_val <= safe_upper))
+            label = str(b.get("label") or b.get("name") or bio_id.replace("bio_", "").replace("_", " ").title())
+            panel = str(b.get("biomarker_panel") or "General Panel")
+
+            contributions = b.get("compound_contributions") or b.get("contributions") or []
+            comp_shares = [
+                {
+                    "compound_id": c.get("compound_id"),
+                    "compound_label": c.get("compound_label"),
+                    "delta": c.get("estimated_delta", 0.0),
+                    "formatted_delta": c.get("formatted_delta", f"{c.get('estimated_delta', 0.0):+g} {unit}"),
+                    "direction": "UP" if c.get("contribution_mag", 0) > 0 else "DOWN",
+                }
+                for c in contributions
+            ]
+
+            pos_contribs = [c for c in contributions if c.get("contribution_mag", 0) > 0.03]
+            neg_contribs = [c for c in contributions if c.get("contribution_mag", 0) < -0.03]
+
+            if pos_contribs and neg_contribs and in_safe:
+                status = "BALANCED_TARGET"
+                status_label = f"Balanced {label} ({est_val} {unit})"
+                status_color = "#10b981"
+                participating_labels = [c.get("compound_label") for c in contributions if abs(c.get("contribution_mag", 0)) > 0.03]
+                if len(participating_labels) >= 2:
+                    active_mitigations.append({
+                        "title": f"{label} Equilibrium & Counterbalance",
+                        "description": (
+                            f"Multi-agent interaction stabilizes {label} within physiological target bounds "
+                            f"({est_val} {unit}, target {safe_lower}-{safe_upper} {unit})."
+                        ),
+                        "participating_compounds": participating_labels,
+                        "benefited_axis": label,
+                        "risk_reduction_points": 15.0,
+                    })
+            elif not in_safe and est_val > safe_upper:
+                is_severe = est_val > (safe_upper * 1.35)
+                status = "ELEVATED_RISK" if is_severe else "MODERATE_ELEVATION"
+                status_label = f"Elevated {label} ({est_val} {unit})"
+                status_color = "#ef4444" if is_severe else "#f59e0b"
+                if is_severe and bio_id in {"bio_qtc", "bio_hematocrit", "bio_alt", "bio_ast", "bio_serum_creatinine", "bio_blood_glucose", "bio_prolactin", "bio_free_t3"}:
+                    uncompensated_risks.append({
+                        "axis": label,
+                        "severity": "HIGH_RISK",
+                        "title": f"Elevated {label} ({est_val} {unit})",
+                        "description": f"Compound pharmacological action shifts {label} beyond the safe upper bound ({safe_upper} {unit}) to {est_val} {unit}.",
+                        "clinical_recommendation": f"Monitor {label} and adjust dosage or add counterbalancing support if necessary.",
+                    })
+            elif not in_safe and est_val < safe_lower:
+                is_severe = est_val < (safe_lower * 0.65)
+                status = "SUPPRESSED_RISK" if is_severe else "MODERATE_SUPPRESSION"
+                status_label = f"Suppressed {label} ({est_val} {unit})"
+                status_color = "#ef4444" if is_severe else "#f59e0b"
+                if is_severe and bio_id in {"bio_blood_glucose", "bio_egfr", "bio_platelets", "bio_hdl_c", "bio_testosterone", "bio_estradiol", "bio_luteinizing_hormone", "bio_tsh", "bio_acth"}:
+                    uncompensated_risks.append({
+                        "axis": label,
+                        "severity": "HIGH_RISK",
+                        "title": f"Suppressed {label} ({est_val} {unit})",
+                        "description": f"Compound pharmacological action depresses {label} below the safe lower bound ({safe_lower} {unit}) to {est_val} {unit}.",
+                        "clinical_recommendation": f"Monitor {label} and review stack components suppressing this axis.",
+                    })
+            else:
+                status = "NORMAL_PHYSIOLOGICAL"
+                status_label = f"Normal {label} ({est_val} {unit})"
+                status_color = "#34d399"
+
+            axis_name = label if "axis" in label.lower() else f"{label} Axis"
+            axes.append({
+                "name": axis_name,
+                "biomarker_id": bio_id,
+                "baseline": baseline,
+                "estimated_value": est_val,
+                "unit": unit,
+                "safe_range": f"{safe_lower} - {safe_upper} {unit}",
+                "safe_lower": safe_lower,
+                "safe_upper": safe_upper,
+                "in_safe_range": in_safe,
+                "status": status,
+                "status_label": status_label,
+                "status_color": status_color,
+                "net_delta_str": f"{'+' if delta > 0 else ''}{delta} {unit}",
+                "compounds_breakdown": comp_shares,
+                "panel": panel,
+            })
+            processed_bio_ids.add(bio_id)
+
+        # Calculate Overall Health Index & Equilibrium Status
+        num_mitigations = len(active_mitigations)
+        num_uncompensated = len(uncompensated_risks)
+        all_in_safe = all(a.get("in_safe_range", True) for a in axes)
+
+        # Tag Priority Tiers and Calculate Percent Shifts for each Axis
+        for a in axes:
+            status = str(a.get("status", ""))
+            status_color = str(a.get("status_color", ""))
+            in_safe = bool(a.get("in_safe_range", True))
+            baseline = float(a.get("baseline", 0.0))
+            est_val = float(a.get("estimated_value", baseline))
+            pct_shift = (abs(est_val - baseline) / max(abs(baseline), 1e-4) * 100.0) if baseline != 0 else (abs(est_val) * 100.0)
+            a["percent_shift"] = round(pct_shift, 2)
+
+            if status_color == "#ef4444" or (not in_safe and any(k in status for k in ["CRASH", "STRAIN", "HYPERKALEMIA", "ELEVATED_RISK", "SUPPRESSED_RISK"])):
+                a["priority_tier"] = 1
+                a["priority_label"] = "Critical Strain"
+            elif status_color == "#f59e0b" or not in_safe or any(k in status for k in ["ELEVATED", "SUPPRESSED", "HYPOTENSIVE", "MODERATE", "BRADYCARDIA", "HYPOKALEMIA"]):
+                a["priority_tier"] = 2
+                a["priority_label"] = "Moderate Alert"
+            elif any(k in status for k in ["BALANCED", "NORMOTENSIVE", "EUCHRONIC"]) or status_color == "#10b981":
+                a["priority_tier"] = 3
+                a["priority_label"] = "Counterbalanced"
+            elif abs(est_val - baseline) > 1e-3 or len(a.get("compounds_breakdown", [])) > 0:
+                a["priority_tier"] = 4
+                a["priority_label"] = "Active Shift"
+            else:
+                a["priority_tier"] = 5
+                a["priority_label"] = "Baseline Stable"
+
+        # Deterministic clinical sorting:
+        # Tier 1 (Critical Out-of-Range) -> Tier 2 (Moderate Alert) -> Tier 3 (Counterbalanced) -> Tier 4 (Active Shift) -> Tier 5 (Baseline)
+        axes.sort(key=lambda x: (
+            x.get("priority_tier", 5),
+            -x.get("percent_shift", 0.0),
+            x.get("name", "")
+        ))
+
+        if num_uncompensated == 0 and num_mitigations > 0 and all_in_safe:
+            overall_status = "OPTIMAL_EQUILIBRIUM"
+            status_label = "Optimal Physiological Equilibrium"
+            health_index = 95
+        elif num_mitigations > 0 and all_in_safe:
+            overall_status = "COUNTERBALANCED"
+            status_label = "Therapeutic Counterbalance Active"
+            health_index = 88
+        elif num_uncompensated > 0:
+            overall_status = "UNCOMPENSATED_STRAIN"
+            status_label = "Uncompensated Axis Disruption"
+            health_index = max(20, 70 - (num_uncompensated * 18))
+        elif all_in_safe:
+            overall_status = "PHYSIOLOGICAL_BASELINE"
+            status_label = "Normal Physiological Baseline"
+            health_index = 85
+        else:
+            overall_status = "MODERATE_DEVIATION"
+            status_label = "Moderate Axis Deviation"
+            health_index = 72
+
+        return {
+            "health_index": health_index,
+            "status": overall_status,
+            "status_label": status_label,
+            "axes": axes,
+            "active_mitigations": active_mitigations,
+            "uncompensated_risks": uncompensated_risks,
+            "dose_recommendations": dose_recommendations,
+            "cascade_biomarker_shifts": cascade_results.get("biomarker_shifts", []),
+            "target_combined_effects": combined_effects,
+        }
+
 
     def _evaluate_pair(
         self,
@@ -598,15 +1893,43 @@ class InteractionEngine:
 
         # 1. Documented Synergies (Check bidirectional synergy pairing)
         syn_item = None
+        targets_b = {
+            key_b,
+            name_b.lower(),
+            str(comp_b.get("key", "")).lower(),
+            str(comp_b.get("canonical_key", "")).lower(),
+            str(comp_b.get("name", "")).lower(),
+            _normalize_name(key_b),
+            _normalize_name(name_b),
+        }
+        if any(t in targets_b for t in ["theanine", "l_theanine", "l-theanine"]):
+            targets_b.update({"theanine", "l_theanine", "l-theanine", "suntheanine"})
+
+        targets_a = {
+            key_a,
+            name_a.lower(),
+            str(comp_a.get("key", "")).lower(),
+            str(comp_a.get("canonical_key", "")).lower(),
+            str(comp_a.get("name", "")).lower(),
+            _normalize_name(key_a),
+            _normalize_name(name_a),
+        }
+        if any(t in targets_a for t in ["theanine", "l_theanine", "l-theanine"]):
+            targets_a.update({"theanine", "l_theanine", "l-theanine", "suntheanine"})
+
         for syn in comp_a.get("synergies", []):
-            if isinstance(syn, dict) and _normalize_name(syn.get("partner")) in {key_b, name_b.lower()}:
-                syn_item = syn
-                break
-        if not syn_item:
-            for syn in comp_b.get("synergies", []):
-                if isinstance(syn, dict) and _normalize_name(syn.get("partner")) in {key_a, name_a.lower()}:
+            if isinstance(syn, dict):
+                p = str(syn.get("partner", "")).lower()
+                if p in targets_b or _normalize_name(p) in targets_b:
                     syn_item = syn
                     break
+        if not syn_item:
+            for syn in comp_b.get("synergies", []):
+                if isinstance(syn, dict):
+                    p = str(syn.get("partner", "")).lower()
+                    if p in targets_a or _normalize_name(p) in targets_a:
+                        syn_item = syn
+                        break
 
         if syn_item:
             return {
@@ -738,6 +2061,162 @@ class InteractionEngine:
         burdens_a = comp_a.get("organ_burdens", {}) or {}
         burdens_b = comp_b.get("organ_burdens", {}) or {}
 
+        # 5a. Dynamic Sympathoadrenal & Adrenergic Cascades
+        is_beta_a, class_beta_a = _is_beta_agonist(comp_a)
+        is_beta_b, class_beta_b = _is_beta_agonist(comp_b)
+        is_a2_a, class_a2_a = _is_alpha2_antagonist(comp_a)
+        is_a2_b, class_a2_b = _is_alpha2_antagonist(comp_b)
+        is_ade_a, class_ade_a = _is_adenosine_antagonist_or_pde_inhibitor(comp_a)
+        is_ade_b, class_ade_b = _is_adenosine_antagonist_or_pde_inhibitor(comp_b)
+        is_symp_a, class_symp_a = _is_sympathomimetic_stimulant(comp_a)
+        is_symp_b, class_symp_b = _is_sympathomimetic_stimulant(comp_b)
+
+        # Case 1: Beta-Agonist + Alpha-2 Antagonist (e.g. Clenbuterol + Yohimbine)
+        if (is_beta_a and is_a2_b) or (is_beta_b and is_a2_a):
+            beta_name = name_a if is_beta_a else name_b
+            a2_name = name_b if is_beta_a else name_a
+            return {
+                "source_key": key_a,
+                "source_name": name_a,
+                "target_key": key_b,
+                "target_name": name_b,
+                "is_self": False,
+                "severity": "HIGH_RISK",
+                "severity_score": 35,
+                "conflict_types": ["PHARMACODYNAMIC", "DOWNSTREAM_CASCADE"],
+                "title": f"Sympathoadrenal Overdrive & Arrhythmogenic Crisis ({beta_name} + {a2_name})",
+                "description": (
+                    f"Co-administration of {beta_name} (Beta-Adrenergic Agonist) and {a2_name} (Presynaptic Alpha-2 Blocker) "
+                    f"produces severe convergent sympathoadrenal hyper-activation. Alpha-2 blockade triggers uncontrolled "
+                    f"synaptic norepinephrine exocytosis that floods post-junctional receptors while the beta-agonist directly "
+                    f"stimulates cardiac beta-1/beta-2 pathways, escalating tachycardia, palpitations, severe hypertensive spikes, "
+                    f"and life-threatening ventricular arrhythmia risk."
+                ),
+                "affected_targets": ["Beta-2 Adrenergic Receptor", "Beta-1 Adrenergic Receptor", "Alpha-2 Adrenergic Autoreceptor", "SA/AV Nodal Conduction"],
+                "clinical_recommendation": "Avoid concurrent combination. Do not combine beta-2 agonists with alpha-2 blockers. Monitor continuous ECG, heart rate, and blood pressure.",
+                "evidence_level": "strong",
+            }
+
+        # Case 2: Beta-Agonist + Adenosine Antagonist / PDE Inhibitor (e.g. Clenbuterol + Caffeine / Theophylline)
+        if (is_beta_a and is_ade_b) or (is_beta_b and is_ade_a):
+            beta_name = name_a if is_beta_a else name_b
+            ade_name = name_b if is_beta_a else name_a
+            return {
+                "source_key": key_a,
+                "source_name": name_a,
+                "target_key": key_b,
+                "target_name": name_b,
+                "is_self": False,
+                "severity": "HIGH_RISK",
+                "severity_score": 30,
+                "conflict_types": ["PHARMACODYNAMIC", "DOWNSTREAM_CASCADE"],
+                "title": f"Synergistic Intracellular cAMP Overload & Tachycardia ({beta_name} + {ade_name})",
+                "description": (
+                    f"Combining {beta_name} (Beta-Adrenergic Gs Agonist) with {ade_name} (Adenosine Antagonist / PDE Inhibitor) "
+                    f"causes multiplicative intracellular cyclic AMP (cAMP) accumulation in cardiac myocytes and peripheral vasculature. "
+                    f"Direct adenylyl cyclase stimulation coupled with removal of purinergic inhibition and reduced cAMP degradation "
+                    f"triggers excessive positive inotropy/chronotropy, severe resting tachycardia, tremor, cardiac oxygen demand mismatch, and hypokalemia."
+                ),
+                "affected_targets": ["Adenylyl Cyclase / cAMP Signaling", "Adenosine A1/A2A Receptors", "Beta-2/Beta-1 Adrenergic Receptors", "Myocardial Contractility"],
+                "clinical_recommendation": "Strictly avoid high-dose concurrent use. Separate administration by at least 6-8 hours, monitor resting heart rate, and maintain serum potassium and hydration.",
+                "evidence_level": "strong",
+            }
+
+        # Case 3: Beta-Agonist + Sympathomimetic Stimulant (e.g. Clenbuterol + Ephedrine / Amphetamine)
+        if (is_beta_a and is_symp_b) or (is_beta_b and is_symp_a):
+            beta_name = name_a if is_beta_a else name_b
+            symp_name = name_b if is_beta_a else name_a
+            return {
+                "source_key": key_a,
+                "source_name": name_a,
+                "target_key": key_b,
+                "target_name": name_b,
+                "is_self": False,
+                "severity": "HIGH_RISK",
+                "severity_score": 32,
+                "conflict_types": ["PHARMACODYNAMIC", "ORGAN_BURDEN", "DOWNSTREAM_CASCADE"],
+                "title": f"Dual Adrenergic Sympathetic Hyper-Stimulation ({beta_name} + {symp_name})",
+                "description": (
+                    f"Co-administration of {beta_name} and {symp_name} compounds direct post-junctional beta-receptor stimulation "
+                    f"with central/peripheral monoaminergic outflow, significantly increasing arterial wall shear stress, "
+                    f"resting tachycardia, and myocardial strain."
+                ),
+                "affected_targets": ["Beta-Adrenergic Receptors", "Monoamine Transporters", "Cardiovascular Tone"],
+                "clinical_recommendation": "Avoid simultaneous use. Dose reduce both agents and monitor resting heart rate and blood pressure twice daily.",
+                "evidence_level": "strong",
+            }
+
+        # Case 4: Alpha-2 Antagonist + Adenosine Antagonist / Sympathomimetic (e.g. Yohimbine + Caffeine)
+        if (is_a2_a and (is_ade_b or is_symp_b)) or (is_a2_b and (is_ade_a or is_symp_a)):
+            a2_name = name_a if is_a2_a else name_b
+            other_name = name_b if is_a2_a else name_a
+            return {
+                "source_key": key_a,
+                "source_name": name_a,
+                "target_key": key_b,
+                "target_name": name_b,
+                "is_self": False,
+                "severity": "HIGH_RISK",
+                "severity_score": 26,
+                "conflict_types": ["PHARMACODYNAMIC", "ORGAN_BURDEN"],
+                "title": "Dual Stimulant Sympathetic Hyper-Activation",
+                "description": (
+                    f"Co-administration of {a2_name} (Presynaptic Alpha-2 Blocker) and {other_name} produces additive catecholaminergic "
+                    f"outflow and central purinergic disinhibition, escalating resting tachycardia, acute anxiety, and hypertensive risk."
+                ),
+                "affected_targets": ["Alpha-2 Adrenergic Receptors", "Adenosine Receptors", "Cardiovascular Tone"],
+                "clinical_recommendation": "Avoid simultaneous intake. Separate administration or reduce doses.",
+                "evidence_level": "strong",
+            }
+
+        # Case 5: Dual Beta-Agonists
+        if is_beta_a and is_beta_b:
+            return {
+                "source_key": key_a,
+                "source_name": name_a,
+                "target_key": key_b,
+                "target_name": name_b,
+                "is_self": False,
+                "severity": "HIGH_RISK",
+                "severity_score": 30,
+                "conflict_types": ["PHARMACODYNAMIC", "ORGAN_BURDEN"],
+                "title": f"Dual Beta-Adrenergic Agonist Overload ({name_a} + {name_b})",
+                "description": (
+                    f"Co-administration of redundant Beta-Adrenergic agonists ({name_a} and {name_b}) produces additive "
+                    f"cardiovascular inotropic load, increasing risk of tachyarrhythmias and receptor desensitization."
+                ),
+                "affected_targets": ["Beta-1/Beta-2 Adrenergic Receptors"],
+                "clinical_recommendation": "Eliminate redundant beta-agonist therapy.",
+                "evidence_level": "strong",
+            }
+
+        # Case 6: Beta-Blocker + Beta-Agonist (Competitive Pharmacodynamic Antagonism)
+        is_bb_a = _is_beta_blocker(comp_a)
+        is_bb_b = _is_beta_blocker(comp_b)
+        if (is_bb_a and is_beta_b) or (is_bb_b and is_beta_a):
+            bb_name = name_a if is_bb_a else name_b
+            ba_name = name_b if is_bb_a else name_a
+            return {
+                "source_key": key_a,
+                "source_name": name_a,
+                "target_key": key_b,
+                "target_name": name_b,
+                "is_self": False,
+                "severity": "MODERATE_RISK",
+                "severity_score": 15,
+                "conflict_types": ["PHARMACODYNAMIC", "ANTAGONISM"],
+                "title": f"Opposing Beta-Adrenergic Antagonism ({bb_name} + {ba_name})",
+                "description": (
+                    f"Concomitant use of {bb_name} (Beta-Adrenergic Blocker) and {ba_name} (Beta-Adrenergic Agonist) "
+                    f"results in mutual competitive antagonism at adrenergic receptors. {bb_name} blunts the stimulatory/bronchodilatory "
+                    f"efficacy of {ba_name}, while {ba_name} counteracts the rate-control and cardioprotective effects of {bb_name}."
+                ),
+                "affected_targets": ["Beta-1 Adrenergic Receptor", "Beta-2 Adrenergic Receptor"],
+                "clinical_recommendation": "Avoid concurrent combination of beta-blockers with beta-agonists unless specifically co-managed with close vitals monitoring.",
+                "evidence_level": "strong",
+            }
+
+        # 5b. General Organ Burden Stimulant & Sedative Collisions
         stim_a = str(burdens_a.get("cns_stimulant", "none")).lower()
         stim_b = str(burdens_b.get("cns_stimulant", "none")).lower()
         if stim_a in {"moderate", "high"} and stim_b in {"moderate", "high"}:
@@ -1245,6 +2724,125 @@ class InteractionEngine:
                 "clinical_recommendation": "Frequent blood glucose self-monitoring and proactive dose reduction of secretagogues/insulin.",
             })
 
+        # 11. Synergistic Sympathomimetic & Adrenergic Cardiovascular Toxicity
+        symp_agents = []
+        for c in compounds:
+            is_b, b_class = _is_beta_agonist(c)
+            is_a2, a2_class = _is_alpha2_antagonist(c)
+            is_ade, ade_class = _is_adenosine_antagonist_or_pde_inhibitor(c)
+            is_s, s_class = _is_sympathomimetic_stimulant(c)
+            if is_b:
+                symp_agents.append(f"{c.get('name')} ({b_class})")
+            elif is_a2:
+                symp_agents.append(f"{c.get('name')} ({a2_class})")
+            elif is_ade:
+                symp_agents.append(f"{c.get('name')} ({ade_class})")
+            elif is_s:
+                symp_agents.append(f"{c.get('name')} ({s_class})")
+
+        if len(symp_agents) >= 2:
+            hr_val = labs_dict.get("heart_rate") if labs_dict.get("heart_rate") is not None else 72.0
+            bp_val = labs_dict.get("blood_pressure") if labs_dict.get("blood_pressure") is not None else 120.0
+            is_critical = len(symp_agents) >= 3 or (hr_val is not None and hr_val >= 85.0) or (bp_val is not None and bp_val >= 135.0)
+            syndromes.append({
+                "syndrome": "Sympathomimetic Cardiovascular Toxicity Risk",
+                "severity": "SEVERE_CONTRAINDICATION" if is_critical else "HIGH_RISK",
+                "severity_score": 50 if is_critical else 32,
+                "title": "Multi-Agent Sympathomimetic & Adrenergic Cardiovascular Overload",
+                "description": (
+                    f"Stack combines multiple sympathomimetic, adrenergic agonist, or xanthine stimulant agents ({', '.join(symp_agents)}). "
+                    f"This multi-pathway sympathetic hyper-stimulation compounds intracellular cAMP accumulation, positive chronotropy, "
+                    f"and arterial vasoconstriction, exponentially increasing resting tachycardia, hypertensive crisis, and arrhythmia risk."
+                ),
+                "clinical_recommendation": (
+                    "Avoid multi-stimulant / beta-agonist stacking. Monitor resting heart rate, blood pressure, and ECG. "
+                    "Ensure adequate hydration and electrolyte balance (potassium and magnesium)."
+                ),
+            })
+
+        # 12. Hypoestrogenemia & HPG Axis Shutdown without Testosterone Base
+        has_bioidentical_test = any(
+            ("testosterone" in str(c.get("canonical_name") or c.get("name") or c.get("key") or "").lower()
+             and not any(w in str(c.get("canonical_name") or c.get("name") or c.get("key") or "").lower()
+                         for w in ["trenbolone", "nandrolone", "drostanolone", "oxandrolone", "boldenone", "stanozolol", "dihydrotestosterone", "epitestosterone", "sarm", "rad140", "lgd", "ostarine", "s-4", "yk-11"]))
+            or "hcg" in str(c.get("canonical_name") or c.get("name") or c.get("key") or "").lower()
+            for c in compounds
+        )
+        non_test_androgens = []
+        for c in compounds:
+            c_name = str(c.get("canonical_name") or c.get("name") or c.get("key") or "").lower()
+            d_class = str(c.get("drug_class") or "").lower()
+            is_androgen = "androgen" in d_class or "anabolic" in d_class or "sarm" in d_class or any(w in c_name for w in ["drostanolone", "masteron", "primobolan", "methenolone", "oxandrolone", "anavar", "stanozolol", "winstrol", "trenbolone", "superdrol", "rad140", "lgd4033", "ostarine"])
+            is_test = "testosterone" in c_name and not any(w in c_name for w in ["trenbolone", "nandrolone", "drostanolone", "oxandrolone", "boldenone", "stanozolol", "dihydrotestosterone", "epitestosterone", "sarm", "rad140", "lgd"])
+            if is_androgen and not is_test:
+                non_test_androgens.append(c.get("name") or c.get("key"))
+
+        if non_test_androgens and not has_bioidentical_test:
+            syndromes.append({
+                "syndrome": "Hypoestrogenemia & HPG Axis Shutdown",
+                "severity": "HIGH_RISK",
+                "severity_score": 45,
+                "risk_tier": "HIGH",
+                "title": "Crashed Testosterone & Estrogen (AAS/SARM without Testosterone Base)",
+                "description": (
+                    f"Stack contains non-testosterone androgen/SARM compounds ({', '.join(non_test_androgens)}) without a bioidentical testosterone base or aromatizable estrogen source. "
+                    f"Exogenous AR stimulation halts hypothalamic GnRH and pituitary LH/FSH secretion, shutting down endogenous testicular steroidogenesis. "
+                    f"Because non-aromatizing androgens cannot be converted into 17β-estradiol by aromatase (CYP19A1), circulating estradiol crashes (<10 pg/mL), "
+                    f"triggering severe arthralgia, loss of endothelial and cardiovascular protection, severe atherogenic lipid worsening (profound HDL suppression), and mood/neurocognitive collapse."
+                ),
+                "clinical_recommendation": (
+                    "Incorporate a bioidentical testosterone base (e.g., TRT 100-150 mg/week) or hCG to restore circulating testosterone substrate "
+                    "and maintain neuroprotective and joint-protective physiological estradiol levels (20-40 pg/mL)."
+                ),
+            })
+
+        # 13. Progestogenic Hyperprolactinemia Risk (19-nor without Dopamine Agonist)
+        nor19_agents = [
+            c.get("name") or c.get("key")
+            for c in compounds
+            if any(w in str(c.get("name", "")).lower() or w in str(c.get("drug_class", "")).lower() or w in str(c.get("mechanism", "")).lower()
+                   for w in ["19-nor", "nandrolone", "trenbolone", "nortestosterone"])
+        ]
+        has_d2_agonist = any(
+            any(w in str(c.get("name", "")).lower() or w in str(c.get("mechanism", "")).lower()
+                for w in ["cabergoline", "pramipexole", "bromocriptine", "dopamine agonist"])
+            for c in compounds
+        )
+        if nor19_agents and not has_d2_agonist:
+            syndromes.append({
+                "syndrome": "Progestogenic Hyperprolactinemia Risk",
+                "severity": "HIGH_RISK",
+                "severity_score": 30,
+                "risk_tier": "HIGH",
+                "title": "19-Nor Progestogenic Prolactin Surge",
+                "description": (
+                    f"Stack contains 19-nor progestogenic androgens ({', '.join(nor19_agents)}) without a dopamine D2 receptor agonist. "
+                    f"19-Nor compounds transactivate pituitary progesterone receptors, stimulating lactotroph prolactin secretion and predisposing to hyperprolactinemia, galactorrhea, and prolonged HPG axis suppression."
+                ),
+                "clinical_recommendation": (
+                    "Monitor serum prolactin. Consider co-administration of a dopamine D2 agonist (Cabergoline 0.25-0.5 mg/week or Pramipexole) if prolactin exceeds 18 ng/mL."
+                ),
+            })
+
+        # 14. Iatrogenic Thyroid Suppression
+        thyroid_agents = [
+            c.get("name") or c.get("key")
+            for c in compounds
+            if any(w in str(c.get("name", "")).lower() or w in str(c.get("mechanism", "")).lower() or w in str(c.get("drug_class", "")).lower()
+                   for w in ["liothyronine", "levothyroxine", "thyroid hormone", "triiodothyronine", "t3", "t4"])
+            and not any(w in str(c.get("name", "")).lower() for w in ["ashwagandha", "iodine", "selenium", "tyrosine"])
+        ]
+        if thyroid_agents:
+            syndromes.append({
+                "syndrome": "Thyroid Axis Shutdown Risk",
+                "severity": "MODERATE_RISK",
+                "severity_score": 20,
+                "risk_tier": "MODERATE",
+                "title": "Exogenous Thyroid Hormone TSH Suppression",
+                "description": f"Exogenous thyroid hormone administration ({', '.join(thyroid_agents)}) suppresses pituitary TSH secretion and shuts down endogenous thyroid follicular synthesis.",
+                "clinical_recommendation": "Monitor baseline and on-cycle TSH, Free T3, and Free T4. Taper gradually upon cessation to avoid rebound fatigue.",
+            })
+
         return syndromes
 
     def _evaluate_biomarker_vector_convergence(
@@ -1333,19 +2931,45 @@ class InteractionEngine:
                     net_bp = sum(bp_downs.values())
                     bp_val = labs.get("blood_pressure") if labs.get("blood_pressure") is not None else 120.0
                     is_high_risk = bp_val < 100.0 or len(bp_downs) >= 3
-                    agent_names = [graph.graph.nodes[c].get("label", c) for c in bp_downs.keys()]
+                    has_synergy = any(
+                        "HEMODYNAMIC_SYNERGY" in s.get("conflict_types", []) or "Antihypertensive" in s.get("title", "")
+                        for s in synergistic_benefits
+                    )
+                    if is_high_risk or not has_synergy:
+                        agent_names = [graph.graph.nodes[c].get("label", c) for c in bp_downs.keys()]
+                        biomarker_alerts.append({
+                            "syndrome": "Biomarker Cascade: Additive Antihypertensive Response",
+                            "severity": "HIGH_RISK" if is_high_risk else "MODERATE_RISK",
+                            "severity_score": 24 if is_high_risk else 6,
+                            "risk_tier": "HIGH" if is_high_risk else "MODERATE",
+                            "title": f"Dynamic Cascade Convergence: Additive Blood Pressure Reduction ({', '.join(agent_names)})",
+                            "description": (
+                                f"Biological cascade simulation detected multiple compounds ({', '.join(agent_names)}) "
+                                f"cooperatively lowering {label} (net vector: {round(net_bp, 2)}). "
+                                + ("Caution for symptomatic orthostatic hypotension given low baseline blood pressure." if is_high_risk else "Standard additive therapeutic blood pressure reduction.")
+                            ),
+                            "clinical_recommendation": "Routinely monitor sitting and standing blood pressure during dose titration.",
+                        })
+
+                # 3b. Blood Pressure elevation convergence (at least 2 compounds pushing BP up)
+                bp_ups = {c: v for c, v in contribs.items() if v >= 0.25}
+                if "blood_pressure" in b_id.lower() and len(bp_ups) >= 2:
+                    net_bp_up = sum(bp_ups.values())
+                    bp_val = labs.get("blood_pressure") if labs.get("blood_pressure") is not None else 120.0
+                    is_high_bp = net_bp_up >= 0.8 or bp_val >= 135.0
+                    agent_names = [graph.graph.nodes[c].get("label", c) for c in bp_ups.keys()]
                     biomarker_alerts.append({
-                        "syndrome": "Biomarker Cascade: Additive Antihypertensive Response",
-                        "severity": "HIGH_RISK" if is_high_risk else "MODERATE_RISK",
-                        "severity_score": 24 if is_high_risk else 6,
-                        "risk_tier": "HIGH" if is_high_risk else "MODERATE",
-                        "title": f"Dynamic Cascade Convergence: Additive Blood Pressure Reduction ({', '.join(agent_names)})",
+                        "syndrome": "Biomarker Cascade: Additive Hypertensive Strain",
+                        "severity": "HIGH_RISK",
+                        "severity_score": 30 if is_high_bp else 20,
+                        "risk_tier": "HIGH",
+                        "title": f"Dynamic Cascade Convergence: Hypertensive Vascular Strain ({', '.join(agent_names)})",
                         "description": (
                             f"Biological cascade simulation detected multiple compounds ({', '.join(agent_names)}) "
-                            f"cooperatively lowering {label} (net vector: {round(net_bp, 2)}). "
-                            + ("Caution for symptomatic orthostatic hypotension given low baseline blood pressure." if is_high_risk else "Standard additive therapeutic blood pressure reduction.")
+                            f"converging to elevate {label} (net vector: +{round(net_bp_up, 2)}). "
+                            f"Compounded sympathomimetic vasoconstriction and inotropic pressure elevate arterial wall shear stress and afterload."
                         ),
-                        "clinical_recommendation": "Routinely monitor sitting and standing blood pressure during dose titration.",
+                        "clinical_recommendation": "Monitor resting blood pressure morning and evening. Avoid concurrent stimulant / vasoconstrictor stacking.",
                     })
 
                 # 4. Heart Rate / Chronotropy reduction convergence (at least 2 compounds pushing HR down)
@@ -1365,6 +2989,27 @@ class InteractionEngine:
                             f"depressing {label} (net vector: {round(net_hr, 2)}), compounding bradycardia and AV block risk."
                         ),
                         "clinical_recommendation": "Check baseline resting ECG and monitor daily resting heart rate.",
+                    })
+
+                # 4b. Heart Rate / Chronotropy elevation convergence (at least 2 compounds pushing HR up)
+                hr_ups = {c: v for c, v in contribs.items() if v >= 0.25}
+                if "heart_rate" in b_id.lower() and len(hr_ups) >= 2:
+                    net_hr_up = sum(hr_ups.values())
+                    hr_val = labs.get("heart_rate") if labs.get("heart_rate") is not None else 72.0
+                    is_severe_hr = net_hr_up >= 0.8 or hr_val >= 85.0
+                    agent_names = [graph.graph.nodes[c].get("label", c) for c in hr_ups.keys()]
+                    biomarker_alerts.append({
+                        "syndrome": "Biomarker Cascade: Tachycardia & Inotropic Overdrive",
+                        "severity": "SEVERE_CONTRAINDICATION" if is_severe_hr else "HIGH_RISK",
+                        "severity_score": 42 if is_severe_hr else 28,
+                        "risk_tier": "CRITICAL" if is_severe_hr else "HIGH",
+                        "title": f"Dynamic Cascade Convergence: Resting Tachycardia & Inotropic Strain ({', '.join(agent_names)})",
+                        "description": (
+                            f"Biological cascade simulation detected multiple compounds ({', '.join(agent_names)}) "
+                            f"converging to increase {label} (net vector: +{round(net_hr_up, 2)}). "
+                            f"Dual sympathetic inotropic and chronotropic stimulation accelerates myocardial oxygen consumption and elevates tachyarrhythmia risk."
+                        ),
+                        "clinical_recommendation": "Obtain baseline resting ECG and monitor daily resting heart rate. Avoid multi-agent adrenergic / chronotropic stacking.",
                     })
 
                 # 5. Bleeding / Hemostasis impairment convergence (at least 2 compounds increasing bleeding risk)
@@ -1484,23 +3129,67 @@ class InteractionEngine:
                     })
 
                 # 11. Hepatic transaminitis strain convergence
-                alt_ups = {c: v for c, v in contribs.items() if v >= 0.2}
+                alt_ups = {c: v for c, v in contribs.items() if v >= 0.4}
                 if "alt" in b_id.lower() and len(alt_ups) >= 2:
                     net_alt = sum(alt_ups.values())
                     alt_val = labs.get("alt_u_l") if labs.get("alt_u_l") is not None else 25.0
-                    is_severe = net_alt >= 0.6 or alt_val > 50.0
-                    agent_names = [graph.graph.nodes[c].get("label", c) for c in alt_ups.keys()]
+                    has_hep_warning = any(
+                        c.get("organ_burdens", {}).get("hepatic") in {"high", "severe"}
+                        or "hepatotox" in str(c.get("warnings", "")).lower()
+                        or "17-alpha" in str(c.get("mechanism", "")).lower()
+                        for c in compounds
+                    )
+                    has_cyp_conflict = any("CYP450" in c.get("conflict_types", []) for c in receptor_conflicts + cyp_conflicts)
+                    is_severe = (net_alt >= 1.5) or (alt_val > 50.0 and net_alt >= 0.8) or (has_hep_warning and net_alt >= 0.8) or (has_cyp_conflict and net_alt >= 0.8)
+                    if is_severe:
+                        agent_names = [graph.graph.nodes[c].get("label", c) for c in alt_ups.keys()]
+                        biomarker_alerts.append({
+                            "syndrome": "Biomarker Cascade: Hepatic Transaminitis Strain",
+                            "severity": "HIGH_RISK",
+                            "severity_score": 26,
+                            "title": f"Dynamic Cascade Convergence: Additive Hepatocellular Strain ({', '.join(agent_names)})",
+                            "description": (
+                                f"Biological cascade simulation detected multiple compounds ({', '.join(agent_names)}) "
+                                f"elevating {label} (net vector: +{round(net_alt, 2)}). "
+                                f"Additive hepatic metabolic and reactive metabolite strain increases transaminitis and DILI vulnerability."
+                            ),
+                            "clinical_recommendation": "Monitor baseline and 4-week liver function panels (ALT, AST, Total Bilirubin). Consider hepatoprotective co-factors.",
+                        })
+
+                # 12. Oxidative Stress & Redox Strain convergence
+                ox_downs = {c: v for c, v in contribs.items() if v <= -0.25}
+                if "gsh_redox_ratio" in b_id.lower() and len(ox_downs) >= 2:
+                    net_ox = sum(ox_downs.values())
+                    agent_names = [graph.graph.nodes[c].get("label", c) for c in ox_downs.keys()]
                     biomarker_alerts.append({
-                        "syndrome": "Biomarker Cascade: Hepatic Transaminitis Strain",
+                        "syndrome": "Biomarker Cascade: Systemic Oxidative & Mitochondrial Strain",
                         "severity": "HIGH_RISK",
-                        "severity_score": 26,
-                        "title": f"Dynamic Cascade Convergence: Additive Hepatocellular Strain ({', '.join(agent_names)})",
+                        "severity_score": 24,
+                        "title": f"Dynamic Cascade Convergence: Cellular Redox Depletion ({', '.join(agent_names)})",
                         "description": (
                             f"Biological cascade simulation detected multiple compounds ({', '.join(agent_names)}) "
-                            f"elevating {label} (net vector: +{round(net_alt, 2)}). "
-                            f"Additive hepatic metabolic and reactive metabolite strain increases transaminitis and DILI vulnerability."
+                            f"depleting {label} (net vector: {round(net_ox, 2)}). "
+                            f"Concurrent mitochondrial uncoupling, catecholaminergic autoxidation, and Phase I reactive species generation deplete reduced glutathione reserves."
                         ),
-                        "clinical_recommendation": "Monitor baseline and 4-week liver function panels (ALT, AST, Total Bilirubin). Consider hepatoprotective co-factors.",
+                        "clinical_recommendation": "Consider antioxidant support (N-Acetylcysteine, Alpha-Lipoic Acid, CoQ10) and monitor inflammatory markers.",
+                    })
+
+                # 13. QTc Prolongation & Cardiac Electrophysiology Strain convergence
+                qtc_ups = {c: v for c, v in contribs.items() if v >= 0.25}
+                if "qtc" in b_id.lower() and len(qtc_ups) >= 2:
+                    net_qtc = sum(qtc_ups.values())
+                    agent_names = [graph.graph.nodes[c].get("label", c) for c in qtc_ups.keys()]
+                    biomarker_alerts.append({
+                        "syndrome": "Biomarker Cascade: Additive QTc Prolongation",
+                        "severity": "SEVERE_CONTRAINDICATION" if net_qtc >= 0.7 else "HIGH_RISK",
+                        "severity_score": 45 if net_qtc >= 0.7 else 30,
+                        "title": f"Dynamic Cascade Convergence: Additive QTc Interval Prolongation ({', '.join(agent_names)})",
+                        "description": (
+                            f"Biological cascade simulation identified multiple compounds ({', '.join(agent_names)}) "
+                            f"lengthening {label} (net vector: +{round(net_qtc, 2)}). "
+                            f"Dual hERG channel blockade prolongs ventricular repolarization, escalating Torsades de Pointes and ventricular arrhythmia risk."
+                        ),
+                        "clinical_recommendation": "Obtain baseline 12-lead ECG, monitor QTc intervals, and maintain serum potassium and magnesium at upper-normal targets.",
                     })
         except Exception:
             pass

@@ -1,16 +1,117 @@
 from __future__ import annotations
 
+import copy
 import json
 import os
 import re
 import sqlite3
-from typing import Any, Dict, List, Optional, Set
+from typing import Any, Dict, List, Optional, Set, Tuple
 
 from app.data.compounds import COMPOUND_LIBRARY
 
 
 def _get_default_compounds() -> List[Dict[str, Any]]:
     return [{"key": key, **value} for key, value in COMPOUND_LIBRARY.items()]
+
+
+CANONICAL_SYNONYM_MAP: Dict[str, str] = {
+    "masteron": "drostanolone",
+    "dromostanolone": "drostanolone",
+    "drostanolonepropionate": "drostanolone",
+    "drostanoloneenanthate": "drostanolone",
+    "masteronpropionate": "drostanolone",
+    "masteronenanthate": "drostanolone",
+    "superdrol": "methyldrostanolone",
+    "methasterone": "methyldrostanolone",
+    "17amethyldrostanolone": "methyldrostanolone",
+    "17alphamethyldrostanolone": "methyldrostanolone",
+    "arimidex": "anastrozole",
+    "femara": "letrozole",
+    "aromasin": "exemestane",
+    "proscar": "finasteride",
+    "propecia": "finasteride",
+    "avodart": "dutasteride",
+    "micardis": "telmisartan",
+    "inspra": "eplerenone",
+    "cialis": "tadalafil",
+    "viagra": "sildenafil",
+    "levitra": "vardenafil",
+    "valium": "diazepam",
+    "xanax": "alprazolam",
+    "accutane": "isotretinoin",
+    "glucophage": "metformin",
+    "jardiance": "empagliflozin",
+    "farxiga": "dapagliflozin",
+    "ozempic": "semaglutide",
+    "wegovy": "semaglutide",
+    "mounjaro": "tirzepatide",
+    "zepbound": "tirzepatide",
+    "bystolic": "nebivolol",
+    "lopressor": "metoprolol",
+    "tenormin": "atenolol",
+    # Supplements & Nutraceuticals
+    "astaxanthin": "astaxanthin",
+    "asta": "astaxanthin",
+    "astaxanthine": "astaxanthin",
+    "astareal": "astaxanthin",
+    "coq10": "coq10",
+    "ubiquinol": "coq10",
+    "ubiquinone": "coq10",
+    "coenzymeq10": "coq10",
+    "milkthistle": "milk_thistle",
+    "silymarin": "milk_thistle",
+    "silybin": "milk_thistle",
+    "silybummarianum": "milk_thistle",
+    "siliphos": "milk_thistle",
+    "curcumin": "curcumin",
+    "turmeric": "curcumin",
+    "turmericextract": "curcumin",
+    "curcuminoids": "curcumin",
+    "theracurmin": "curcumin",
+    "longvida": "curcumin",
+    "citrusbergamot": "citrus_bergamot",
+    "bergamot": "citrus_bergamot",
+    "bergamotextract": "citrus_bergamot",
+    "bergamonte": "citrus_bergamot",
+    "bpf": "citrus_bergamot",
+    "alphalipoicacid": "alpha_lipoic_acid",
+    "ala": "alpha_lipoic_acid",
+    "rala": "alpha_lipoic_acid",
+    "rlipoicacid": "alpha_lipoic_acid",
+    "thiocticacid": "alpha_lipoic_acid",
+    "taurine": "taurine",
+    "ltaurine": "taurine",
+    "melatonin": "melatonin",
+    "circadin": "melatonin",
+    "nac": "nac",
+    "nacetylcysteine": "nac",
+    "acetylcysteine": "nac",
+    "nacetylcysteine": "nac",
+    "tudca": "tudca",
+    "tauroursodeoxycholicacid": "tudca",
+    "tauroursodeoxycholate": "tudca",
+    "alcar": "l_carnitine",
+    "acetyllcarnitine": "l_carnitine",
+    "carnitine": "l_carnitine",
+    "lcarnitine": "l_carnitine",
+    "lcarnitinetartrate": "l_carnitine",
+    "ltheanine": "l_theanine",
+    "theanine": "l_theanine",
+    "suntheanine": "l_theanine",
+    "berberine": "berberine",
+    "berberinehcl": "berberine",
+    "omega3": "omega_3",
+    "fishoil": "omega_3",
+    "krilloil": "omega_3",
+    "epadha": "omega_3",
+    "epa": "omega_3",
+    "dha": "omega_3",
+    "ashwagandha": "ashwagandha",
+    "ksm66": "ashwagandha",
+    "sensoril": "ashwagandha",
+    "withaniasomnifera": "ashwagandha",
+}
+
 
 
 def _normalize_compound_name(name: str | None) -> str:
@@ -20,12 +121,20 @@ def _normalize_compound_name(name: str | None) -> str:
     return cleaned
 
 
+_CATALOG_MEMORY_CACHE: Dict[Tuple[str, str], Dict[str, Any]] = {}
+
+
 class CatalogService:
     def __init__(self, database_path: str | None = None):
         self._custom_database_path = database_path
         self._ensure_database()
-        if not self.list_compounds(limit=1):
-            self.seed_default_compounds()
+        self.sync_seed_compounds()
+
+    def sync_seed_compounds(self) -> None:
+        for compound in _get_default_compounds():
+            k = compound.get("key") or compound.get("name")
+            if k:
+                self.upsert_compound(compound)
 
     @property
     def database_path(self) -> str:
@@ -36,6 +145,13 @@ class CatalogService:
     def _connect(self) -> sqlite3.Connection:
         connection = sqlite3.connect(self.database_path)
         connection.row_factory = sqlite3.Row
+        try:
+            connection.execute("PRAGMA journal_mode=WAL;")
+            connection.execute("PRAGMA synchronous=NORMAL;")
+            connection.execute("PRAGMA temp_store=MEMORY;")
+            connection.execute("PRAGMA cache_size=-64000;")
+        except sqlite3.DatabaseError:
+            pass
         return connection
 
     def _ensure_database(self) -> None:
@@ -113,6 +229,8 @@ class CatalogService:
                     ic50_nm REAL,
                     hill_coefficient REAL,
                     pathway_details TEXT,
+                    source_tier TEXT DEFAULT 'seed',
+                    last_enriched_at TEXT,
                     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
                     updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
                 )
@@ -185,6 +303,8 @@ class CatalogService:
                 "ic50_nm": "REAL",
                 "hill_coefficient": "REAL",
                 "pathway_details": "TEXT",
+                "source_tier": "TEXT DEFAULT 'seed'",
+                "last_enriched_at": "TEXT",
             }
             for column_name, column_type in additions.items():
                 if column_name not in existing_columns:
@@ -196,6 +316,7 @@ class CatalogService:
             conn.execute("CREATE INDEX IF NOT EXISTS idx_compounds_mechanism ON compounds(mechanism)")
             conn.execute("CREATE INDEX IF NOT EXISTS idx_compounds_indications ON compounds(indications)")
             conn.execute("CREATE INDEX IF NOT EXISTS idx_compounds_inchikey ON compounds(inchikey)")
+            conn.execute("CREATE INDEX IF NOT EXISTS idx_compounds_source_tier ON compounds(source_tier)")
 
     def _resolve_canonical_key(self, compound: Dict[str, Any]) -> str | None:
         candidates = [
@@ -275,6 +396,9 @@ class CatalogService:
         return merged_count
 
     def reset_database(self) -> None:
+        keys_to_del = [k for k in _CATALOG_MEMORY_CACHE if k[0] == self.database_path]
+        for k in keys_to_del:
+            _CATALOG_MEMORY_CACHE.pop(k, None)
         with self._connect() as conn:
             conn.execute("DROP TABLE IF EXISTS compounds")
         self._ensure_database()
@@ -372,6 +496,8 @@ class CatalogService:
             "ic50_nm": compound.get("ic50_nm"),
             "hill_coefficient": compound.get("hill_coefficient"),
             "pathway_details": self._serialize(compound.get("pathway_details", [])),
+            "source_tier": compound.get("source_tier", "seed"),
+            "last_enriched_at": compound.get("last_enriched_at"),
         }
 
         with self._connect() as conn:
@@ -391,7 +517,8 @@ class CatalogService:
                     t_half_numeric, bioavailability_f, volume_of_distribution_l_kg, clearance_l_h_kg,
                     t_max_h, c_max_ng_ml, fraction_unbound, protein_binding_pct, absorption_rate_ka,
                     renal_clearance_fraction, bcs_class, mec_ng_ml, mtc_ng_ml, therapeutic_index,
-                    e_max, ec50_nm, ic50_nm, hill_coefficient, pathway_details, updated_at
+                    e_max, ec50_nm, ic50_nm, hill_coefficient, pathway_details, source_tier,
+                    last_enriched_at, updated_at
                 )
                 VALUES (
                     :key, :name, :canonical_name, :canonical_key, :inchikey, :smiles, :logp, :tpsa,
@@ -406,7 +533,8 @@ class CatalogService:
                     :t_half_numeric, :bioavailability_f, :volume_of_distribution_l_kg, :clearance_l_h_kg,
                     :t_max_h, :c_max_ng_ml, :fraction_unbound, :protein_binding_pct, :absorption_rate_ka,
                     :renal_clearance_fraction, :bcs_class, :mec_ng_ml, :mtc_ng_ml, :therapeutic_index,
-                    :e_max, :ec50_nm, :ic50_nm, :hill_coefficient, :pathway_details, CURRENT_TIMESTAMP
+                    :e_max, :ec50_nm, :ic50_nm, :hill_coefficient, :pathway_details, :source_tier,
+                    :last_enriched_at, CURRENT_TIMESTAMP
                 )
                 ON CONFLICT(key) DO UPDATE SET
                     name = excluded.name,
@@ -478,17 +606,38 @@ class CatalogService:
                     ic50_nm = COALESCE(excluded.ic50_nm, compounds.ic50_nm),
                     hill_coefficient = COALESCE(excluded.hill_coefficient, compounds.hill_coefficient),
                     pathway_details = COALESCE(excluded.pathway_details, compounds.pathway_details),
+                    source_tier = COALESCE(excluded.source_tier, compounds.source_tier),
+                    last_enriched_at = COALESCE(excluded.last_enriched_at, compounds.last_enriched_at),
                     updated_at = CURRENT_TIMESTAMP
                 """,
                 row,
             )
             conn.commit()
 
-        return self.get_compound(row["key"])
+        # Invalidate memory cache for updated record
+        for alias in [row.get("key"), row.get("name"), row.get("canonical_name")]:
+            if alias:
+                _CATALOG_MEMORY_CACHE.pop((self.database_path, _normalize_compound_name(alias)), None)
 
-    def get_compound(self, key: str) -> Dict[str, Any] | None:
+        return self.get_compound(row["key"], auto_enrich=False)
+
+    def get_compound(self, key: str, auto_enrich: bool = True) -> Dict[str, Any] | None:
         if not key:
             return None
+
+        norm_query = _normalize_compound_name(key)
+        cache_key = (self.database_path, norm_query)
+        if cache_key in _CATALOG_MEMORY_CACHE:
+            return copy.deepcopy(_CATALOG_MEMORY_CACHE[cache_key])
+
+        # Resolve known synonym/brand aliases to canonical entity key
+        if norm_query in CANONICAL_SYNONYM_MAP:
+            canonical_key = CANONICAL_SYNONYM_MAP[norm_query]
+            if canonical_key != key:
+                canon_res = self.get_compound(canonical_key, auto_enrich=auto_enrich)
+                if canon_res:
+                    _CATALOG_MEMORY_CACHE[cache_key] = canon_res
+                    return copy.deepcopy(canon_res)
 
         normalized_query = str(key).strip().lower().replace(" ", "_").replace("-", "_")
 
@@ -509,27 +658,133 @@ class CatalogService:
                     "SELECT * FROM compounds WHERE LOWER(name) = LOWER(?) OR LOWER(canonical_name) = LOWER(?) LIMIT 1",
                     (key.strip(), key.strip()),
                 ).fetchone()
+            if row is None:
+                # Exact InChIKey or canonical_key match
+                row = conn.execute(
+                    "SELECT * FROM compounds WHERE LOWER(canonical_key) = LOWER(?) OR LOWER(inchikey) = LOWER(?) LIMIT 1",
+                    (key.strip(), key.strip()),
+                ).fetchone()
+            if row is None:
+                # Exact synonym match in JSON synonyms array
+                clean_syn = key.strip().lower()
+                row = conn.execute(
+                    "SELECT * FROM compounds WHERE LOWER(synonyms) LIKE ? LIMIT 1",
+                    (f'%"{clean_syn}"%',),
+                ).fetchone()
+            if row is None:
+                # Normalized alphanumeric match across keys, names, and all synonyms
+                target_norm = _normalize_compound_name(key)
+                all_rows = conn.execute("SELECT * FROM compounds").fetchall()
+                for r in all_rows:
+                    if _normalize_compound_name(r["key"]) == target_norm or _normalize_compound_name(r["name"]) == target_norm:
+                        row = r
+                        break
+                    syns = self._deserialize(r["synonyms"], [])
+                    for s in syns:
+                        if _normalize_compound_name(str(s)) == target_norm:
+                            row = r
+                            break
+                    if row is not None:
+                        break
 
-        if row is None:
+        if row is not None:
+            comp = self._row_to_compound(dict(row))
+            for alias in [comp.get("key"), comp.get("name"), comp.get("canonical_name"), comp.get("canonical_key"), comp.get("inchikey"), key] + list(comp.get("synonyms") or []):
+                if alias:
+                    _CATALOG_MEMORY_CACHE[(self.database_path, _normalize_compound_name(alias))] = comp
+            return copy.deepcopy(comp)
+
+        if not auto_enrich:
             return None
 
-        return self._row_to_compound(dict(row))
+        # Write-through lazy enrichment fallback
+        try:
+            from app.services.live_enrichment import LiveEnrichmentService
+            enricher = LiveEnrichmentService()
+            profile = enricher.fetch_compound_profile(key)
+            if profile:
+                return self.upsert_compound(profile)
+        except Exception:
+            pass
+
+        return None
+
+    def canonicalize_and_merge_stack(self, stack: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+        """
+        Unifies and merges stack entries that refer to the same chemical compound under different names
+        (e.g., Drostanolone and Masteron, Methyldrostanolone and Superdrol).
+        Aggregates dosages cleanly into a single canonical entry.
+        """
+        if not stack:
+            return []
+
+        merged_by_canonical: Dict[str, Dict[str, Any]] = {}
+        for item in stack:
+            if not isinstance(item, dict):
+                continue
+            raw_key = str(item.get("key") or item.get("name") or "").strip()
+            if not raw_key:
+                continue
+
+            try:
+                comp = self.get_compound(raw_key, auto_enrich=False)
+            except TypeError:
+                comp = self.get_compound(raw_key)
+            canonical_id = (comp.get("canonical_key") or comp.get("inchikey") or comp.get("key") or raw_key).lower() if comp else raw_key.lower()
+
+            dose_val = item.get("dose") if item.get("dose") is not None else item.get("dose_mg")
+            try:
+                dose_mg = float(dose_val) if dose_val is not None else None
+            except (ValueError, TypeError):
+                dose_mg = None
+
+            unit = str(item.get("unit") or "mg").strip()
+
+            if canonical_id in merged_by_canonical:
+                existing = merged_by_canonical[canonical_id]
+                if dose_mg is not None:
+                    if existing.get("dose_mg") is not None:
+                        existing["dose_mg"] += dose_mg
+                        existing["dose"] = existing["dose_mg"]
+                    else:
+                        existing["dose_mg"] = dose_mg
+                        existing["dose"] = dose_mg
+                if "synonyms_merged" not in existing:
+                    existing["synonyms_merged"] = [existing.get("name") or existing.get("key")]
+                existing["synonyms_merged"].append(item.get("name") or raw_key)
+            else:
+                if comp:
+                    new_entry = dict(comp)
+                    new_entry.update(item)
+                    new_entry["key"] = comp.get("key") or raw_key
+                    new_entry["canonical_key"] = comp.get("canonical_key") or comp.get("key")
+                    new_entry["canonical_name"] = comp.get("canonical_name") or comp.get("name")
+                    new_entry["name"] = comp.get("name") or item.get("name") or comp.get("canonical_name")
+                    new_entry["drug_class"] = comp.get("drug_class") or item.get("drug_class")
+                    new_entry["inchikey"] = comp.get("inchikey")
+                else:
+                    new_entry = dict(item)
+                if dose_mg is not None:
+                    new_entry["dose_mg"] = dose_mg
+                    new_entry["dose"] = dose_mg
+                    new_entry["unit"] = unit
+                merged_by_canonical[canonical_id] = new_entry
+
+        return list(merged_by_canonical.values())
 
     def enrich_compound_online(self, key_or_name: str) -> Dict[str, Any] | None:
         """Enriches a compound in the catalog with live OpenFDA, ChEMBL, and RxNorm metadata."""
         from app.services.live_enrichment import LiveEnrichmentService
+        from datetime import datetime, timezone
 
-        compound = self.get_compound(key_or_name)
-        if compound is None:
-            # Create a placeholder compound to enrich
-            compound = {
-                "key": key_or_name.strip().lower().replace(" ", "_").replace("-", "_"),
-                "name": key_or_name.strip().title(),
-                "canonical_name": key_or_name.strip().title(),
-            }
-
+        compound = self.get_compound(key_or_name, auto_enrich=False)
         enricher = LiveEnrichmentService()
+        if compound is None:
+            return enricher.enrich_and_cache(key_or_name, catalog_service=self)
+
         enriched = enricher.enrich_compound(compound)
+        enriched["source_tier"] = "live_enrichment"
+        enriched["last_enriched_at"] = datetime.now(timezone.utc).isoformat()
         return self.upsert_compound(enriched)
 
     def get_compounds_by_keys(self, keys: List[str]) -> Dict[str, Dict[str, Any]]:
@@ -546,7 +801,7 @@ class CatalogService:
 
         return results
 
-    def search_compounds(self, query: str, limit: int = 20) -> List[Dict[str, Any]]:
+    def search_compounds(self, query: str, limit: int = 20, auto_enrich: bool = True) -> List[Dict[str, Any]]:
         query_str = str(query or "").strip().lower()
         if not query_str:
             with self._connect() as conn:
@@ -597,7 +852,19 @@ class CatalogService:
                 if len(unique_compounds) >= limit:
                     break
 
-        return unique_compounds
+        if unique_compounds:
+            return unique_compounds
+
+        # On-demand write-through lookup if search returned 0 matches
+        if auto_enrich and len(query_str) >= 3:
+            try:
+                enriched = self.get_compound(query_str, auto_enrich=True)
+                if enriched:
+                    return [enriched]
+            except Exception:
+                pass
+
+        return []
 
     def query_compounds(self, limit: int = 20, offset: int = 0, search: Optional[str] = None) -> tuple[List[Dict[str, Any]], int]:
         page_size = max(limit, 1)
@@ -631,6 +898,9 @@ class CatalogService:
     def delete_compound(self, key: str) -> bool:
         if not key:
             return False
+        keys_to_del = [k for k in _CATALOG_MEMORY_CACHE if k[0] == self.database_path and (k[1] == _normalize_compound_name(key) or _CATALOG_MEMORY_CACHE[k].get("key") == key)]
+        for k in keys_to_del:
+            _CATALOG_MEMORY_CACHE.pop(k, None)
         with self._connect() as conn:
             cursor = conn.execute("DELETE FROM compounds WHERE key = ?", (key,))
             conn.commit()
@@ -646,7 +916,7 @@ class CatalogService:
         return [self._row_to_compound(dict(row)) for row in rows]
 
     def _row_to_compound(self, row: Dict[str, Any]) -> Dict[str, Any]:
-        return {
+        compound = {
             "key": row["key"],
             "name": row["name"],
             "canonical_name": row.get("canonical_name") or row.get("name"),
@@ -717,4 +987,20 @@ class CatalogService:
             "ic50_nm": row.get("ic50_nm"),
             "hill_coefficient": row.get("hill_coefficient"),
             "pathway_details": self._deserialize(row.get("pathway_details"), default=[]),
+            "source_tier": row.get("source_tier", "seed"),
+            "last_enriched_at": row.get("last_enriched_at"),
         }
+
+        burdens = compound.get("organ_burdens") or {}
+        if not burdens or all(v == "none" for v in burdens.values()):
+            from app.services.pharmacology_enricher import PharmacologyEnricher
+            compound = PharmacologyEnricher.enrich_compound(compound)
+
+        from app.services.dosing_service import get_default_compound_dose
+        dose_info = get_default_compound_dose(compound)
+        compound["default_dose"] = dose_info
+        compound["dose"] = dose_info["dose_val"]
+        compound["unit"] = dose_info["dose_unit"]
+        compound["dose_display"] = dose_info["dose_display"]
+
+        return compound

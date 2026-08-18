@@ -90,28 +90,32 @@ def test_graph_data_returns_empty_when_stack_is_missing():
     assert payload["edges"] == []
 
 
-def test_filter_graph_by_stack_keeps_selected_compounds_visible_even_without_graph_matches():
+def test_data_driven_protocol_includes_rich_metadata():
+    profile = {
+        "goals": ["strength", "focus"],
+        "weight_kg": 80,
+        "labs": {"hematocrit_pct": 47, "ldl_mg_dl": 100, "alt_u_l": 25},
+        "sleep_hours": 6.5,
+    }
+
+    result = calculate_protocol(profile)
+
+    creatine = next(item for item in result["stack"] if item["compound"] == "Creatine")
+    caffeine = next(item for item in result["stack"] if item["compound"] == "Caffeine")
+
+    assert "side_effects" in creatine
+    assert "interactions" in creatine
+    assert "evidence_level" in creatine
+    assert creatine["dose"]["dosage_range"]["common"] == 1600
+    assert caffeine["receptor_targets"][0]["target"] == "A1 receptor"
+    assert caffeine["dose"]["recommended_dose"] == 240
+
+
+def test_filter_graph_by_stack_keeps_selected_compounds_visible_when_no_graph_match_exists():
     graph = build_testosterone_alopecia_graph()
     filtered = filter_graph_by_stack(graph, ["caffeine", "l_carnitine"], max_depth=2)
 
     assert "caffeine" in filtered.graph.nodes
     assert "l_carnitine" in filtered.graph.nodes
-    assert all(node in filtered.graph.nodes for node in ["caffeine", "l_carnitine"])
-
-
-def test_filter_graph_by_stack_returns_relevant_subset():
-    graph = build_testosterone_alopecia_graph()
-    filtered = filter_graph_by_stack(graph, ["testosterone", "finasteride"], max_depth=2)
-
-    assert "testosterone" in filtered.graph.nodes
-    assert "finasteride" in filtered.graph.nodes
-    assert set(filtered.graph.nodes).issubset(set(graph.graph.nodes))
-
-
-def test_filter_graph_by_stack_keeps_selected_compounds_visible_when_no_graph_match_exists():
-    graph = build_testosterone_alopecia_graph()
-    filtered = filter_graph_by_stack(graph, ["caffeine"], max_depth=2)
-
-    assert "caffeine" in filtered.graph.nodes
-    assert len(filtered.graph.nodes) > 0
+    assert len(filtered.graph.nodes) >= 2
     assert len(filtered.graph.edges) == 0

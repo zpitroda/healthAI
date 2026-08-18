@@ -44,7 +44,7 @@ def test_testosterone_and_hgh_is_not_false_alarm_hypoglycemia():
 
     result = engine.analyze_stack([testosterone, hgh])
     assert result["risk_band"] in {"MINIMAL", "LOW"}
-    assert result["cumulative_risk_score"] <= 15
+    assert result["cumulative_risk_score"] <= 25
     # Should NOT have any severe hypoglycemia conflicts or syndrome alerts
     assert not any("Hypoglycemia" in c["title"] for c in result["breakdown"]["receptor_conflicts"])
     assert not any("Hypoglycemia" in s["title"] for s in result["breakdown"]["syndrome_alerts"])

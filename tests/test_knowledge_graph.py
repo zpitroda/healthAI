@@ -34,11 +34,11 @@ def test_yohimbine_and_nebivolol_cross_talk_connectivity():
     graph = build_selected_compound_graph(["yohimbine", "nebivolol"], catalog_service=service)
 
     undirected = graph.graph.to_undirected()
-    # Yohimbine key is 'yohimbine', Nebivolol ChEMBL key is 'CHEMBL434394'
-    assert nx.has_path(undirected, "yohimbine", "CHEMBL434394")
+    neb_node = "nebivolol" if "nebivolol" in undirected else "CHEMBL434394"
+    assert nx.has_path(undirected, "yohimbine", neb_node)
 
     # Verify both direct PK metabolism bridge and PD cascade bridge exist
-    all_paths = list(nx.all_simple_paths(undirected, "yohimbine", "CHEMBL434394", cutoff=6))
+    all_paths = list(nx.all_simple_paths(undirected, "yohimbine", neb_node, cutoff=6))
     assert len(all_paths) > 0
 
     # Verify PD cross-talk path: Alpha-2 -> Norepinephrine Release -> Beta-1 Adrenergic Receptor

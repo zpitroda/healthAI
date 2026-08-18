@@ -6,7 +6,10 @@ from fastapi.responses import JSONResponse
 
 from app.services.graph_service import (
     build_selected_compound_graph,
+    canonicalize_match_token,
+    compute_target_combined_effects,
     filter_graph_by_stack,
+    parse_compound_spec,
     resolve_stack_to_catalog_keys,
 )
 
@@ -59,13 +62,13 @@ def graph_data(
     depth: int = 5,
     stack: Optional[List[str]] = Query(default=None),
 ) -> JSONResponse:
-    """Return JSON node and edge network graph data and dynamic cascade simulation for the active compound stack."""
+    """Return JSON node and edge network graph data, dynamic cascade simulation, and combined target receptor activation for the active compound stack."""
     focus_str = focus if isinstance(focus, str) else None
     depth_val = depth if isinstance(depth, int) else 5
 
     if stack is None:
         return JSONResponse(
-            {"nodes": [], "edges": [], "focus": focus_str, "depth": depth_val, "cascade_simulation": {}},
+            {"nodes": [], "edges": [], "focus": focus_str, "depth": depth_val, "cascade_simulation": {}, "combined_effects": {}},
             headers=NO_CACHE_HEADERS,
         )
 
@@ -85,16 +88,27 @@ def graph_data(
 
     if not parsed_stack:
         return JSONResponse(
-            {"nodes": [], "edges": [], "focus": focus_str, "depth": depth_val, "cascade_simulation": {}},
+            {"nodes": [], "edges": [], "focus": focus_str, "depth": depth_val, "cascade_simulation": {}, "combined_effects": {}},
             headers=NO_CACHE_HEADERS,
         )
 
     graph = build_selected_compound_graph(parsed_stack)
     graph = filter_graph_by_stack(graph, parsed_stack, max_depth=max(depth_val, 2))
 
-    # Run dynamic cascade propagation
+    # Parse custom doses from parsed_stack (e.g. 'eplerenone:12.5mg')
+    custom_doses: dict[str, float] = {}
+    for item in parsed_stack:
+        parsed = parse_compound_spec(item)
+        if parsed.get("key") and parsed.get("dose_mg") is not None:
+            custom_doses[parsed["key"].lower()] = parsed["dose_mg"]
+            custom_doses[canonicalize_match_token(parsed["key"])] = parsed["dose_mg"]
+
+    # Compute multi-compound combined receptor effects & occupancy
+    combined_effects = compute_target_combined_effects(graph, custom_doses=custom_doses)
+
+    # Run dynamic cascade propagation with saturation & net activation calibration
     resolved_keys = resolve_stack_to_catalog_keys(parsed_stack)
-    cascade_results = graph.propagate_cascade(resolved_keys or parsed_stack)
+    cascade_results = graph.propagate_cascade(resolved_keys or parsed_stack, combined_effects=combined_effects)
 
     if focus_str:
         if focus_str not in graph.graph:
@@ -116,7 +130,8 @@ def graph_data(
         else:
             pk_pd = "PD"
 
-        nodes.append({
+        comb = combined_effects.get(node_id)
+        node_payload = {
             "id": node_id,
             "label": attrs.get("label", node_id),
             "node_type": nt,
@@ -137,7 +152,14 @@ def graph_data(
             "in_degree": in_degree,
             "out_degree": out_degree,
             "degree": in_degree + out_degree,
-        })
+            "combined_effect": comb,
+            "has_multiple_ligands": bool(comb and comb.get("has_multiple_ligands")),
+            "ligand_count": comb.get("ligand_count", 0) if comb else 0,
+            "net_activation_score": comb.get("net_activation_score") if comb else None,
+            "net_activation_pct": comb.get("net_activation_pct") if comb else None,
+            "receptor_state": comb.get("receptor_state") if comb else None,
+        }
+        nodes.append(node_payload)
 
     def _readable_edge_label(edge_type: str, mag: float) -> str:
         """Convert internal edge type + magnitude into a concise, human-readable graph label."""
@@ -188,18 +210,33 @@ def graph_data(
     for source, target, attrs in graph.graph.edges(data=True):
         raw_type = attrs.get("edge_type", "")
         mag = float(attrs.get("vector_magnitude", 1.0))
-        edges.append({
-            "source": source,
-            "target": target,
-            "type": _readable_edge_label(raw_type, mag),
-            "raw_type": raw_type,
-            "vector_magnitude": mag,
-            "direction_class": _classify_interaction_direction(raw_type, mag),
-            "affinity_ki": attrs.get("affinity_ki"),
-            "inhibition_ic50": attrs.get("inhibition_ic50"),
-            "is_bridge": bool(attrs.get("is_bridge", False)),
-            "description": attrs.get("description"),
-        })
+        if raw_type == "SUBSTRATE_OF":
+            # The enzyme acts upon the substrate compound: orient arrow from Enzyme -> Substrate with active verb METABOLIZES
+            edges.append({
+                "source": target,
+                "target": source,
+                "type": "METABOLIZES",
+                "raw_type": raw_type,
+                "vector_magnitude": mag,
+                "direction_class": "inhibitory",
+                "affinity_ki": attrs.get("affinity_ki"),
+                "inhibition_ic50": attrs.get("inhibition_ic50"),
+                "is_bridge": bool(attrs.get("is_bridge", False)),
+                "description": attrs.get("description") or f"{target} metabolizes {source}",
+            })
+        else:
+            edges.append({
+                "source": source,
+                "target": target,
+                "type": _readable_edge_label(raw_type, mag),
+                "raw_type": raw_type,
+                "vector_magnitude": mag,
+                "direction_class": _classify_interaction_direction(raw_type, mag),
+                "affinity_ki": attrs.get("affinity_ki"),
+                "inhibition_ic50": attrs.get("inhibition_ic50"),
+                "is_bridge": bool(attrs.get("is_bridge", False)),
+                "description": attrs.get("description"),
+            })
 
     return JSONResponse(
         {
@@ -208,6 +245,7 @@ def graph_data(
             "focus": focus,
             "depth": depth,
             "cascade_simulation": cascade_results,
+            "combined_effects": combined_effects,
         },
         headers=NO_CACHE_HEADERS,
     )

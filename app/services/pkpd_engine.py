@@ -422,7 +422,11 @@ class PKPDEngine:
             for t in raw_targets:
                 if isinstance(t, dict):
                     t_name = str(t.get("target") or t.get("name") or "Target")
-                    aff_val = t.get("affinity_ki") or t.get("inhibition_ic50") or t.get("ec50") or 10.0
+                    raw_val = t.get("affinity_ki") or t.get("inhibition_ic50") or t.get("ec50")
+                    try:
+                        aff_val = float(raw_val) if (raw_val is not None and float(raw_val) > 0.0) else 10.0
+                    except (ValueError, TypeError):
+                        aff_val = 10.0
                     aff_type = "Ki" if t.get("affinity_ki") else ("IC50" if t.get("inhibition_ic50") else "EC50")
                     affinities.append(
                         QuantitativeTargetAffinity(
@@ -430,7 +434,7 @@ class PKPDEngine:
                             target_chembl_id=t.get("target_id") or t.get("target_chembl_id"),
                             uniprot_id=t.get("accessions") or t.get("uniprot_id"),
                             affinity_type=aff_type,
-                            affinity_value_nm=float(aff_val),
+                            affinity_value_nm=aff_val,
                             action_type=str(t.get("action") or "modulator"),
                         )
                     )

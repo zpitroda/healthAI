@@ -13,6 +13,8 @@ from app.routers import (
     views_router,
 )
 
+from fastapi.middleware.gzip import GZipMiddleware
+
 BASE_DIR = Path(__file__).resolve().parent
 STATIC_DIR = BASE_DIR / "static"
 
@@ -21,6 +23,9 @@ app = FastAPI(
     version="2.0.0",
     description="Individualized compound protocol optimization, pharmacokinetic conflict analysis, and biological network mapping.",
 )
+
+# GZip Compression for fast payload transfer
+app.add_middleware(GZipMiddleware, minimum_size=1000)
 
 # Static assets
 app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")

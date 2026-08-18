@@ -872,6 +872,433 @@
         color: #93c5fd;
       }
 
+      .matrix-cell.cell-mitigated {
+        background: linear-gradient(135deg, rgba(16, 185, 129, 0.22), rgba(6, 182, 212, 0.18));
+        border: 1px solid rgba(16, 185, 129, 0.6);
+        color: #34d399;
+        box-shadow: 0 0 12px rgba(16, 185, 129, 0.2);
+      }
+
+      /* FULL STACK EQUILIBRIUM STYLES */
+      .balance-dashboard-container {
+        display: flex;
+        flex-direction: column;
+        gap: 20px;
+      }
+
+      .balance-hero-banner {
+        background: linear-gradient(135deg, rgba(14, 32, 52, 0.9), rgba(10, 24, 40, 0.95));
+        border: 1px solid var(--border);
+        border-radius: var(--radius-lg);
+        padding: 20px 24px;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 20px;
+        backdrop-filter: blur(12px);
+      }
+
+      .balance-hero-left {
+        display: flex;
+        flex-direction: column;
+        gap: 6px;
+      }
+
+      .balance-hero-title {
+        font-size: 1.15rem;
+        font-weight: 800;
+        color: var(--text-primary);
+        display: flex;
+        align-items: center;
+        gap: 10px;
+      }
+
+      .balance-hero-desc {
+        font-size: 0.88rem;
+        color: var(--text-secondary);
+        max-width: 620px;
+        line-height: 1.45;
+      }
+
+      .balance-hero-badge-wrap {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+      }
+
+      .balance-index-gauge {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        padding: 12px 18px;
+        border-radius: var(--radius-md);
+        background: rgba(0, 0, 0, 0.35);
+        border: 1px solid var(--border-subtle);
+      }
+
+      .balance-index-num {
+        font-size: 1.6rem;
+        font-weight: 900;
+        font-family: 'JetBrains Mono', monospace;
+      }
+
+      .balance-index-label {
+        font-size: 0.7rem;
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
+        color: var(--text-muted);
+        font-weight: 700;
+      }
+
+      .axes-toolbar-row {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        justify-content: space-between;
+        gap: 12px;
+        margin-bottom: 14px;
+        padding-bottom: 10px;
+        border-bottom: 1px solid var(--border-subtle);
+      }
+
+      .axes-filter-chips {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
+        align-items: center;
+      }
+
+      .axis-filter-btn {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        background: rgba(255, 255, 255, 0.04);
+        border: 1px solid var(--border);
+        border-radius: 9999px;
+        padding: 5px 12px;
+        font-size: 0.76rem;
+        font-weight: 700;
+        color: var(--text-secondary);
+        cursor: pointer;
+        transition: all 0.2s ease;
+      }
+
+      .axis-filter-btn:hover {
+        background: rgba(255, 255, 255, 0.08);
+        color: var(--text-primary);
+        border-color: rgba(0, 242, 254, 0.4);
+      }
+
+      .axis-filter-btn.active {
+        background: rgba(0, 242, 254, 0.15);
+        color: #00f2fe;
+        border-color: rgba(0, 242, 254, 0.6);
+        box-shadow: 0 0 10px rgba(0, 242, 254, 0.2);
+      }
+
+      .axis-filter-btn.filter-critical.active {
+        background: rgba(239, 68, 68, 0.2);
+        color: #f87171;
+        border-color: rgba(239, 68, 68, 0.6);
+        box-shadow: 0 0 10px rgba(239, 68, 68, 0.2);
+      }
+
+      .axis-filter-btn.filter-mitigated.active {
+        background: rgba(16, 185, 129, 0.2);
+        color: #34d399;
+        border-color: rgba(16, 185, 129, 0.6);
+        box-shadow: 0 0 10px rgba(16, 185, 129, 0.2);
+      }
+
+      .axis-sort-wrap {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+      }
+
+      .axis-sort-label {
+        font-size: 0.74rem;
+        font-weight: 700;
+        text-transform: uppercase;
+        color: var(--text-muted);
+        letter-spacing: 0.04em;
+      }
+
+      .axis-sort-select {
+        background: rgba(0, 0, 0, 0.4);
+        border: 1px solid var(--border);
+        border-radius: var(--radius-sm);
+        padding: 5px 10px;
+        font-size: 0.78rem;
+        font-weight: 600;
+        color: var(--text-primary);
+        outline: none;
+        cursor: pointer;
+        transition: border-color 0.2s ease;
+      }
+
+      .axis-sort-select:hover, .axis-sort-select:focus {
+        border-color: #00f2fe;
+      }
+
+      .axes-cards-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+        gap: 16px;
+      }
+
+      .axis-card {
+        background: var(--bg-card);
+        border: 1px solid var(--border);
+        border-radius: var(--radius-md);
+        padding: 18px;
+        display: flex;
+        flex-direction: column;
+        gap: 12px;
+        transition: transform 0.2s ease, border-color 0.2s ease, box-shadow 0.2s ease;
+        position: relative;
+        overflow: hidden;
+      }
+
+      .axis-card:hover {
+        transform: translateY(-2px);
+        border-color: rgba(0, 242, 254, 0.4);
+        box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+      }
+
+      .axis-card.card-tier-critical {
+        border-left: 4px solid #ef4444;
+        background: linear-gradient(135deg, rgba(239, 68, 68, 0.07), rgba(20, 24, 33, 0.95));
+      }
+
+      .axis-card.card-tier-warning {
+        border-left: 4px solid #f59e0b;
+        background: linear-gradient(135deg, rgba(245, 158, 11, 0.07), rgba(20, 24, 33, 0.95));
+      }
+
+      .axis-card.card-tier-mitigated {
+        border-left: 4px solid #10b981;
+        background: linear-gradient(135deg, rgba(16, 185, 129, 0.07), rgba(20, 24, 33, 0.95));
+      }
+
+      .axis-card.card-tier-active {
+        border-left: 4px solid #00f2fe;
+        background: linear-gradient(135deg, rgba(0, 242, 254, 0.04), rgba(20, 24, 33, 0.95));
+      }
+
+      .axis-card.card-tier-baseline {
+        border-left: 4px solid rgba(255, 255, 255, 0.15);
+      }
+
+      .axis-card-top {
+        display: flex;
+        justify-content: space-between;
+        align-items: flex-start;
+        gap: 8px;
+      }
+
+      .axis-name-group {
+        display: flex;
+        flex-direction: column;
+        gap: 2px;
+      }
+
+      .axis-name {
+        font-size: 0.96rem;
+        font-weight: 800;
+        color: var(--text-primary);
+        display: flex;
+        align-items: center;
+        gap: 6px;
+      }
+
+      .axis-tier-tag {
+        display: inline-flex;
+        align-items: center;
+        padding: 2px 7px;
+        border-radius: 4px;
+        font-size: 0.68rem;
+        font-weight: 800;
+        text-transform: uppercase;
+        letter-spacing: 0.03em;
+      }
+
+      .tier-critical { background: rgba(239, 68, 68, 0.2); color: #f87171; border: 1px solid rgba(239, 68, 68, 0.4); }
+      .tier-warning { background: rgba(245, 158, 11, 0.2); color: #fbbf24; border: 1px solid rgba(245, 158, 11, 0.4); }
+      .tier-mitigated { background: rgba(16, 185, 129, 0.2); color: #34d399; border: 1px solid rgba(16, 185, 129, 0.4); }
+      .tier-active { background: rgba(0, 242, 254, 0.15); color: #38bdf8; border: 1px solid rgba(0, 242, 254, 0.3); }
+      .tier-baseline { background: rgba(255, 255, 255, 0.06); color: var(--text-muted); border: 1px solid rgba(255, 255, 255, 0.1); }
+
+      .axis-safe-range {
+        font-size: 0.75rem;
+        color: var(--text-muted);
+        font-family: 'JetBrains Mono', monospace;
+      }
+
+      .axis-values-row {
+        display: flex;
+        align-items: baseline;
+        justify-content: space-between;
+        padding: 10px 14px;
+        background: rgba(0, 0, 0, 0.3);
+        border-radius: var(--radius-sm);
+      }
+
+      .axis-val-primary {
+        font-size: 1.3rem;
+        font-weight: 800;
+        font-family: 'JetBrains Mono', monospace;
+      }
+
+      .axis-val-delta {
+        font-size: 0.84rem;
+        font-weight: 700;
+        font-family: 'JetBrains Mono', monospace;
+      }
+
+      /* RANGE GAUGE VISUALIZER */
+      .axis-range-visualizer {
+        display: flex;
+        flex-direction: column;
+        gap: 4px;
+        padding: 6px 4px;
+      }
+
+      .range-track-container {
+        position: relative;
+        height: 8px;
+        background: rgba(255, 255, 255, 0.08);
+        border-radius: 4px;
+        overflow: visible;
+      }
+
+      .range-safe-window {
+        position: absolute;
+        top: 0;
+        height: 100%;
+        background: rgba(16, 185, 129, 0.28);
+        border-left: 1px solid rgba(16, 185, 129, 0.6);
+        border-right: 1px solid rgba(16, 185, 129, 0.6);
+        border-radius: 2px;
+      }
+
+      .range-marker-baseline {
+        position: absolute;
+        top: -3px;
+        width: 4px;
+        height: 14px;
+        background: #94a3b8;
+        border-radius: 2px;
+        transform: translateX(-50%);
+        z-index: 2;
+      }
+
+      .range-marker-current {
+        position: absolute;
+        top: -4px;
+        width: 10px;
+        height: 16px;
+        border-radius: 3px;
+        transform: translateX(-50%);
+        box-shadow: 0 0 8px currentColor;
+        z-index: 3;
+      }
+
+      .range-meta-labels {
+        display: flex;
+        justify-content: space-between;
+        font-size: 0.68rem;
+        color: var(--text-muted);
+        font-family: 'JetBrains Mono', monospace;
+      }
+
+      .axis-contrib-list {
+        display: flex;
+        flex-direction: column;
+        gap: 6px;
+      }
+
+      .axis-contrib-item {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        font-size: 0.8rem;
+        padding: 4px 8px;
+        background: rgba(255, 255, 255, 0.03);
+        border-radius: 4px;
+      }
+
+      .contrib-name {
+        font-weight: 600;
+        color: var(--text-secondary);
+      }
+
+      .contrib-delta {
+        font-weight: 700;
+        font-family: 'JetBrains Mono', monospace;
+      }
+
+      .contrib-delta.up { color: #f87171; }
+      .contrib-delta.down { color: #34d399; }
+      .contrib-delta.target-up { color: #60a5fa; }
+
+      .mitigations-section, .uncompensated-section {
+        display: flex;
+        flex-direction: column;
+        gap: 12px;
+      }
+
+      .section-heading-row {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+      }
+
+      .section-heading-title {
+        font-size: 0.92rem;
+        font-weight: 800;
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
+        color: var(--text-primary);
+        display: flex;
+        align-items: center;
+        gap: 8px;
+      }
+
+      .mitigation-card {
+        background: linear-gradient(135deg, rgba(16, 185, 129, 0.1), rgba(6, 182, 212, 0.08));
+        border: 1px solid rgba(16, 185, 129, 0.35);
+        border-left: 4px solid #10b981;
+        border-radius: var(--radius-md);
+        padding: 16px;
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+      }
+
+      .mitigation-card-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+      }
+
+      .mitigation-title {
+        font-weight: 800;
+        font-size: 0.96rem;
+        color: #34d399;
+      }
+
+      .uncompensated-card {
+        background: linear-gradient(135deg, rgba(239, 68, 68, 0.12), rgba(245, 158, 11, 0.08));
+        border: 1px solid rgba(239, 68, 68, 0.4);
+        border-left: 4px solid #ef4444;
+        border-radius: var(--radius-md);
+        padding: 16px;
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+      }
+
       .cell-icon {
         font-size: 1rem;
         line-height: 1;
@@ -1235,6 +1662,7 @@
         <section class="panel">
           <div class="tabs-nav">
             <button class="tab-btn active" data-tab="matrix-tab">Collision Matrix (N×N)</button>
+            <button class="tab-btn" data-tab="balance-tab">⚖️ Full Stack Equilibrium</button>
             <button class="tab-btn" data-tab="breakdown-tab">Conflict Deep Dive</button>
             <a href="/graph" target="_blank" class="tab-btn-link" title="Open full-screen interactive biological network in a dedicated tab">
               <span>🧬 Interactive Knowledge Graph</span>
@@ -1253,7 +1681,16 @@
             </div>
           </div>
 
-          <!-- TAB 2: BREAKDOWN CARDS -->
+          <!-- TAB 2: FULL STACK EQUILIBRIUM & PHYSIOLOGICAL AXES -->
+          <div id="balance-tab" class="tab-pane" style="display: none;">
+            <div id="balance-dashboard-wrap" class="balance-dashboard-container">
+              <div class="stack-empty-card">
+                Add compounds to evaluate full-stack physiological axes, dose counterbalances, and net biological equilibrium.
+              </div>
+            </div>
+          </div>
+
+          <!-- TAB 3: BREAKDOWN CARDS -->
           <div id="breakdown-tab" class="tab-pane" style="display: none;">
             <div id="breakdowns-container" class="breakdown-grid">
               <div class="stack-empty-card">
@@ -1398,44 +1835,84 @@
         });
       });
 
+      function getDefaultDoseFallback(key) {
+        const k = String(key || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+        if (k.includes('clenbuterol')) return { dose: 40, unit: 'μg' };
+        if (k.includes('clonidine')) return { dose: 100, unit: 'μg' };
+        if (k.includes('alprazolam')) return { dose: 0.5, unit: 'mg' };
+        if (k.includes('nebivolol')) return { dose: 5, unit: 'mg' };
+        if (k.includes('caffeine')) return { dose: 200, unit: 'mg' };
+        if (k.includes('theanine')) return { dose: 200, unit: 'mg' };
+        if (k.includes('creatine')) return { dose: 5, unit: 'g' };
+        if (k.includes('citrulline')) return { dose: 6, unit: 'g' };
+        if (k.includes('betaalanine')) return { dose: 3.2, unit: 'g' };
+        if (k.includes('yohimbine')) return { dose: 5, unit: 'mg' };
+        if (k.includes('telmisartan')) return { dose: 40, unit: 'mg' };
+        if (k.includes('losartan')) return { dose: 50, unit: 'mg' };
+        if (k.includes('valsartan')) return { dose: 80, unit: 'mg' };
+        if (k.includes('eplerenone')) return { dose: 50, unit: 'mg' };
+        if (k.includes('spironolactone')) return { dose: 50, unit: 'mg' };
+        if (k.includes('metformin')) return { dose: 500, unit: 'mg' };
+        if (k.includes('empagliflozin') || k.includes('dapagliflozin')) return { dose: 10, unit: 'mg' };
+        if (k.includes('semaglutide')) return { dose: 0.25, unit: 'mg' };
+        if (k.includes('testosterone')) return { dose: 20, unit: 'mg' };
+        if (k.includes('aspirin')) return { dose: 81, unit: 'mg' };
+        if (k.includes('atorvastatin')) return { dose: 20, unit: 'mg' };
+        if (k.includes('rosuvastatin')) return { dose: 10, unit: 'mg' };
+        if (k.includes('tadalafil')) return { dose: 10, unit: 'mg' };
+        if (k.includes('sildenafil')) return { dose: 50, unit: 'mg' };
+        if (k.includes('finasteride')) return { dose: 1, unit: 'mg' };
+        if (k.includes('dutasteride')) return { dose: 0.5, unit: 'mg' };
+        if (k.includes('diazepam')) return { dose: 10, unit: 'mg' };
+        return { dose: 10, unit: 'mg' };
+      }
+
       function addCompoundKey(key) {
-        if (!key || state.stack.some(c => c.key === key)) return;
+        if (!key || state.stack.some(c => c.key.toLowerCase() === key.toLowerCase())) return;
         fetch(`/catalog/${encodeURIComponent(key)}`)
           .then(res => {
             if (!res.ok) throw new Error('Compound not found');
             return res.json();
           })
           .then(compound => {
+            const fallback = getDefaultDoseFallback(compound.key || key);
+            const defDose = compound.default_dose || {};
+            const doseVal = defDose.dose_val !== undefined ? defDose.dose_val : (compound.dose !== undefined ? compound.dose : fallback.dose);
+            const doseUnit = defDose.dose_unit || compound.unit || fallback.unit;
+
             state.stack.push({
               key: compound.key || key,
               name: compound.name || key.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase()),
               drug_class: compound.drug_class || 'Compound',
               mechanism: compound.mechanism || '',
-              dose: compound.dosing?.mg_per_kg?.common || 100,
-              unit: compound.dosing?.unit || 'mg',
+              dose: doseVal,
+              unit: doseUnit,
               frequency: 'daily',
               timing: 'morning',
             });
-            renderStackList();
-            evaluateStack();
+            syncAndEvaluateStack();
           })
           .catch(() => {
+            const fallback = getDefaultDoseFallback(key);
             state.stack.push({
               key: key,
               name: key.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase()),
               drug_class: 'custom compound',
-              dose: 100,
-              unit: 'mg',
+              dose: fallback.dose,
+              unit: fallback.unit,
               frequency: 'daily',
               timing: 'morning',
             });
-            renderStackList();
-            evaluateStack();
+            syncAndEvaluateStack();
           });
       }
 
       function removeCompoundKey(key) {
-        state.stack = state.stack.filter(c => c.key !== key);
+        state.stack = state.stack.filter(c => c.key.toLowerCase() !== key.toLowerCase());
+        syncAndEvaluateStack();
+      }
+
+      function syncAndEvaluateStack() {
         renderStackList();
         evaluateStack();
       }
@@ -1452,8 +1929,11 @@
           console.warn('localStorage error', e);
         }
 
-        // Update nav link and tab button URLs
-        const keys = state.stack.map(c => encodeURIComponent(c.key)).join(',');
+        // Update nav link and tab button URLs with compound + dose params
+        const keys = state.stack.map(c => {
+          const u = (c.unit || 'mg').replace('μg', 'ug');
+          return `${encodeURIComponent(c.key)}:${c.dose}${u}`;
+        }).join(',');
         const targetUrl = keys ? `/graph?stack=${keys}` : '/graph';
         const graphLink = document.getElementById('nav-graph-link');
         if (graphLink) graphLink.href = targetUrl;
@@ -1468,38 +1948,76 @@
         }
 
         emptyPlaceholder.style.display = 'none';
-        stackItemsWrap.innerHTML = state.stack.map(c => `
-          <div class="stack-item-card" data-key="${c.key}">
-            <div class="stack-item-top">
-              <div class="stack-item-name-group">
-                <span class="stack-item-name">${c.name}</span>
-                <span class="stack-item-class">${c.drug_class || 'Compound'}</span>
+        stackItemsWrap.innerHTML = state.stack.map(c => {
+          const unit = c.unit || 'mg';
+          return `
+            <div class="stack-item-card" data-key="${c.key}">
+              <div class="stack-item-top">
+                <div class="stack-item-name-group">
+                  <span class="stack-item-name">${c.name}</span>
+                  <span class="stack-item-class">${c.drug_class || 'Compound'}</span>
+                </div>
+                <button class="stack-item-remove-btn" onclick="removeCompoundKey('${c.key}')" title="Remove">&times;</button>
               </div>
-              <button class="stack-item-remove-btn" onclick="removeCompoundKey('${c.key}')" title="Remove">&times;</button>
+              <div class="stack-item-controls" style="display:flex; gap:6px; align-items:center;">
+                <div style="display:flex; align-items:center; gap:4px; flex:1;">
+                  <input 
+                    type="number" 
+                    class="control-input" 
+                    style="width:72px; padding:4px 8px; font-weight:600;" 
+                    min="0" 
+                    step="any" 
+                    value="${c.dose}" 
+                    onchange="updateDoseVal('${c.key}', this.value)" 
+                    title="Change administered dose"
+                  />
+                  <select 
+                    class="control-select" 
+                    style="width:62px; padding:4px 6px; font-weight:600;" 
+                    onchange="updateDoseUnit('${c.key}', this.value)"
+                    title="Select dose unit"
+                  >
+                    <option value="mg" ${unit === 'mg' ? 'selected' : ''}>mg</option>
+                    <option value="μg" ${unit === 'μg' || unit === 'ug' || unit === 'mcg' ? 'selected' : ''}>μg</option>
+                    <option value="g" ${unit === 'g' ? 'selected' : ''}>g</option>
+                    <option value="IU" ${unit === 'IU' ? 'selected' : ''}>IU</option>
+                  </select>
+                </div>
+                <select class="control-select" style="flex:1;" onchange="updateTiming('${c.key}', this.value)" title="Dosing timing">
+                  <option value="morning" ${c.timing === 'morning' ? 'selected' : ''}>Morning</option>
+                  <option value="pre-workout" ${c.timing === 'pre-workout' ? 'selected' : ''}>Pre-Workout</option>
+                  <option value="evening" ${c.timing === 'evening' ? 'selected' : ''}>Evening</option>
+                  <option value="before bed" ${c.timing === 'before bed' ? 'selected' : ''}>Before Bed</option>
+                </select>
+              </div>
             </div>
-            <div class="stack-item-controls">
-              <input type="text" class="control-input" value="${c.dose} ${c.unit}" placeholder="Dosage" onchange="updateDose('${c.key}', this.value)" />
-              <select class="control-select" onchange="updateTiming('${c.key}', this.value)">
-                <option value="morning" ${c.timing === 'morning' ? 'selected' : ''}>Morning</option>
-                <option value="pre-workout" ${c.timing === 'pre-workout' ? 'selected' : ''}>Pre-Workout</option>
-                <option value="evening" ${c.timing === 'evening' ? 'selected' : ''}>Evening</option>
-                <option value="before bed" ${c.timing === 'before bed' ? 'selected' : ''}>Before Bed</option>
-              </select>
-            </div>
-          </div>
-        `).join('');
+          `;
+        }).join('');
       }
 
-      window.updateDose = (key, val) => {
+      window.updateDoseVal = (key, val) => {
+        const parsed = parseFloat(val);
+        if (isNaN(parsed) || parsed <= 0) return;
         const item = state.stack.find(c => c.key === key);
-        if (item) item.dose = val;
+        if (item) {
+          item.dose = parsed;
+          syncAndEvaluateStack();
+        }
+      };
+
+      window.updateDoseUnit = (key, unit) => {
+        const item = state.stack.find(c => c.key === key);
+        if (item) {
+          item.unit = unit || 'mg';
+          syncAndEvaluateStack();
+        }
       };
 
       window.updateTiming = (key, val) => {
         const item = state.stack.find(c => c.key === key);
         if (item) {
           item.timing = val;
-          evaluateStack();
+          syncAndEvaluateStack();
         }
       };
 
@@ -1548,6 +2066,8 @@
           stack: state.stack.map(c => ({
             key: c.key,
             name: c.name,
+            dose: c.dose,
+            unit: c.unit || 'mg',
             timing: c.timing,
             frequency: c.frequency,
           })),
@@ -1585,6 +2105,11 @@
         summaryNarrative.textContent = 'Add compounds from the search catalog to evaluate real-time pharmacodynamic collisions, CYP450 enzyme overlaps, and cumulative safety scores.';
         matrixContainer.innerHTML = '<div class="stack-empty-card" style="padding: 60px 20px;">Add 2 or more compounds to populate the pairwise N×N collision matrix.</div>';
         breakdownsContainer.innerHTML = '<div class="stack-empty-card">No active conflicts or synergies recorded.</div>';
+        
+        const balanceWrap = document.getElementById('balance-dashboard-wrap');
+        if (balanceWrap) {
+          balanceWrap.innerHTML = '<div class="stack-empty-card">Add compounds to evaluate full-stack physiological axes, dose counterbalances, and net biological equilibrium.</div>';
+        }
       }
 
       function renderDashboard(data) {
@@ -1618,8 +2143,316 @@
         summaryNarrative.textContent = data.summary;
 
         renderMatrixTable(data);
+        renderFullStackBalance(data);
         renderBreakdowns(data);
       }
+
+      function renderFullStackBalance(data) {
+        const wrap = document.getElementById('balance-dashboard-wrap');
+        if (!wrap) return;
+
+        const b = data.full_stack_balance;
+        if (!b || !data.compounds || !data.compounds.length) {
+          wrap.innerHTML = '<div class="stack-empty-card">Add compounds to evaluate full-stack physiological axes, dose counterbalances, and net biological equilibrium.</div>';
+          return;
+        }
+
+        const healthIndex = b.health_index || 85;
+        const statusLabel = b.status_label || 'Normal Physiological Baseline';
+        const mitigations = b.active_mitigations || [];
+        const uncompensated = b.uncompensated_risks || [];
+        const doseRecs = b.dose_recommendations || [];
+        const axes = b.axes || [];
+
+        let heroBadgeColor = '#10b981';
+        if (b.status === 'UNCOMPENSATED_STRAIN') heroBadgeColor = '#ef4444';
+        else if (b.status === 'MODERATE_DEVIATION') heroBadgeColor = '#f59e0b';
+        else if (b.status === 'COUNTERBALANCED') heroBadgeColor = '#3b82f6';
+
+        // Filter and Sort State
+        const currentFilter = state.axesFilter || 'all';
+        const currentSort = state.axesSort || 'priority';
+
+        // Count metrics for quick filter chips
+        const totalCount = axes.length;
+        const criticalCount = axes.filter(a => a.priority_tier === 1).length;
+        const warningCount = axes.filter(a => a.priority_tier === 2).length;
+        const outOfRangeCount = criticalCount + warningCount;
+        const mitigatedCount = axes.filter(a => a.priority_tier === 3).length;
+        const activeShiftCount = axes.filter(a => a.priority_tier === 4).length;
+        const baselineCount = axes.filter(a => a.priority_tier === 5).length;
+
+        // Apply active filter
+        let filteredAxes = axes.filter(a => {
+          if (currentFilter === 'out-of-range') return a.priority_tier <= 2 || !a.in_safe_range;
+          if (currentFilter === 'counterbalanced') return a.priority_tier === 3 || (a.status && a.status.includes('BALANCED'));
+          if (currentFilter === 'active-shifts') return a.priority_tier <= 4 && ((a.compounds_breakdown && a.compounds_breakdown.length > 0) || Math.abs(a.estimated_value - a.baseline) > 0.001);
+          if (currentFilter === 'baseline') return a.priority_tier === 5;
+          return true; // 'all'
+        });
+
+        // Apply active sort
+        filteredAxes.sort((a, b) => {
+          if (currentSort === 'shift') {
+            return (b.percent_shift || 0) - (a.percent_shift || 0) || a.name.localeCompare(b.name);
+          }
+          if (currentSort === 'name') {
+            return a.name.localeCompare(b.name);
+          }
+          if (currentSort === 'status') {
+            return (a.priority_tier || 5) - (b.priority_tier || 5) || a.name.localeCompare(b.name);
+          }
+          // Default: 'priority' (Clinical Priority: Critical -> Moderate -> Counterbalanced -> Active Shift -> Baseline)
+          return (a.priority_tier || 5) - (b.priority_tier || 5) || (b.percent_shift || 0) - (a.percent_shift || 0) || a.name.localeCompare(b.name);
+        });
+
+        let axesHtml = '';
+        if (filteredAxes.length) {
+          axesHtml = filteredAxes.map(axis => {
+            const statusColor = axis.status_color || '#34d399';
+            const compList = axis.compounds_breakdown || [];
+            const tier = axis.priority_tier || 5;
+
+            let cardTierClass = 'card-tier-baseline';
+            let tierTagHtml = '<span class="axis-tier-tag tier-baseline">✓ Stable Baseline</span>';
+
+            if (tier === 1) {
+              cardTierClass = 'card-tier-critical';
+              tierTagHtml = '<span class="axis-tier-tag tier-critical">⚠️ Critical Strain</span>';
+            } else if (tier === 2) {
+              cardTierClass = 'card-tier-warning';
+              tierTagHtml = '<span class="axis-tier-tag tier-warning">⚡ Moderate Alert</span>';
+            } else if (tier === 3) {
+              cardTierClass = 'card-tier-mitigated';
+              tierTagHtml = '<span class="axis-tier-tag tier-mitigated">🛡️ Counterbalanced</span>';
+            } else if (tier === 4) {
+              cardTierClass = 'card-tier-active';
+              tierTagHtml = `<span class="axis-tier-tag tier-active">📊 Active Shift (${axis.percent_shift ? `${axis.percent_shift}%` : 'Shifted'})</span>`;
+            }
+
+            const contribRows = compList.map(c => {
+              const deltaClass = c.direction === 'UP' ? 'up' : 'down';
+              return `
+                <div class="axis-contrib-item">
+                  <span class="contrib-name">${c.compound_label || c.compound_id}</span>
+                  <span class="contrib-delta ${deltaClass}">${c.formatted_delta}</span>
+                </div>
+              `;
+            }).join('');
+
+            // Calculate Range Progress Bar Percentages
+            const base = axis.baseline;
+            const est = axis.estimated_value;
+            const sLower = axis.safe_lower !== undefined ? axis.safe_lower : (base * 0.8);
+            const sUpper = axis.safe_upper !== undefined ? axis.safe_upper : (base * 1.2);
+            const minV = Math.min(sLower * 0.85, base * 0.85, est * 0.85);
+            const maxV = Math.max(sUpper * 1.15, base * 1.15, est * 1.15);
+            const span = (maxV - minV) || 1;
+            const safeLeft = Math.max(0, Math.min(100, ((sLower - minV) / span) * 100));
+            const safeWidth = Math.max(6, Math.min(100 - safeLeft, ((sUpper - sLower) / span) * 100));
+            const estPos = Math.max(3, Math.min(97, ((est - minV) / span) * 100));
+            const basePos = Math.max(3, Math.min(97, ((base - minV) / span) * 100));
+
+            return `
+              <div class="axis-card ${cardTierClass}">
+                <div class="axis-card-top">
+                  <div class="axis-name-group">
+                    <div class="axis-name">
+                      <span>${axis.name}</span>
+                    </div>
+                    <span class="axis-safe-range">Target Safe Range: ${axis.safe_range}</span>
+                  </div>
+                  <div style="display: flex; flex-direction: column; align-items: flex-end; gap: 4px;">
+                    ${tierTagHtml}
+                    <span class="panel-title-badge" style="background: ${statusColor}22; color: ${statusColor}; border-color: ${statusColor}55;">
+                      ${axis.status_label}
+                    </span>
+                  </div>
+                </div>
+
+                <div class="axis-values-row">
+                  <div>
+                    <span style="font-size: 0.72rem; color: var(--text-muted); text-transform: uppercase;">Baseline → Est. Value</span>
+                    <div class="axis-val-primary" style="color: ${statusColor};">
+                      ${axis.baseline} → ${axis.estimated_value} <span style="font-size: 0.85rem; font-weight: 600;">${axis.unit}</span>
+                    </div>
+                  </div>
+                  <div class="axis-val-delta" style="color: ${axis.estimated_value >= axis.baseline ? '#f87171' : '#34d399'};">
+                    Net: ${axis.net_delta_str}
+                  </div>
+                </div>
+
+                <!-- Visual Range Bar -->
+                <div class="axis-range-visualizer">
+                  <div class="range-track-container" title="Target Range: ${sLower} - ${sUpper} ${axis.unit} | Baseline: ${base} | Estimated: ${est}">
+                    <div class="range-safe-window" style="left: ${safeLeft}%; width: ${safeWidth}%;"></div>
+                    <div class="range-marker-baseline" style="left: ${basePos}%;" title="Baseline: ${base} ${axis.unit}"></div>
+                    <div class="range-marker-current" style="left: ${estPos}%; background: ${statusColor}; color: ${statusColor};" title="Estimated Value: ${est} ${axis.unit}"></div>
+                  </div>
+                  <div class="range-meta-labels">
+                    <span>${Math.round(minV * 10) / 10}</span>
+                    <span style="color: #34d399;">Safe Zone [${sLower} - ${sUpper}]</span>
+                    <span>${Math.round(maxV * 10) / 10} ${axis.unit}</span>
+                  </div>
+                </div>
+
+                ${contribRows ? `
+                  <div>
+                    <div style="font-size: 0.72rem; text-transform: uppercase; color: var(--text-muted); font-weight: 700; margin-bottom: 4px;">Compound Dose Contributions</div>
+                    <div class="axis-contrib-list">
+                      ${contribRows}
+                    </div>
+                  </div>
+                ` : ''}
+              </div>
+            `;
+          }).join('');
+        } else {
+          axesHtml = '<div class="stack-empty-card" style="grid-column: 1 / -1;">No physiological axes match the selected filter.</div>';
+        }
+
+        let mitigationsHtml = '';
+        if (mitigations.length) {
+          mitigationsHtml = `
+            <div class="mitigations-section">
+              <div class="section-heading-row">
+                <span class="section-heading-title">
+                  <span>🛡️ Active Stack Mitigations & Counterbalances</span>
+                  <span class="panel-title-badge" style="background: rgba(16, 185, 129, 0.2); color: #34d399;">${mitigations.length} Active</span>
+                </span>
+              </div>
+              ${mitigations.map(m => `
+                <div class="mitigation-card">
+                  <div class="mitigation-card-header">
+                    <span class="mitigation-title">✓ ${m.title}</span>
+                    <span style="font-size: 0.75rem; font-weight: 700; color: #00f2fe; font-family: 'JetBrains Mono', monospace;">
+                      -${m.risk_reduction_points || 20} Risk Points
+                    </span>
+                  </div>
+                  <p style="font-size: 0.86rem; color: var(--text-secondary); line-height: 1.45; margin: 0;">
+                    ${m.description}
+                  </p>
+                  <div style="display: flex; gap: 6px; align-items: center; margin-top: 2px;">
+                    <span style="font-size: 0.72rem; color: var(--text-muted); text-transform: uppercase; font-weight: 700;">Participating:</span>
+                    ${(m.participating_compounds || []).map(p => `<span class="modal-chip" style="font-size: 0.72rem; padding: 2px 8px;">${p}</span>`).join('')}
+                  </div>
+                </div>
+              `).join('')}
+            </div>
+          `;
+        }
+
+        let uncompensatedHtml = '';
+        if (uncompensated.length) {
+          uncompensatedHtml = `
+            <div class="uncompensated-section">
+              <div class="section-heading-row">
+                <span class="section-heading-title">
+                  <span>⚠️ Uncompensated Axis Deviations</span>
+                  <span class="panel-title-badge" style="background: rgba(239, 68, 68, 0.2); color: #f87171;">${uncompensated.length} Warning</span>
+                </span>
+              </div>
+              ${uncompensated.map(u => `
+                <div class="uncompensated-card">
+                  <div style="display: flex; justify-content: space-between; align-items: center;">
+                    <span style="font-weight: 800; font-size: 0.96rem; color: #f87171;">⚠️ ${u.title}</span>
+                    <span class="panel-title-badge" style="background: rgba(239, 68, 68, 0.2); color: #f87171;">${u.axis || 'Axis Hazard'}</span>
+                  </div>
+                  <p style="font-size: 0.86rem; color: var(--text-secondary); line-height: 1.45; margin: 0;">
+                    ${u.description}
+                  </p>
+                  ${u.clinical_recommendation ? `
+                    <div class="conflict-card-rec" style="color: #fca5a5; background: rgba(0, 0, 0, 0.35);">
+                      <strong>Clinical Titration Guidance:</strong> ${u.clinical_recommendation}
+                    </div>
+                  ` : ''}
+                </div>
+              `).join('')}
+            </div>
+          `;
+        }
+
+        wrap.innerHTML = `
+          <div class="balance-hero-banner">
+            <div class="balance-hero-left">
+              <div class="balance-hero-title">
+                <span>Holistic Stack Equilibrium</span>
+                <span class="panel-title-badge" style="background: ${heroBadgeColor}22; color: ${heroBadgeColor}; border-color: ${heroBadgeColor}55;">
+                  ${statusLabel}
+                </span>
+              </div>
+              <p class="balance-hero-desc">
+                Evaluates your complete compound regimen as a unified interconnected network accounting for administered doses. Detects whether co-administered compounds neutralize monotherapy hazards (e.g. AI + Androgen balancing E2, ARB + Androgen stabilizing blood pressure).
+              </p>
+            </div>
+            <div class="balance-hero-badge-wrap">
+              <div class="balance-index-gauge">
+                <span class="balance-index-num" style="color: ${heroBadgeColor};">${healthIndex}</span>
+                <span class="balance-index-label">Equilibrium Index</span>
+              </div>
+            </div>
+          </div>
+
+          ${uncompensatedHtml}
+          ${mitigationsHtml}
+
+          <div>
+            <div class="axes-toolbar-row">
+              <div class="axes-filter-chips">
+                <button class="axis-filter-btn ${currentFilter === 'all' ? 'active' : ''}" onclick="setAxesFilter('all')">
+                  All Axes (${totalCount})
+                </button>
+                ${outOfRangeCount > 0 ? `
+                  <button class="axis-filter-btn filter-critical ${currentFilter === 'out-of-range' ? 'active' : ''}" onclick="setAxesFilter('out-of-range')">
+                    ⚠️ Out of Range (${outOfRangeCount})
+                  </button>
+                ` : ''}
+                ${mitigatedCount > 0 ? `
+                  <button class="axis-filter-btn filter-mitigated ${currentFilter === 'counterbalanced' ? 'active' : ''}" onclick="setAxesFilter('counterbalanced')">
+                    🛡️ Counterbalanced (${mitigatedCount})
+                  </button>
+                ` : ''}
+                ${activeShiftCount > 0 ? `
+                  <button class="axis-filter-btn ${currentFilter === 'active-shifts' ? 'active' : ''}" onclick="setAxesFilter('active-shifts')">
+                    📊 Active Shifts (${activeShiftCount})
+                  </button>
+                ` : ''}
+                <button class="axis-filter-btn ${currentFilter === 'baseline' ? 'active' : ''}" onclick="setAxesFilter('baseline')">
+                  ✓ Baseline (${baselineCount})
+                </button>
+              </div>
+
+              <div class="axis-sort-wrap">
+                <span class="axis-sort-label">Sort:</span>
+                <select class="axis-sort-select" onchange="setAxesSort(this.value)">
+                  <option value="priority" ${currentSort === 'priority' ? 'selected' : ''}>Clinical Priority (Risk & Deviations First)</option>
+                  <option value="shift" ${currentSort === 'shift' ? 'selected' : ''}>Largest % Shift (Highest Impact First)</option>
+                  <option value="name" ${currentSort === 'name' ? 'selected' : ''}>Axis Name (A → Z)</option>
+                  <option value="status" ${currentSort === 'status' ? 'selected' : ''}>Status (Critical → Safe)</option>
+                </select>
+              </div>
+            </div>
+
+            <div class="axes-cards-grid">
+              ${axesHtml}
+            </div>
+          </div>
+        `;
+      }
+
+      window.setAxesFilter = function(filterKey) {
+        state.axesFilter = filterKey;
+        if (state.analysis) {
+          renderFullStackBalance(state.analysis);
+        }
+      };
+
+      window.setAxesSort = function(sortKey) {
+        state.axesSort = sortKey;
+        if (state.analysis) {
+          renderFullStackBalance(state.analysis);
+        }
+      };
 
       function renderMatrixTable(data) {
         if (!data.matrix || !data.matrix.length) {
@@ -1630,12 +2463,15 @@
         const compounds = data.compounds || [];
         let html = '<table class="matrix-table"><thead><tr><th></th>';
         compounds.forEach(c => {
-          html += `<th>${c.name}</th>`;
+          const doseStr = c.dose ? ` (${c.dose}${c.unit || 'mg'})` : '';
+          html += `<th>${c.name}${doseStr}</th>`;
         });
         html += '</tr></thead><tbody>';
 
         data.matrix.forEach((row, i) => {
-          html += `<tr><th>${compounds[i]?.name || ''}</th>`;
+          const cRow = compounds[i];
+          const doseStr = cRow?.dose ? ` (${cRow.dose}${cRow.unit || 'mg'})` : '';
+          html += `<tr><th>${cRow?.name || ''}${doseStr}</th>`;
           row.forEach((cell, j) => {
             let cellClass = 'cell-neutral';
             let icon = '✓';
@@ -1645,6 +2481,10 @@
               cellClass = 'cell-self';
               icon = '●';
               label = 'Self';
+            } else if (cell.is_mitigated_by_stack) {
+              cellClass = 'cell-mitigated';
+              icon = '🛡️';
+              label = 'Mitigated';
             } else if (cell.severity === 'SYNERGISTIC') {
               cellClass = 'cell-synergy';
               icon = '✨';
@@ -1693,9 +2533,13 @@
           <div class="conflict-card ${item.cardClass}">
             <div class="conflict-card-top">
               <span class="conflict-card-title">${item.title}</span>
-              <span class="panel-title-badge">${item.cat}</span>
+              <div style="display: flex; gap: 6px; align-items: center;">
+                ${item.is_mitigated_by_stack ? '<span class="panel-title-badge" style="background: rgba(16, 185, 129, 0.2); color: #34d399;">🛡️ Mitigated by Stack</span>' : ''}
+                <span class="panel-title-badge">${item.cat}</span>
+              </div>
             </div>
             <p class="conflict-card-desc">${item.description}</p>
+            ${item.mitigation_summary ? `<div style="padding: 8px 12px; background: rgba(16, 185, 129, 0.12); border: 1px solid rgba(16, 185, 129, 0.3); border-radius: var(--radius-sm); font-size: 0.82rem; color: #34d399; margin-top: 4px;"><strong>Stack Mitigation:</strong> ${item.mitigation_summary}</div>` : ''}
             ${item.ddi_auc_ratio ? `<div style="font-family:'JetBrains Mono',monospace; font-size:0.78rem; color:#00f2fe; margin-top:4px;">📊 Estimated DDI Exposure Multiplier: ${item.ddi_auc_ratio}x AUC (+${Math.round((item.ddi_auc_ratio - 1) * 100)}% surge)</div>` : ''}
             ${item.clinical_recommendation ? `<div class="conflict-card-rec"><strong>Recommendation:</strong> ${item.clinical_recommendation}</div>` : ''}
           </div>
@@ -1715,13 +2559,23 @@
 
         const badge = document.getElementById('modal-severity-badge');
         let bandClass = 'band-minimal';
-        if (cell.severity === 'SYNERGISTIC') bandClass = 'band-minimal';
-        else if (cell.severity === 'MODERATE_RISK') bandClass = 'band-moderate';
-        else if (cell.severity === 'HIGH_RISK' || cell.severity === 'SEVERE_CONTRAINDICATION') bandClass = 'band-severe';
-        else if (cell.is_self) bandClass = 'band-low';
+        let badgeText = cell.severity ? cell.severity.replace('_', ' ') : 'Neutral';
+        
+        if (cell.is_mitigated_by_stack) {
+          bandClass = 'band-minimal';
+          badgeText = '🛡️ Mitigated by Full Stack';
+        } else if (cell.severity === 'SYNERGISTIC') {
+          bandClass = 'band-minimal';
+        } else if (cell.severity === 'MODERATE_RISK') {
+          bandClass = 'band-moderate';
+        } else if (cell.severity === 'HIGH_RISK' || cell.severity === 'SEVERE_CONTRAINDICATION') {
+          bandClass = 'band-severe';
+        } else if (cell.is_self) {
+          bandClass = 'band-low';
+        }
 
         badge.className = `risk-band-pill ${bandClass}`;
-        badge.textContent = cell.severity.replace('_', ' ');
+        badge.textContent = badgeText;
 
         const targetsWrap = document.getElementById('modal-targets-wrap');
         const targetsSection = document.getElementById('modal-targets-section');
@@ -1758,18 +2612,88 @@
         });
       });
 
+      function normalizeStackItem(item) {
+        if (!item) return null;
+        let key = '';
+        let name = '';
+        let dose = null;
+        let unit = 'mg';
+        let timing = 'morning';
+        let frequency = 'daily';
+        let drugClass = 'Compound';
+
+        if (typeof item === 'string') {
+          const parts = item.split(':');
+          key = parts[0].trim();
+          name = key.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
+          if (parts.length > 1) {
+            const m = parts[1].trim().match(/^([\d.]+)\s*([a-zA-Zμµ]*)$/);
+            if (m) {
+              dose = parseFloat(m[1]);
+              unit = m[2] || 'mg';
+              if (unit === 'ug' || unit === 'mcg') unit = 'μg';
+            }
+          }
+        } else if (typeof item === 'object') {
+          key = item.key || item.name || '';
+          name = item.name || key.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
+          drugClass = item.drug_class || 'Compound';
+          timing = item.timing || 'morning';
+          frequency = item.frequency || 'daily';
+          if (item.dose !== undefined && item.dose !== null && !isNaN(parseFloat(item.dose))) {
+            dose = parseFloat(item.dose);
+            unit = item.unit || 'mg';
+            if (unit === 'ug' || unit === 'mcg') unit = 'μg';
+          }
+        }
+
+        if (!key) return null;
+        if (dose === null) {
+          const def = getDefaultDoseFallback(key);
+          dose = def.dose;
+          unit = def.unit;
+        }
+
+        return {
+          key,
+          name,
+          drug_class: drugClass,
+          dose,
+          unit,
+          timing,
+          frequency,
+        };
+      }
+
       // Initial state render with localStorage restore
       try {
         const saved = localStorage.getItem('healthai_stack');
         if (saved) {
           const parsed = JSON.parse(saved);
           if (Array.isArray(parsed) && parsed.length) {
-            state.stack = parsed;
+            state.stack = parsed.map(normalizeStackItem).filter(Boolean);
           }
         }
       } catch (e) {
         console.warn('Failed to parse saved stack on startup', e);
       }
+
+      // Real-time synchronization with Knowledge Graph across tabs & windows
+      window.addEventListener('storage', (e) => {
+        if (e.key === 'healthai_stack' && e.newValue) {
+          try {
+            const parsed = JSON.parse(e.newValue);
+            if (Array.isArray(parsed)) {
+              state.stack = parsed.map(normalizeStackItem).filter(Boolean);
+              renderStackList();
+              if (state.stack.length) evaluateStack();
+              else updateDashboardEmpty();
+            }
+          } catch (err) {
+            console.warn('Storage sync error', err);
+          }
+        }
+      });
 
       renderStackList();
       if (state.stack.length) {

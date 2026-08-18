@@ -94,6 +94,10 @@ class BiomarkerNode(BaseNode):
     safe_upper_bound: float = Field(default=100.0, description="Upper bound of clinically normal range")
     unit: str = Field(default="standard", description="Unit of measurement for the biomarker")
     biomarker_panel: Optional[str] = Field(default=None, description="e.g. Hepatic Panel, Renal Panel, Lipid Panel, Vitals, CBC")
+    onset_days: float = Field(default=1.0, description="Onset latency in days before observable biomarker shift")
+    half_time_days: float = Field(default=3.0, description="Turnover half-life in days to reach 50% response")
+    time_to_steady_state_weeks: float = Field(default=1.0, description="Time in weeks to reach steady-state equilibrium (~95%)")
+    kinetic_profile: str = Field(default="direct_receptor", description="rapid_autonomic, renal_electrolyte, direct_endocrine, metabolic_glycemic, hepatic_injury, hepatic_lipid_remodeling, erythropoietic_turnover, renal_hemodynamic")
 
 
 class PhenotypeNode(BaseNode):
@@ -144,9 +148,7 @@ class EdgeData(BaseModel):
     )
     vector_magnitude: float = Field(
         default=1.0,
-        ge=-1.0,
-        le=1.0,
-        description="Normalized directional magnitude of the biological effect (-1 to +1)",
+        description="Directional magnitude of the biological effect",
     )
     confidence: Optional[float] = Field(default=1.0, ge=0.0, le=1.0, description="Confidence score for this biological association")
     is_bridge: bool = Field(default=False, description="Whether this edge represents an inter-cascade cross-talk bridge")

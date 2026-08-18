@@ -112,6 +112,81 @@ USAN_STEM_RULES: List[Dict[str, Any]] = [
         "targets": [{"target": "Beta-1 Adrenergic Receptor", "action": "antagonist", "family": "Adrenergic", "affinity_ki": 0.01}],
     },
     {
+        "pattern": r"(?:terol)$",
+        "class_name": "Beta-2 Adrenergic Receptor Agonist (Sympathomimetic Bronchodilator)",
+        "cyp_substrates": ["CYP2D6", "CYP3A4"],
+        "cyp_inhibitors": [],
+        "cyp_inducers": [],
+        "transporter_substrates": ["OCT1", "OCT2"],
+        "transporter_inhibitors": [],
+        "phase2_substrates": ["SULT1A3", "UGT1A9"],
+        "organ_burdens": {"hepatic": "low", "renal": "low", "cardiovascular": "high", "cns_stimulant": "moderate", "sedative": "none"},
+        "dosing": {"common": 20, "unit": "mcg", "frequency": "daily", "timing": "morning"},
+        "half_life": "6-36 hours",
+        "oral_bioavailability": "75-85%",
+        "volume_of_distribution": "2.0 L/kg",
+        "protein_binding": "50-89%",
+        "clearance_routes": "Hepatic conjugation and Renal excretion (80%)",
+        "route": "oral",
+        "logp": 2.0,
+        "tpsa": 53.0,
+        "is_narrow_therapeutic_index": False,
+        "targets": [
+            {"target": "Beta-2 Adrenergic Receptor (ADRB2)", "action": "agonist", "family": "Adrenergic", "affinity_ki": 0.002},
+            {"target": "Beta-1 Adrenergic Receptor (ADRB1)", "action": "agonist", "family": "Adrenergic", "affinity_ki": 0.05}
+        ],
+    },
+    {
+        "pattern": r"(?:phrine|fedrine)$",
+        "class_name": "Sympathomimetic Alpha/Beta Adrenergic Agonist",
+        "cyp_substrates": ["CYP2D6", "CYP3A4"],
+        "cyp_inhibitors": [],
+        "cyp_inducers": [],
+        "transporter_substrates": ["OCT1", "OCT2"],
+        "transporter_inhibitors": [],
+        "phase2_substrates": ["SULT1A3"],
+        "organ_burdens": {"hepatic": "low", "renal": "low", "cardiovascular": "high", "cns_stimulant": "high", "sedative": "none"},
+        "dosing": {"common": 25, "unit": "mg", "frequency": "as-needed", "timing": "morning"},
+        "half_life": "3-6 hours",
+        "oral_bioavailability": "85%",
+        "volume_of_distribution": "2.5-3.0 L/kg",
+        "protein_binding": "20%",
+        "clearance_routes": "Renal unchanged (60-70%), Hepatic metabolism",
+        "route": "oral",
+        "logp": 1.1,
+        "tpsa": 32.3,
+        "is_narrow_therapeutic_index": False,
+        "targets": [
+            {"target": "Alpha-1 Adrenergic Receptor (ADRA1A)", "action": "agonist", "family": "Adrenergic", "affinity_ki": 0.05},
+            {"target": "Beta-1 & Beta-2 Adrenergic Receptors (ADRB1/2)", "action": "agonist", "family": "Adrenergic", "affinity_ki": 0.08}
+        ],
+    },
+    {
+        "pattern": r"(?:phylline)$",
+        "class_name": "Xanthine Phosphodiesterase Inhibitor / Adenosine Antagonist",
+        "cyp_substrates": ["CYP1A2", "CYP2E1", "CYP3A4"],
+        "cyp_inhibitors": ["CYP1A2"],
+        "cyp_inducers": [],
+        "transporter_substrates": ["OAT1", "OCT2"],
+        "transporter_inhibitors": [],
+        "phase2_substrates": [],
+        "organ_burdens": {"hepatic": "moderate", "renal": "low", "cardiovascular": "high", "cns_stimulant": "high", "sedative": "none"},
+        "dosing": {"common": 200, "unit": "mg", "frequency": "daily", "timing": "morning"},
+        "half_life": "8-9 hours",
+        "oral_bioavailability": "90-100%",
+        "volume_of_distribution": "0.5 L/kg",
+        "protein_binding": "40%",
+        "clearance_routes": "Hepatic CYP1A2 oxidation (90%), Renal (10%)",
+        "route": "oral",
+        "logp": -0.02,
+        "tpsa": 61.8,
+        "is_narrow_therapeutic_index": True,
+        "targets": [
+            {"target": "Adenosine A1/A2A Receptor", "action": "antagonist", "family": "Purinergic", "affinity_ki": 0.01},
+            {"target": "Non-Selective Cyclic Nucleotide Phosphodiesterases", "action": "inhibitor", "family": "Phosphodiesterase", "affinity_ki": 0.05}
+        ],
+    },
+    {
         "pattern": r"(?:oxetine|pram|traline|faxine)$",
         "class_name": "Serotonin / Norepinephrine Reuptake Inhibitor",
         "cyp_substrates": ["CYP2D6", "CYP2C19", "CYP3A4"],
@@ -379,7 +454,7 @@ USAN_STEM_RULES: List[Dict[str, Any]] = [
         "transporter_inhibitors": [],
         "phase2_substrates": [],
         "organ_burdens": {"hepatic": "low", "renal": "low", "cardiovascular": "low", "cns_stimulant": "none", "sedative": "none"},
-        "dosing": {"common": 0.5, "unit": "mg", "frequency": "weekly", "timing": "anytime"},
+        "dosing": {"common": 0.25, "unit": "mg", "frequency": "daily", "timing": "morning"},
         "half_life": "168 hours (7 days)",
         "oral_bioavailability": "1% (Oral) / 89% (Subcutaneous)",
         "volume_of_distribution": "12.5 L",
@@ -507,6 +582,157 @@ USAN_STEM_RULES: List[Dict[str, Any]] = [
         "is_narrow_therapeutic_index": False,
         "targets": [{"target": "Penicillin-Binding Protein 1A / Transpeptidase", "action": "inhibitor", "family": "Cell Wall Synthesis", "affinity_ki": 0.001}],
     },
+    {
+        "pattern": r"(?:sterone|steron|olone|androl|stan|dione)$",
+        "class_name": "Androgenic Anabolic Steroid (AAS) / Nuclear Androgen Agonist",
+        "cyp_substrates": ["CYP3A4", "CYP2C19", "CYP19A1"],
+        "cyp_inhibitors": [],
+        "cyp_inducers": [],
+        "transporter_substrates": ["P-gp", "OATP2B1"],
+        "transporter_inhibitors": [],
+        "phase2_substrates": ["UGT2B17", "UGT2B15", "SULT2A1"],
+        "organ_burdens": {"hepatic": "moderate", "renal": "low", "cardiovascular": "high", "cns_stimulant": "low", "sedative": "none"},
+        "dosing": {"common": 20, "unit": "mg", "frequency": "daily", "timing": "morning"},
+        "half_life": "4.5-8 days",
+        "oral_bioavailability": "5-10% (oral unesterified) / 95% (parenteral ester)",
+        "volume_of_distribution": "1.0 L/kg",
+        "protein_binding": "98%",
+        "clearance_routes": "Hepatic CYP/Phase II oxidation and glucuronidation (90%), Renal (10%)",
+        "route": "parenteral",
+        "logp": 3.3,
+        "tpsa": 37.3,
+        "is_narrow_therapeutic_index": False,
+        "targets": [
+            {"target": "Androgen Receptor (AR / NR3C4)", "action": "agonist", "family": "Nuclear Receptor", "affinity_ki": 1.0},
+            {"target": "Aromatase (CYP19A1)", "action": "substrate", "family": "Steroid Biosynthesis", "affinity_ki": 130.0},
+            {"target": "5-Alpha Reductase Subtype 1 & 2", "action": "substrate", "family": "Steroid Biosynthesis", "affinity_ki": 2500.0},
+            {"target": "Renal Erythropoietin (EPO) Signaling", "action": "agonist", "family": "Hematopoietic", "affinity_ki": 10.0},
+            {"target": "Hepatic Angiotensinogen / RAAS Cascade", "action": "agonist", "family": "Renin-Angiotensin", "affinity_ki": 20.0}
+        ],
+    },
+    {
+        "pattern": r"(?:steride)$",
+        "class_name": "Steroid 5-Alpha Reductase Inhibitor",
+        "cyp_substrates": ["CYP3A4"],
+        "cyp_inhibitors": [],
+        "cyp_inducers": [],
+        "transporter_substrates": ["P-gp"],
+        "transporter_inhibitors": [],
+        "phase2_substrates": [],
+        "organ_burdens": {"hepatic": "low", "renal": "none", "cardiovascular": "none", "cns_stimulant": "none", "sedative": "none"},
+        "dosing": {"common": 1, "unit": "mg", "frequency": "daily", "timing": "morning"},
+        "half_life": "6-8 hours",
+        "oral_bioavailability": "65-80%",
+        "volume_of_distribution": "0.7 L/kg",
+        "protein_binding": "90%",
+        "clearance_routes": "Hepatic CYP3A4 metabolism (60%), Fecal (57%), Renal (39%)",
+        "route": "oral",
+        "logp": 3.8,
+        "tpsa": 41.1,
+        "is_narrow_therapeutic_index": False,
+        "targets": [
+            {"target": "5-Alpha Reductase Subtype 1 & 2", "action": "inhibitor", "family": "Steroid Biosynthesis", "affinity_ki": 5.0}
+        ],
+    },
+    {
+        "pattern": r"(?:trozole|rozole|mestane|anastrozole|letrozole|exemestane)$",
+        "class_name": "Aromatase (CYP19A1) Inhibitor",
+        "cyp_substrates": ["CYP3A4", "CYP2C8", "CYP2A6"],
+        "cyp_inhibitors": ["CYP1A2", "CYP2C9", "CYP3A4"],
+        "cyp_inducers": [],
+        "transporter_substrates": ["P-gp"],
+        "transporter_inhibitors": [],
+        "phase2_substrates": ["UGT1A4"],
+        "organ_burdens": {"hepatic": "low", "renal": "none", "cardiovascular": "moderate", "cns_stimulant": "none", "sedative": "none"},
+        "dosing": {"common": 1, "unit": "mg", "frequency": "daily", "timing": "morning"},
+        "half_life": "40-50 hours",
+        "oral_bioavailability": "85%",
+        "volume_of_distribution": "1.0 L/kg",
+        "protein_binding": "40%",
+        "clearance_routes": "Hepatic metabolism (85%), Renal (11%)",
+        "route": "oral",
+        "logp": 2.2,
+        "tpsa": 78.4,
+        "is_narrow_therapeutic_index": False,
+        "targets": [
+            {"target": "Aromatase (CYP19A1)", "action": "inhibitor", "family": "Cytochrome P450 / Steroid Biosynthesis", "affinity_ki": 0.2}
+        ],
+    },
+    {
+        "pattern": r"(?:xifene|clomiphene|enclomiphene|tamoxifen|raloxifene)$",
+        "class_name": "Selective Estrogen Receptor Modulator (SERM)",
+        "cyp_substrates": ["CYP2D6", "CYP3A4", "CYP2C9"],
+        "cyp_inhibitors": ["CYP2D6"],
+        "cyp_inducers": [],
+        "transporter_substrates": ["P-gp", "BCRP"],
+        "transporter_inhibitors": ["P-gp"],
+        "phase2_substrates": ["UGT1A8", "UGT1A10", "SULT1E1"],
+        "organ_burdens": {"hepatic": "low", "renal": "none", "cardiovascular": "moderate", "cns_stimulant": "none", "sedative": "none"},
+        "dosing": {"common": 20, "unit": "mg", "frequency": "daily", "timing": "morning"},
+        "half_life": "5-7 days",
+        "oral_bioavailability": "100%",
+        "volume_of_distribution": "50-60 L/kg",
+        "protein_binding": "99%",
+        "clearance_routes": "Hepatic CYP2D6/CYP3A4 bioactivation to endoxifen and fecal excretion",
+        "route": "oral",
+        "logp": 4.6,
+        "tpsa": 29.5,
+        "is_narrow_therapeutic_index": False,
+        "targets": [
+            {"target": "Estrogen Receptor Alpha (ESR1 / ER-Alpha)", "action": "antagonist", "family": "Nuclear Receptor", "affinity_ki": 1.0},
+            {"target": "Estrogen Receptor Beta (ESR2 / ER-Beta)", "action": "antagonist", "family": "Nuclear Receptor", "affinity_ki": 5.0},
+            {"target": "Hypothalamic-Pituitary-Gonadal (HPG) Axis", "action": "agonist", "family": "Neuroendocrine", "affinity_ki": 10.0}
+        ],
+    },
+    {
+        "pattern": r"(?:estrol|estradiol|estrogen|ethinylestradiol)$",
+        "class_name": "Estrogen Receptor Agonist / Bioidentical Steroid",
+        "cyp_substrates": ["CYP3A4", "CYP1A2", "CYP2C9"],
+        "cyp_inhibitors": [],
+        "cyp_inducers": [],
+        "transporter_substrates": ["BCRP", "OATP1B1", "OATP2B1"],
+        "transporter_inhibitors": [],
+        "phase2_substrates": ["UGT1A1", "SULT1E1"],
+        "organ_burdens": {"hepatic": "moderate", "renal": "none", "cardiovascular": "high", "cns_stimulant": "none", "sedative": "none"},
+        "dosing": {"common": 1, "unit": "mg", "frequency": "daily", "timing": "morning"},
+        "half_life": "13-17 hours",
+        "oral_bioavailability": "5-10% (oral first pass) / 100% (transdermal/parenteral)",
+        "volume_of_distribution": "0.8 L/kg",
+        "protein_binding": "98% (SHBG and Albumin)",
+        "clearance_routes": "Hepatic metabolism and biliary/urinary excretion of sulfates and glucuronides",
+        "route": "transdermal",
+        "logp": 4.0,
+        "tpsa": 40.5,
+        "is_narrow_therapeutic_index": False,
+        "targets": [
+            {"target": "Estrogen Receptor Alpha (ESR1 / ER-Alpha)", "action": "agonist", "family": "Nuclear Receptor", "affinity_ki": 0.1},
+            {"target": "Estrogen Receptor Beta (ESR2 / ER-Beta)", "action": "agonist", "family": "Nuclear Receptor", "affinity_ki": 0.3}
+        ],
+    },
+    {
+        "pattern": r"(?:sone|pred|dexamethasone|budesonide|cortisol|hydrocortisone)$",
+        "class_name": "Glucocorticoid Receptor Agonist / Corticosteroid",
+        "cyp_substrates": ["CYP3A4"],
+        "cyp_inhibitors": [],
+        "cyp_inducers": ["CYP3A4"],
+        "transporter_substrates": ["P-gp"],
+        "transporter_inhibitors": ["P-gp"],
+        "phase2_substrates": [],
+        "organ_burdens": {"hepatic": "low", "renal": "low", "cardiovascular": "moderate", "cns_stimulant": "none", "sedative": "none"},
+        "dosing": {"common": 10, "unit": "mg", "frequency": "daily", "timing": "morning with food"},
+        "half_life": "2-4 hours",
+        "oral_bioavailability": "80%",
+        "volume_of_distribution": "1.0 L/kg",
+        "protein_binding": "70-90%",
+        "clearance_routes": "Hepatic reduction and glucuronidation (90%), Renal (10%)",
+        "route": "oral",
+        "logp": 1.6,
+        "tpsa": 94.8,
+        "is_narrow_therapeutic_index": False,
+        "targets": [
+            {"target": "Glucocorticoid Receptor (GR / NR3C1)", "action": "agonist", "family": "Nuclear Receptor", "affinity_ki": 2.0}
+        ],
+    },
 ]
 
 
@@ -631,6 +857,19 @@ class PharmacologyEnricher:
             elif atc_clean.startswith("B01A"):  # Antithrombotic Agents (Anticoagulants/Antiplatelets)
                 matched_organ_burdens["cardiovascular"] = "high"
                 is_nti = True
+            elif atc_clean.startswith("R03A") or atc_clean.startswith("R03C"):  # Adrenergics for systemic / inhalation use (Beta-2 Agonists)
+                matched_organ_burdens["cardiovascular"] = "high"
+                if cls._severity_rank(matched_organ_burdens["cns_stimulant"]) < cls._severity_rank("moderate"):
+                    matched_organ_burdens["cns_stimulant"] = "moderate"
+                matched_cyp_sub.update(["CYP2D6", "CYP3A4"])
+            elif atc_clean.startswith("R03D"):  # Other systemic drugs for obstructive airway diseases (Xanthines)
+                matched_organ_burdens["cardiovascular"] = "high"
+                matched_organ_burdens["cns_stimulant"] = "high"
+                matched_cyp_sub.add("CYP1A2")
+            elif atc_clean.startswith("C01C"):  # Cardiac stimulants excluding cardiac glycosides (Adrenergic/Dopaminergic)
+                matched_organ_burdens["cardiovascular"] = "high"
+                if cls._severity_rank(matched_organ_burdens["cns_stimulant"]) < cls._severity_rank("moderate"):
+                    matched_organ_burdens["cns_stimulant"] = "moderate"
 
         # 3. Mechanism Text Extraction
         if "serotonin" in mechanism_text or "5-ht" in mechanism_text or "ssri" in mechanism_text:
@@ -647,6 +886,29 @@ class PharmacologyEnricher:
             if "antagonist" not in mechanism_text and "blocker" not in mechanism_text:
                 if cls._severity_rank(matched_organ_burdens["cns_stimulant"]) < cls._severity_rank("moderate"):
                     matched_organ_burdens["cns_stimulant"] = "moderate"
+
+        # Adrenergic & Beta-Agonist Mechanism Extraction
+        if any(w in mechanism_text for w in ["beta-2", "beta-1", "beta adrenergic", "adrb2", "adrb1", "adrenoreceptor agonist", "adrenergic receptor agonist", "bronchodilator"]):
+            if "antagonist" not in mechanism_text and "blocker" not in mechanism_text and "inhibit" not in mechanism_text:
+                if any(act in mechanism_text.split() or act in mechanism_text for act in ["agonist", "activator", "stimulator"]):
+                    if cls._severity_rank(matched_organ_burdens["cardiovascular"]) < cls._severity_rank("high"):
+                        matched_organ_burdens["cardiovascular"] = "high"
+                    if cls._severity_rank(matched_organ_burdens["cns_stimulant"]) < cls._severity_rank("moderate"):
+                        matched_organ_burdens["cns_stimulant"] = "moderate"
+                    matched_cyp_sub.update(["CYP2D6", "CYP3A4"])
+
+        # Alpha-2 Antagonist & Adenosine Antagonist Mechanism Extraction
+        if "alpha-2" in mechanism_text and any(act in mechanism_text for act in ["antagonist", "blocker", "inhibition"]):
+            if cls._severity_rank(matched_organ_burdens["cardiovascular"]) < cls._severity_rank("high"):
+                matched_organ_burdens["cardiovascular"] = "high"
+            if cls._severity_rank(matched_organ_burdens["cns_stimulant"]) < cls._severity_rank("high"):
+                matched_organ_burdens["cns_stimulant"] = "high"
+
+        if "adenosine" in mechanism_text and any(act in mechanism_text for act in ["antagonist", "blocker"]):
+            if cls._severity_rank(matched_organ_burdens["cardiovascular"]) < cls._severity_rank("moderate"):
+                matched_organ_burdens["cardiovascular"] = "moderate"
+            if cls._severity_rank(matched_organ_burdens["cns_stimulant"]) < cls._severity_rank("high"):
+                matched_organ_burdens["cns_stimulant"] = "high"
 
         # CYP Regex Match
         for cyp_match in re.findall(r"cyp\s*([0-9][a-z][0-9]+)", mechanism_text, re.IGNORECASE):
@@ -723,19 +985,56 @@ class PharmacologyEnricher:
         enriched["is_narrow_therapeutic_index"] = is_nti
 
         # Receptor Targets Merging
-        from app.services.graph_service import _normalize_target_node_id
+        from app.services.graph_service import (
+            _normalize_target_node_id,
+            is_steroidal_androgen,
+            is_aromatizable_androgen,
+            is_5alpha_reductase_substrate,
+        )
         existing_targets = compound.get("receptor_targets") or []
         if not isinstance(existing_targets, list):
             existing_targets = []
 
+        is_androgen = is_steroidal_androgen(compound) or "androgen" in str(compound.get("drug_class", "")).lower()
+        is_arom = is_aromatizable_androgen(compound) if is_androgen else True
+        is_5ar = is_5alpha_reductase_substrate(compound) if is_androgen else True
+
+        # Filter out CYP19A1 from cyp substrates if chemically non-aromatizable
+        if is_androgen and not is_arom:
+            enriched["cyp_enzymes"]["substrates"] = [s for s in enriched["cyp_enzymes"]["substrates"] if s.upper() != "CYP19A1"]
+
         combined_targets = list(existing_targets)
         for t in matched_targets:
+            t_raw = str(t.get("target") or "").lower()
+            t_action = str(t.get("action") or "").lower()
+
+            if is_androgen and not is_arom:
+                if any(w in t_raw for w in ["aromatase", "cyp19", "cyp19a1", "estrogen receptor", "esr1", "esr2"]) and "substrate" in t_action:
+                    continue
+
+            if is_androgen and not is_5ar:
+                if any(w in t_raw for w in ["5-alpha reductase", "srd5a", "5ar"]) and "substrate" in t_action:
+                    continue
+
             t_norm = _normalize_target_node_id(t.get("target"))
             if not any(
                 isinstance(existing, dict) and _normalize_target_node_id(existing.get("target")) == t_norm
                 for existing in combined_targets
             ):
                 combined_targets.append(t)
+
+        # Ensure any pre-existing false aromatase/5ar substrate targets are removed for non-aromatizable compounds
+        if is_androgen and not is_arom:
+            combined_targets = [
+                t for t in combined_targets
+                if not (isinstance(t, dict) and any(w in str(t.get("target", "")).lower() for w in ["aromatase", "cyp19", "cyp19a1"]) and "substrate" in str(t.get("action", "")).lower())
+            ]
+        if is_androgen and not is_5ar:
+            combined_targets = [
+                t for t in combined_targets
+                if not (isinstance(t, dict) and any(w in str(t.get("target", "")).lower() for w in ["5-alpha reductase", "srd5a", "5ar"]) and "substrate" in str(t.get("action", "")).lower())
+            ]
+
         enriched["receptor_targets"] = combined_targets
 
         # Dosing

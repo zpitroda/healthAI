@@ -23,10 +23,11 @@ def get_catalog_service() -> CatalogService:
 def search_compounds_api(
     q: str = Query(default=""),
     limit: int = Query(default=15, ge=1, le=100),
+    auto_enrich: bool = Query(default=True),
 ) -> JSONResponse:
-    """Typeahead search across compound keys, names, drug classes, and indications."""
+    """Typeahead search across compound keys, names, drug classes, and indications with on-demand fallback."""
     service = get_catalog_service()
-    results = service.search_compounds(q, limit=limit)
+    results = service.search_compounds(q, limit=limit, auto_enrich=auto_enrich)
     return JSONResponse(results, headers=NO_CACHE_HEADERS)
 
 
@@ -46,23 +47,44 @@ def list_catalog(
 
 
 @router.get("/catalog/{compound_key}")
-def get_catalog_item(compound_key: str) -> JSONResponse:
-    """Retrieve full pharmacology profile for a compound by key or canonical name."""
+def get_catalog_item(
+    compound_key: str,
+    auto_enrich: bool = Query(default=True),
+) -> JSONResponse:
+    """Retrieve full pharmacology profile for a compound by key or canonical name with write-through cache."""
     service = get_catalog_service()
-    compound = service.get_compound(compound_key)
+    # Check if local hit first to set cache headers
+    local_compound = service.get_compound(compound_key, auto_enrich=False)
+    if local_compound is not None:
+        headers = dict(NO_CACHE_HEADERS)
+        headers["X-Cache-Status"] = "HIT"
+        headers["X-Source-Tier"] = str(local_compound.get("source_tier") or "seed")
+        return JSONResponse(local_compound, headers=headers)
+
+    if not auto_enrich:
+        raise HTTPException(status_code=404, detail="Compound not found.")
+
+    compound = service.get_compound(compound_key, auto_enrich=True)
     if compound is None:
         raise HTTPException(status_code=404, detail="Compound not found.")
-    return JSONResponse(compound, headers=NO_CACHE_HEADERS)
+
+    headers = dict(NO_CACHE_HEADERS)
+    headers["X-Cache-Status"] = "MISS_ENRICHED"
+    headers["X-Source-Tier"] = str(compound.get("source_tier") or "live_enrichment")
+    return JSONResponse(compound, headers=headers)
 
 
 @router.post("/catalog/enrich-online/{compound_key}")
-def enrich_catalog_item_online(compound_key: str) -> Dict[str, Any]:
-    """Enrich a compound using live OpenFDA, ChEMBL, and RxNorm APIs."""
+def enrich_catalog_item_online(compound_key: str) -> JSONResponse:
+    """Enrich a compound using live OpenFDA, ChEMBL, and RxNorm APIs and write through to catalog."""
     service = get_catalog_service()
     enriched = service.enrich_compound_online(compound_key)
     if enriched is None:
         raise HTTPException(status_code=404, detail="Unable to enrich compound.")
-    return enriched
+    headers = dict(NO_CACHE_HEADERS)
+    headers["X-Cache-Status"] = "WRITE_THROUGH_SAVED"
+    headers["X-Source-Tier"] = str(enriched.get("source_tier") or "live_enrichment")
+    return JSONResponse(enriched, headers=headers)
 
 
 @router.post("/catalog")
@@ -78,7 +100,7 @@ def save_catalog_item(compound: Dict[str, Any]) -> Dict[str, Any]:
 def delete_catalog_item(compound_key: str) -> Dict[str, str]:
     """Delete a compound record from the active catalog."""
     service = get_catalog_service()
-    existing = service.get_compound(compound_key)
+    existing = service.get_compound(compound_key, auto_enrich=False)
     if existing is None:
         raise HTTPException(status_code=404, detail="Compound not found.")
     service.delete_compound(compound_key)

@@ -54,6 +54,26 @@ def build_testosterone_alopecia_graph() -> BiologicalGraph:
         molecular_weight=372.5,
         base_half_life=6.0,
     )
+    aromatase = EnzymeNode(node_id="aromatase", label="Aromatase (CYP19A1)")
+    aromatization_reaction = ReactionNode(node_id="aromatization_reaction", label="Aromatization Reaction")
+    estradiol = CompoundNode(
+        node_id="estradiol",
+        label="17-Beta Estradiol",
+        smiles="CC12CCC3C(C1CCC2O)CCC4=C3C=CC(=C4)O",
+        logP=4.0,
+        molecular_weight=272.4,
+        base_half_life=13.0,
+    )
+    estrogen_receptor = ReceptorNode(node_id="estrogen_receptor", label="Estrogen Receptor (ER-Alpha/Beta)")
+    gynecomastia = PhenotypeNode(node_id="gynecomastia", label="Gynecomastia / Fluid Retention")
+    anastrozole = CompoundNode(
+        node_id="anastrozole",
+        label="Anastrozole",
+        smiles="CC(C)(C#N)C1=CC(=CC(=C1)CN2C=NC=N2)C(C)(C)C#N",
+        logP=2.2,
+        molecular_weight=293.4,
+        base_half_life=48.0,
+    )
 
     nodes = [
         testosterone_enanthate,
@@ -66,6 +86,12 @@ def build_testosterone_alopecia_graph() -> BiologicalGraph:
         androgen_receptor,
         alopecia,
         finasteride,
+        aromatase,
+        aromatization_reaction,
+        estradiol,
+        estrogen_receptor,
+        gynecomastia,
+        anastrozole,
     ]
     for node in nodes:
         graph.add_node(node)
@@ -123,6 +149,44 @@ def build_testosterone_alopecia_graph() -> BiologicalGraph:
         "5_alpha_reductase",
         EdgeType.INHIBITS_ENZYME,
         EdgeData(inhibition_ic50=0.005, inhibition_type="competitive", vector_magnitude=-1.0),
+    )
+
+    # Estrogenic Branch
+    graph.add_edge(
+        "testosterone",
+        "aromatization_reaction",
+        EdgeType.REACTANT_IN,
+        EdgeData(vector_magnitude=1.0),
+    )
+    graph.add_edge(
+        "aromatase",
+        "aromatization_reaction",
+        EdgeType.CATALYZES,
+        EdgeData(vector_magnitude=1.0),
+    )
+    graph.add_edge(
+        "aromatization_reaction",
+        "estradiol",
+        EdgeType.YIELDS,
+        EdgeData(vector_magnitude=1.0),
+    )
+    graph.add_edge(
+        "estradiol",
+        "estrogen_receptor",
+        EdgeType.AGONIZES,
+        EdgeData(affinity_ki=0.1, vector_magnitude=1.0),
+    )
+    graph.add_edge(
+        "estrogen_receptor",
+        "gynecomastia",
+        EdgeType.DRIVES_PHENOTYPE,
+        EdgeData(vector_magnitude=0.85),
+    )
+    graph.add_edge(
+        "anastrozole",
+        "aromatase",
+        EdgeType.INHIBITS_ENZYME,
+        EdgeData(inhibition_ic50=0.0002, inhibition_type="competitive", vector_magnitude=-1.0),
     )
 
     return graph

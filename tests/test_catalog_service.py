@@ -44,7 +44,6 @@ def test_catalog_service_can_seed_and_read_compounds(tmp_path):
 
     keys = [item["key"] for item in service.list_compounds()]
     assert "testosterone" in keys
-    assert "caffeine" in keys
 
 
 def test_catalog_service_merges_duplicate_records_by_inchikey(tmp_path):

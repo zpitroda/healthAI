@@ -3,11 +3,14 @@ from __future__ import annotations
 import copy
 import json
 import os
+from pathlib import Path
 import re
 import sqlite3
 from typing import Any, Dict, List, Optional, Set, Tuple
 
 from app.data.compounds import COMPOUND_LIBRARY
+
+DEFAULT_CATALOG_DB_PATH = str(Path(__file__).resolve().parent.parent.parent / "healthai_catalog.db")
 
 
 def _get_default_compounds() -> List[Dict[str, Any]]:
@@ -216,9 +219,15 @@ class CatalogService:
     def database_path(self) -> str:
         if self._custom_database_path:
             return self._custom_database_path
-        return os.getenv("HEALTHAI_CATALOG_DB", "./healthai_catalog.db")
+        env_db = os.getenv("HEALTHAI_CATALOG_DB")
+        if env_db:
+            return env_db
+        return DEFAULT_CATALOG_DB_PATH
 
     def _connect(self) -> sqlite3.Connection:
+        db_dir = os.path.dirname(self.database_path)
+        if db_dir:
+            os.makedirs(db_dir, exist_ok=True)
         connection = sqlite3.connect(self.database_path)
         connection.row_factory = sqlite3.Row
         try:

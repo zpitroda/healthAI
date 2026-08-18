@@ -13,7 +13,7 @@ ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
-from app.services.catalog_service import CatalogService
+from app.services.catalog_service import CatalogService, DEFAULT_CATALOG_DB_PATH
 
 
 def normalize_text(value: Any) -> str:
@@ -185,7 +185,7 @@ def import_csv(path: str, db_path: str, limit: int | None = None, dry_run: bool 
 def main() -> int:
     parser = argparse.ArgumentParser(description="Import the ChEMBL drug subset CSV into the app catalog schema.")
     parser.add_argument("--csv", default="ChemblDrugs.csv", help="Path to the ChEMBL drugs CSV export")
-    parser.add_argument("--db", default=os.getenv("HEALTHAI_CATALOG_DB", "./healthai_catalog.db"), help="SQLite database path")
+    parser.add_argument("--db", default=os.getenv("HEALTHAI_CATALOG_DB", DEFAULT_CATALOG_DB_PATH), help="SQLite database path")
     parser.add_argument("--dry-run", action="store_true", help="Preview imported records without writing to the database")
     parser.add_argument("--limit", type=int, default=None, help="Optional cap on the number of records imported")
     args = parser.parse_args()

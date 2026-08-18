@@ -15,7 +15,7 @@ ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
-from app.services.catalog_service import CatalogService
+from app.services.catalog_service import CatalogService, DEFAULT_CATALOG_DB_PATH
 
 PUBCHEM_URL = "https://pubchem.ncbi.nlm.nih.gov/rest/pug/compound/name/{name}/property/InChIKey,CanonicalSMILES,MF,MW,ExactMass/JSON"
 CHEMBL_URL = "https://www.ebi.ac.uk/chembl/api/data/compound/search?query={name}&limit=5"
@@ -655,7 +655,7 @@ def main() -> int:
     parser.add_argument("--warnings-csv", help="ChEMBL warnings export containing parent molecule warning metadata to merge into warnings fields.")
     parser.add_argument("--dry-run", action="store_true", help="Preview records without writing to the database")
     parser.add_argument("--limit", type=int, default=1000, help="Page size for ChEMBL bulk pagination")
-    parser.add_argument("--db", default=os.getenv("HEALTHAI_CATALOG_DB", "./healthai_catalog.db"), help="SQLite database path")
+    parser.add_argument("--db", default=os.getenv("HEALTHAI_CATALOG_DB", DEFAULT_CATALOG_DB_PATH), help="SQLite database path")
     parser.add_argument("--sqlite-db", help="Path to a ChEMBL SQLite database or extracted .db file to ingest directly.")
     parser.add_argument("--archive", help="Path to a ChEMBL .tar.gz archive to extract and read directly.")
     parser.add_argument("--schema-only", action="store_true", help="Inspect ChEMBL schema and exit without importing records.")

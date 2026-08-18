@@ -19,7 +19,7 @@ ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
-from app.services.catalog_service import CatalogService
+from app.services.catalog_service import CatalogService, DEFAULT_CATALOG_DB_PATH
 from app.services.pharmacology_enricher import PharmacologyEnricher
 
 
@@ -140,7 +140,7 @@ def run_enrichment(db_path: str, dry_run: bool = False) -> None:
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Enrich compound catalog database.")
-    parser.add_argument("--db", default=os.getenv("HEALTHAI_CATALOG_DB", "./healthai_catalog.db"), help="Database path")
+    parser.add_argument("--db", default=os.getenv("HEALTHAI_CATALOG_DB", DEFAULT_CATALOG_DB_PATH), help="Database path")
     parser.add_argument("--dry-run", action="store_true", help="Preview enrichment without writing to DB")
     args = parser.parse_args()
     run_enrichment(args.db, dry_run=args.dry_run)

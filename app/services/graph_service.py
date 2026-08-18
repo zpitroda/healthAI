@@ -516,6 +516,7 @@ def build_selected_compound_graph(stack: List[Any], catalog_service: CatalogServ
             oral_bioavailability=compound.get("oral_bioavailability") or compound.get("bioavailability_f"),
             volume_of_distribution=compound.get("volume_of_distribution") or compound.get("volume_of_distribution_l_kg"),
             protein_binding=compound.get("protein_binding") or compound.get("protein_binding_pct"),
+            faers_surveillance=compound.get("faers_surveillance"),
         )
 
         receptor_targets = list(compound.get("receptor_targets") or [])
@@ -931,7 +932,11 @@ def build_selected_compound_graph(stack: List[Any], catalog_service: CatalogServ
                     receptor_family=receptor.get("family") or "Molecular Target",
                 )
 
-            graph.add_node(target_node)
+            graph.add_node(
+                target_node,
+                open_targets=receptor.get("open_targets"),
+                alphafold_structure=receptor.get("alphafold_structure"),
+            )
 
             # Edge 1: Compound -> Target
             is_pre_computed_stress = bool(receptor.get("pre_computed_stress"))
@@ -1348,7 +1353,16 @@ def build_selected_compound_graph(stack: List[Any], catalog_service: CatalogServ
                             )
 
     if graph.graph.number_of_nodes() == 0:
-        return build_testosterone_alopecia_graph()
+        graph = build_testosterone_alopecia_graph()
+
+    # Sync graph nodes and edges into dedicated KuzuDB graph database backend
+    try:
+        from app.knowledge_graph.graph_db import get_graph_database
+        graph_db = get_graph_database()
+        graph_db.sync_biological_graph(graph)
+    except Exception as e:
+        import logging
+        logging.getLogger("healthai.graph_service").warning("KuzuDB graph database sync skipped: %s", e)
 
     return graph
 

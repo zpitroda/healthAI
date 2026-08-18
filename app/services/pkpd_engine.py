@@ -17,12 +17,14 @@ class PKPDEngine:
     """
     Continuous-Time Pharmacokinetics (PK) and Pharmacodynamics (PD) Simulation Engine.
     Implements:
-    1. 1-Compartment Bateman Oral & IV Bolus Absorption Models
-    2. Multi-Dose Steady-State Accumulation Dynamics (Rac, PTF, Css,avg, AUC0-tau)
-    3. Quantitative Drug-Drug Interaction (DDI) AUC Ratio (AUCR) and Cmax Surge Modeling
-    4. Sigmoidal Emax Hill Pharmacodynamics & Dynamic Receptor Occupancy RO(t)
-    5. Patient Biometric (Weight, eGFR, ALT/AST, Albumin) Clearance Scaling
-    6. Therapeutic Window Safety Bounds (MEC, MTC, Therapeutic Index)
+    1. 1-Compartment & 2-Compartment Open Models (alpha-distribution & beta-elimination phases)
+    2. Michaelis-Menten Non-Linear Capacity-Limited Elimination Kinetics
+    3. Time-Resolved Dynamic DDI Collisions with continuous inhibitor concentration I(t)
+    4. Multi-Dose Steady-State Accumulation Dynamics (Rac, PTF, Css,avg, AUC0-tau)
+    5. Quantitative Drug-Drug Interaction (DDI) AUC Ratio (AUCR) and Cmax Surge Modeling
+    6. Sigmoidal Emax Hill Pharmacodynamics & Dynamic Receptor Occupancy RO(t)
+    7. Patient Biometric (Weight, eGFR, ALT/AST, Albumin) Clearance Scaling
+    8. Therapeutic Window Safety Bounds (MEC, MTC, Therapeutic Index)
     """
 
     @classmethod
@@ -44,17 +46,14 @@ class PKPDEngine:
         pk = cls.extract_pk_parameters(compound)
         pd_params = cls.extract_pd_parameters(compound)
 
-        # 2. Scale Volume of Distribution and Clearance to Patient
-        v_d_total_l = max(1.0, pk.volume_of_distribution_l_kg * weight_kg)
-        
-        # Base clearance
+        # Patient renal & hepatic clearance scaling
+        v_d_total_l = max(0.5, pk.volume_of_distribution_l_kg * weight_kg)
         if pk.clearance_l_h_kg and pk.clearance_l_h_kg > 0:
             cl_base_l_h = pk.clearance_l_h_kg * weight_kg
         else:
             k_elim_base = math.log(2.0) / max(0.1, pk.t_half_h)
             cl_base_l_h = k_elim_base * v_d_total_l
 
-        # Patient renal & hepatic scaling
         fe = max(0.0, min(1.0, pk.renal_clearance_fraction))
         egfr = max(10.0, float(request.egfr_ml_min or 95.0))
         renal_factor = min(1.5, egfr / 100.0)
@@ -66,92 +65,199 @@ class PKPDEngine:
         cl_hepatic = cl_base_l_h * (1.0 - fe) * hepatic_factor
         cl_adjusted_l_h = max(0.01, cl_renal + cl_hepatic)
 
-        # 3. Dynamic Drug-Drug Interaction (DDI) AUCR Calculation
-        ddi_aucr, ddi_cmax_mult, interacting_enzymes = cls.calculate_ddi_shift(
-            compound, co_compounds_data or []
-        )
-
-        # Effective clearance & elimination rate constant under DDI
-        cl_effective_l_h = cl_adjusted_l_h / ddi_aucr
-        k_e = max(0.0001, cl_effective_l_h / v_d_total_l)
-        t_half_effective_h = math.log(2.0) / k_e
-
-        # Bioavailability and absorption rate
-        f_oral = 1.0 if route == "iv" else max(0.05, min(1.0, pk.bioavailability_f))
-        k_a = 50.0 if route == "iv" else max(0.05, pk.absorption_rate_ka)
-
-        # Prevent numerical singularity if k_a == k_e
-        if abs(k_a - k_e) < 1e-4:
-            k_a += 0.01
-
         # Patient Albumin scaling for free fraction fu
         albumin = max(1.5, min(6.0, float(request.serum_albumin_g_dl or 4.5)))
         fu_adjusted = max(0.001, min(1.0, pk.fraction_unbound * (4.5 / albumin)))
 
-        # 4. Compute Steady-State Accumulation Metrics
-        rac = 1.0 / (1.0 - math.exp(-k_e * tau)) if is_steady_state else 1.0
-        auc_0_tau = (f_oral * dose_mg * 1000.0) / cl_effective_l_h
-        c_avg_ss = auc_0_tau / tau
+        # Static DDI AUCR and Cmax multipliers
+        ddi_aucr, ddi_cmax_mult, interacting_enzymes = cls.calculate_ddi_shift(
+            compound, co_compounds_data or []
+        )
 
-        # Tmax calculation
-        if route == "iv":
-            t_max_ss = 0.0
-        elif is_steady_state:
-            numerator = k_a * (1.0 - math.exp(-k_e * tau))
-            denominator = k_e * (1.0 - math.exp(-k_a * tau))
-            if numerator > 0 and denominator > 0 and (k_a - k_e) != 0:
-                t_max_ss = math.log(numerator / denominator) / (k_a - k_e)
-                t_max_ss = max(0.05, min(tau, t_max_ss))
-            else:
-                t_max_ss = max(0.1, pk.t_max_h)
+        f_oral = 1.0 if route == "iv" else max(0.05, min(1.0, pk.bioavailability_f))
+        k_a = 50.0 if route == "iv" else max(0.05, pk.absorption_rate_ka)
+
+        # Compartments and Non-Linear Kinetics Configuration
+        n_compartments = pk.number_of_compartments
+        is_saturable = pk.is_saturable_elimination
+        dynamic_ddi_active = len(co_compounds_data or []) > 0 and len(interacting_enzymes) > 0
+
+        # Compartment Volumes and Micro-constants
+        if n_compartments == 2:
+            v1_total_l = max(0.2, (pk.v1_l_kg or (0.30 * pk.volume_of_distribution_l_kg)) * weight_kg)
+            v2_total_l = max(0.3, (pk.v2_l_kg or (0.70 * pk.volume_of_distribution_l_kg)) * weight_kg)
+            k12 = pk.k12 if pk.k12 is not None else 0.35
+            k21 = pk.k21 if pk.k21 is not None else max(0.01, k12 * (v1_total_l / v2_total_l))
         else:
-            t_max_ss = math.log(k_a / k_e) / (k_a - k_e) if k_a > k_e else pk.t_max_h
+            v1_total_l = v_d_total_l
+            v2_total_l = 0.0
+            k12 = 0.0
+            k21 = 0.0
 
-        # Dose coefficient in ng/mL: Dose(mg) * 1000 / Vd(L)
-        dose_factor = (f_oral * dose_mg * 1000.0) / v_d_total_l
+        # Michaelis-Menten Parameters
+        vmax_total_mg_h = (pk.vmax_mg_h_kg * weight_kg) if (is_saturable and pk.vmax_mg_h_kg) else 0.0
+        km_ng_ml = pk.km_ng_ml or 5000.0
 
-        def calc_conc(t: float) -> float:
-            if t < 0:
+        # Build Inhibitor PK Profiles for Time-Resolved Dynamic DDI Collisions
+        inhibitor_profiles = []
+        if co_compounds_data:
+            cyp_info = compound.get("cyp_enzymes") or {}
+            substrates = [str(s).upper() for s in (cyp_info.get("substrates") or [])] if isinstance(cyp_info, dict) else []
+            trans_info = compound.get("transporters") or {}
+            trans_subs = [str(t).upper() for t in (trans_info.get("substrates") or [])] if isinstance(trans_info, dict) else []
+
+            for other in co_compounds_data:
+                if str(other.get("key")) == str(compound.get("key")):
+                    continue
+                other_pk = cls.extract_pk_parameters(other)
+                other_cyp = other.get("cyp_enzymes") or {}
+                other_trans = other.get("transporters") or {}
+
+                is_inhibitor = False
+                if isinstance(other_cyp, dict):
+                    for inh in (other_cyp.get("inhibitors") or []):
+                        if str(inh).upper() in substrates:
+                            is_inhibitor = True
+                            break
+                if not is_inhibitor and isinstance(other_trans, dict):
+                    for inh in (other_trans.get("inhibitors") or []):
+                        if str(inh).upper() in trans_subs:
+                            is_inhibitor = True
+                            break
+
+                if is_inhibitor:
+                    inh_vd = max(1.0, other_pk.volume_of_distribution_l_kg * weight_kg)
+                    inh_ke = max(0.001, math.log(2.0) / max(0.1, other_pk.t_half_h))
+                    inh_ka = max(0.1, other_pk.absorption_rate_ka)
+                    inh_f = max(0.05, min(1.0, other_pk.bioavailability_f))
+                    inh_dose_mg = max(10.0, float(other.get("dose") or other.get("dose_mg") or 100.0))
+                    inh_tau = max(1.0, float(other.get("dosing_interval_h") or 24.0))
+                    inh_ki = other_pk.ki_ng_ml or 500.0
+
+                    inhibitor_profiles.append({
+                        "name": other.get("name") or other.get("key"),
+                        "dose_factor": (inh_f * inh_dose_mg * 1000.0) / inh_vd,
+                        "ka": inh_ka,
+                        "ke": inh_ke,
+                        "tau": inh_tau,
+                        "ki": inh_ki,
+                    })
+
+        def get_inhibitor_conc(t: float) -> float:
+            """Calculates instantaneous plasma concentration I(t) for co-administered inhibitors."""
+            if not inhibitor_profiles:
                 return 0.0
-            if is_steady_state:
-                t_mod = t % tau
-                if route == "iv":
-                    c = dose_factor * (math.exp(-k_e * t_mod) / (1.0 - math.exp(-k_e * tau)))
+            total_i = 0.0
+            for inh in inhibitor_profiles:
+                t_mod = t % inh["tau"] if is_steady_state else t
+                pre = inh["dose_factor"] * (inh["ka"] / max(0.01, inh["ka"] - inh["ke"]))
+                if is_steady_state:
+                    e_k = math.exp(-inh["ke"] * t_mod) / (1.0 - math.exp(-inh["ke"] * inh["tau"]))
+                    e_a = math.exp(-inh["ka"] * t_mod) / (1.0 - math.exp(-inh["ka"] * inh["tau"]))
+                    c_i = max(0.0, pre * (e_k - e_a))
                 else:
-                    pre = dose_factor * (k_a / (k_a - k_e))
-                    e_k = math.exp(-k_e * t_mod) / (1.0 - math.exp(-k_e * tau))
-                    e_a = math.exp(-k_a * t_mod) / (1.0 - math.exp(-k_a * tau))
-                    c = pre * (e_k - e_a)
-                return max(0.0, c)
+                    c_i = max(0.0, pre * (math.exp(-inh["ke"] * t_mod) - math.exp(-inh["ka"] * t_mod)))
+                total_i += c_i
+            return total_i
+
+        def get_instantaneous_clearance(t: float) -> float:
+            """Calculates continuous time-dependent clearance CL(t) modulated by inhibitor I(t)."""
+            i_t = get_inhibitor_conc(t)
+            if i_t <= 0.0 or not inhibitor_profiles:
+                return cl_adjusted_l_h
+
+            primary_ki = inhibitor_profiles[0]["ki"]
+            # Dynamic modulation: CL_int(t) = CL_0 / (1 + I(t) / Ki)
+            mod_factor = 1.0 / (1.0 + (i_t / primary_ki))
+            # Assume 75% metabolized via inhibited pathway
+            cl_t = cl_adjusted_l_h * (0.25 + 0.75 * mod_factor)
+            return max(0.005, cl_t)
+
+        # 2. ODE System for Continuous Simulation (RK4 Integrator)
+        # State vector: y = [A_abs (mg), A_1 (mg), A_2 (mg)]
+        def ode_derivatives(t: float, y: List[float]) -> List[float]:
+            a_abs = max(0.0, y[0])
+            a1 = max(0.0, y[1])
+            a2 = max(0.0, y[2])
+
+            c1_ng_ml = (a1 * 1000.0) / v1_total_l
+
+            # Elimination Rate (mg/h)
+            if is_saturable:
+                # Michaelis-Menten: dC/dt = - Vmax * C / (Km + C)
+                cl_inst = get_instantaneous_clearance(t)
+                inhibition_mult = cl_inst / cl_adjusted_l_h
+                elim_rate_mg_h = (vmax_total_mg_h * c1_ng_ml / (km_ng_ml + c1_ng_ml)) * inhibition_mult
             else:
-                if route == "iv":
-                    return max(0.0, dose_factor * math.exp(-k_e * t))
-                else:
-                    pre = dose_factor * (k_a / (k_a - k_e))
-                    return max(0.0, pre * (math.exp(-k_e * t) - math.exp(-k_a * t)))
+                cl_inst = get_instantaneous_clearance(t)
+                k10 = cl_inst / v1_total_l
+                elim_rate_mg_h = k10 * a1
 
-        c_max = calc_conc(t_max_ss) * ddi_cmax_mult
-        c_min = calc_conc(tau) if is_steady_state else calc_conc(duration)
-        ptf = ((c_max - c_min) / max(0.001, c_avg_ss)) * 100.0 if is_steady_state else 0.0
+            da_abs_dt = -k_a * a_abs
+            da1_dt = (k_a * a_abs) - elim_rate_mg_h - (k12 * a1) + (k21 * a2)
+            da2_dt = (k12 * a1) - (k21 * a2) if n_compartments == 2 else 0.0
 
-        # Molecular Weight for molar conversions
+            return [da_abs_dt, da1_dt, da2_dt]
+
+        def rk4_step(t: float, y: List[float], dt: float) -> List[float]:
+            k1 = ode_derivatives(t, y)
+            y_k2 = [y[i] + 0.5 * dt * k1[i] for i in range(3)]
+            k2 = ode_derivatives(t + 0.5 * dt, y_k2)
+            y_k3 = [y[i] + 0.5 * dt * k2[i] for i in range(3)]
+            k3 = ode_derivatives(t + 0.5 * dt, y_k3)
+            y_k4 = [y[i] + dt * k3[i] for i in range(3)]
+            k4 = ode_derivatives(t + dt, y_k4)
+
+            return [
+                max(0.0, y[i] + (dt / 6.0) * (k1[i] + 2.0 * k2[i] + 2.0 * k3[i] + k4[i]))
+                for i in range(3)
+            ]
+
+        # Multi-Dose / Steady-State Initialization
+        fine_dt = 0.01  # 36 second numerical step for high precision
+        init_dose_mg = dose_mg * f_oral
+
+        if route == "iv":
+            y_state = [0.0, init_dose_mg, 0.0]
+        else:
+            y_state = [init_dose_mg, 0.0, 0.0]
+
+        if is_steady_state:
+            # Run 12 dosing cycles to establish exact numerical steady-state
+            cycles = 12
+            for c in range(cycles):
+                if c > 0:
+                    if route == "iv":
+                        y_state[1] += init_dose_mg
+                    else:
+                        y_state[0] += init_dose_mg
+
+                t_cycle = 0.0
+                while t_cycle < tau:
+                    step_dt = min(fine_dt, tau - t_cycle)
+                    y_state = rk4_step(t_cycle, y_state, step_dt)
+                    t_cycle += step_dt
+
+            # Apply final dose for reported steady-state cycle
+            if route == "iv":
+                y_state[1] += init_dose_mg
+            else:
+                y_state[0] += init_dose_mg
+
+        # 3. Simulate and Record Report Time Series
+        steps = 120
+        out_dt = duration / (steps - 1)
+        time_series: List[TimePoint] = []
+
         mw = float(compound.get("molecular_weight") or 350.0)
-        
-        # Primary binding affinity for receptor occupancy Kd in ng/mL
         primary_aff_nm = cls._get_primary_affinity_nm(pd_params)
         kd_ng_ml = (primary_aff_nm * mw) / 1000.0 if primary_aff_nm else 50.0
-
         ec50_ng_ml = (pd_params.ec50_nm * mw / 1000.0) if pd_params.ec50_nm else kd_ng_ml
         hill_gamma = max(0.5, pd_params.hill_coefficient)
         emax = max(10.0, pd_params.e_max)
 
-        # 5. Generate Continuous Time-Series Curve (100 Points)
-        steps = 120
-        dt = duration / (steps - 1)
-        time_series: List[TimePoint] = []
-
-        mec = pd_params.mec_ng_ml or (c_max * 0.25 if c_max > 0 else 10.0)
-        mtc = pd_params.mtc_ng_ml or (c_max * 2.5 if c_max > 0 else 500.0)
+        mec = pd_params.mec_ng_ml or 10.0
+        mtc = pd_params.mtc_ng_ml or 500.0
         if mtc <= mec:
             mtc = mec * 3.0
 
@@ -161,15 +267,25 @@ class PKPDEngine:
         time_in_toxic_count = 0
         time_subtherapeutic_count = 0
 
+        cur_t = 0.0
+        cur_y = list(y_state)
+
         for s in range(steps):
-            t_curr = round(s * dt, 2)
-            c_p = calc_conc(t_curr)
+            target_t = s * out_dt
+
+            while cur_t < (target_t - 1e-6):
+                step_dt = min(fine_dt, target_t - cur_t)
+                cur_y = rk4_step(cur_t, cur_y, step_dt)
+                cur_t += step_dt
+
+            c_p = (cur_y[1] * 1000.0) / v1_total_l
+            c_tissue = (cur_y[2] * 1000.0) / v2_total_l if n_compartments == 2 else 0.0
             c_free = c_p * fu_adjusted
 
-            # Receptor Occupancy %: RO = Cfree / (Cfree + Kd) * 100
+            cl_inst = get_instantaneous_clearance(target_t)
+            i_conc = get_inhibitor_conc(target_t)
+
             ro = (c_free / (c_free + kd_ng_ml)) * 100.0 if (c_free + kd_ng_ml) > 0 else 0.0
-            
-            # Sigmoidal Emax Hill Model
             c_pow = math.pow(max(0.0, c_free), hill_gamma)
             ec50_pow = math.pow(max(0.001, ec50_ng_ml), hill_gamma)
             effect = (emax * c_pow) / (ec50_pow + c_pow) if (ec50_pow + c_pow) > 0 else 0.0
@@ -183,19 +299,44 @@ class PKPDEngine:
 
             time_series.append(
                 TimePoint(
-                    time_h=t_curr,
+                    time_h=round(target_t, 2),
                     c_plasma_ng_ml=round(c_p, 2),
                     c_free_ng_ml=round(c_free, 2),
                     receptor_occupancy_pct=round(min(100.0, ro), 1),
                     effect_pct=round(min(100.0, effect), 1),
+                    c_tissue_ng_ml=round(c_tissue, 2) if n_compartments == 2 else None,
+                    cl_instantaneous_l_h=round(cl_inst, 2),
+                    inhibitor_conc_ng_ml=round(i_conc, 2) if inhibitor_profiles else None,
                 )
             )
+
+        # Calculate Summary Metrics
+        c_max = max(p.c_plasma_ng_ml for p in time_series)
+        t_max_ss = min(time_series, key=lambda p: (abs(p.c_plasma_ng_ml - c_max), p.time_h)).time_h
+
+        tau_pts = [p for p in time_series if p.time_h <= tau + 1e-3]
+        if not tau_pts:
+            tau_pts = time_series
+
+        c_min = tau_pts[-1].c_plasma_ng_ml
+        auc_0_tau = sum(
+            0.5 * (tau_pts[i].c_plasma_ng_ml + tau_pts[i + 1].c_plasma_ng_ml) * (tau_pts[i + 1].time_h - tau_pts[i].time_h)
+            for i in range(len(tau_pts) - 1)
+        )
+        c_avg_ss = max(0.01, auc_0_tau / tau)
+        ptf = ((c_max - c_min) / c_avg_ss) * 100.0 if is_steady_state else 0.0
+
+        cl_effective_avg = (dose_mg * f_oral * 1000.0) / max(1.0, auc_0_tau)
+        k_e_eff = max(0.0001, cl_effective_avg / v_d_total_l)
+        t_half_effective_h = math.log(2.0) / k_e_eff
+
+        rac = 1.0 / (1.0 - math.exp(-k_e_eff * tau)) if is_steady_state else 1.0
 
         pct_in_window = round((time_in_window_count / steps) * 100.0, 1)
         pct_toxic = round((time_in_toxic_count / steps) * 100.0, 1)
         pct_subtherapeutic = round((time_subtherapeutic_count / steps) * 100.0, 1)
 
-        # 6. Generate Pharmacodynamic Hill Curve Points (0.001 to 1000x EC50)
+        # Pharmacodynamic Hill Curve Points (0.001 to 1000x EC50)
         pd_conc_points: List[float] = []
         pd_effect_points: List[float] = []
         for p in range(40):
@@ -221,7 +362,10 @@ class PKPDEngine:
             accumulation_ratio=round(rac, 2),
             fluctuation_pct=round(ptf, 1),
             elimination_half_life_effective_h=round(t_half_effective_h, 2),
-            total_clearance_l_h=round(cl_effective_l_h, 2),
+            total_clearance_l_h=round(cl_effective_avg, 2),
+            number_of_compartments=n_compartments,
+            is_saturable_elimination=is_saturable,
+            dynamic_ddi_active=dynamic_ddi_active,
             ddi_auc_ratio=round(ddi_aucr, 2),
             ddi_cmax_multiplier=round(ddi_cmax_mult, 2),
             ddi_interacting_enzymes=interacting_enzymes,
@@ -317,6 +461,8 @@ class PKPDEngine:
     @classmethod
     def extract_pk_parameters(cls, compound: Dict[str, Any]) -> PKParameters:
         """Extracts or rigorously estimates continuous numerical PK parameters from compound dictionary."""
+        comp_key_lower = str(compound.get("key") or compound.get("name") or "").lower()
+
         # Half life
         th_val = compound.get("t_half_numeric")
         if th_val is None or th_val <= 0:
@@ -363,7 +509,6 @@ class PKPDEngine:
         tmax_val = compound.get("t_max_h") or 2.0
         ka_val = compound.get("absorption_rate_ka")
         if ka_val is None or ka_val <= 0:
-            # Ka estimated from Tmax: approx 2.5 / Tmax
             ka_val = max(0.2, min(5.0, 2.5 / max(0.5, float(tmax_val))))
 
         # Renal clearance fraction
@@ -393,6 +538,63 @@ class PKPDEngine:
             else:
                 bcs = "Class IV (Low Sol, Low Perm)"
 
+        # 2-Compartment Open Model Parameter Extraction & Benchmarking
+        n_compartments = int(compound.get("number_of_compartments") or 1)
+        v1_l_kg = compound.get("v1_l_kg")
+        v2_l_kg = compound.get("v2_l_kg")
+        k12_val = compound.get("k12")
+        k21_val = compound.get("k21")
+
+        if "amiodarone" in comp_key_lower:
+            n_compartments = 2
+            v1_l_kg = v1_l_kg or 1.5
+            v2_l_kg = v2_l_kg or 60.0
+            k12_val = k12_val or 0.15
+            k21_val = k21_val or 0.005
+            vd_val = max(vd_val, 61.5)
+            th_val = max(th_val, 120.0)
+        elif "diazepam" in comp_key_lower or "valium" in comp_key_lower:
+            n_compartments = 2
+            v1_l_kg = v1_l_kg or 0.4
+            v2_l_kg = v2_l_kg or 0.8
+            k12_val = k12_val or 0.50
+            k21_val = k21_val or 0.20
+            vd_val = max(vd_val, 1.2)
+        elif "fentanyl" in comp_key_lower:
+            n_compartments = 2
+            v1_l_kg = v1_l_kg or 0.8
+            v2_l_kg = v2_l_kg or 3.2
+            k12_val = k12_val or 0.80
+            k21_val = k21_val or 0.15
+            vd_val = max(vd_val, 4.0)
+        elif n_compartments == 2 or vd_val > 3.0 or (v1_l_kg is not None and v2_l_kg is not None):
+            n_compartments = 2
+            v1_l_kg = v1_l_kg or max(0.2, 0.30 * vd_val)
+            v2_l_kg = v2_l_kg or max(0.5, 0.70 * vd_val)
+            k12_val = k12_val or 0.35
+            k21_val = k21_val or max(0.01, k12_val * (v1_l_kg / v2_l_kg))
+
+        # Michaelis-Menten Non-Linear Elimination Parameter Extraction
+        is_saturable = bool(compound.get("is_saturable_elimination", False))
+        vmax_mg_h_kg = compound.get("vmax_mg_h_kg")
+        km_ng_ml = compound.get("km_ng_ml")
+        ki_ng_ml = compound.get("ki_ng_ml")
+
+        if "phenytoin" in comp_key_lower or "dilantin" in comp_key_lower:
+            is_saturable = True
+            vmax_mg_h_kg = vmax_mg_h_kg or 0.30  # ~7.0 mg/kg/day
+            km_ng_ml = km_ng_ml or 4000.0  # 4.0 mg/L
+        elif "ethanol" in comp_key_lower or "alcohol" in comp_key_lower:
+            is_saturable = True
+            vmax_mg_h_kg = vmax_mg_h_kg or 100.0  # ~0.1 g/kg/h
+            km_ng_ml = km_ng_ml or 100000.0  # 100.0 mg/L
+        elif is_saturable or (vmax_mg_h_kg is not None and km_ng_ml is not None):
+            is_saturable = True
+            km_ng_ml = km_ng_ml or 5000.0
+            if vmax_mg_h_kg is None:
+                k_elim = math.log(2.0) / max(0.1, float(th_val))
+                vmax_mg_h_kg = k_elim * vd_val * (km_ng_ml / 1000.0)
+
         return PKParameters(
             t_half_h=max(0.1, float(th_val)),
             bioavailability_f=max(0.01, min(1.0, float(f_val))),
@@ -405,6 +607,15 @@ class PKPDEngine:
             renal_clearance_fraction=max(0.0, min(1.0, float(fe_val))),
             bcs_class=bcs,
             pka=compound.get("pka"),
+            number_of_compartments=n_compartments,
+            v1_l_kg=v1_l_kg,
+            v2_l_kg=v2_l_kg,
+            k12=k12_val,
+            k21=k21_val,
+            is_saturable_elimination=is_saturable,
+            vmax_mg_h_kg=vmax_mg_h_kg,
+            km_ng_ml=km_ng_ml,
+            ki_ng_ml=ki_ng_ml,
         )
 
     @classmethod

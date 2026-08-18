@@ -43,6 +43,19 @@ class PKParameters(BaseModel):
     bcs_class: Optional[str] = Field(default="Class I", description="Biopharmaceutics Classification (Class I, II, III, IV)")
     pka: Optional[float] = Field(default=None, description="Acid/base ionization dissociation constant")
 
+    # 2-Compartment Open Model Parameters
+    number_of_compartments: int = Field(default=1, description="1-compartment or 2-compartment open model")
+    v1_l_kg: Optional[float] = Field(default=None, description="Central compartment volume of distribution V1 (L/kg)")
+    v2_l_kg: Optional[float] = Field(default=None, description="Peripheral compartment volume of distribution V2 (L/kg)")
+    k12: Optional[float] = Field(default=None, description="Rate constant central -> peripheral (1/h)")
+    k21: Optional[float] = Field(default=None, description="Rate constant peripheral -> central (1/h)")
+
+    # Michaelis-Menten Non-Linear Elimination Kinetics
+    is_saturable_elimination: bool = Field(default=False, description="Whether clearance exhibits Michaelis-Menten capacity-limited saturation")
+    vmax_mg_h_kg: Optional[float] = Field(default=None, description="Maximum elimination rate Vmax (mg/h/kg)")
+    km_ng_ml: Optional[float] = Field(default=None, description="Michaelis constant Km (ng/mL)")
+    ki_ng_ml: Optional[float] = Field(default=None, description="Enzyme inhibition constant Ki (ng/mL)")
+
 
 class PDParameters(BaseModel):
     model_config = ConfigDict(extra="ignore")
@@ -80,6 +93,9 @@ class TimePoint(BaseModel):
     c_free_ng_ml: float
     receptor_occupancy_pct: float
     effect_pct: float
+    c_tissue_ng_ml: Optional[float] = Field(default=None, description="Peripheral compartment concentration for 2-compartment open models")
+    cl_instantaneous_l_h: Optional[float] = Field(default=None, description="Instantaneous dynamic clearance at time t (L/h)")
+    inhibitor_conc_ng_ml: Optional[float] = Field(default=None, description="Continuous inhibitor concentration I(t) modulating clearance")
 
 
 class PKPDSimulationResponse(BaseModel):
@@ -102,6 +118,11 @@ class PKPDSimulationResponse(BaseModel):
     fluctuation_pct: float
     elimination_half_life_effective_h: float
     total_clearance_l_h: float
+
+    # Model & DDI Classifications
+    number_of_compartments: int = Field(default=1, description="1 or 2 compartment model used")
+    is_saturable_elimination: bool = Field(default=False, description="Whether non-linear Michaelis-Menten kinetics applied")
+    dynamic_ddi_active: bool = Field(default=False, description="Whether continuous time-resolved DDI clearance modulation was active")
 
     # DDI & Safety Metrics
     ddi_auc_ratio: float

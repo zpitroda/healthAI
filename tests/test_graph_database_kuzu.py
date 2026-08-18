@@ -10,6 +10,7 @@ from app.services.graph_service import build_selected_compound_graph
 
 @pytest.fixture
 def temp_kuzu_db(tmp_path):
+    KuzuGraphDatabase.reset_instance()
     db_file = str(tmp_path / "test_kuzu.db")
     db = KuzuGraphDatabase(db_path=db_file)
     yield db
@@ -17,6 +18,7 @@ def temp_kuzu_db(tmp_path):
     try:
         db.conn = None
         db.db = None
+        KuzuGraphDatabase.reset_instance()
         if os.path.exists(db_file):
             if os.path.isdir(db_file):
                 shutil.rmtree(db_file)
@@ -41,6 +43,7 @@ def test_sync_biological_graph_and_multi_hop_traversal(temp_kuzu_db):
 
     # Build biological graph for telmisartan and sildenafil
     bio_graph = build_selected_compound_graph(["telmisartan", "sildenafil"])
+    db._synced_edges.clear()
     sync_res = db.sync_biological_graph(bio_graph)
 
     assert sync_res["nodes_synced"] > 0

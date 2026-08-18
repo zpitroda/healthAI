@@ -19,6 +19,11 @@ class KuzuGraphDatabase:
 
     _instance: Optional[KuzuGraphDatabase] = None
 
+    @classmethod
+    def reset_instance(cls) -> None:
+        """Reset singleton instance for testing isolation."""
+        cls._instance = None
+
     def __new__(cls, db_path: str = "healthai_kuzu.db") -> KuzuGraphDatabase:
         if cls._instance is None:
             cls._instance = super().__new__(cls)
@@ -32,6 +37,7 @@ class KuzuGraphDatabase:
         self.db_path = db_path
         self.db: Optional[kuzu.Database] = None
         self.conn: Optional[kuzu.Connection] = None
+        self._synced_edges: Set[Tuple[str, str, str]] = set()
         self._setup_db()
 
     def _setup_db(self) -> None:
@@ -60,7 +66,6 @@ class KuzuGraphDatabase:
             try:
                 self.conn.execute(create_sql)
             except Exception:
-                # Table already exists or creation skipped
                 pass
 
         rel_tables = [
@@ -76,7 +81,6 @@ class KuzuGraphDatabase:
             try:
                 self.conn.execute(create_sql)
             except Exception:
-                # Table already exists or creation skipped
                 pass
 
     def execute_cypher(self, query: str, params: Optional[Dict[str, Any]] = None) -> List[Dict[str, Any]]:
@@ -106,7 +110,7 @@ class KuzuGraphDatabase:
     def sync_biological_graph(self, bio_graph: Any) -> Dict[str, int]:
         """
         Synchronizes all nodes and edges from a BiologicalGraph or NetworkX DiGraph
-        into the dedicated KuzuDB graph database backend.
+        into the dedicated KuzuDB graph database backend idempotently.
         """
         nx_graph = getattr(bio_graph, "graph", bio_graph)
         nodes_synced = 0
@@ -189,10 +193,17 @@ class KuzuGraphDatabase:
             self.execute_cypher(q_ent, {"id": str(node_id), "label": label, "nt": nt})
             nodes_synced += 1
 
-        # 2. Sync Edges
+        # 2. Sync Edges Idempotently
         for source_id, target_id, attrs in nx_graph.edges(data=True):
             edge_type = str(attrs.get("edge_type") or "MODULATES")
             mag = float(attrs.get("vector_magnitude") or 1.0)
+            edge_key = (str(source_id), str(target_id), edge_type)
+
+            if edge_key in self._synced_edges:
+                continue
+
+            self._synced_edges.add(edge_key)
+
             ki = float(attrs.get("affinity_ki")) if attrs.get("affinity_ki") is not None else -1.0
             ic50 = float(attrs.get("inhibition_ic50")) if attrs.get("inhibition_ic50") is not None else -1.0
 
@@ -206,7 +217,6 @@ class KuzuGraphDatabase:
             except Exception:
                 pass
 
-            # Try specific typed relationships
             src_node = nx_graph.nodes.get(source_id, {})
             tgt_node = nx_graph.nodes.get(target_id, {})
             src_type = str(src_node.get("node_type", "")).lower()
@@ -236,7 +246,6 @@ class KuzuGraphDatabase:
         try:
             return self.execute_cypher(cypher, {"start_id": start_id})
         except Exception:
-            # Fallback to single hop or generic traversal if variable path fails
             q_fallback = """
             MATCH (a:EntityNode {id: $start_id})-[r:RELATIONSHIP]->(b:EntityNode)
             RETURN a.id AS source_id, a.label AS source_label,
@@ -263,7 +272,6 @@ class KuzuGraphDatabase:
             if nodes:
                 entities_found[eid] = nodes[0]
 
-            # Multi-hop relationships
             q_rel = """
             MATCH (a:EntityNode {id: $eid})-[r:RELATIONSHIP]->(b:EntityNode)
             RETURN a.id AS source, a.label AS source_label,
@@ -286,7 +294,6 @@ class KuzuGraphDatabase:
                         "node_type": r["target_type"],
                     }
 
-        # Build natural text summary for LLM context window
         summary_lines = ["### GraphRAG Biological Subgraph Context:"]
         summary_lines.append(f"- Focused Entities: {', '.join([e['label'] for e in entities_found.values()])}")
         summary_lines.append("- Knowledge Graph Triples:")
@@ -302,12 +309,126 @@ class KuzuGraphDatabase:
         }
 
 
-# Singleton instance accessor
-_GRAPH_DB_INSTANCE: Optional[KuzuGraphDatabase] = None
+class Neo4jGraphDatabase:
+    """
+    Dedicated Graph Database Backend powered by Neo4j.
+    Connects to Neo4j via official Python driver (`bolt://` or `neo4j://` protocol)
+    when `NEO4J_URI` environment variable is specified.
+    """
+
+    def __init__(self, uri: str, user: str = "neo4j", password: str = "password") -> None:
+        from neo4j import GraphDatabase
+        self.driver = GraphDatabase.driver(uri, auth=(user, password))
+        logger.info("Connected to Neo4j graph database server at %s", uri)
+
+    def close(self) -> None:
+        if self.driver:
+            self.driver.close()
+
+    def execute_cypher(self, query: str, params: Optional[Dict[str, Any]] = None) -> List[Dict[str, Any]]:
+        with self.driver.session() as session:
+            result = session.run(query, params or {})
+            return [dict(record) for record in result]
+
+    def sync_biological_graph(self, bio_graph: Any) -> Dict[str, int]:
+        nx_graph = getattr(bio_graph, "graph", bio_graph)
+        nodes_synced = 0
+        edges_synced = 0
+
+        for node_id, attrs in nx_graph.nodes(data=True):
+            nt = str(attrs.get("node_type", "Entity")).title().replace("_", "")
+            label = str(attrs.get("label") or node_id)
+            q = f"MERGE (e:{nt}Node {{id: $id}}) SET e.label = $label, e.node_type = $node_type"
+            self.execute_cypher(q, {"id": str(node_id), "label": label, "node_type": str(attrs.get("node_type", "entity"))})
+            nodes_synced += 1
+
+        for src, tgt, attrs in nx_graph.edges(data=True):
+            rel_type = str(attrs.get("edge_type", "MODULATES")).upper()
+            mag = float(attrs.get("vector_magnitude", 1.0))
+            q = f"MATCH (a {{id: $src}}), (b {{id: $tgt}}) MERGE (a)-[r:{rel_type}]->(b) SET r.magnitude = $mag"
+            try:
+                self.execute_cypher(q, {"src": str(src), "tgt": str(tgt), "mag": mag})
+                edges_synced += 1
+            except Exception:
+                pass
+
+        return {"nodes_synced": nodes_synced, "edges_synced": edges_synced}
+
+    def multi_hop_traversal(self, start_id: str, max_hops: int = 5) -> List[Dict[str, Any]]:
+        query = f"MATCH (a {{id: $start_id}})-[*1..{max_hops}]->(b) RETURN a.id AS source_id, a.label AS source_label, b.id AS target_id, b.label AS target_label"
+        return self.execute_cypher(query, {"start_id": start_id})
+
+    def get_graphrag_context(self, entity_ids: List[str], max_hops: int = 2) -> Dict[str, Any]:
+        clean_ids = [str(e).strip() for e in entity_ids if e]
+        if not clean_ids:
+            return {"entities": [], "triples": [], "text_summary": "No entities provided."}
+
+        triples: List[Dict[str, Any]] = []
+        entities_found: Dict[str, Dict[str, Any]] = {}
+
+        for eid in clean_ids:
+            q_node = "MATCH (e {id: $eid}) RETURN e.id AS id, coalesce(e.label, e.id) AS label, head(labels(e)) AS node_type"
+            nodes = self.execute_cypher(q_node, {"eid": eid})
+            if nodes:
+                entities_found[eid] = nodes[0]
+
+            q_rel = """
+            MATCH (a {id: $eid})-[r]->(b)
+            RETURN a.id AS source, coalesce(a.label, a.id) AS source_label,
+                   type(r) AS relationship, coalesce(r.magnitude, 1.0) AS magnitude,
+                   b.id AS target, coalesce(b.label, b.id) AS target_label, head(labels(b)) AS target_type
+            """
+            rels = self.execute_cypher(q_rel, {"eid": eid})
+            for r in rels:
+                triples.append({
+                    "subject": r["source_label"] or r["source"],
+                    "predicate": r["relationship"] or "MODULATES",
+                    "object": r["target_label"] or r["target"],
+                    "object_type": r["target_type"],
+                    "magnitude": r["magnitude"],
+                })
+                if r["target"] not in entities_found:
+                    entities_found[r["target"]] = {
+                        "id": r["target"],
+                        "label": r["target_label"],
+                        "node_type": r["target_type"],
+                    }
+
+        summary_lines = ["### GraphRAG Biological Subgraph Context (Neo4j):"]
+        summary_lines.append(f"- Focused Entities: {', '.join([e['label'] for e in entities_found.values()])}")
+        summary_lines.append("- Knowledge Graph Triples:")
+        for t in triples[:30]:
+            summary_lines.append(f"  * [{t['subject']}] --({t['predicate']})--> [{t['object']}] ({t['object_type']})")
+
+        return {
+            "focused_ids": clean_ids,
+            "entities": list(entities_found.values()),
+            "triples": triples,
+            "triple_count": len(triples),
+            "text_summary": "\n".join(summary_lines),
+        }
 
 
-def get_graph_database(db_path: str = "healthai_kuzu.db") -> KuzuGraphDatabase:
+# Singleton instance accessor with Neo4j / KuzuDB selector
+_GRAPH_DB_INSTANCE: Any = None
+
+
+def get_graph_database(db_path: str = "healthai_kuzu.db") -> Any:
+    """
+    Returns active graph database backend instance.
+    Defaults to embedded KuzuDB; uses Neo4j if NEO4J_URI environment variable is present.
+    """
     global _GRAPH_DB_INSTANCE
     if _GRAPH_DB_INSTANCE is None:
-        _GRAPH_DB_INSTANCE = KuzuGraphDatabase(db_path=db_path)
+        neo4j_uri = os.getenv("NEO4J_URI") or os.getenv("NEO4J_URL")
+        if neo4j_uri:
+            user = os.getenv("NEO4J_USER", "neo4j")
+            password = os.getenv("NEO4J_PASSWORD", "password")
+            try:
+                _GRAPH_DB_INSTANCE = Neo4jGraphDatabase(uri=neo4j_uri, user=user, password=password)
+            except Exception as e:
+                logger.warning("Failed to connect to Neo4j at %s (%s). Falling back to KuzuDB.", neo4j_uri, e)
+                _GRAPH_DB_INSTANCE = KuzuGraphDatabase(db_path=db_path)
+        else:
+            _GRAPH_DB_INSTANCE = KuzuGraphDatabase(db_path=db_path)
     return _GRAPH_DB_INSTANCE

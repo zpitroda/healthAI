@@ -43,6 +43,10 @@ logs/
 *.swp
 *.swo
 
+# Local Embedded Databases
+healthai_kuzu.db
+*kuzu*
+
 # Operating System & IDEs
 .DS_Store
 Thumbs.db

@@ -51,8 +51,9 @@
 
       html, body {
         width: 100%;
-        height: 100%;
-        overflow: hidden;
+        min-height: 100%;
+        overflow-x: hidden;
+        overflow-y: auto;
         background-color: var(--bg-deep);
         color: var(--text-primary);
         font-family: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
@@ -64,15 +65,16 @@
       body {
         display: flex;
         flex-direction: column;
+        min-height: 100vh;
       }
 
       .app-shell {
         display: flex;
         flex-direction: column;
-        width: 100vw;
-        height: 100vh;
-        padding: 10px 14px 12px;
-        gap: 8px;
+        width: 100%;
+        min-height: 100vh;
+        padding: 12px 18px 36px;
+        gap: 10px;
       }
 
       /* ==========================================================================
@@ -502,8 +504,9 @@
          ========================================================================== */
       .graph-workspace {
         position: relative;
-        flex: 1;
-        min-height: 0;
+        width: 100%;
+        height: 820px;
+        min-height: 720px;
         background: radial-gradient(circle at 50% 50%, rgba(14, 26, 48, 0.5) 0%, rgba(5, 8, 17, 0.96) 80%),
                     radial-gradient(rgba(56, 189, 248, 0.06) 1px, transparent 1px);
         background-size: 100% 100%, 28px 28px;
@@ -511,9 +514,12 @@
         border-radius: 14px;
         overflow: hidden;
         box-shadow: inset 0 0 50px rgba(0, 0, 0, 0.7);
+        flex-shrink: 0;
       }
 
       #graph-canvas {
+        position: absolute;
+        inset: 0;
         width: 100%;
         height: 100%;
         cursor: grab;
@@ -1687,7 +1693,7 @@
         </div>
 
         <!-- FLOATING INSPECTOR DRAWER 2.0 -->
-        <aside class="inspector-drawer" id="nodePanelContainer">
+        <aside class="inspector-drawer hidden" id="nodePanelContainer">
           <div class="inspector-header">
             <span class="inspector-title">🧬 Node Inspector</span>
             <button id="inspectorCloseBtn" class="inspector-close-btn" title="Close drawer">&times;</button>
@@ -1712,7 +1718,12 @@
     </div>
 
     <!-- CYTOSCAPE HIGH-PERFORMANCE ENGINE -->
-    <script src="https://cdn.jsdelivr.net/npm/cytoscape@3.29.0/dist/cytoscape.min.js"></script>
+    <script src="/static/cytoscape.min.js"></script>
+    <script>
+      if (!window.cytoscape) {
+        document.write('<script src="https://cdn.jsdelivr.net/npm/cytoscape@3.29.0/dist/cytoscape.min.js"><\/script>');
+      }
+    </script>
     <script>
       const graphContainer = document.getElementById('graph-canvas');
       const statusEl = document.getElementById('status');
@@ -2376,8 +2387,6 @@
             </div>
           `;
         }
-
-        nodePanelContainer.classList.remove('hidden');
       }
 
       // INSPECTOR TAB SWITCHING
@@ -2398,6 +2407,7 @@
         });
         nodePanelContainer.classList.remove('hidden');
         renderNodePanel();
+        fitGraph();
         if (targetId) {
           setTimeout(() => {
             const el = document.getElementById(`cascade-item-${targetId}`);
@@ -2427,14 +2437,16 @@
         }
         if (targetEle && targetEle.length) {
           state.selectedNode = nodeId;
+          nodePanelContainer.classList.remove('hidden');
           state.cy.elements().removeClass('highlighted');
           targetEle.addClass('highlighted');
+          renderNodePanel();
+          fitGraph();
           state.cy.animate({
             center: { eles: targetEle },
             zoom: Math.min(state.cy.maxZoom(), Math.max(1.3, state.cy.zoom())),
             duration: 350
           });
-          renderNodePanel();
         }
       };
 
@@ -2544,7 +2556,10 @@
           return null;
         }
 
-        if (state.cy) return state.cy;
+        if (state.cy) {
+          state.cy.resize();
+          return state.cy;
+        }
 
         // Force 2x+ pixelRatio so canvas backing store rasterizes text with crisp subpixels
         const dpr = Math.max(window.devicePixelRatio || 1, 2);
@@ -2552,8 +2567,8 @@
         state.cy = window.cytoscape({
           container: graphContainer,
           pixelRatio: dpr,
-          textureOnViewport: false, // Prevents blurry low-res texture downscaling during pan/zoom!
-          motionBlur: false,        // Prevents blur artifacting during interaction
+          textureOnViewport: false,
+          motionBlur: false,
           hideEdgesOnViewport: false,
           style: [
             {
@@ -2567,8 +2582,6 @@
                 'text-wrap': 'wrap',
                 'text-max-width': '120px',
                 'color': '#f8fafc',
-                
-                // Crisp Badge Styling (avoids destructive dark outline blur when zoomed out!)
                 'text-background-opacity': 0.88,
                 'text-background-color': '#070d19',
                 'text-background-padding': '3px 5px',
@@ -2579,7 +2592,6 @@
                 'text-margin-y': 6,
                 'text-valign': 'bottom',
                 'text-halign': 'center',
-                
                 'border-width': 2.5,
                 'border-color': ele => ele.data('node_type') === 'compound' ? '#ffffff' : 'rgba(255,255,255,0.7)',
                 'width': ele => ele.data('node_type') === 'compound' ? 46 : (ele.data('node_type') === 'biomarker' ? 32 : 36),
@@ -2593,12 +2605,7 @@
                   if (type === 'physiology') return 'round-rectangle';
                   return 'ellipse';
                 },
-                'shadow-blur': 14,
-                'shadow-color': ele => colorForNode(ele.data('node_type')),
-                'shadow-opacity': 0.45,
                 'min-zoomed-font-size': 5,
-                'transition-property': 'background-color, border-color, shadow-blur, opacity',
-                'transition-duration': '0.2s',
               }
             },
             {
@@ -2611,14 +2618,6 @@
                   if (net < -0.15) return '#ff4b72';
                   return '#c084fc';
                 },
-                'shadow-blur': 26,
-                'shadow-color': ele => {
-                  const net = ele.data('net_activation_score') !== undefined ? ele.data('net_activation_score') : 0;
-                  if (net > 0.15) return '#00f2fe';
-                  if (net < -0.15) return '#ff4b72';
-                  return '#c084fc';
-                },
-                'shadow-opacity': 0.88,
               }
             },
             {
@@ -2673,9 +2672,6 @@
               style: {
                 'border-width': 4,
                 'border-color': '#ffffff',
-                'shadow-blur': 28,
-                'shadow-color': '#00f2fe',
-                'shadow-opacity': 0.95,
               }
             },
             {
@@ -2683,9 +2679,6 @@
               style: {
                 'border-width': 4,
                 'border-color': '#00f2fe',
-                'shadow-blur': 25,
-                'shadow-color': '#00f2fe',
-                'shadow-opacity': 0.9,
               }
             },
             {
@@ -2695,15 +2688,12 @@
                 'target-arrow-color': '#c084fc',
                 'width': 4.5,
                 'opacity': 1.0,
-                'shadow-blur': 16,
-                'shadow-color': '#c084fc',
-                'shadow-opacity': 0.9,
               }
             },
             {
               selector: '.faded',
               style: {
-                'opacity': 0.12,
+                'opacity': 0.15,
               }
             }
           ],
@@ -2781,11 +2771,29 @@
           }
         });
 
+        window.addEventListener('resize', () => {
+          if (state.cy) {
+            state.cy.resize();
+          }
+        });
+
         return state.cy;
+      }
+
+      function fitGraph(cy) {
+        const cyt = cy || state.cy;
+        if (!cyt) return;
+        cyt.resize();
+        const isDrawerOpen = nodePanelContainer && !nodePanelContainer.classList.contains('hidden');
+        const isWide = window.innerWidth > 900;
+        const padRight = (isDrawerOpen && isWide) ? 410 : 50;
+        cyt.fit(undefined, { top: 50, bottom: 50, left: 50, right: padRight });
+        cyt.center();
       }
 
       // CUSTOM MULTI-TIER CASCADE FLOW LAYOUT
       function applyTierFlowLayout(cy) {
+        cy.resize();
         const nodes = cy.nodes();
         if (!nodes.length) return;
 
@@ -2814,7 +2822,6 @@
             const topY = centerY - (colHeight / 2);
 
             group.forEach((node, idx) => {
-              // slight stagger to prevent straight-line overlap
               const jitterX = (idx % 2 === 1) ? 14 : -14;
               node.position({
                 x: colX + jitterX,
@@ -2824,7 +2831,7 @@
           }
         });
 
-        cy.fit(undefined, 50);
+        fitGraph(cy);
       }
 
       function render() {
@@ -2832,40 +2839,54 @@
         const cy = ensureCytoscape();
         if (!cy) return;
 
-        const elements = {
-          nodes: state.filtered.nodes.map(node => {
-            const comb = (state.data.combined_effects && state.data.combined_effects[node.id]) || node.combined_effect;
-            return {
-              data: {
-                id: node.id,
-                label: getNodeLabel(node),
-                node_type: node.node_type,
-                tier: node.tier,
-                tier_name: node.tier_name,
-                degree: node.degree,
-                combined_effect: comb,
-                has_multiple_ligands: Boolean(comb && comb.has_multiple_ligands),
-                net_activation_score: comb ? comb.net_activation_score : 0,
-                net_activation_pct: comb ? comb.net_activation_pct : 0,
-              },
-            };
-          }),
-          edges: state.filtered.edges.map(edge => ({
+        cy.resize();
+
+        const seenNodeIds = new Set();
+        const cleanNodes = [];
+        for (const node of state.filtered.nodes) {
+          if (!node || !node.id || seenNodeIds.has(node.id)) continue;
+          seenNodeIds.add(node.id);
+          const comb = (state.data.combined_effects && state.data.combined_effects[node.id]) || node.combined_effect;
+          cleanNodes.push({
             data: {
-              id: `${edge.source}->${edge.target}`,
+              id: node.id,
+              label: getNodeLabel(node),
+              node_type: node.node_type || 'default',
+              tier: node.tier !== undefined ? node.tier : 1,
+              tier_name: node.tier_name || 'Target',
+              degree: node.degree || 0,
+              combined_effect: comb,
+              has_multiple_ligands: Boolean(comb && comb.has_multiple_ligands),
+              net_activation_score: comb ? comb.net_activation_score : 0,
+              net_activation_pct: comb ? comb.net_activation_pct : 0,
+            },
+          });
+        }
+
+        const seenEdgeIds = new Set();
+        const cleanEdges = [];
+        for (const edge of state.filtered.edges) {
+          if (!edge || !edge.source || !edge.target) continue;
+          if (!seenNodeIds.has(edge.source) || !seenNodeIds.has(edge.target)) continue;
+          const edgeId = `${edge.source}->${edge.target}`;
+          if (seenEdgeIds.has(edgeId)) continue;
+          seenEdgeIds.add(edgeId);
+          cleanEdges.push({
+            data: {
+              id: edgeId,
               source: edge.source,
               target: edge.target,
               type: edge.type || 'MODULATES',
               direction_class: edge.direction_class || 'positive',
-              is_bridge: edge.is_bridge,
+              is_bridge: Boolean(edge.is_bridge),
             },
-          })),
-        };
+          });
+        }
 
         cy.elements().remove();
-        cy.add(elements);
+        cy.add({ nodes: cleanNodes, edges: cleanEdges });
 
-        const layoutName = layoutSelect.value || 'tier_flow';
+        const layoutName = layoutSelect ? (layoutSelect.value || 'tier_flow') : 'tier_flow';
 
         if (layoutName === 'tier_flow') {
           applyTierFlowLayout(cy);
@@ -2892,13 +2913,14 @@
 
           const layout = cy.layout(layoutOptions);
           layout.run();
+          cy.resize();
           cy.fit(undefined, 45);
         }
 
-        const totalCount = state.filtered.nodes.length;
+        const totalCount = cleanNodes.length;
         statusEl.textContent = totalCount === 0
           ? 'No nodes match the selected filters.'
-          : `${totalCount} visible nodes • ${state.filtered.edges.length} connections • ${layoutName.toUpperCase()} layout`;
+          : `${totalCount} visible nodes • ${cleanEdges.length} connections • ${layoutName.toUpperCase()} layout`;
 
         renderNodePanel();
       }
@@ -3411,18 +3433,17 @@
       document.getElementById('zoomIn').addEventListener('click', () => applyZoom(0.25));
       document.getElementById('zoomOut').addEventListener('click', () => applyZoom(-0.25));
       document.getElementById('resetView').addEventListener('click', () => {
-        if (state.cy) {
-          state.cy.fit(undefined, 45);
-          state.cy.center();
-        }
+        fitGraph();
       });
 
       document.getElementById('togglePanel').addEventListener('click', () => {
         nodePanelContainer.classList.toggle('hidden');
+        fitGraph();
       });
 
       inspectorCloseBtn.addEventListener('click', () => {
         nodePanelContainer.classList.add('hidden');
+        fitGraph();
       });
 
       function loadGraphData() {

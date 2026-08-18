@@ -1039,7 +1039,12 @@
     </div>
 
     <!-- CYTOSCAPE HIGH-PERFORMANCE ENGINE -->
-    <script src="https://cdn.jsdelivr.net/npm/cytoscape@3.29.0/dist/cytoscape.min.js"></script>
+    <script src="/static/cytoscape.min.js"></script>
+    <script>
+      if (!window.cytoscape) {
+        document.write('<script src="https://cdn.jsdelivr.net/npm/cytoscape@3.29.0/dist/cytoscape.min.js"><\/script>');
+      }
+    </script>
     <script>
       const compoundKey = decodeURIComponent(window.location.pathname.split('/').filter(Boolean).slice(-1)[0] || '');
       const compoundLoading = document.getElementById('compoundLoading');

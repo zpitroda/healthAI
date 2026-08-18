@@ -109,8 +109,6 @@ A resilient three-tier data layer provides zero-latency local operations with se
 - **Tier 1 — Seed Library:** Instant in-memory curated compound profiles.
 - **Tier 2 — SQLite Persistence:** Full local relational cache (`healthai_catalog.db`) storing structured pharmacology profiles.
 - **Tier 3 — Live Online Enrichment:** Auto-queries NCBI PubChem (PUG-REST), EMBL-EBI ChEMBL (bioactivities, mechanisms, $K_i / IC_{50}$ values), NIH RxNorm, UniProt, Reactome Pathways, and FDA OpenFDA databases with write-through caching.
-- **Async Ingestion & WebSockets Layer:** Asynchronous background worker pools (`IngestionJobQueue`) with real-time WebSocket event streaming (`/ws/enrichment`) for long-running multi-source enrichment queries.
-- **Dedicated Graph Database Backend (KuzuDB & GraphRAG):** Embedded graph database service (`app/knowledge_graph/graph_db.py`) executing Cypher queries, multi-hop traversals across tens of thousands of nodes, and structured GraphRAG context extraction for future LLM integration.
 
 ---
 
@@ -316,14 +314,12 @@ healthAI/
 │   ├── routers/                    # Clean modular API & view routers
 │   │   ├── views.py                # UI routes (/, /admin, /graph, /compound/{key})
 │   │   ├── catalog.py              # /catalog and /api/compounds/search
-│   │   ├── enrichment.py           # /api/enrichment/jobs & /ws/enrichment WebSockets
 │   │   ├── interactions.py         # /api/interactions/matrix
-│   │   ├── graph.py                # /graph-data, /graph-path, /api/graph/cypher, /api/graph/graphrag-context
+│   │   ├── graph.py                # /graph-data and /graph-path
 │   │   ├── pkpd.py                 # /api/pkpd/simulate and quantitative endpoints
 │   │   └── protocols.py            # /protocol generation
 │   ├── services/                   # High-performance scientific & domain logic
 │   │   ├── catalog_service.py      # SQLite repository, search, and write-through cache
-│   │   ├── ingestion_queue.py      # Async worker pool, job queue, and WebSocket broadcaster
 │   │   ├── interaction_engine.py   # Multi-pathway collision engine & syndrome classifiers
 │   │   ├── pkpd_engine.py          # Continuous Bateman PK & Hill PD numerical models
 │   │   ├── pkpd_enricher.py        # Quantitative affinity extraction (PubChem/ChEMBL)
@@ -332,9 +328,8 @@ healthAI/
 │   │   ├── pathway_service.py      # Canonical biological signaling pathway definitions
 │   │   ├── dosing_service.py       # Weight-based and clinical dosing algorithms
 │   │   └── protocol_builder.py     # Individualized protocol assembler
-│   ├── knowledge_graph/            # NetworkX & KuzuDB graph structures & ontological models
+│   ├── knowledge_graph/            # NetworkX graph structures & ontological models
 │   │   ├── graph.py                # Directed biological multigraph class
-│   │   ├── graph_db.py             # Dedicated KuzuDB graph DB, Cypher engine & GraphRAG extractor
 │   │   └── models.py               # Biological node & edge schemas
 │   ├── data/                       # Seed compound library
 │   │   └── compounds.py
@@ -369,13 +364,8 @@ healthAI/
 | **GET** | `/compound/{key}` | Serves the deep-dive Compound Intelligence & PK/PD profile page. |
 | **GET** | `/admin` | Serves the Catalog Administration and Ingestion interface. |
 | **POST** | `/api/interactions/matrix` | Evaluates $N \times N$ collision matrix, syndrome alerts, organ burdens, and cumulative risk score. |
-| **POST** | `/api/enrichment/jobs` | Submits long-running multi-source enrichment batch job to async worker queue. |
-| **GET** | `/api/enrichment/jobs/{job_id}` | Retrieves status, progress, logs, and results for a specific enrichment job. |
-| **WS** | `/ws/enrichment` | Global WebSocket endpoint streaming real-time background job events and step logs. |
 | **GET** | `/graph-data` | Returns 6-tier network graph nodes, edges, cascade simulations, and multi-ligand receptor occupancy. |
 | **GET** | `/graph-path` | Calculates shortest biological path and cross-talk connections between two nodes. |
-| **POST** | `/api/graph/cypher` | Executes arbitrary Cypher query against dedicated KuzuDB graph database backend. |
-| **POST** | `/api/graph/graphrag-context` | Extracts structured GraphRAG subgraph context and triples for LLM integration. |
 | **POST** | `/api/pkpd/simulate` | Simulates continuous Bateman PK curves, multi-dose steady state, DDI AUC shifts, and Hill PD. |
 | **GET** | `/api/compounds/{key}/pkpd` | Returns extracted quantitative PK parameters ($V_d, k_e, k_a, CL, f_u$) and PD affinities ($K_i, IC_{50}$). |
 | **POST** | `/api/compounds/{key}/enrich-full` | Executes full live enrichment across PubChem, ChEMBL, UniProt, Reactome, and OpenFDA. |

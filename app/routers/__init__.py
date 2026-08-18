@@ -1,5 +1,4 @@
 from .catalog import router as catalog_router
-from .enrichment import router as enrichment_router
 from .graph import router as graph_router
 from .interactions import router as interactions_router
 from .pkpd import router as pkpd_router
@@ -8,7 +7,6 @@ from .views import router as views_router
 
 __all__ = [
     "catalog_router",
-    "enrichment_router",
     "graph_router",
     "interactions_router",
     "pkpd_router",

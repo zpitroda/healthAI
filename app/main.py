@@ -6,7 +6,6 @@ from fastapi.staticfiles import StaticFiles
 
 from app.routers import (
     catalog_router,
-    enrichment_router,
     graph_router,
     interactions_router,
     pkpd_router,
@@ -34,7 +33,6 @@ app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
 # API and View Routers
 app.include_router(views_router)
 app.include_router(catalog_router)
-app.include_router(enrichment_router)
 app.include_router(interactions_router)
 app.include_router(graph_router)
 app.include_router(protocols_router)

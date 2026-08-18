@@ -804,30 +804,6 @@
         </section>
 
         <aside class="panel">
-          <div class="db-panel" style="margin-top:0; border-top:none; padding-top:0;">
-            <h3>⚡ Async Ingestion & Live WebSockets Manager</h3>
-            <div style="background:rgba(9, 20, 29, 0.8); border:1px solid var(--border); border-radius:12px; padding:14px; margin-bottom:18px;">
-              <div style="font-size:0.82rem; color:var(--accent-2); font-weight:700; margin-bottom:8px; text-transform:uppercase; letter-spacing:0.05em;">Submit Batch Enrichment Job</div>
-              <div style="display:flex; gap:8px; margin-bottom:10px;">
-                <input id="asyncBatchInput" type="text" placeholder="e.g., telmisartan, sildenafil, exemestane" style="flex:1;" />
-                <button type="button" id="btnSubmitAsyncJob" class="primary" style="padding:8px 14px; font-size:0.85rem; white-space:nowrap;">Run Async Job</button>
-              </div>
-              <div id="asyncJobStatus" style="font-size:0.8rem; color:var(--muted); line-height:1.4;">
-                WebSocket status: <strong id="wsConnectionStatus" style="color:var(--text);">Disconnected</strong>
-              </div>
-              <div id="asyncJobProgressWrap" style="margin-top:10px; display:none;">
-                <div style="display:flex; justify-content:space-between; font-size:0.75rem; color:var(--accent-2); margin-bottom:4px;">
-                  <span id="asyncJobStep">Processing...</span>
-                  <span id="asyncJobPct">0%</span>
-                </div>
-                <div style="height:6px; background:rgba(255,255,255,0.1); border-radius:999px; overflow:hidden;">
-                  <div id="asyncJobProgressBar" style="height:100%; width:0%; background:linear-gradient(90deg, var(--accent), var(--accent-2)); transition:width 0.2s ease;"></div>
-                </div>
-                <div id="asyncJobLogs" style="margin-top:8px; max-height:110px; overflow-y:auto; background:rgba(0,0,0,0.4); border:1px solid rgba(255,255,255,0.08); border-radius:8px; padding:6px 10px; font-family:monospace; font-size:0.72rem; color:var(--muted);"></div>
-              </div>
-            </div>
-          </div>
-
           <div class="db-panel">
             <h3>Database browser</h3>
             <div class="db-toolbar">
@@ -1400,104 +1376,6 @@
           }
         });
       }
-
-      // WebSockets & Async Ingestion Job Queue Manager
-      const btnSubmitAsyncJob = document.getElementById('btnSubmitAsyncJob');
-      const asyncBatchInput = document.getElementById('asyncBatchInput');
-      const wsConnectionStatus = document.getElementById('wsConnectionStatus');
-      const asyncJobProgressWrap = document.getElementById('asyncJobProgressWrap');
-      const asyncJobStep = document.getElementById('asyncJobStep');
-      const asyncJobPct = document.getElementById('asyncJobPct');
-      const asyncJobProgressBar = document.getElementById('asyncJobProgressBar');
-      const asyncJobLogs = document.getElementById('asyncJobLogs');
-
-      let socket = null;
-
-      function connectWebSocket() {
-        const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-        const wsUrl = `${protocol}//${window.location.host}/ws/enrichment`;
-
-        try {
-          socket = new WebSocket(wsUrl);
-
-          socket.onopen = () => {
-            if (wsConnectionStatus) {
-              wsConnectionStatus.textContent = 'Connected (Live Stream)';
-              wsConnectionStatus.style.color = 'var(--success)';
-            }
-          };
-
-          socket.onmessage = (event) => {
-            try {
-              const data = JSON.parse(event.data);
-              if (data.event === 'job_progress' || data.event === 'job_started' || data.event === 'job_completed') {
-                if (asyncJobProgressWrap) asyncJobProgressWrap.style.display = 'block';
-                if (asyncJobStep) asyncJobStep.textContent = data.current_step || 'Processing...';
-                if (asyncJobPct) asyncJobPct.textContent = `${Math.round(data.progress_pct || 0)}%`;
-                if (asyncJobProgressBar) asyncJobProgressBar.style.width = `${data.progress_pct || 0}%`;
-
-                if (data.latest_log && asyncJobLogs) {
-                  const logLine = document.createElement('div');
-                  logLine.textContent = `[${data.latest_log.timestamp ? data.latest_log.timestamp.substring(11, 19) : ''}] ${data.latest_log.message}`;
-                  asyncJobLogs.appendChild(logLine);
-                  asyncJobLogs.scrollTop = asyncJobLogs.scrollHeight;
-                }
-
-                if (data.event === 'job_completed') {
-                  loadCatalog();
-                }
-              }
-            } catch (err) {}
-          };
-
-          socket.onclose = () => {
-            if (wsConnectionStatus) {
-              wsConnectionStatus.textContent = 'Disconnected';
-              wsConnectionStatus.style.color = 'var(--muted)';
-            }
-            setTimeout(connectWebSocket, 3000);
-          };
-        } catch (e) {
-          console.warn('WebSocket connection error:', e);
-        }
-      }
-
-      if (btnSubmitAsyncJob && asyncBatchInput) {
-        btnSubmitAsyncJob.addEventListener('click', async () => {
-          const raw = asyncBatchInput.value.trim();
-          if (!raw) return;
-
-          const compounds = raw.split(',').map(c => c.trim()).filter(Boolean);
-          if (!compounds.length) return;
-
-          btnSubmitAsyncJob.disabled = true;
-          btnSubmitAsyncJob.textContent = 'Submitting...';
-
-          try {
-            const resp = await fetch('/api/enrichment/jobs', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ compounds: compounds, auto_save_catalog: true })
-            });
-
-            const data = await resp.json();
-            if (resp.ok) {
-              if (asyncJobProgressWrap) asyncJobProgressWrap.style.display = 'block';
-              if (asyncJobLogs) asyncJobLogs.innerHTML = `<div>[Job ${data.job_id}] Queued ${compounds.length} compound(s)...</div>`;
-              showStatus(`Async enrichment job ${data.job_id} submitted successfully.`);
-            } else {
-              showError(data.detail || 'Failed to submit async job.');
-            }
-          } catch (err) {
-            showError('Error submitting async job: ' + err.message);
-          } finally {
-            btnSubmitAsyncJob.disabled = false;
-            btnSubmitAsyncJob.textContent = 'Run Async Job';
-          }
-        });
-      }
-
-      connectWebSocket();
 
       loadCatalog();
     </script>

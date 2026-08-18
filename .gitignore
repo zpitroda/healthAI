@@ -25,17 +25,6 @@ dist/
 .eggs/
 *.egg
 
-# Data Files & Databases
-*.csv
-*.CSV
-*.tsv
-*.parquet
-*.jsonl
-*.sqlite
-*.sqlite3
-*.db-journal
-*.db-wal
-*.db-shm
 
 # Archives & Compressed Files
 *.tar.gz

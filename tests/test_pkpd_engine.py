@@ -135,3 +135,120 @@ def test_sigmoidal_hill_pd_and_biometric_scaling():
     # Verify PD effect values are bounded [0, 100]
     for pt in res_normal.time_series:
         assert 0.0 <= pt.effect_pct <= 100.0
+
+
+def test_two_compartment_open_model_distribution_phases():
+    """Verify 2-compartment open models (alpha-distribution & beta-elimination) for lipophilic drugs."""
+    amiodarone = {
+        "key": "amiodarone",
+        "name": "Amiodarone",
+        "t_half_numeric": 120.0,
+        "bioavailability_f": 0.50,
+        "volume_of_distribution_l_kg": 60.0,
+        "clearance_l_h_kg": 0.15,
+    }
+    req = PKPDSimulationRequest(
+        compound_key="amiodarone",
+        dose_mg=200.0,
+        dosing_interval_h=24.0,
+        simulation_duration_h=72.0,
+        steady_state=False,
+    )
+    res = PKPDEngine.simulate(amiodarone, req)
+
+    assert res.number_of_compartments == 2
+    assert len(res.time_series) > 50
+
+    # Tissue concentration should be populated
+    tissue_concs = [pt.c_tissue_ng_ml for pt in res.time_series if pt.c_tissue_ng_ml is not None]
+    assert len(tissue_concs) == len(res.time_series)
+
+    # In alpha phase, tissue concentration rises as drug distributes into peripheral compartment
+    max_tissue = max(tissue_concs)
+    assert max_tissue > 0.0
+    # Tissue peak should occur after initial plasma absorption
+    peak_tissue_pt = min(res.time_series, key=lambda p: abs((p.c_tissue_ng_ml or 0.0) - max_tissue))
+    assert peak_tissue_pt.time_h > 0.0
+
+
+def test_michaelis_menten_saturable_kinetics():
+    """Verify Michaelis-Menten capacity-limited saturable elimination for Phenytoin and Ethanol."""
+    phenytoin = {
+        "key": "phenytoin",
+        "name": "Phenytoin",
+        "t_half_numeric": 22.0,
+        "bioavailability_f": 0.90,
+        "volume_of_distribution_l_kg": 0.70,
+        "is_saturable_elimination": True,
+        "vmax_mg_h_kg": 0.30,
+        "km_ng_ml": 4000.0,
+    }
+
+    # Standard dose
+    req_std = PKPDSimulationRequest(
+        compound_key="phenytoin",
+        dose_mg=200.0,
+        dosing_interval_h=24.0,
+        simulation_duration_h=48.0,
+        steady_state=False,
+    )
+    res_std = PKPDEngine.simulate(phenytoin, req_std)
+
+    # High saturating dose (3x dose)
+    req_high = PKPDSimulationRequest(
+        compound_key="phenytoin",
+        dose_mg=600.0,
+        dosing_interval_h=24.0,
+        simulation_duration_h=48.0,
+        steady_state=False,
+    )
+    res_high = PKPDEngine.simulate(phenytoin, req_high)
+
+    assert res_std.is_saturable_elimination is True
+    assert res_high.is_saturable_elimination is True
+
+    # Under saturable kinetics, 3x dose results in > 3x AUC due to clearance saturation
+    assert res_high.auc_0_tau_ng_h_ml > (3.0 * res_std.auc_0_tau_ng_h_ml)
+
+
+def test_time_resolved_dynamic_ddi_collisions():
+    """Verify time-resolved dynamic DDI collision modeling I(t) and instantaneous clearance CL(t)."""
+    simvastatin = {
+        "key": "simvastatin",
+        "name": "Simvastatin",
+        "t_half_numeric": 3.0,
+        "bioavailability_f": 0.05,
+        "volume_of_distribution_l_kg": 3.0,
+        "cyp_enzymes": {"substrates": ["CYP3A4"], "inhibitors": [], "inducers": []},
+    }
+    ketoconazole = {
+        "key": "ketoconazole",
+        "name": "Ketoconazole",
+        "t_half_numeric": 8.0,
+        "bioavailability_f": 0.80,
+        "volume_of_distribution_l_kg": 2.0,
+        "cyp_enzymes": {"substrates": [], "inhibitors": ["CYP3A4"], "inducers": []},
+    }
+
+    req = PKPDSimulationRequest(
+        compound_key="simvastatin",
+        dose_mg=20.0,
+        dosing_interval_h=24.0,
+        simulation_duration_h=48.0,
+        co_administered_compounds=["ketoconazole"],
+    )
+
+    res = PKPDEngine.simulate(simvastatin, req, co_compounds_data=[ketoconazole])
+
+    assert res.dynamic_ddi_active is True
+
+    # Check continuous time-resolved inhibitor I(t) and dynamic clearance CL(t)
+    inhibitor_concs = [pt.inhibitor_conc_ng_ml for pt in res.time_series if pt.inhibitor_conc_ng_ml is not None]
+    clearances = [pt.cl_instantaneous_l_h for pt in res.time_series if pt.cl_instantaneous_l_h is not None]
+
+    assert len(inhibitor_concs) > 0
+    assert len(clearances) == len(res.time_series)
+    assert max(inhibitor_concs) > 0.0
+
+    # Clearance should fluctuate over time as inhibitor concentration rises and falls
+    assert min(clearances) < max(clearances)

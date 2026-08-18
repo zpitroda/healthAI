@@ -43,6 +43,19 @@ class PKParameters(BaseModel):
     bcs_class: Optional[str] = Field(default="Class I", description="Biopharmaceutics Classification (Class I, II, III, IV)")
     pka: Optional[float] = Field(default=None, description="Acid/base ionization dissociation constant")
 
+    # 2-Compartment Open Model Parameters
+    number_of_compartments: int = Field(default=1, description="1-compartment or 2-compartment open model")
+    v1_l_kg: Optional[float] = Field(default=None, description="Central compartment volume of distribution V1 (L/kg)")
+    v2_l_kg: Optional[float] = Field(default=None, description="Peripheral compartment volume of distribution V2 (L/kg)")
+    k12: Optional[float] = Field(default=None, description="Rate constant central -> peripheral (1/h)")
+    k21: Optional[float] = Field(default=None, description="Rate constant peripheral -> central (1/h)")
+
+    # Michaelis-Menten Non-Linear Elimination Kinetics
+    is_saturable_elimination: bool = Field(default=False, description="Whether clearance exhibits Michaelis-Menten capacity-limited saturation")
+    vmax_mg_h_kg: Optional[float] = Field(default=None, description="Maximum elimination rate Vmax (mg/h/kg)")
+    km_ng_ml: Optional[float] = Field(default=None, description="Michaelis constant Km (ng/mL)")
+    ki_ng_ml: Optional[float] = Field(default=None, description="Enzyme inhibition constant Ki (ng/mL)")
+
 
 class PDParameters(BaseModel):
     model_config = ConfigDict(extra="ignore")
@@ -80,55 +93,9 @@ class TimePoint(BaseModel):
     c_free_ng_ml: float
     receptor_occupancy_pct: float
     effect_pct: float
-
-
-class OpenTargetsData(BaseModel):
-    model_config = ConfigDict(extra="ignore")
-
-    approved_symbol: str = Field(..., description="HGNC Approved Symbol")
-    approved_name: str = Field(..., description="Approved Protein Title")
-    uniprot_id: Optional[str] = Field(default=None)
-    tractability: List[Dict[str, Any]] = Field(default_factory=list, description="Modality tractability assessments (Small Molecule, Antibody)")
-    associated_diseases: List[Dict[str, Any]] = Field(default_factory=list, description="Associated diseases and genetic evidence scores")
-    target_disease_summary: Optional[str] = Field(default=None)
-
-
-class FAERSSurveillanceData(BaseModel):
-    model_config = ConfigDict(extra="ignore")
-
-    drug_name: str = Field(..., description="Medicinal Product Name")
-    total_reports: int = Field(default=0, description="Total post-marketing FAERS report count")
-    top_adverse_events: List[Dict[str, Any]] = Field(default_factory=list, description="Top MedDRA adverse reactions with reporting ratios")
-    disproportionality_signals: List[Dict[str, Any]] = Field(default_factory=list, description="Disproportionality signals (PRR > 2.0)")
-    surveillance_summary: Optional[str] = Field(default=None)
-
-
-class AlphaFoldStructureData(BaseModel):
-    model_config = ConfigDict(extra="ignore")
-
-    uniprot_id: str = Field(..., description="UniProt Accession ID")
-    gene_symbol: Optional[str] = Field(default=None)
-    alphafold_id: str = Field(..., description="AlphaFold Model ID e.g. AF-P00533-F1")
-    mean_plddt: float = Field(default=90.0, description="Mean pLDDT structure confidence score")
-    structure_url: Optional[str] = Field(default=None, description="PDB structure download URL")
-    pdb_ids: List[str] = Field(default_factory=list, description="RCSB PDB entry identifiers")
-    binding_site_residues: List[str] = Field(default_factory=list, description="Key active site residue positions")
-    mutation_impacts: List[Dict[str, Any]] = Field(default_factory=list, description="Binding site residue mutations impacting drug affinity")
-    structure_summary: Optional[str] = Field(default=None)
-
-
-class SynergyEvaluationResponse(BaseModel):
-    model_config = ConfigDict(extra="ignore")
-
-    stack_domain: str = Field(default="general", description="oncology, antimicrobial, longevity, or general")
-    overall_synergistic: bool = Field(default=False)
-    synergy_score_index: float = Field(default=1.0)
-    loewe_model: Dict[str, Any] = Field(default_factory=dict, description="Loewe Additivity Combination Index (CI)")
-    bliss_model: Dict[str, Any] = Field(default_factory=dict, description="Bliss Independence expected vs observed effect and Bliss Delta")
-    pairwise_synergy_matrix: List[Dict[str, Any]] = Field(default_factory=list)
-    polypharmacology_shared_targets: Dict[str, Any] = Field(default_factory=dict)
-    shared_target_count: int = Field(default=0)
-    domain_notes: Optional[str] = Field(default=None)
+    c_tissue_ng_ml: Optional[float] = Field(default=None, description="Peripheral compartment concentration for 2-compartment open models")
+    cl_instantaneous_l_h: Optional[float] = Field(default=None, description="Instantaneous dynamic clearance at time t (L/h)")
+    inhibitor_conc_ng_ml: Optional[float] = Field(default=None, description="Continuous inhibitor concentration I(t) modulating clearance")
 
 
 class PKPDSimulationResponse(BaseModel):
@@ -151,6 +118,11 @@ class PKPDSimulationResponse(BaseModel):
     fluctuation_pct: float
     elimination_half_life_effective_h: float
     total_clearance_l_h: float
+
+    # Model & DDI Classifications
+    number_of_compartments: int = Field(default=1, description="1 or 2 compartment model used")
+    is_saturable_elimination: bool = Field(default=False, description="Whether non-linear Michaelis-Menten kinetics applied")
+    dynamic_ddi_active: bool = Field(default=False, description="Whether continuous time-resolved DDI clearance modulation was active")
 
     # DDI & Safety Metrics
     ddi_auc_ratio: float

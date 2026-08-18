@@ -82,6 +82,55 @@ class TimePoint(BaseModel):
     effect_pct: float
 
 
+class OpenTargetsData(BaseModel):
+    model_config = ConfigDict(extra="ignore")
+
+    approved_symbol: str = Field(..., description="HGNC Approved Symbol")
+    approved_name: str = Field(..., description="Approved Protein Title")
+    uniprot_id: Optional[str] = Field(default=None)
+    tractability: List[Dict[str, Any]] = Field(default_factory=list, description="Modality tractability assessments (Small Molecule, Antibody)")
+    associated_diseases: List[Dict[str, Any]] = Field(default_factory=list, description="Associated diseases and genetic evidence scores")
+    target_disease_summary: Optional[str] = Field(default=None)
+
+
+class FAERSSurveillanceData(BaseModel):
+    model_config = ConfigDict(extra="ignore")
+
+    drug_name: str = Field(..., description="Medicinal Product Name")
+    total_reports: int = Field(default=0, description="Total post-marketing FAERS report count")
+    top_adverse_events: List[Dict[str, Any]] = Field(default_factory=list, description="Top MedDRA adverse reactions with reporting ratios")
+    disproportionality_signals: List[Dict[str, Any]] = Field(default_factory=list, description="Disproportionality signals (PRR > 2.0)")
+    surveillance_summary: Optional[str] = Field(default=None)
+
+
+class AlphaFoldStructureData(BaseModel):
+    model_config = ConfigDict(extra="ignore")
+
+    uniprot_id: str = Field(..., description="UniProt Accession ID")
+    gene_symbol: Optional[str] = Field(default=None)
+    alphafold_id: str = Field(..., description="AlphaFold Model ID e.g. AF-P00533-F1")
+    mean_plddt: float = Field(default=90.0, description="Mean pLDDT structure confidence score")
+    structure_url: Optional[str] = Field(default=None, description="PDB structure download URL")
+    pdb_ids: List[str] = Field(default_factory=list, description="RCSB PDB entry identifiers")
+    binding_site_residues: List[str] = Field(default_factory=list, description="Key active site residue positions")
+    mutation_impacts: List[Dict[str, Any]] = Field(default_factory=list, description="Binding site residue mutations impacting drug affinity")
+    structure_summary: Optional[str] = Field(default=None)
+
+
+class SynergyEvaluationResponse(BaseModel):
+    model_config = ConfigDict(extra="ignore")
+
+    stack_domain: str = Field(default="general", description="oncology, antimicrobial, longevity, or general")
+    overall_synergistic: bool = Field(default=False)
+    synergy_score_index: float = Field(default=1.0)
+    loewe_model: Dict[str, Any] = Field(default_factory=dict, description="Loewe Additivity Combination Index (CI)")
+    bliss_model: Dict[str, Any] = Field(default_factory=dict, description="Bliss Independence expected vs observed effect and Bliss Delta")
+    pairwise_synergy_matrix: List[Dict[str, Any]] = Field(default_factory=list)
+    polypharmacology_shared_targets: Dict[str, Any] = Field(default_factory=dict)
+    shared_target_count: int = Field(default=0)
+    domain_notes: Optional[str] = Field(default=None)
+
+
 class PKPDSimulationResponse(BaseModel):
     model_config = ConfigDict(extra="ignore")
 

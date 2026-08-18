@@ -75,3 +75,34 @@ def evaluate_interaction_matrix(payload: InteractionWorkbenchRequest) -> JSONRes
     result = engine.analyze_stack(raw_compounds, profile=profile_dict)
     return JSONResponse(result, headers=NO_CACHE_HEADERS)
 
+
+@router.post("/api/synergy/evaluate")
+def evaluate_synergy(payload: InteractionWorkbenchRequest) -> JSONResponse:
+    """Evaluate multi-agent Loewe Additivity vs Bliss Independence models and polypharmacology mapping."""
+    service = CatalogService()
+    from app.services.synergy_engine import SynergyEngine
+
+    raw_compounds: List[Dict[str, Any]] = []
+    for item in payload.stack:
+        parsed = parse_compound_spec(item)
+        key = parsed["key"]
+        if not key:
+            continue
+
+        comp = service.get_compound(str(key))
+        if comp:
+            comp_copy = dict(comp)
+            comp_copy["key"] = str(key)
+            comp_copy["dose_mg"] = parsed.get("dose_mg", 10.0)
+            raw_compounds.append(comp_copy)
+        elif key:
+            raw_compounds.append({
+                "key": str(key).strip().lower().replace(" ", "_"),
+                "name": str(key).strip().title(),
+                "dose_mg": parsed.get("dose_mg", 10.0),
+                "receptor_targets": [],
+            })
+
+    engine = SynergyEngine()
+    result = engine.evaluate_multi_agent_synergy(raw_compounds)
+    return JSONResponse(result, headers=NO_CACHE_HEADERS)

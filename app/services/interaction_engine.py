@@ -1055,8 +1055,12 @@ class InteractionEngine:
         else:
             summary = f"Clean pharmacological compatibility with standard clinical monitoring recommended. Overall risk is {risk_band.lower()} ({cumulative_score}/100)."
 
+        from app.services.synergy_engine import SynergyEngine
+        synergy_analysis = SynergyEngine().evaluate_multi_agent_synergy(compounds)
+
         return {
             "matrix": matrix,
+            "synergy_analysis": synergy_analysis,
             "compounds": [
                 {
                     "key": _normalize_name(c.get("key") or c.get("name")),

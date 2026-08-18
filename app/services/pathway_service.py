@@ -186,15 +186,18 @@ class PathwayService:
             count = conn.execute("SELECT count(*) FROM cached_target_metadata").fetchone()[0]
             if count == 0:
                 now = time.time()
-                for k, v in INITIAL_TARGET_SEED_METADATA.items():
-                    conn.execute(
-                        """
-                        INSERT OR IGNORE INTO cached_target_metadata
-                        (target_query, symbol, uniprot_id, ensembl_id, canonical_name, source, updated_at)
-                        VALUES (?, ?, ?, ?, ?, 'seed', ?)
-                        """,
-                        (k, v["symbol"], v["uniprot"], v["ensembl"], v["name"], now),
-                    )
+                items = [
+                    (k, v["symbol"], v["uniprot"], v["ensembl"], v["name"], now)
+                    for k, v in INITIAL_TARGET_SEED_METADATA.items()
+                ]
+                conn.executemany(
+                    """
+                    INSERT OR IGNORE INTO cached_target_metadata
+                    (target_query, symbol, uniprot_id, ensembl_id, canonical_name, source, updated_at)
+                    VALUES (?, ?, ?, ?, ?, 'seed', ?)
+                    """,
+                    items,
+                )
                 conn.commit()
 
     def get_all_target_registries(self) -> List[Dict[str, Any]]:
@@ -461,31 +464,41 @@ class PathwayService:
             return [dict(r) for r in rows]
 
     def _save_cached_pathways(self, target_id: str, symbol: str, uniprot: str, ensembl: str, pathways: List[Dict[str, Any]]) -> None:
+        if not pathways:
+            return
         now = time.time()
+        items = [
+            (target_id, symbol, uniprot, ensembl, p.get("pathway_id"), p.get("pathway_name"), json.dumps(p), now)
+            for p in pathways
+        ]
         with self._connect() as conn:
-            for p in pathways:
-                conn.execute(
-                    """
-                    INSERT OR REPLACE INTO cached_target_pathways
-                    (target_id, target_symbol, uniprot_id, ensembl_id, pathway_id, pathway_name, source, data_json, updated_at)
-                    VALUES (?, ?, ?, ?, ?, ?, 'Reactome', ?, ?)
-                    """,
-                    (target_id, symbol, uniprot, ensembl, p.get("pathway_id"), p.get("pathway_name"), json.dumps(p), now),
-                )
+            conn.executemany(
+                """
+                INSERT OR REPLACE INTO cached_target_pathways
+                (target_id, target_symbol, uniprot_id, ensembl_id, pathway_id, pathway_name, source, data_json, updated_at)
+                VALUES (?, ?, ?, ?, ?, ?, 'Reactome', ?, ?)
+                """,
+                items,
+            )
             conn.commit()
 
     def _save_cached_phenotypes(self, target_id: str, phenos: List[Dict[str, Any]]) -> None:
+        if not phenos:
+            return
         now = time.time()
+        items = [
+            (target_id, ph.get("phenotype_id"), ph.get("phenotype_name"), ph.get("score", 0.5), ph.get("direction", "MODULATES"), ph.get("evidence_type", "association"), now)
+            for ph in phenos
+        ]
         with self._connect() as conn:
-            for ph in phenos:
-                conn.execute(
-                    """
-                    INSERT OR REPLACE INTO cached_target_phenotypes
-                    (target_id, phenotype_id, phenotype_name, score, direction, category, evidence_type, source, updated_at)
-                    VALUES (?, ?, ?, ?, ?, 'adverse_effect', ?, 'OpenTargets', ?)
-                    """,
-                    (target_id, ph.get("phenotype_id"), ph.get("phenotype_name"), ph.get("score", 0.5), ph.get("direction", "MODULATES"), ph.get("evidence_type", "association"), now),
-                )
+            conn.executemany(
+                """
+                INSERT OR REPLACE INTO cached_target_phenotypes
+                (target_id, phenotype_id, phenotype_name, score, direction, category, evidence_type, source, updated_at)
+                VALUES (?, ?, ?, ?, ?, 'adverse_effect', ?, 'OpenTargets', ?)
+                """,
+                items,
+            )
             conn.commit()
 
     def _assemble_cascade(

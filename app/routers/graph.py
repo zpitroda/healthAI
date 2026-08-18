@@ -1,9 +1,11 @@
 from __future__ import annotations
 
-from typing import List, Optional
+from typing import Any, Dict, List, Optional
 from fastapi import APIRouter, HTTPException, Query
 from fastapi.responses import JSONResponse
+from pydantic import BaseModel, Field
 
+from app.knowledge_graph.graph_db import get_graph_database
 from app.services.graph_service import (
     build_selected_compound_graph,
     canonicalize_match_token,
@@ -297,3 +299,65 @@ def graph_path(
         headers=NO_CACHE_HEADERS,
     )
 
+
+class CypherQueryRequest(BaseModel):
+    query: str = Field(
+        ...,
+        description="Cypher graph query to execute against dedicated KuzuDB backend",
+        examples=["MATCH (c:CompoundNode)-[r:INTERACTS_WITH]->(t:TargetNode) RETURN c.label, t.label, r.edge_type LIMIT 10"],
+    )
+    parameters: Optional[Dict[str, Any]] = Field(
+        default=None,
+        description="Optional parameter dictionary for Cypher query",
+    )
+
+
+class GraphRAGContextRequest(BaseModel):
+    entity_ids: List[str] = Field(
+        ...,
+        description="Entity keys or target node IDs to retrieve GraphRAG subgraph context for",
+        examples=[["telmisartan", "sildenafil"]],
+    )
+    max_hops: int = Field(
+        default=2,
+        ge=1,
+        le=5,
+        description="Maximum multi-hop depth for GraphRAG context expansion",
+    )
+
+
+@router.post("/api/graph/cypher")
+def execute_cypher_query(request: CypherQueryRequest) -> JSONResponse:
+    """Execute arbitrary Cypher query against dedicated KuzuDB graph database backend."""
+    if not request.query or not request.query.strip():
+        raise HTTPException(status_code=400, detail="Cypher query string cannot be empty.")
+
+    try:
+        db = get_graph_database()
+        results = db.execute_cypher(request.query, request.parameters)
+        return JSONResponse(
+            {"query": request.query, "results": results, "count": len(results)},
+            headers=NO_CACHE_HEADERS,
+        )
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=f"Cypher execution error: {str(e)}")
+
+
+@router.post("/api/graph/graphrag-context")
+def get_graphrag_context_api(request: GraphRAGContextRequest) -> JSONResponse:
+    """Extract structured GraphRAG subgraph context, triples, and text summary for future LLM integration."""
+    if not request.entity_ids:
+        raise HTTPException(status_code=400, detail="At least one entity ID is required.")
+
+    # Ensure compound graph is built & synced to KuzuDB
+    try:
+        build_selected_compound_graph(request.entity_ids)
+    except Exception:
+        pass
+
+    try:
+        db = get_graph_database()
+        context = db.get_graphrag_context(request.entity_ids, max_hops=request.max_hops)
+        return JSONResponse(context, headers=NO_CACHE_HEADERS)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"GraphRAG context extraction error: {str(e)}")

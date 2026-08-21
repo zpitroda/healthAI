@@ -110,7 +110,7 @@ A resilient three-tier data layer provides zero-latency local operations with se
 - **Tier 2 — SQLite Persistence:** Full local relational cache (`healthai_catalog.db`) storing structured pharmacology profiles.
 - **Tier 3 — Live Online Enrichment:** Auto-queries NCBI PubChem (PUG-REST), EMBL-EBI ChEMBL (bioactivities, mechanisms, $K_i / IC_{50}$ values), NIH RxNorm, UniProt, Reactome Pathways, and FDA OpenFDA databases with write-through caching.
 - **Async Ingestion & WebSockets Layer:** Asynchronous background worker pools (`IngestionJobQueue`) with real-time WebSocket event streaming (`/ws/enrichment`) for long-running multi-source enrichment queries.
-- **Dedicated Graph Database Backend (Neo4j & GraphRAG):** Graph database service (`app/knowledge_graph/graph_db.py`) executing Cypher queries, multi-hop traversals across tens of thousands of nodes, and structured GraphRAG context extraction for future LLM integration.
+- **Dedicated Graph Database Backend (KuzuDB & GraphRAG):** Embedded graph database service (`app/knowledge_graph/graph_db.py`) executing Cypher queries, multi-hop traversals across tens of thousands of nodes, and structured GraphRAG context extraction for future LLM integration.
 
 ---
 
@@ -332,9 +332,9 @@ healthAI/
 │   │   ├── pathway_service.py      # Canonical biological signaling pathway definitions
 │   │   ├── dosing_service.py       # Weight-based and clinical dosing algorithms
 │   │   └── protocol_builder.py     # Individualized protocol assembler
-│   ├── knowledge_graph/            # NetworkX & Neo4j graph structures & ontological models
+│   ├── knowledge_graph/            # NetworkX & KuzuDB graph structures & ontological models
 │   │   ├── graph.py                # Directed biological multigraph class
-│   │   ├── graph_db.py             # Dedicated Neo4j graph DB, Cypher engine & GraphRAG extractor
+│   │   ├── graph_db.py             # Dedicated KuzuDB graph DB, Cypher engine & GraphRAG extractor
 │   │   └── models.py               # Biological node & edge schemas
 │   ├── data/                       # Seed compound library
 │   │   └── compounds.py
@@ -374,7 +374,7 @@ healthAI/
 | **WS** | `/ws/enrichment` | Global WebSocket endpoint streaming real-time background job events and step logs. |
 | **GET** | `/graph-data` | Returns 6-tier network graph nodes, edges, cascade simulations, and multi-ligand receptor occupancy. |
 | **GET** | `/graph-path` | Calculates shortest biological path and cross-talk connections between two nodes. |
-| **POST** | `/api/graph/cypher` | Executes arbitrary Cypher query against dedicated Neo4j graph database backend. |
+| **POST** | `/api/graph/cypher` | Executes arbitrary Cypher query against dedicated KuzuDB graph database backend. |
 | **POST** | `/api/graph/graphrag-context` | Extracts structured GraphRAG subgraph context and triples for LLM integration. |
 | **POST** | `/api/pkpd/simulate` | Simulates continuous Bateman PK curves, multi-dose steady state, DDI AUC shifts, and Hill PD. |
 | **GET** | `/api/compounds/{key}/pkpd` | Returns extracted quantitative PK parameters ($V_d, k_e, k_a, CL, f_u$) and PD affinities ($K_i, IC_{50}$). |

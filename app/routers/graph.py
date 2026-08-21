@@ -306,8 +306,8 @@ def graph_path(
 class CypherQueryRequest(BaseModel):
     query: str = Field(
         ...,
-        description="Cypher graph query to execute against dedicated Neo4j backend",
-        examples=["MATCH (c:CompoundNode)-[r:RELATIONSHIP]->(t:TargetNode) RETURN c.label, t.label, r.edge_type LIMIT 10"],
+        description="Cypher graph query to execute against dedicated KuzuDB backend",
+        examples=["MATCH (c:CompoundNode)-[r:INTERACTS_WITH]->(t:TargetNode) RETURN c.label, t.label, r.edge_type LIMIT 10"],
     )
     parameters: Optional[Dict[str, Any]] = Field(
         default=None,
@@ -331,7 +331,7 @@ class GraphRAGContextRequest(BaseModel):
 
 @router.post("/api/graph/cypher")
 def execute_cypher_query(request: CypherQueryRequest) -> JSONResponse:
-    """Execute arbitrary Cypher query against dedicated Neo4j graph database backend."""
+    """Execute arbitrary Cypher query against dedicated KuzuDB graph database backend."""
     if not request.query or not request.query.strip():
         raise HTTPException(status_code=400, detail="Cypher query string cannot be empty.")
 
@@ -352,7 +352,7 @@ def get_graphrag_context_api(request: GraphRAGContextRequest) -> JSONResponse:
     if not request.entity_ids:
         raise HTTPException(status_code=400, detail="At least one entity ID is required.")
 
-    # Ensure compound graph is built & synced to Neo4j
+    # Ensure compound graph is built & synced to KuzuDB
     try:
         build_selected_compound_graph(request.entity_ids)
     except Exception:

@@ -1355,14 +1355,14 @@ def build_selected_compound_graph(stack: List[Any], catalog_service: CatalogServ
     if graph.graph.number_of_nodes() == 0:
         graph = build_testosterone_alopecia_graph()
 
-    # Sync graph nodes and edges into dedicated Neo4j graph database backend
+    # Sync graph nodes and edges into dedicated KuzuDB graph database backend
     try:
         from app.knowledge_graph.graph_db import get_graph_database
         graph_db = get_graph_database()
         graph_db.sync_biological_graph(graph)
     except Exception as e:
         import logging
-        logging.getLogger("healthai.graph_service").warning("Neo4j graph database sync skipped: %s", e)
+        logging.getLogger("healthai.graph_service").warning("KuzuDB graph database sync skipped: %s", e)
 
     return graph
 

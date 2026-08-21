@@ -1,43 +1,27 @@
 import pytest
-import os
-import shutil
 from fastapi.testclient import TestClient
 
 from app.main import app
-from app.knowledge_graph.graph_db import KuzuGraphDatabase, get_graph_database
+from app.knowledge_graph.graph_db import Neo4jGraphDatabase, get_graph_database
 from app.services.graph_service import build_selected_compound_graph
 
 
 @pytest.fixture
-def temp_kuzu_db(tmp_path):
-    db_file = str(tmp_path / "test_kuzu.db")
-    db = KuzuGraphDatabase(db_path=db_file)
+def temp_neo4j_db():
+    db = get_graph_database()
     yield db
-    # Cleanup after test
-    try:
-        db.conn = None
-        db.db = None
-        if os.path.exists(db_file):
-            if os.path.isdir(db_file):
-                shutil.rmtree(db_file)
-            else:
-                os.remove(db_file)
-    except Exception:
-        pass
 
 
-def test_kuzu_database_initialization_and_cypher(temp_kuzu_db):
-    db = temp_kuzu_db
-    assert db.conn is not None
-
+def test_neo4j_database_initialization_and_cypher(temp_neo4j_db):
+    db = temp_neo4j_db
     # Test basic Cypher query execution
     res = db.execute_cypher("MATCH (c:CompoundNode) RETURN count(c) AS count")
     assert len(res) == 1
     assert "count" in res[0]
 
 
-def test_sync_biological_graph_and_multi_hop_traversal(temp_kuzu_db):
-    db = temp_kuzu_db
+def test_sync_biological_graph_and_multi_hop_traversal(temp_neo4j_db):
+    db = temp_neo4j_db
 
     # Build biological graph for telmisartan and sildenafil
     bio_graph = build_selected_compound_graph(["telmisartan", "sildenafil"])
@@ -55,8 +39,8 @@ def test_sync_biological_graph_and_multi_hop_traversal(temp_kuzu_db):
     assert isinstance(traversals, list)
 
 
-def test_graphrag_context_extraction(temp_kuzu_db):
-    db = temp_kuzu_db
+def test_graphrag_context_extraction(temp_neo4j_db):
+    db = temp_neo4j_db
 
     bio_graph = build_selected_compound_graph(["telmisartan"])
     db.sync_biological_graph(bio_graph)

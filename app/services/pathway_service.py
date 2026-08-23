@@ -629,8 +629,8 @@ class PathwayService:
                 {"id": "pheno_tachycardia", "label": "Resting Tachycardia & Sympathetic Vasoconstriction", "cat": "adverse_effect", "sev": "moderate", "mag": -0.75},
             ])
 
-        # 7. Adenosine Receptors (ADORA1 / ADORA2A)
-        elif "adenosine" in t_lower or "adora" in t_lower or sym in ("ADORA1", "ADORA2A"):
+        # 7. Adenosine Receptors (ADORA1 / ADORA2A / A1 / A2A)
+        elif "adenosine" in t_lower or "adora" in t_lower or "a1 receptor" in t_lower or "a2a receptor" in t_lower or t_lower.startswith("a1") or t_lower.startswith("a2a") or sym in ("ADORA1", "ADORA2A"):
             organ = "Central Nervous System"
             biomarkers.extend([
                 {"id": "bio_heart_rate", "label": "Resting Heart Rate", "unit": "bpm", "panel": "Vitals", "lower": 50, "upper": 90, "mag": -0.6},
@@ -648,8 +648,8 @@ class PathwayService:
                 "description": "Adenosine receptor antagonism removes tonic purinergic inhibition, facilitating central catecholaminergic and dopaminergic neurotransmission",
             })
 
-        # 7b. GABA-A / Glutamatergic Neurotransmission (Theanine, GABA)
-        elif "gaba" in t_lower or "theanine" in t_lower or "glutamat" in t_lower or sym in ("GABRA1", "GABRA2", "GRIN1", "GRIN2A"):
+        # 7b. GABA-A Receptor Neurotransmission (GABRA1 / GABRA2 - Inhibitory)
+        elif ("gaba" in t_lower or "theanine" in t_lower or sym in ("GABRA1", "GABRA2")) and "glutamat" not in t_lower and "nmda" not in t_lower:
             organ = "Central Nervous System"
             biomarkers.extend([
                 {"id": "bio_heart_rate", "label": "Resting Heart Rate", "unit": "bpm", "panel": "Vitals", "lower": 50, "upper": 90, "mag": -0.5},
@@ -658,6 +658,17 @@ class PathwayService:
             pheno_nodes.extend([
                 {"id": "pheno_anxiolysis", "label": "Rapid Anxiolysis & Somatic Stress Reduction", "cat": "therapeutic_benefit", "sev": "high", "mag": 0.85},
                 {"id": "pheno_sedation", "label": "Central Sedation & Sleep Consolidation", "cat": "therapeutic_benefit", "sev": "high", "mag": 0.8},
+            ])
+
+        # 7c. Glutamatergic Neurotransmission / NMDA Receptor (GRIN1 / GRIN2A - Excitatory)
+        elif "glutamat" in t_lower or "nmda" in t_lower or sym in ("GRIN1", "GRIN2A"):
+            organ = "Central Nervous System"
+            biomarkers.extend([
+                {"id": "bio_heart_rate", "label": "Resting Heart Rate", "unit": "bpm", "panel": "Vitals", "lower": 50, "upper": 90, "mag": 0.5},
+                {"id": "bio_cortisol", "label": "Serum Cortisol Concentration", "unit": "μg/dL", "panel": "Endocrine Panel", "lower": 6.0, "upper": 18.0, "mag": 0.6},
+            ])
+            pheno_nodes.extend([
+                {"id": "pheno_neuroexcitation", "label": "Glutamatergic Excitotoxicity & Central Nervous System Arousal", "cat": "adverse_effect", "sev": "moderate", "mag": 0.75},
             ])
 
         # 7c. Skeletal Muscle ATP-PCr Phosphagen System (Creatine)
@@ -743,9 +754,9 @@ class PathwayService:
                 {"id": "pheno_renal_strain", "label": "Renal Hemodynamic Filtration Load & Osmotic Demand", "cat": "toxicity", "sev": "moderate", "mag": 0.7},
             ])
 
-        # 14. Cellular Redox Homeostasis & Mitochondrial Bioenergetics
-        elif "redox" in t_lower or "mitochondrial" in t_lower or "reactive oxygen" in t_lower:
-            organ = "Systemic / Cellular"
+        # 14. Pathological Mitochondrial Uncoupling & ROS Generation (Mitochondrial Toxicity / Pro-Oxidant)
+        elif ("uncoupl" in t_lower or "ros generation" in t_lower or "pro-oxidant" in t_lower or "oxidative damage" in t_lower) and "homeostasis" not in t_lower and "defense" not in t_lower and "antioxidant" not in t_lower:
+            organ = "Cellular Bioenergetics"
             biomarkers.extend([
                 {"id": "bio_mda", "label": "Malondialdehyde (Lipid Peroxidation)", "unit": "μmol/L", "panel": "Redox Panel", "lower": 0.5, "upper": 2.0, "mag": 0.8},
                 {"id": "bio_gsh_redox_ratio", "label": "Glutathione Redox Ratio (GSH:GSSG)", "unit": "ratio", "panel": "Redox Panel", "lower": 100.0, "upper": 300.0, "mag": -0.8},
@@ -756,8 +767,8 @@ class PathwayService:
                 {"id": "pheno_oxidative_stress", "label": "Mitochondrial ROS Production & Cellular Oxidative Stress", "cat": "toxicity", "sev": "high", "mag": 0.85},
             ])
 
-        # 15. Glutathione Biosynthesis & Antioxidant Defense
-        elif "glutathione" in t_lower or "antioxidant defense" in t_lower or "cystine" in t_lower or "xc-" in t_lower or "gcl" in t_lower or "astaxanthin" in t_lower or "nrf2" in t_lower or "curcumin" in t_lower or "omega" in t_lower or sym in ("SLC7A11", "GCLC", "GCLM", "NFE2L2"):
+        # 15. Glutathione Biosynthesis, Cellular Redox Homeostasis & Antioxidant Defense
+        elif "glutathione" in t_lower or "antioxidant" in t_lower or "redox" in t_lower or "bioenergetics" in t_lower or "cystine" in t_lower or "xc-" in t_lower or "gcl" in t_lower or "astaxanthin" in t_lower or "nrf2" in t_lower or "curcumin" in t_lower or "omega" in t_lower or sym in ("SLC7A11", "GCLC", "GCLM", "NFE2L2"):
             organ = "Systemic / Cytoprotective"
             biomarkers.extend([
                 {"id": "bio_mda", "label": "Malondialdehyde (Lipid Peroxidation)", "unit": "μmol/L", "panel": "Redox Panel", "lower": 0.5, "upper": 2.0, "mag": -0.8},

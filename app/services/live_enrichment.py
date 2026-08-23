@@ -917,6 +917,23 @@ class LiveEnrichmentService:
                     "family": "Dopamine Synthesis Enzyme",
                     "intrinsic_efficacy": 0.7,
                 })
+        if "yohimbine" in name_lower or "rauwolscine" in name_lower or any("alpha-2" in c.lower() for c in enriched["categories"]):
+            for t in existing_targets:
+                if any(w in t.get("target", "").lower() for w in ["alpha-2", "adra2"]):
+                    t["action"] = "antagonist"
+                    t["intrinsic_efficacy"] = -1.0
+
+        if any(w in name_lower for w in ["nebivolol", "metoprolol", "atenolol", "bisoprolol", "carvedilol", "propranolol"]) or any("beta-adrenergic" in c.lower() or "beta blocker" in c.lower() for c in enriched["categories"]):
+            for t in existing_targets:
+                if any(w in t.get("target", "").lower() for w in ["beta-1", "beta-2", "adrb1", "adrb2"]):
+                    t["action"] = "antagonist"
+                    t["intrinsic_efficacy"] = -1.0
+
+        if any(w in name_lower for w in ["telmisartan", "losartan", "valsartan", "candesartan", "olmesartan", "irbesartan"]) or any("angiotensin" in c.lower() for c in enriched["categories"]):
+            for t in existing_targets:
+                if any(w in t.get("target", "").lower() for w in ["angiotensin", "agtr1"]):
+                    t["action"] = "antagonist"
+                    t["intrinsic_efficacy"] = -1.0
 
         # Dynamic synthesis of non-receptor targets for supplements & nutraceuticals from online MeSH & categories
         cat_str = " ".join(enriched["categories"]).lower()
@@ -937,9 +954,9 @@ class LiveEnrichmentService:
         if any(w in cat_str for w in ["anti-inflammatory", "anti inflammatory"]):
             if not any(any(w in t.get("target", "").lower() for w in ["nf-kb", "inflammatory cytokine", "cox-2", "ptgs2"]) for t in existing_targets):
                 existing_targets.append({
-                    "target": "Polyphenolic NF-κB & Inflammatory Cytokine Suppression (Curcumin)",
+                    "target": "NF-κB & Pro-Inflammatory Cytokines (NFKB1 / PTGS2)",
                     "action": "inhibitor",
-                    "family": "Anti-Inflammatory",
+                    "family": "Inflammatory Signaling",
                     "gene_symbol": "NFKB1",
                     "uniprot_id": "P19838",
                 })

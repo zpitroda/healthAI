@@ -307,9 +307,10 @@ def _is_potassium_sparing_or_raas(comp: Dict[str, Any]) -> tuple[bool, str]:
     if bool(atc & {"J01EA"}) or _has_any_ontology_match(all_context, ["trimethoprim", "bactrim", "cotrimoxazole"]):
         return True, "Trimethoprim"
 
-    # 8. Direct Renin Inhibitors
-    if ActionType.INHIBITOR in targets.get("RENIN", set()) or bool(atc & {"C09XA"}) or _has_any_ontology_match(all_context, ["direct renin inhibitor", "renin inhibitor", "aliskiren"]):
-        return True, "Direct Renin Inhibitor"
+    # 8. Direct Renin Inhibitors (e.g. Aliskiren)
+    if not _is_beta_blocker(comp):
+        if (ActionType.INHIBITOR in targets.get("RENIN", set()) and bool(atc & {"C09XA"})) or bool(atc & {"C09XA"}) or usan.endswith("kiren") or _has_any_ontology_match(all_context, ["direct renin inhibitor", "aliskiren"]):
+            return True, "Direct Renin Inhibitor"
 
     if _has_any_ontology_match(all_context, ["decreased renal potassium excretion"]):
         return True, "Potassium-Retaining Pharmacologic Agent"
@@ -1259,14 +1260,16 @@ class InteractionEngine:
             has_antihypertensive = bool(antihypertensive_comps)
             if not has_antihypertensive:
                 for comp in compounds:
+                    if _is_sympathomimetic_stimulant(comp) or _is_adenosine_antagonist_or_pde_inhibitor(comp):
+                        continue
                     d_class = str(comp.get("drug_class", "")).lower()
-                    if any(w in d_class for w in ["arb", "angiotensin", "sartan", "beta-blocker", "antihypertensive", "pde5 inhibitor", "calcium channel blocker"]):
+                    if any(w in d_class for w in ["arb", "angiotensin", "sartan", "beta-blocker", "antihypertensive", "calcium channel blocker", "ace inhibitor"]):
                         has_antihypertensive = True
                         break
                     for r in comp.get("receptor_targets", []):
                         t_name = str(r.get("target", "")).lower()
                         act = str(r.get("action", "")).lower()
-                        if any(w in t_name for w in ["angiotensin", "agtr1", "mineralocorticoid", "pde5"]):
+                        if any(w in t_name for w in ["angiotensin", "agtr1", "mineralocorticoid"]):
                             if any(a in act for a in ["antagonist", "block", "inhib"]):
                                 has_antihypertensive = True
                                 break
@@ -1292,7 +1295,7 @@ class InteractionEngine:
 
             participating_labels = [c.get("compound_label") for c in contributions] or [c.get("name") for c in compounds if c.get("name")]
 
-            if has_hypertensive and has_antihypertensive and 95.0 <= est_val <= 128.0:
+            if has_hypertensive and has_antihypertensive and 90.0 <= est_val <= 128.0:
                 status = "BALANCED_NORMOTENSIVE"
                 status_label = f"Normotensive Equilibrium ({est_val} {unit})"
                 status_color = "#10b981"

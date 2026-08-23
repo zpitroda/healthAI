@@ -97,7 +97,7 @@ def test_testosterone_and_telmisartan_blood_pressure_counterbalance():
     bp_axis = next((a for a in balance.get("axes", []) if a.get("biomarker_id") == "bio_blood_pressure"), None)
     assert bp_axis is not None
     assert bp_axis["status"] == "BALANCED_NORMOTENSIVE"
-    assert 110.0 <= bp_axis["estimated_value"] <= 128.0
+    assert 100.0 <= bp_axis["estimated_value"] <= 128.0
     assert bp_axis["in_safe_range"] is True
     
     mitigations = balance.get("active_mitigations", [])

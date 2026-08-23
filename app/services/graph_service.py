@@ -896,12 +896,12 @@ def build_selected_compound_graph(stack: List[Any], catalog_service: CatalogServ
                 or any(w in mechanism_text for w in ["beta-1 agonist", "beta-2 agonist", "camp surge", "uncoupl", "generates reactive oxygen", "mitochondrial uncoupling", "induces ros", "oxidative phosphorylation uncoupling", "lipid peroxidation"])
             )
         )
-        if has_redox_stress and not any("cellular redox" in str(t.get("target", "")).lower() for t in receptor_targets):
+        if has_redox_stress and not any("uncoupl" in str(t.get("target", "")).lower() or "ros generation" in str(t.get("target", "")).lower() or "oxidative" in str(t.get("target", "")).lower() for t in receptor_targets):
             ox_efficacy = min(0.65, (0.25 if is_17aa else 0.15) + 0.10 * math.log10(max(1.0, dose_mg)))
             receptor_targets.append({
-                "target": "Cellular Redox Homeostasis & Mitochondrial Bioenergetics",
-                "action": "stimulator",
-                "family": "Redox Homeostasis",
+                "target": "Pathological Mitochondrial Uncoupling & ROS Generation",
+                "action": "inducer",
+                "family": "Mitochondrial Stress",
                 "intrinsic_efficacy": ox_efficacy,
                 "pre_computed_stress": True,
             })
@@ -1693,10 +1693,9 @@ def compute_target_combined_effects(
             else:
                 pb_pct = 60.0
 
-            # Effective bioavailable fraction in tissue biophases (accounting for rapid albumin dissociation and cellular uptake)
-            fu = max(0.005, min(1.0, 1.0 - (pb_pct / 100.0)))
-            fu_eff = max(fu, min(1.0, 1.0 - (pb_pct / 100.0) * 0.98))
-            c_free_nm = (eff_daily_mg * f_bio * fu_eff * 1e6) / (vd_lkg * 70.0 * mw)
+            # Unbound free fraction in tissue biophases
+            fu = max(0.002, min(1.0, 1.0 - (pb_pct / 100.0)))
+            c_free_nm = (eff_daily_mg * f_bio * fu * 1e6) / (vd_lkg * 70.0 * mw)
 
             # Calculate Biophysical Receptor Binding Drive W_i = [L_free] / K_i
             affinity_val = ki or ic50 or ec50

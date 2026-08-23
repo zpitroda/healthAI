@@ -298,7 +298,22 @@ class PKPDEngine:
 
         # Multi-Dose / Steady-State Initialization
         fine_dt = 0.01  # 36 second numerical step for high precision
-        init_dose_mg = dose_mg * f_oral
+        ester_weight_factor = float(compound.get("ester_weight_factor") if compound.get("ester_weight_factor") is not None else 1.0)
+        if ester_weight_factor <= 0 or ester_weight_factor > 1.0:
+            ester_weight_factor = 1.0
+
+        effective_active_dose_mg = dose_mg * ester_weight_factor
+        init_dose_mg = effective_active_dose_mg * f_oral
+
+        if compound.get("is_ester") or ester_weight_factor < 1.0 or compound.get("parent_compound_id"):
+            patient_biometrics["ester_info"] = {
+                "is_ester": bool(compound.get("is_ester", True)),
+                "ester_name": compound.get("ester_name"),
+                "parent_compound_id": compound.get("parent_compound_id"),
+                "nominal_dose_mg": round(dose_mg, 2),
+                "ester_weight_factor": round(ester_weight_factor, 3),
+                "effective_active_dose_mg": round(effective_active_dose_mg, 2),
+            }
 
         if route == "iv":
             y_state = [0.0, init_dose_mg, 0.0]
@@ -415,7 +430,7 @@ class PKPDEngine:
         c_avg_ss = max(0.01, auc_0_tau / tau)
         ptf = ((c_max - c_min) / c_avg_ss) * 100.0 if is_steady_state else 0.0
 
-        cl_effective_avg = (dose_mg * f_oral * 1000.0) / max(1.0, auc_0_tau)
+        cl_effective_avg = (effective_active_dose_mg * f_oral * 1000.0) / max(1.0, auc_0_tau)
         k_e_eff = max(0.0001, cl_effective_avg / v_d_total_l)
         t_half_effective_h = math.log(2.0) / k_e_eff
 

@@ -13,16 +13,484 @@ from app.data.compounds import COMPOUND_LIBRARY
 DEFAULT_CATALOG_DB_PATH = str(Path(__file__).resolve().parent.parent.parent / "healthai_catalog.db")
 
 
+CORE_SUPPLEMENT_LIBRARY: Dict[str, Dict[str, Any]] = {
+    "astaxanthin": {
+        "name": "Astaxanthin",
+        "canonical_name": "Astaxanthin",
+        "synonyms": ["asta", "astareal", "astaxanthine"],
+        "drug_class": "Dietary Supplement / Carotenoid Antioxidant",
+        "categories": ["Dietary Supplement", "Antioxidant", "Carotenoid", "Mitochondrial Support"],
+        "molecular_weight": 596.84,
+        "logp": 6.8,
+        "oral_bioavailability": 0.35,
+        "volume_of_distribution": 2.5,
+        "protein_binding": 85.0,
+        "receptor_targets": [
+            {"target": "Glutathione Biosynthesis & Cellular Antioxidant Defense (System xc- / Nrf2 / GCL)", "action": "agonist", "family": "Antioxidant Defense"},
+            {"target": "Cellular Redox Homeostasis & Mitochondrial Bioenergetics", "action": "antioxidant", "family": "Redox Defense"}
+        ],
+    },
+    "coq10": {
+        "name": "Coenzyme Q10",
+        "canonical_name": "Coenzyme Q10 (Ubiquinone / Ubiquinol)",
+        "synonyms": ["ubiquinone", "ubiquinol", "coenzymeq10"],
+        "drug_class": "Dietary Supplement / Mitochondrial Quinone",
+        "categories": ["Dietary Supplement", "Antioxidant", "Mitochondrial Support"],
+        "molecular_weight": 863.34,
+        "logp": 10.5,
+        "oral_bioavailability": 0.10,
+        "volume_of_distribution": 3.0,
+        "protein_binding": 90.0,
+        "receptor_targets": [
+            {"target": "Cellular Redox Homeostasis & Mitochondrial Bioenergetics", "action": "agonist", "family": "Mitochondrial Bioenergetics"}
+        ],
+    },
+    "milk_thistle": {
+        "name": "Milk Thistle",
+        "canonical_name": "Milk Thistle (Silymarin / Silybin)",
+        "synonyms": ["silymarin", "silybin", "silybum marianum", "siliphos"],
+        "drug_class": "Dietary Supplement / Hepatoprotective Antioxidant",
+        "categories": ["Dietary Supplement", "Antioxidant", "Hepatoprotective", "Herbal Extract"],
+        "molecular_weight": 482.44,
+        "logp": 1.7,
+        "oral_bioavailability": 0.20,
+        "volume_of_distribution": 1.2,
+        "protein_binding": 75.0,
+        "receptor_targets": [
+            {"target": "Hepatic Parenchymal & Biliary Transport (BSEP / MRP2 / CYP)", "action": "supports", "family": "Hepatobiliary Support"},
+            {"target": "Glutathione Biosynthesis & Cellular Antioxidant Defense (System xc- / Nrf2 / GCL)", "action": "agonist", "family": "Antioxidant Defense"}
+        ],
+        "cyp_enzymes": {"substrates": [], "inhibitors": ["CYP3A4", "CYP2C9"], "inducers": []},
+    },
+    "curcumin": {
+        "name": "Curcumin",
+        "canonical_name": "Curcumin (Turmeric Extract)",
+        "synonyms": ["turmeric", "turmericextract", "curcuminoids", "theracurmin", "longvida"],
+        "drug_class": "Dietary Supplement / Polyphenolic Antioxidant",
+        "categories": ["Dietary Supplement", "Antioxidant", "Anti-Inflammatory", "Herbal Extract"],
+        "molecular_weight": 368.38,
+        "logp": 3.2,
+        "oral_bioavailability": 0.05,
+        "volume_of_distribution": 2.0,
+        "protein_binding": 85.0,
+        "receptor_targets": [
+            {"target": "NF-κB & Pro-Inflammatory Cytokines (NFKB1 / PTGS2)", "action": "inhibitor", "family": "Inflammatory Signaling", "gene_symbol": "NFKB1"},
+            {"target": "Glutathione Biosynthesis & Cellular Antioxidant Defense (System xc- / Nrf2 / GCL)", "action": "agonist", "family": "Antioxidant Defense"}
+        ],
+    },
+    "citrus_bergamot": {
+        "name": "Citrus Bergamot",
+        "canonical_name": "Citrus Bergamot (Bergamonte / BPF)",
+        "synonyms": ["bergamot", "bergamotextract", "bergamonte", "bpf"],
+        "drug_class": "Dietary Supplement / Polyphenolic Flavonoid",
+        "categories": ["Dietary Supplement", "Cardiovascular Support", "Lipid Management"],
+        "molecular_weight": 580.53,
+        "logp": 0.5,
+        "oral_bioavailability": 0.25,
+        "volume_of_distribution": 1.5,
+        "protein_binding": 60.0,
+        "receptor_targets": [
+            {"target": "HMG-CoA Reductase (HMGCR)", "action": "inhibitor", "family": "Enzyme / Lipid"}
+        ],
+    },
+    "alpha_lipoic_acid": {
+        "name": "Alpha-Lipoic Acid",
+        "canonical_name": "Alpha-Lipoic Acid (R-ALA / Thioctic Acid)",
+        "synonyms": ["ala", "rala", "rlipoicacid", "thiocticacid"],
+        "drug_class": "Dietary Supplement / Mitochondrial Co-Factor",
+        "categories": ["Dietary Supplement", "Antioxidant", "Metabolic Support"],
+        "molecular_weight": 206.33,
+        "logp": 2.1,
+        "oral_bioavailability": 0.30,
+        "volume_of_distribution": 1.0,
+        "protein_binding": 70.0,
+        "receptor_targets": [
+            {"target": "Glutathione Biosynthesis & Cellular Antioxidant Defense (System xc- / Nrf2 / GCL)", "action": "agonist", "family": "Antioxidant Defense"}
+        ],
+    },
+    "taurine": {
+        "name": "Taurine",
+        "canonical_name": "Taurine (2-Aminoethanesulfonic Acid)",
+        "synonyms": ["ltaurine"],
+        "drug_class": "Dietary Supplement / Amino Sulfonic Acid",
+        "categories": ["Dietary Supplement", "Osmolyte", "Cardiovascular Support"],
+        "molecular_weight": 125.15,
+        "logp": -1.3,
+        "oral_bioavailability": 0.90,
+        "volume_of_distribution": 0.8,
+        "protein_binding": 0.0,
+        "receptor_targets": [
+            {"target": "GABA-A Receptor (GABRA1 / GABRA2)", "action": "agonist", "family": "Ion Channel / Neurotransmitter"}
+        ],
+    },
+    "melatonin": {
+        "name": "Melatonin",
+        "canonical_name": "Melatonin",
+        "synonyms": ["circadin"],
+        "drug_class": "Dietary Supplement / Pineal Neurohormone",
+        "categories": ["Dietary Supplement", "Sleep Support", "Antioxidant"],
+        "molecular_weight": 232.28,
+        "logp": 1.6,
+        "oral_bioavailability": 0.15,
+        "volume_of_distribution": 1.5,
+        "protein_binding": 60.0,
+        "receptor_targets": [
+            {"target": "Melatonin Receptor (MTNR1A / MT1 / MT2)", "action": "agonist", "family": "GPCR / Circadian"}
+        ],
+    },
+    "nac": {
+        "name": "N-Acetyl Cysteine",
+        "canonical_name": "N-Acetyl Cysteine (NAC)",
+        "synonyms": ["nacetylcysteine", "acetylcysteine"],
+        "drug_class": "Dietary Supplement / Glutathione Precursor",
+        "categories": ["Dietary Supplement", "Antioxidant", "Glutathione Support"],
+        "molecular_weight": 163.19,
+        "logp": -0.6,
+        "oral_bioavailability": 0.10,
+        "volume_of_distribution": 0.6,
+        "protein_binding": 50.0,
+        "receptor_targets": [
+            {"target": "Glutathione Biosynthesis & Cellular Antioxidant Defense (System xc- / Nrf2 / GCL)", "action": "agonist", "family": "Antioxidant Defense"}
+        ],
+    },
+    "tudca": {
+        "name": "Tauroursodeoxycholic Acid",
+        "canonical_name": "Tauroursodeoxycholic Acid (TUDCA)",
+        "synonyms": ["tauroursodeoxycholicacid", "tauroursodeoxycholate"],
+        "drug_class": "Dietary Supplement / Hydrophilic Bile Acid",
+        "categories": ["Dietary Supplement", "Hepatoprotective", "ER Stress Reducer"],
+        "molecular_weight": 499.70,
+        "logp": 1.2,
+        "oral_bioavailability": 0.40,
+        "volume_of_distribution": 0.8,
+        "protein_binding": 70.0,
+        "receptor_targets": [
+            {"target": "Hepatic Parenchymal & Biliary Transport (BSEP / MRP2 / CYP)", "action": "supports", "family": "Hepatobiliary Support"}
+        ],
+    },
+    "l_carnitine": {
+        "name": "L-Carnitine",
+        "canonical_name": "L-Carnitine (ALCAR)",
+        "synonyms": ["alcar", "acetyllcarnitine", "carnitine", "lcarnitine", "lcarnitinetartrate"],
+        "drug_class": "Dietary Supplement / Fatty Acid Shuttle",
+        "categories": ["Dietary Supplement", "Mitochondrial Support"],
+        "molecular_weight": 161.20,
+        "logp": -3.1,
+        "oral_bioavailability": 0.15,
+        "volume_of_distribution": 0.7,
+        "protein_binding": 0.0,
+        "receptor_targets": [
+            {"target": "Carnitine Palmitoyltransferase (CPT1A / CPT2)", "action": "agonist", "family": "Enzyme / Fatty Acid Oxidation"}
+        ],
+    },
+    "l_theanine": {
+        "name": "L-Theanine",
+        "canonical_name": "L-Theanine",
+        "synonyms": ["theanine", "suntheanine"],
+        "drug_class": "Dietary Supplement / Amino Acid",
+        "categories": ["Dietary Supplement", "Nootropic", "Anxiolytic"],
+        "molecular_weight": 174.20,
+        "logp": -1.8,
+        "oral_bioavailability": 0.95,
+        "volume_of_distribution": 0.8,
+        "protein_binding": 0.0,
+        "receptor_targets": [
+            {"target": "GABA-A Receptor (GABRA1 / GABRA2)", "action": "agonist", "family": "Ion Channel / Neurotransmitter"},
+            {"target": "Glutamate Receptor (GRIN1 / NMDA)", "action": "antagonist", "family": "Ion Channel / Glutamate"}
+        ],
+    },
+    "berberine": {
+        "name": "Berberine",
+        "canonical_name": "Berberine",
+        "synonyms": ["berberinehcl"],
+        "drug_class": "Dietary Supplement / Isoquinoline Alkaloid",
+        "categories": ["Dietary Supplement", "Metabolic Support", "AMPK Activator"],
+        "molecular_weight": 336.36,
+        "logp": -1.5,
+        "oral_bioavailability": 0.05,
+        "volume_of_distribution": 2.5,
+        "protein_binding": 50.0,
+        "receptor_targets": [
+            {"target": "AMP-Activated Protein Kinase (AMPK)", "action": "agonist", "family": "Enzyme / Energy Sensor"},
+            {"target": "PCSK9", "action": "inhibitor", "family": "Enzyme / Lipid"}
+        ],
+        "cyp_enzymes": {"substrates": ["CYP3A4"], "inhibitors": ["CYP3A4", "CYP2D6"], "inducers": []},
+    },
+    "omega_3": {
+        "name": "Omega-3 Fatty Acids",
+        "canonical_name": "Omega-3 Fatty Acids (EPA / DHA)",
+        "synonyms": ["fishoil", "krilloil", "epadha", "epa", "dha"],
+        "drug_class": "Dietary Supplement / Polyunsaturated Fatty Acid",
+        "categories": ["Dietary Supplement", "Cardiovascular Support", "Anti-Inflammatory"],
+        "molecular_weight": 302.45,
+        "logp": 4.5,
+        "oral_bioavailability": 0.80,
+        "volume_of_distribution": 1.5,
+        "protein_binding": 95.0,
+        "receptor_targets": [
+            {"target": "NF-κB & Pro-Inflammatory Cytokines (NFKB1 / PTGS2)", "action": "inhibitor", "family": "Inflammatory Signaling", "gene_symbol": "NFKB1"},
+            {"target": "PPAR-alpha (PPARA)", "action": "agonist", "family": "Nuclear Receptor"}
+        ],
+    },
+}
+
+
+CORE_ESTER_LIBRARY: Dict[str, Dict[str, Any]] = {
+    "testosterone": {
+        "name": "Testosterone",
+        "canonical_name": "Testosterone Base",
+        "synonyms": ["testosteronebase", "freetestosterone", "unesterifiedtestosterone"],
+        "drug_class": "Androgen / Anabolic Steroid",
+        "categories": ["Anabolic Steroid", "Hormone Replacement", "Androgen"],
+        "molecular_weight": 288.42,
+        "logp": 3.3,
+        "oral_bioavailability": 0.05,
+        "half_life": "10-100 minutes (unesterified IV/oral)",
+        "t_half_numeric": 1.0,
+        "volume_of_distribution": 1.0,
+        "protein_binding": 98.0,
+        "is_ester": False,
+        "ester_name": None,
+        "parent_compound_id": None,
+        "ester_weight_factor": 1.0,
+        "mechanism": "Binds to and activates nuclear androgen receptor (AR / NR3C4), inducing male secondary sexual characteristics, anabolic protein synthesis, and HPG axis feedback.",
+        "receptor_targets": [
+            {"target": "Androgen Receptor (AR / NR3C4)", "action": "agonist", "family": "Nuclear Receptor", "affinity_ki": 0.5, "gene_symbol": "AR"},
+            {"target": "Estrogen Receptor Alpha (ESR1 / ER-alpha)", "action": "agonist (via aromatization)", "family": "Nuclear Receptor", "gene_symbol": "ESR1"},
+            {"target": "5-Alpha Reductase Type 1 & 2 (SRD5A1 / SRD5A2)", "action": "substrate (to DHT)", "family": "Enzyme", "gene_symbol": "SRD5A2"}
+        ],
+        "cyp_enzymes": {"substrates": ["CYP3A4", "CYP2C19"], "inhibitors": [], "inducers": []},
+    },
+    "testosterone_cypionate": {
+        "name": "Testosterone Cypionate",
+        "canonical_name": "Testosterone Cypionate",
+        "synonyms": ["testc", "testcyp", "testosteronecypionate", "depotestosterone"],
+        "drug_class": "Androgen / Anabolic Steroid Ester",
+        "categories": ["Anabolic Steroid", "Hormone Replacement", "Prodrug Depot"],
+        "molecular_weight": 412.61,
+        "logp": 6.3,
+        "oral_bioavailability": 0.95,
+        "half_life": "8 days (192 hours)",
+        "t_half_numeric": 192.0,
+        "absorption_rate_ka": 0.02,
+        "volume_of_distribution": 1.0,
+        "protein_binding": 98.0,
+        "is_ester": True,
+        "ester_name": "Cypionate",
+        "parent_compound_id": "testosterone",
+        "ester_weight_factor": 0.699,
+        "mechanism": "Long-acting depot prodrug ester of testosterone. Hydrolyzed by endogenous esterases into free testosterone.",
+    },
+    "testosterone_enanthate": {
+        "name": "Testosterone Enanthate",
+        "canonical_name": "Testosterone Enanthate",
+        "synonyms": ["teste", "testenan", "testosteroneenanthate", "delatestryl"],
+        "drug_class": "Androgen / Anabolic Steroid Ester",
+        "categories": ["Anabolic Steroid", "Hormone Replacement", "Prodrug Depot"],
+        "molecular_weight": 400.59,
+        "logp": 6.0,
+        "oral_bioavailability": 0.95,
+        "half_life": "7 days (168 hours)",
+        "t_half_numeric": 168.0,
+        "absorption_rate_ka": 0.025,
+        "volume_of_distribution": 1.0,
+        "protein_binding": 98.0,
+        "is_ester": True,
+        "ester_name": "Enanthate",
+        "parent_compound_id": "testosterone",
+        "ester_weight_factor": 0.720,
+        "mechanism": "Depot prodrug ester of testosterone. Hydrolyzed by esterases into free testosterone.",
+    },
+    "testosterone_propionate": {
+        "name": "Testosterone Propionate",
+        "canonical_name": "Testosterone Propionate",
+        "synonyms": ["testp", "testprop", "testosteronepropionate", "testoviron"],
+        "drug_class": "Androgen / Anabolic Steroid Ester",
+        "categories": ["Anabolic Steroid", "Hormone Replacement", "Short-Acting Ester"],
+        "molecular_weight": 344.49,
+        "logp": 4.9,
+        "oral_bioavailability": 0.95,
+        "half_life": "1.5 days (36 hours)",
+        "t_half_numeric": 36.0,
+        "absorption_rate_ka": 0.08,
+        "volume_of_distribution": 1.0,
+        "protein_binding": 98.0,
+        "is_ester": True,
+        "ester_name": "Propionate",
+        "parent_compound_id": "testosterone",
+        "ester_weight_factor": 0.837,
+        "mechanism": "Short-acting prodrug ester of testosterone. Hydrolyzed rapidly into free testosterone.",
+    },
+    "testosterone_undecanoate": {
+        "name": "Testosterone Undecanoate",
+        "canonical_name": "Testosterone Undecanoate",
+        "synonyms": ["testu", "testundec", "testosteroneundecanoate", "aveed", "nebido", "androdiol"],
+        "drug_class": "Androgen / Anabolic Steroid Ester",
+        "categories": ["Anabolic Steroid", "Hormone Replacement", "Ultra Long-Acting Ester"],
+        "molecular_weight": 456.70,
+        "logp": 7.5,
+        "oral_bioavailability": 0.95,
+        "half_life": "21 days (504 hours)",
+        "t_half_numeric": 504.0,
+        "absorption_rate_ka": 0.008,
+        "volume_of_distribution": 1.0,
+        "protein_binding": 98.0,
+        "is_ester": True,
+        "ester_name": "Undecanoate",
+        "parent_compound_id": "testosterone",
+        "ester_weight_factor": 0.632,
+        "mechanism": "Ultra long-acting prodrug ester of testosterone.",
+    },
+    "nandrolone": {
+        "name": "Nandrolone",
+        "canonical_name": "Nandrolone (19-Nortestosterone Base)",
+        "synonyms": ["nandrolonebase", "19nortestosterone"],
+        "drug_class": "19-Nor Anabolic Steroid / Progestin",
+        "categories": ["Anabolic Steroid", "19-Nor Derivative"],
+        "molecular_weight": 274.40,
+        "logp": 2.6,
+        "is_ester": False,
+        "ester_weight_factor": 1.0,
+        "mechanism": "Binds and activates androgen receptor (AR) and progesterone receptor (PGR).",
+        "receptor_targets": [
+            {"target": "Androgen Receptor (AR / NR3C4)", "action": "agonist", "family": "Nuclear Receptor", "affinity_ki": 0.4},
+            {"target": "Progesterone Receptor (PGR / NR3C3)", "action": "agonist", "family": "Nuclear Receptor", "affinity_ki": 2.5}
+        ],
+    },
+    "nandrolone_decanoate": {
+        "name": "Nandrolone Decanoate",
+        "canonical_name": "Nandrolone Decanoate",
+        "synonyms": ["deca", "durabolin", "decadurabolin", "nandrolonedecanoate"],
+        "drug_class": "19-Nor Anabolic Steroid Ester",
+        "categories": ["Anabolic Steroid", "19-Nor Derivative", "Prodrug Depot"],
+        "molecular_weight": 428.65,
+        "logp": 6.8,
+        "half_life": "12 days (288 hours)",
+        "t_half_numeric": 288.0,
+        "is_ester": True,
+        "ester_name": "Decanoate",
+        "parent_compound_id": "nandrolone",
+        "ester_weight_factor": 0.640,
+    },
+    "drostanolone": {
+        "name": "Drostanolone",
+        "canonical_name": "Drostanolone Base",
+        "synonyms": ["masteronbase", "dromostanolone"],
+        "drug_class": "DHT-Derived Anabolic Steroid",
+        "categories": ["Anabolic Steroid", "DHT Derivative"],
+        "molecular_weight": 304.47,
+        "logp": 3.8,
+        "is_ester": False,
+        "ester_weight_factor": 1.0,
+        "mechanism": "Non-aromatizing DHT derivative. High binding affinity to androgen receptor and mild anti-estrogenic properties.",
+        "receptor_targets": [
+            {"target": "Androgen Receptor (AR / NR3C4)", "action": "agonist", "family": "Nuclear Receptor", "affinity_ki": 0.6}
+        ],
+    },
+    "drostanolone_propionate": {
+        "name": "Drostanolone Propionate",
+        "canonical_name": "Drostanolone Propionate",
+        "synonyms": ["masteron", "masteronpropionate", "drostanolonepropionate"],
+        "drug_class": "DHT-Derived Anabolic Steroid Ester",
+        "categories": ["Anabolic Steroid", "DHT Derivative", "Short-Acting Ester"],
+        "molecular_weight": 360.53,
+        "logp": 5.2,
+        "half_life": "1.5 days (36 hours)",
+        "t_half_numeric": 36.0,
+        "is_ester": True,
+        "ester_name": "Propionate",
+        "parent_compound_id": "drostanolone",
+        "ester_weight_factor": 0.844,
+    },
+    "drostanolone_enanthate": {
+        "name": "Drostanolone Enanthate",
+        "canonical_name": "Drostanolone Enanthate",
+        "synonyms": ["masteronenanthate", "drostanoloneenanthate"],
+        "drug_class": "DHT-Derived Anabolic Steroid Ester",
+        "categories": ["Anabolic Steroid", "DHT Derivative", "Long-Acting Ester"],
+        "molecular_weight": 416.64,
+        "logp": 6.3,
+        "half_life": "7 days (168 hours)",
+        "t_half_numeric": 168.0,
+        "is_ester": True,
+        "ester_name": "Enanthate",
+        "parent_compound_id": "drostanolone",
+        "ester_weight_factor": 0.730,
+    },
+    "estradiol": {
+        "name": "Estradiol",
+        "canonical_name": "Estradiol (17-Beta Estradiol)",
+        "synonyms": ["e2", "17betaestradiol", "estradiolbase"],
+        "drug_class": "Estrogen Hormone",
+        "categories": ["Hormone", "Estrogen"],
+        "molecular_weight": 272.38,
+        "logp": 2.4,
+        "is_ester": False,
+        "ester_weight_factor": 1.0,
+        "mechanism": "Primary female sex hormone. Binds ESR1 and ESR2 nuclear receptors.",
+        "receptor_targets": [
+            {"target": "Estrogen Receptor Alpha (ESR1)", "action": "agonist", "family": "Nuclear Receptor"},
+            {"target": "Estrogen Receptor Beta (ESR2)", "action": "agonist", "family": "Nuclear Receptor"}
+        ],
+    },
+    "estradiol_valerate": {
+        "name": "Estradiol Valerate",
+        "canonical_name": "Estradiol Valerate",
+        "synonyms": ["progynova", "delestrogen", "estradiolvalerate"],
+        "drug_class": "Estrogen Hormone Ester",
+        "categories": ["Hormone", "Estrogen Ester", "Prodrug Depot"],
+        "molecular_weight": 356.50,
+        "logp": 5.1,
+        "half_life": "4 days (96 hours)",
+        "t_half_numeric": 96.0,
+        "is_ester": True,
+        "ester_name": "Valerate",
+        "parent_compound_id": "estradiol",
+        "ester_weight_factor": 0.764,
+    }
+}
+
+
 def _get_default_compounds() -> List[Dict[str, Any]]:
-    return [{"key": key, **value} for key, value in COMPOUND_LIBRARY.items()]
+    compounds = [{"key": key, **value} for key, value in COMPOUND_LIBRARY.items()]
+    for key, value in CORE_SUPPLEMENT_LIBRARY.items():
+        compounds.append({"key": key, **value})
+    for key, value in CORE_ESTER_LIBRARY.items():
+        compounds.append({"key": key, **value})
+    return compounds
 
 
 CANONICAL_SYNONYM_MAP: Dict[str, str] = {
-    "masteron": "drostanolone",
+    "testosterone": "testosterone",
+    "testosteronebase": "testosterone",
+    "testc": "testosterone_cypionate",
+    "testcyp": "testosterone_cypionate",
+    "testosteronecypionate": "testosterone_cypionate",
+    "depotestosterone": "testosterone_cypionate",
+    "teste": "testosterone_enanthate",
+    "testenan": "testosterone_enanthate",
+    "testosteroneenanthate": "testosterone_enanthate",
+    "delatestryl": "testosterone_enanthate",
+    "testp": "testosterone_propionate",
+    "testprop": "testosterone_propionate",
+    "testosteronepropionate": "testosterone_propionate",
+    "testu": "testosterone_undecanoate",
+    "testundec": "testosterone_undecanoate",
+    "testosteroneundecanoate": "testosterone_undecanoate",
+    "nandrolone": "nandrolone",
+    "nandrolonebase": "nandrolone",
+    "deca": "nandrolone_decanoate",
+    "durabolin": "nandrolone_decanoate",
+    "decadurabolin": "nandrolone_decanoate",
+    "nandrolonedecanoate": "nandrolone_decanoate",
+    "drostanolone": "drostanolone",
+    "masteron": "drostanolone_propionate",
+    "masteronpropionate": "drostanolone_propionate",
+    "drostanolonepropionate": "drostanolone_propionate",
+    "masteronenanthate": "drostanolone_enanthate",
+    "drostanoloneenanthate": "drostanolone_enanthate",
     "dromostanolone": "drostanolone",
-    "drostanolonepropionate": "drostanolone",
-    "drostanoloneenanthate": "drostanolone",
-    "masteronpropionate": "drostanolone",
+
     "masteronenanthate": "drostanolone",
     "superdrol": "methyldrostanolone",
     "methasterone": "methyldrostanolone",
@@ -390,6 +858,10 @@ class CatalogService:
                 "pathway_details": "TEXT",
                 "source_tier": "TEXT DEFAULT 'seed'",
                 "last_enriched_at": "TEXT",
+                "parent_compound_id": "TEXT",
+                "is_ester": "INTEGER DEFAULT 0",
+                "ester_name": "TEXT",
+                "ester_weight_factor": "REAL DEFAULT 1.0",
             }
             for column_name, column_type in additions.items():
                 if column_name not in existing_columns:
@@ -402,6 +874,7 @@ class CatalogService:
             conn.execute("CREATE INDEX IF NOT EXISTS idx_compounds_indications ON compounds(indications)")
             conn.execute("CREATE INDEX IF NOT EXISTS idx_compounds_inchikey ON compounds(inchikey)")
             conn.execute("CREATE INDEX IF NOT EXISTS idx_compounds_source_tier ON compounds(source_tier)")
+            conn.execute("CREATE INDEX IF NOT EXISTS idx_compounds_parent_id ON compounds(parent_compound_id)")
 
     def _resolve_canonical_key(self, compound: Dict[str, Any]) -> str | None:
         candidates = [
@@ -583,6 +1056,10 @@ class CatalogService:
             "pathway_details": self._serialize(compound.get("pathway_details", [])),
             "source_tier": compound.get("source_tier", "seed"),
             "last_enriched_at": compound.get("last_enriched_at"),
+            "parent_compound_id": compound.get("parent_compound_id"),
+            "is_ester": 1 if compound.get("is_ester") else 0,
+            "ester_name": compound.get("ester_name"),
+            "ester_weight_factor": float(compound.get("ester_weight_factor") if compound.get("ester_weight_factor") is not None else 1.0),
         }
 
         with self._connect() as conn:
@@ -603,7 +1080,7 @@ class CatalogService:
                     t_max_h, c_max_ng_ml, fraction_unbound, protein_binding_pct, absorption_rate_ka,
                     renal_clearance_fraction, bcs_class, mec_ng_ml, mtc_ng_ml, therapeutic_index,
                     e_max, ec50_nm, ic50_nm, hill_coefficient, pathway_details, source_tier,
-                    last_enriched_at, updated_at
+                    last_enriched_at, parent_compound_id, is_ester, ester_name, ester_weight_factor, updated_at
                 )
                 VALUES (
                     :key, :name, :canonical_name, :canonical_key, :inchikey, :smiles, :logp, :tpsa,
@@ -619,7 +1096,7 @@ class CatalogService:
                     :t_max_h, :c_max_ng_ml, :fraction_unbound, :protein_binding_pct, :absorption_rate_ka,
                     :renal_clearance_fraction, :bcs_class, :mec_ng_ml, :mtc_ng_ml, :therapeutic_index,
                     :e_max, :ec50_nm, :ic50_nm, :hill_coefficient, :pathway_details, :source_tier,
-                    :last_enriched_at, CURRENT_TIMESTAMP
+                    :last_enriched_at, :parent_compound_id, :is_ester, :ester_name, :ester_weight_factor, CURRENT_TIMESTAMP
                 )
                 ON CONFLICT(key) DO UPDATE SET
                     name = excluded.name,
@@ -693,6 +1170,10 @@ class CatalogService:
                     pathway_details = COALESCE(excluded.pathway_details, compounds.pathway_details),
                     source_tier = COALESCE(excluded.source_tier, compounds.source_tier),
                     last_enriched_at = COALESCE(excluded.last_enriched_at, compounds.last_enriched_at),
+                    parent_compound_id = COALESCE(excluded.parent_compound_id, compounds.parent_compound_id),
+                    is_ester = COALESCE(excluded.is_ester, compounds.is_ester),
+                    ester_name = COALESCE(excluded.ester_name, compounds.ester_name),
+                    ester_weight_factor = COALESCE(excluded.ester_weight_factor, compounds.ester_weight_factor),
                     updated_at = CURRENT_TIMESTAMP
                 """,
                 row,
@@ -704,7 +1185,10 @@ class CatalogService:
             if alias:
                 _CATALOG_MEMORY_CACHE.pop((self.database_path, _normalize_compound_name(alias)), None)
 
-        return self.get_compound(row["key"], auto_enrich=False)
+        try:
+            return self.get_compound(row["key"], auto_enrich=False)
+        except TypeError:
+            return self.get_compound(row["key"])
 
     def get_compound(self, key: str, auto_enrich: bool = True) -> Dict[str, Any] | None:
         if not key:
@@ -774,6 +1258,39 @@ class CatalogService:
 
         if row is not None:
             comp = self._row_to_compound(dict(row))
+            parent_id = comp.get("parent_compound_id")
+            if parent_id and parent_id != comp.get("key"):
+                parent_comp = self.get_compound(parent_id, auto_enrich=False)
+                if parent_comp:
+                    if not comp.get("receptor_targets"):
+                        comp["receptor_targets"] = copy.deepcopy(parent_comp.get("receptor_targets", []))
+                    if not comp.get("drug_class") or comp.get("drug_class") == "Dietary Supplement / Chemical Compound":
+                        comp["drug_class"] = parent_comp.get("drug_class") or comp.get("drug_class")
+                    if not comp.get("mechanism") or len(str(comp.get("mechanism"))) < 15:
+                        comp["mechanism"] = parent_comp.get("mechanism") or comp.get("mechanism")
+                    if not comp.get("pathway_details"):
+                        comp["pathway_details"] = copy.deepcopy(parent_comp.get("pathway_details", []))
+                    if not comp.get("cyp_enzymes") or not any(comp["cyp_enzymes"].values()):
+                        comp["cyp_enzymes"] = copy.deepcopy(parent_comp.get("cyp_enzymes", {}))
+                    if not comp.get("side_effects"):
+                        comp["side_effects"] = copy.deepcopy(parent_comp.get("side_effects", []))
+                    if not comp.get("contraindications"):
+                        comp["contraindications"] = copy.deepcopy(parent_comp.get("contraindications", []))
+                    if not comp.get("interactions"):
+                        comp["interactions"] = copy.deepcopy(parent_comp.get("interactions", []))
+                    
+                    comp["parent_info"] = {
+                        "parent_key": parent_comp.get("key"),
+                        "parent_name": parent_comp.get("name"),
+                        "parent_mw": parent_comp.get("molecular_weight"),
+                    }
+                    
+                    if (comp.get("ester_weight_factor") == 1.0 or not comp.get("ester_weight_factor")) and parent_comp.get("molecular_weight") and comp.get("molecular_weight"):
+                        try:
+                            comp["ester_weight_factor"] = round(float(parent_comp["molecular_weight"]) / float(comp["molecular_weight"]), 3)
+                        except (ValueError, ZeroDivisionError):
+                            pass
+
             for alias in [comp.get("key"), comp.get("name"), comp.get("canonical_name"), comp.get("canonical_key"), comp.get("inchikey"), key] + list(comp.get("synonyms") or []):
                 if alias:
                     _CATALOG_MEMORY_CACHE[(self.database_path, _normalize_compound_name(alias))] = comp
@@ -886,6 +1403,33 @@ class CatalogService:
 
         return results
 
+    def _enrich_ester_variant_metadata(self, compounds: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+        if not compounds:
+            return compounds
+        with self._connect() as conn:
+            for comp in compounds:
+                comp_key = comp.get("key")
+                if not comp_key:
+                    continue
+                variant_rows = conn.execute(
+                    "SELECT key, name, ester_name, molecular_weight, ester_weight_factor, t_half_numeric, half_life FROM compounds WHERE parent_compound_id = ?",
+                    (comp_key,),
+                ).fetchall()
+                if variant_rows:
+                    comp["variants"] = [
+                        {
+                            "key": r["key"],
+                            "name": r["name"],
+                            "ester_name": r["ester_name"],
+                            "molecular_weight": r["molecular_weight"],
+                            "ester_weight_factor": float(r["ester_weight_factor"]) if r["ester_weight_factor"] is not None else 1.0,
+                            "t_half_numeric": r["t_half_numeric"],
+                            "half_life": r["half_life"],
+                        }
+                        for r in variant_rows
+                    ]
+        return compounds
+
     def search_compounds(self, query: str, limit: int = 20, auto_enrich: bool = True) -> List[Dict[str, Any]]:
         query_str = str(query or "").strip().lower()
         if not query_str:
@@ -901,7 +1445,7 @@ class CatalogService:
                     unique_compounds.append(c)
                     if len(unique_compounds) >= limit:
                         break
-            return unique_compounds
+            return self._enrich_ester_variant_metadata(unique_compounds)
 
         with self._connect() as conn:
             pattern = f"%{query_str}%"
@@ -938,14 +1482,14 @@ class CatalogService:
                     break
 
         if unique_compounds:
-            return unique_compounds
+            return self._enrich_ester_variant_metadata(unique_compounds)
 
         # On-demand write-through lookup if search returned 0 matches
         if auto_enrich and len(query_str) >= 3:
             try:
                 enriched = self.get_compound(query_str, auto_enrich=True)
                 if enriched:
-                    return [enriched]
+                    return self._enrich_ester_variant_metadata([enriched])
             except Exception:
                 pass
 
@@ -1074,6 +1618,10 @@ class CatalogService:
             "pathway_details": self._deserialize(row.get("pathway_details"), default=[]),
             "source_tier": row.get("source_tier", "seed"),
             "last_enriched_at": row.get("last_enriched_at"),
+            "parent_compound_id": row.get("parent_compound_id"),
+            "is_ester": bool(row.get("is_ester", 0)),
+            "ester_name": row.get("ester_name"),
+            "ester_weight_factor": float(row.get("ester_weight_factor") if row.get("ester_weight_factor") is not None else 1.0),
         }
 
         burdens = compound.get("organ_burdens") or {}

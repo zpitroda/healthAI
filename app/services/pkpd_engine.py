@@ -10,6 +10,8 @@ from app.schemas.pkpd import (
     TimePoint,
     QuantitativeTargetAffinity,
     PathwayAnnotation,
+    DistributionPercentiles,
+    MetricDistribution,
 )
 
 
@@ -39,27 +41,94 @@ class PKPDEngine:
         dose_mg = max(0.1, float(request.dose_mg))
         tau = max(1.0, float(request.dosing_interval_h))
         duration = max(tau, min(168.0, float(request.simulation_duration_h)))
-        weight_kg = max(20.0, float(request.weight_kg))
         is_steady_state = bool(request.steady_state)
 
-        # 1. Resolve / Infer Core Quantitative PK Parameters
+        # Biometric patient characteristics
+        sex = str(request.sex or "male").strip().lower()
+        age = max(1, min(120, int(request.age or 30)))
+        weight_kg = max(20.0, float(request.weight_kg or 70.0))
+        height_cm = max(100.0, float(request.height_cm or 175.0))
+        body_fat_pct = request.body_fat_pct
+
+        # 1. Calculate Patient Biometrics (Lean Body Mass, Total Body Water, BMI, eGFR)
+        height_m = height_cm / 100.0
+        bmi = weight_kg / (height_m * height_m)
+
+        if body_fat_pct is not None and body_fat_pct > 0:
+            lbm_kg = weight_kg * (1.0 - (body_fat_pct / 100.0))
+        else:
+            # Boer equation for LBM
+            if sex == "female":
+                lbm_kg = (0.252 * weight_kg) + (0.473 * height_cm) - 48.3
+            else:
+                lbm_kg = (0.407 * weight_kg) + (0.267 * height_cm) - 19.2
+        lbm_kg = max(15.0, min(weight_kg * 0.95, lbm_kg))
+
+        # Watson equation for Total Body Water (TBW) in Liters
+        if sex == "female":
+            tbw_l = -2.097 + (0.1069 * height_cm) + (0.2466 * weight_kg)
+        else:
+            tbw_l = 2.447 - (0.09516 * age) + (0.1074 * height_cm) + (0.3362 * weight_kg)
+        tbw_l = max(10.0, tbw_l)
+
+        # Calculate eGFR if not specified (Cockcroft-Gault formula normalized)
+        if request.egfr_ml_min is not None and float(request.egfr_ml_min) > 0:
+            egfr = float(request.egfr_ml_min)
+        else:
+            # Default serum creatinine ~ 0.95 mg/dL
+            cg_crcl = ((140.0 - age) * weight_kg) / (72.0 * 0.95)
+            if sex == "female":
+                cg_crcl *= 0.85
+            egfr = max(15.0, min(150.0, cg_crcl))
+
+        patient_biometrics = {
+            "sex": sex,
+            "age_years": age,
+            "weight_kg": round(weight_kg, 1),
+            "height_cm": round(height_cm, 1),
+            "bmi": round(bmi, 1),
+            "lean_body_mass_kg": round(lbm_kg, 1),
+            "total_body_water_l": round(tbw_l, 1),
+            "egfr_ml_min": round(egfr, 1),
+        }
+
+        # 2. Resolve / Infer Core Quantitative PK Parameters
         pk = cls.extract_pk_parameters(compound)
         pd_params = cls.extract_pd_parameters(compound)
 
-        # Patient renal & hepatic clearance scaling
-        v_d_total_l = max(0.5, pk.volume_of_distribution_l_kg * weight_kg)
+        logp = float(compound.get("logp") if compound.get("logp") is not None else 2.0)
+
+        # Scale Volume of Distribution Vd based on lipophilicity vs hydrophilicity
+        if logp > 3.0:
+            # Lipophilic drug: distributes into fat mass as well as LBM
+            v_d_total_l = max(0.5, pk.volume_of_distribution_l_kg * weight_kg)
+        else:
+            # Hydrophilic drug: distributes primarily into LBM / TBW
+            standard_lbm_baseline = 55.0 if sex == "male" else 45.0
+            lbm_scale_factor = lbm_kg / standard_lbm_baseline
+            v_d_total_l = max(0.5, pk.volume_of_distribution_l_kg * 70.0 * lbm_scale_factor)
+
+        # Base clearance scaling
         if pk.clearance_l_h_kg and pk.clearance_l_h_kg > 0:
             cl_base_l_h = pk.clearance_l_h_kg * weight_kg
         else:
             k_elim_base = math.log(2.0) / max(0.1, pk.t_half_h)
             cl_base_l_h = k_elim_base * v_d_total_l
 
+        # Age-related clearance decline (approx 0.7% decline per year over age 40)
+        age_decline_factor = max(0.6, 1.0 - (max(0, age - 40) * 0.007))
+
         fe = max(0.0, min(1.0, pk.renal_clearance_fraction))
-        egfr = max(10.0, float(request.egfr_ml_min or 95.0))
         renal_factor = min(1.5, egfr / 100.0)
 
         alt = max(5.0, float(request.alt_u_l or 25.0))
-        hepatic_factor = 0.6 if alt > 80 else (0.8 if alt > 45 else 1.0)
+        hepatic_factor = (0.6 if alt > 80 else (0.8 if alt > 45 else 1.0)) * age_decline_factor
+
+        # Female CYP3A4 metabolic scaling adjustment (+15% intrinsic activity for female hepatic clearance)
+        cyp_info = compound.get("cyp_enzymes") or {}
+        cyp3a4_sub = any("CYP3A4" in str(s).upper() for s in (cyp_info.get("substrates") or [])) if isinstance(cyp_info, dict) else False
+        if sex == "female" and cyp3a4_sub:
+            hepatic_factor *= 1.15
 
         cl_renal = cl_base_l_h * fe * renal_factor
         cl_hepatic = cl_base_l_h * (1.0 - fe) * hepatic_factor
@@ -297,6 +366,10 @@ class PKPDEngine:
             else:
                 time_subtherapeutic_count += 1
 
+            # Inter-Individual Variability Distribution at time t (CV = 25% for PK, CV = 20% for PD)
+            c_dist = cls._calculate_distribution_percentiles(c_p, cv=0.25)
+            eff_dist = cls._calculate_distribution_percentiles(effect, cv=0.20, max_bound=100.0)
+
             time_series.append(
                 TimePoint(
                     time_h=round(target_t, 2),
@@ -307,6 +380,8 @@ class PKPDEngine:
                     c_tissue_ng_ml=round(c_tissue, 2) if n_compartments == 2 else None,
                     cl_instantaneous_l_h=round(cl_inst, 2),
                     inhibitor_conc_ng_ml=round(i_conc, 2) if inhibitor_profiles else None,
+                    c_plasma_distribution=c_dist.percentiles,
+                    effect_distribution=eff_dist.percentiles,
                 )
             )
 
@@ -347,6 +422,13 @@ class PKPDEngine:
             pd_conc_points.append(round(conc_val, 4))
             pd_effect_points.append(round(eff_val, 2))
 
+        # Generate Population Metric Distribution Curves (CV ~ 25-30% inter-individual variability)
+        c_max_dist = cls._calculate_distribution_percentiles(c_max, cv=0.25)
+        c_avg_dist = cls._calculate_distribution_percentiles(c_avg_ss, cv=0.25)
+        auc_dist = cls._calculate_distribution_percentiles(auc_0_tau, cv=0.28)
+        clearance_dist = cls._calculate_distribution_percentiles(cl_effective_avg, cv=0.25)
+        half_life_dist = cls._calculate_distribution_percentiles(t_half_effective_h, cv=0.22)
+
         return PKPDSimulationResponse(
             compound_key=str(compound.get("key") or request.compound_key),
             compound_name=comp_name,
@@ -354,6 +436,7 @@ class PKPDEngine:
             dosing_interval_h=tau,
             route=route,
             steady_state=is_steady_state,
+            patient_biometrics=patient_biometrics,
             c_max_ng_ml=round(c_max, 2),
             t_max_h=round(t_max_ss, 2),
             c_min_trough_ng_ml=round(c_min, 2),
@@ -363,6 +446,11 @@ class PKPDEngine:
             fluctuation_pct=round(ptf, 1),
             elimination_half_life_effective_h=round(t_half_effective_h, 2),
             total_clearance_l_h=round(cl_effective_avg, 2),
+            c_max_distribution=c_max_dist,
+            c_avg_distribution=c_avg_dist,
+            auc_distribution=auc_dist,
+            clearance_distribution=clearance_dist,
+            half_life_distribution=half_life_dist,
             number_of_compartments=n_compartments,
             is_saturable_elimination=is_saturable,
             dynamic_ddi_active=dynamic_ddi_active,
@@ -378,6 +466,45 @@ class PKPDEngine:
             time_series=time_series,
             pd_curve_concentrations=pd_conc_points,
             pd_curve_effects=pd_effect_points,
+        )
+
+    @classmethod
+    def _calculate_distribution_percentiles(
+        cls, median_val: float, cv: float = 0.25, max_bound: Optional[float] = None
+    ) -> MetricDistribution:
+        """
+        Calculates log-normal probability distribution percentiles (p5, p25, p50, p75, p95)
+        for inter-individual population variability modeling.
+        Z-scores: p5 = -1.645, p25 = -0.6745, p50 = 0.0, p75 = +0.6745, p95 = +1.645
+        """
+        val = max(0.0001, float(median_val))
+        sigma_log = math.sqrt(math.log(1.0 + cv * cv))
+        mu_log = math.log(val)
+
+        p5_val = math.exp(mu_log - (1.645 * sigma_log))
+        p25_val = math.exp(mu_log - (0.6745 * sigma_log))
+        p50_val = val
+        p75_val = math.exp(mu_log + (0.6745 * sigma_log))
+        p95_val = math.exp(mu_log + (1.645 * sigma_log))
+
+        if max_bound is not None:
+            p5_val = min(max_bound, p5_val)
+            p25_val = min(max_bound, p25_val)
+            p50_val = min(max_bound, p50_val)
+            p75_val = min(max_bound, p75_val)
+            p95_val = min(max_bound, p95_val)
+
+        std_dev = val * cv
+        return MetricDistribution(
+            mean=round(val, 2),
+            std_dev=round(std_dev, 2),
+            percentiles=DistributionPercentiles(
+                p5=round(p5_val, 2),
+                p25=round(p25_val, 2),
+                p50=round(p50_val, 2),
+                p75=round(p75_val, 2),
+                p95=round(p95_val, 2),
+            ),
         )
 
     @classmethod

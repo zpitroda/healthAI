@@ -67,6 +67,10 @@ class InteractionWorkbenchRequest(BaseModel):
     labs: LabProfile = Field(default_factory=LabProfile)
     sleep_hours: float = 7.5
     blood_pressure: float = 120.0
+    sex: str = "male"
+    age: int = 30
     weight_kg: float = 75.0
+    height_cm: float = 175.0
+    body_fat_pct: Optional[float] = None
     timeline: Optional[str] = "steady_state"
     timeline_days: Optional[float] = None

@@ -1017,16 +1017,27 @@ class BiologicalGraph:
 
             c_dict = biomarker_contributions.get(bio_id, {})
             has_positive_driver = any(m > 0 for m in c_dict.values())
+            
+            # Pre-calculate positive substrate driver deltas
+            pos_delta_total = 0.0
+            for c_id, c_mag in c_dict.items():
+                if c_mag > 0:
+                    c_pos_gain = float(calib["gain_up"]) if calib else gain
+                    pos_delta_total += c_mag * c_pos_gain
+
             c_shares = []
             for c_id, c_mag in c_dict.items():
                 if calib:
                     if c_mag >= 0:
                         c_gain = float(calib["gain_up"])
+                        c_delta = round(c_mag * c_gain, 1 if baseline >= 10 else 2)
                     else:
-                        c_gain = float(calib["gain_up"] if has_positive_driver else calib["gain_down"])
+                        # Negative modulator counteracts the elevated positive substrate pool as well as baseline turnover
+                        c_gain_eff = (pos_delta_total + float(calib["gain_down"])) if has_positive_driver else float(calib["gain_down"])
+                        c_delta = round(c_mag * c_gain_eff, 1 if baseline >= 10 else 2)
                 else:
-                    c_gain = gain
-                c_delta = round(c_mag * c_gain, 1 if baseline >= 10 else 2)
+                    c_gain_eff = (pos_delta_total + gain) if (has_positive_driver and c_mag < 0) else gain
+                    c_delta = round(c_mag * c_gain_eff, 1 if baseline >= 10 else 2)
                 c_shares.append({"compound_id": c_id, "compound_label": self.graph.nodes[c_id].get("label", c_id), "contribution_mag": round(c_mag, 3), "estimated_delta": c_delta, "formatted_delta": f"{'+' if c_delta > 0 else ''}{c_delta} {unit}"})
 
             if c_shares:

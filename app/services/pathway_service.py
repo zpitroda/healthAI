@@ -552,7 +552,7 @@ class PathwayService:
             organ = "Renal / Adrenal"
             biomarkers.extend([
                 {"id": "bio_potassium", "label": "Serum Potassium (K+)", "unit": "mEq/L", "panel": "Electrolytes", "lower": 3.5, "upper": 5.0, "mag": -0.55},
-                {"id": "bio_blood_pressure", "label": "Systolic Blood Pressure", "unit": "mmHg", "panel": "Vitals", "lower": 90, "upper": 120, "mag": 0.12},
+                {"id": "bio_blood_pressure", "label": "Systolic Blood Pressure", "unit": "mmHg", "panel": "Vitals", "lower": 90, "upper": 120, "mag": 0.35},
             ])
             pheno_nodes.extend([
                 {"id": "pheno_bp_reduction", "label": "Aldosterone Antagonism & Antihypertensive Response", "cat": "therapeutic_benefit", "sev": "high", "mag": -0.85},

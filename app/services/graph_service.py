@@ -550,6 +550,8 @@ def build_selected_compound_graph(stack: List[Any], catalog_service: CatalogServ
             exo_arom_eff = 0.20 * (max(0.1, dose_mg) / 10.0) if dose_mg <= 10.0 else min(0.48, 0.20 + 0.0025 * (dose_mg - 10.0))
             existing_arom = next((t for t in receptor_targets if "aromatase" in str(t.get("target", "")).lower() or "cyp19a1" in str(t.get("target", "")).lower()), None)
             if existing_arom:
+                existing_arom["action"] = "substrate"
+                existing_arom["family"] = "Steroidogenesis"
                 existing_arom["intrinsic_efficacy"] = exo_arom_eff
                 existing_arom["pre_computed_stress"] = True
             else:
@@ -564,15 +566,97 @@ def build_selected_compound_graph(stack: List[Any], catalog_service: CatalogServ
 
         # Aromatase Inhibitor (Anastrozole, Letrozole, Exemestane)
         is_ai = any(w in c_name_lower or w in drug_class_lower or w in mechanism_text for w in ["aromatase inhibitor", "anastrozole", "letrozole", "exemestane"])
-        if is_ai and not any("aromatase" in str(t.get("target", "")).lower() for t in receptor_targets):
-            ai_eff = -min(0.95, 0.50 + 0.15 * math.log10(max(1.0, dose_mg)))
-            receptor_targets.append({
-                "target": "Aromatase (CYP19A1)",
-                "action": "inhibitor",
-                "family": "Enzyme",
-                "intrinsic_efficacy": ai_eff,
-                "pre_computed_stress": True,
-            })
+        if is_ai:
+            # 2.5mg Exemestane (titrated): ~55% inhibition
+            # 25mg Exemestane (clinical): ~85% inhibition
+            # 100mg Exemestane (mega-dose): ~98% inhibition (crashing E2)
+            ai_eff = -min(0.98, 0.55 + 0.25 * math.log10(max(0.1, dose_mg / 2.5)))
+            existing_ai_arom = next((t for t in receptor_targets if "aromatase" in str(t.get("target", "")).lower() or "cyp19a1" in str(t.get("target", "")).lower()), None)
+            if existing_ai_arom:
+                existing_ai_arom["target"] = "Aromatase (CYP19A1)"
+                existing_ai_arom["action"] = "inhibitor"
+                existing_ai_arom["family"] = "Enzyme"
+                existing_ai_arom["intrinsic_efficacy"] = ai_eff
+                existing_ai_arom["pre_computed_stress"] = True
+            else:
+                receptor_targets.append({
+                    "target": "Aromatase (CYP19A1)",
+                    "action": "inhibitor",
+                    "family": "Enzyme",
+                    "intrinsic_efficacy": ai_eff,
+                    "pre_computed_stress": True,
+                })
+
+        # Adenosine Receptor Antagonists / Methylxanthines (Caffeine, Theophylline, Theobromine)
+        is_caffeine = any(w in c_name_lower or w in drug_class_lower for w in ["caffeine", "theophylline", "theobromine", "methylxanthine", "adenosine antagonist"])
+        if is_caffeine:
+            for t in receptor_targets:
+                if any(w in str(t.get("target", "")).lower() for w in ["adenosine", "adora1", "adora2", "adora3"]):
+                    t["action"] = "antagonist"
+                    t["intrinsic_efficacy"] = -0.85
+                    t["pre_computed_stress"] = True
+
+        # Mineralocorticoid Receptor Antagonists / MRAs (Eplerenone, Spironolactone, Finerenone)
+        is_mra = any(w in c_name_lower or w in drug_class_lower or w in mechanism_text for w in ["mineralocorticoid", "aldosterone antagonist", "eplerenone", "spironolactone", "finerenone"])
+        if is_mra:
+            mra_eff = -min(0.85, 0.25 + 0.30 * math.log10(max(1.0, dose_mg / 12.5)))
+            existing_mr = next((t for t in receptor_targets if any(w in str(t.get("target", "")).lower() for w in ["mineralocorticoid", "aldosterone", "nr3c2"])), None)
+            if existing_mr:
+                existing_mr["action"] = "antagonist"
+                existing_mr["intrinsic_efficacy"] = mra_eff
+                existing_mr["pre_computed_stress"] = True
+            else:
+                receptor_targets.append({
+                    "target": "Mineralocorticoid Receptor (Aldosterone Receptor / NR3C2)",
+                    "action": "antagonist",
+                    "family": "Nuclear Receptor",
+                    "intrinsic_efficacy": mra_eff,
+                    "pre_computed_stress": True,
+                })
+            # Remove off-target micromolar (>5000 nM) false positive agonist bindings on steroid receptors for MRAs
+            receptor_targets = [
+                t for t in receptor_targets
+                if any(w in str(t.get("target", "")).lower() for w in ["mineralocorticoid", "aldosterone", "nr3c2"])
+                or float(t.get("affinity_ki") or t.get("inhibition_ic50") or 0.0) < 5000.0
+            ]
+
+        # L-Theanine / Calming Glutamatergic & GABA-A Modulators
+        is_theanine = any(w in c_name_lower or w in drug_class_lower for w in ["theanine", "l-theanine", "suntheanine"])
+        if is_theanine:
+            if not any("gaba" in str(t.get("target", "")).lower() for t in receptor_targets):
+                receptor_targets.append({
+                    "target": "GABA-A Receptor (GABRA1 / GABRA2)",
+                    "action": "agonist",
+                    "family": "Ion Channel / Neurotransmitter",
+                    "intrinsic_efficacy": 0.75,
+                    "pre_computed_stress": True,
+                })
+            if not any("glutamate" in str(t.get("target", "")).lower() for t in receptor_targets):
+                receptor_targets.append({
+                    "target": "Glutamate Receptor (GRIN1 / NMDA)",
+                    "action": "antagonist",
+                    "family": "Ion Channel / Glutamate",
+                    "intrinsic_efficacy": -0.65,
+                    "pre_computed_stress": True,
+                })
+
+        # Beta-Adrenergic Receptor Blockers (Beta-Blockers: Nebivolol, Metoprolol, Atenolol, Propranolol, Bisoprolol, Carvedilol)
+        is_beta_blocker = any(w in c_name_lower or w in drug_class_lower or w in mechanism_text for w in ["beta-blocker", "beta blocker", "beta adrenergic antagonist", "nebivolol", "metoprolol", "atenolol", "propranolol", "bisoprolol", "carvedilol"])
+        if is_beta_blocker:
+            bb_eff = -min(0.95, 0.40 + 0.35 * math.log10(max(1.0, dose_mg / 2.5)))
+            for t in receptor_targets:
+                if any(w in str(t.get("target", "")).lower() for w in ["beta-1", "beta-2", "beta-3", "adrb1", "adrb2", "adrb3", "beta adrenergic receptor", "beta-adrenergic receptor"]):
+                    t["action"] = "antagonist"
+                    t["intrinsic_efficacy"] = bb_eff
+                    t["pre_computed_stress"] = True
+            if not any("beta" in str(t.get("target", "")).lower() for t in receptor_targets):
+                receptor_targets.append({
+                    "target": "Beta-1 Adrenergic Receptor (ADRB1)",
+                    "action": "antagonist",
+                    "family": "GPCR / Adrenergic",
+                    "intrinsic_efficacy": bb_eff,
+                    "pre_computed_stress": True,
+                })
 
         is_androgen = (is_steroidal_androgen(compound) or ("androgen" in drug_class_lower and "antagonist" not in drug_class_lower and "inhibitor" not in drug_class_lower) or "sarm" in drug_class_lower) and not is_ai
         is_arom = is_aromatizable_androgen(compound) if is_androgen else True
@@ -633,6 +717,26 @@ def build_selected_compound_graph(stack: List[Any], catalog_service: CatalogServ
                 "intrinsic_efficacy": 0.85,
                 "pre_computed_stress": True,
             })
+
+        # Angiotensin II Receptor Blockers (ARBs / Sartans: Telmisartan, Losartan, Candesartan, Valsartan)
+        is_arb = any(w in c_name_lower or w in drug_class_lower or w in mechanism_text for w in ["arb", "sartan", "angiotensin receptor blocker", "agtr1 antagonist", "telmisartan", "losartan", "candesartan", "valsartan", "olmesartan", "irbesartan"])
+        if is_arb:
+            # 10mg Telmisartan (sub-clinical): ~15% efficacy (modest ~4-6 mmHg drop)
+            # 80mg Telmisartan (max clinical): ~75% efficacy (strong counterbalance)
+            arb_eff = -min(0.85, 0.15 + 0.60 * ((dose_mg / 80.0) ** 0.65))
+            existing_arb = next((t for t in receptor_targets if "angiotensin" in str(t.get("target", "")).lower() or "agtr1" in str(t.get("target", "")).lower() or "ace" in str(t.get("target", "")).lower()), None)
+            if existing_arb:
+                existing_arb["action"] = "antagonist"
+                existing_arb["intrinsic_efficacy"] = arb_eff
+                existing_arb["pre_computed_stress"] = True
+            else:
+                receptor_targets.append({
+                    "target": "Angiotensin II Type-1 (AT1) Receptor / ACE",
+                    "action": "antagonist",
+                    "family": "GPCR / Renin-Angiotensin",
+                    "intrinsic_efficacy": arb_eff,
+                    "pre_computed_stress": True,
+                })
 
         # Dynamic First-Principles Organ Stress & Clearance Pathway Synthesis
         cyp_info = compound.get("cyp_enzymes") or {}
@@ -830,6 +934,19 @@ def build_selected_compound_graph(stack: List[Any], catalog_service: CatalogServ
             if is_androgen and not is_5ar:
                 if any(w in target_raw_lower for w in ["5-alpha reductase", "srd5a", "5ar"]) and any(act in action_lower for act in ["substrate", "agonist"]):
                     continue
+
+            # Ensure aromatizable androgens (non-AI) have action="substrate" for aromatase
+            if is_androgen and is_arom and not is_ai:
+                if any(w in target_raw_lower for w in ["aromatase", "cyp19", "cyp19a1"]):
+                    receptor["action"] = "substrate"
+                    action_lower = "substrate"
+
+            # Ensure 5AR substrates (non-5ARI) have action="substrate" for 5AR
+            is_5ari = any(w in c_name_lower or w in drug_class_lower or w in mechanism_text for w in ["5-alpha reductase inhibitor", "5ari", "finasteride", "dutasteride"])
+            if is_androgen and is_5ar and not is_5ari:
+                if any(w in target_raw_lower for w in ["5-alpha reductase", "srd5a", "5ar"]):
+                    receptor["action"] = "substrate"
+                    action_lower = "substrate"
 
             target_id = _normalize_target_node_id(
                 raw_name=target_raw,

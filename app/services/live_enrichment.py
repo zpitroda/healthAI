@@ -255,12 +255,14 @@ class LiveEnrichmentService:
                                 # Default actions for known receptor families
                                 if any(s in t_lower for s in ["androgen", "progesterone", "estrogen", "glucocorticoid", "growth hormone secretagogue", "ghrelin", "incretin", "glp", "gip", "glucagon", "oxytocin", "vasopressin", "melanocortin"]):
                                     action_type = "agonist"
-                                elif any(s in t_lower for s in ["transporter", "reductase", "aromatase", "dehydrogenase", "synthase", "kinase", "pde5", "neprilysin", "enkephalinase"]):
-                                    action_type = "inhibitor"
-                                elif std_type in ("IC50", "INHIBITION"):
-                                    action_type = "inhibitor"
                                 elif std_type == "KM":
                                     action_type = "substrate"
+                                elif std_type in ("IC50", "INHIBITION"):
+                                    action_type = "inhibitor"
+                                elif any(s in t_lower for s in ["aromatase", "5-alpha reductase", "srd5a"]) and any(w in cleaned_name for w in ["testosterone", "androstenedione", "dhea", "nandrolone", "boldenone"]):
+                                    action_type = "substrate"
+                                elif any(s in t_lower for s in ["transporter", "reductase", "aromatase", "dehydrogenase", "synthase", "kinase", "pde5", "neprilysin", "enkephalinase"]):
+                                    action_type = "inhibitor"
                                 else:
                                     action_type = "modulator"
 

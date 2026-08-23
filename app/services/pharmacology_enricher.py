@@ -1029,11 +1029,19 @@ class PharmacologyEnricher:
                 t for t in combined_targets
                 if not (isinstance(t, dict) and any(w in str(t.get("target", "")).lower() for w in ["aromatase", "cyp19", "cyp19a1"]) and "substrate" in str(t.get("action", "")).lower())
             ]
-        if is_androgen and not is_5ar:
-            combined_targets = [
-                t for t in combined_targets
-                if not (isinstance(t, dict) and any(w in str(t.get("target", "")).lower() for w in ["5-alpha reductase", "srd5a", "5ar"]) and "substrate" in str(t.get("action", "")).lower())
-            ]
+        # Ensure aromatizable androgens have action="substrate" for aromatase targets and 5AR substrates have action="substrate"
+        is_ai = any(w in str(compound.get("drug_class", "")).lower() or w in str(compound.get("name", "")).lower() for w in ["aromatase inhibitor", "ai", "anastrozole", "letrozole", "exemestane"])
+        is_5ari = any(w in str(compound.get("drug_class", "")).lower() or w in str(compound.get("name", "")).lower() for w in ["5-alpha reductase inhibitor", "5ari", "finasteride", "dutasteride"])
+        if is_androgen and is_arom and not is_ai:
+            for t in combined_targets:
+                if isinstance(t, dict) and any(w in str(t.get("target", "")).lower() for w in ["aromatase", "cyp19", "cyp19a1"]):
+                    t["action"] = "substrate"
+                    t["family"] = "Steroid Biosynthesis"
+        if is_androgen and is_5ar and not is_5ari:
+            for t in combined_targets:
+                if isinstance(t, dict) and any(w in str(t.get("target", "")).lower() for w in ["5-alpha reductase", "srd5a", "5ar"]):
+                    t["action"] = "substrate"
+                    t["family"] = "Steroid Biosynthesis"
 
         enriched["receptor_targets"] = combined_targets
 

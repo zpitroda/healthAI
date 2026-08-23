@@ -79,12 +79,24 @@ class PKPDSimulationRequest(BaseModel):
     dosing_interval_h: float = Field(default=24.0, gt=0, description="Dosing interval tau in hours (e.g. 8, 12, 24)")
     simulation_duration_h: float = Field(default=48.0, gt=0, le=168.0, description="Simulation time span in hours")
     route: str = Field(default="oral", description="oral or iv")
+    sex: str = Field(default="male", description="Patient sex ('male' or 'female')")
+    age: int = Field(default=30, ge=1, le=120, description="Patient age in years")
     weight_kg: float = Field(default=70.0, gt=0, description="Patient body weight in kg")
+    height_cm: float = Field(default=175.0, gt=0, description="Patient height in cm")
+    body_fat_pct: Optional[float] = Field(default=None, ge=1.0, le=80.0, description="Patient body fat percentage")
     steady_state: bool = Field(default=True, description="Whether to simulate steady-state multiple dosing vs single dose")
     co_administered_compounds: List[str] = Field(default_factory=list, description="Other active compound keys in stack to model DDI PK shifts")
-    egfr_ml_min: Optional[float] = Field(default=95.0, description="Patient eGFR for renal clearance scaling")
+    egfr_ml_min: Optional[float] = Field(default=None, description="Patient eGFR for renal clearance scaling (auto-calculated from age/sex/weight/creatinine if None)")
     alt_u_l: Optional[float] = Field(default=25.0, description="Patient ALT for hepatic clearance scaling")
     serum_albumin_g_dl: Optional[float] = Field(default=4.5, description="Patient serum albumin for protein binding scaling")
+
+
+class DistributionPercentiles(BaseModel):
+    p5: float = Field(..., description="5th percentile value")
+    p25: float = Field(..., description="25th percentile value")
+    p50: float = Field(..., description="50th percentile (median) value")
+    p75: float = Field(..., description="75th percentile value")
+    p95: float = Field(..., description="95th percentile value")
 
 
 class TimePoint(BaseModel):
@@ -96,6 +108,15 @@ class TimePoint(BaseModel):
     c_tissue_ng_ml: Optional[float] = Field(default=None, description="Peripheral compartment concentration for 2-compartment open models")
     cl_instantaneous_l_h: Optional[float] = Field(default=None, description="Instantaneous dynamic clearance at time t (L/h)")
     inhibitor_conc_ng_ml: Optional[float] = Field(default=None, description="Continuous inhibitor concentration I(t) modulating clearance")
+    # Distribution curve percentiles for concentration at time t
+    c_plasma_distribution: Optional[DistributionPercentiles] = Field(default=None, description="Population probability distribution percentiles for C(t)")
+    effect_distribution: Optional[DistributionPercentiles] = Field(default=None, description="Population probability distribution percentiles for Effect E(t)")
+
+
+class MetricDistribution(BaseModel):
+    mean: float
+    std_dev: float
+    percentiles: DistributionPercentiles
 
 
 class PKPDSimulationResponse(BaseModel):
@@ -108,7 +129,10 @@ class PKPDSimulationResponse(BaseModel):
     route: str
     steady_state: bool
 
-    # Dynamic PK Metrics
+    # Patient Biometric Context Used
+    patient_biometrics: Dict[str, Any] = Field(default_factory=dict, description="Resolved biometric scaling inputs (sex, age, weight, height, BMI, LBM, TBW)")
+
+    # Dynamic PK Metrics (Median / Central Estimate)
     c_max_ng_ml: float
     t_max_h: float
     c_min_trough_ng_ml: float
@@ -118,6 +142,13 @@ class PKPDSimulationResponse(BaseModel):
     fluctuation_pct: float
     elimination_half_life_effective_h: float
     total_clearance_l_h: float
+
+    # Population Inter-Individual Variability Distribution Curves
+    c_max_distribution: MetricDistribution = Field(..., description="Population distribution curve for Cmax")
+    c_avg_distribution: MetricDistribution = Field(..., description="Population distribution curve for Cavg")
+    auc_distribution: MetricDistribution = Field(..., description="Population distribution curve for AUC0-tau")
+    clearance_distribution: MetricDistribution = Field(..., description="Population distribution curve for total clearance")
+    half_life_distribution: MetricDistribution = Field(..., description="Population distribution curve for elimination half-life")
 
     # Model & DDI Classifications
     number_of_compartments: int = Field(default=1, description="1 or 2 compartment model used")

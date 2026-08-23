@@ -18,14 +18,23 @@ def _dose_for_compound(compound: Dict[str, Any], profile: Dict[str, Any]) -> Dic
     mg_per_kg = dosing.get("mg_per_kg", {}) or {}
     weight_kg = profile.get("weight_kg") or 70
 
+    sex = str(profile.get("sex") or "male").lower()
+    age = int(profile.get("age") or 30)
+    height_cm = float(profile.get("height_cm") or 175.0)
+
+    # Adjust dose recommendations for sex and age variations where applicable
+    sex_scaling = 0.88 if sex == "female" else 1.0
+    age_scaling = 0.90 if age > 65 else 1.0
+    combined_biometric_scale = sex_scaling * age_scaling
+
     if basis == "bodyweight" and mg_per_kg:
         threshold = mg_per_kg.get("threshold", 0)
         common = mg_per_kg.get("common", 0)
         heavy = mg_per_kg.get("heavy", 0)
 
-        threshold_dose = round(threshold * weight_kg)
-        common_dose = round(common * weight_kg)
-        heavy_dose = round(heavy * weight_kg)
+        threshold_dose = round(threshold * weight_kg * combined_biometric_scale)
+        common_dose = round(common * weight_kg * combined_biometric_scale)
+        heavy_dose = round(heavy * weight_kg * combined_biometric_scale)
         return {
             "unit": unit,
             "dosage_range": {

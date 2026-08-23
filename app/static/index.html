@@ -1901,10 +1901,37 @@
           <!-- BIOMARKER ACCORDION -->
           <div class="biomarker-card">
             <div class="biomarker-header">
-              <span>Personal Biomarker Modifiers</span>
-              <span style="font-size: 0.72rem; color: var(--accent-cyan);">Live Sync</span>
+              <span>Personal Biomarker & Biometric Modifiers</span>
+              <span style="font-size: 0.72rem; color: var(--accent-cyan);" id="biometric-sync-badge">Live Sync</span>
+            </div>
+            <div style="font-size: 0.72rem; color: var(--text-muted); margin-bottom: 12px; line-height: 1.35;">
+              Fields left blank are treated as unknown, widening population distribution uncertainty curves.
             </div>
             <div class="biomarker-grid">
+              <div class="biomarker-field">
+                <label class="biomarker-label" for="bio-sex">Sex</label>
+                <select id="bio-sex" class="biomarker-input">
+                  <option value="" selected>Unspecified (Unknown)</option>
+                  <option value="male">Male</option>
+                  <option value="female">Female</option>
+                </select>
+              </div>
+              <div class="biomarker-field">
+                <label class="biomarker-label" for="bio-age">Age (Years)</label>
+                <input type="number" id="bio-age" class="biomarker-input" placeholder="e.g. 30" min="1" max="120" />
+              </div>
+              <div class="biomarker-field">
+                <label class="biomarker-label" for="bio-weight">Weight (kg)</label>
+                <input type="number" id="bio-weight" class="biomarker-input" placeholder="e.g. 70" min="20" max="300" step="0.5" />
+              </div>
+              <div class="biomarker-field">
+                <label class="biomarker-label" for="bio-height">Height (cm)</label>
+                <input type="number" id="bio-height" class="biomarker-input" placeholder="e.g. 175" min="100" max="250" />
+              </div>
+              <div class="biomarker-field">
+                <label class="biomarker-label" for="bio-bodyfat">Body Fat (%)</label>
+                <input type="number" id="bio-bodyfat" class="biomarker-input" placeholder="e.g. 15" min="2" max="60" step="0.5" />
+              </div>
               <div class="biomarker-field">
                 <label class="biomarker-label" for="bio-bp">Blood Pressure (mmHg)</label>
                 <input type="number" id="bio-bp" class="biomarker-input" value="120" min="80" max="220" />
@@ -2015,6 +2042,11 @@
       const state = {
         stack: [], // array of compound objects
         biomarkers: {
+          sex: null,
+          age: null,
+          weight_kg: null,
+          height_cm: null,
+          body_fat_pct: null,
           blood_pressure: 120,
           sleep_hours: 7.5,
           alt_u_l: 25,
@@ -2384,14 +2416,31 @@
       window.removeCompoundKey = removeCompoundKey;
 
       // BIOMARKER INPUT LISTENERS
-      ['bio-bp', 'bio-sleep', 'bio-alt', 'bio-hematocrit'].forEach(id => {
-        document.getElementById(id).addEventListener('input', () => {
+      ['bio-sex', 'bio-age', 'bio-weight', 'bio-height', 'bio-bodyfat', 'bio-bp', 'bio-sleep', 'bio-alt', 'bio-hematocrit'].forEach(id => {
+        const el = document.getElementById(id);
+        if (!el) return;
+        const handler = () => {
+          const sexVal = document.getElementById('bio-sex').value;
+          const ageVal = document.getElementById('bio-age').value;
+          const weightVal = document.getElementById('bio-weight').value;
+          const heightVal = document.getElementById('bio-height').value;
+          const bodyfatVal = document.getElementById('bio-bodyfat').value;
+
+          state.biomarkers.sex = sexVal ? sexVal : null;
+          state.biomarkers.age = ageVal ? parseInt(ageVal) : null;
+          state.biomarkers.weight_kg = weightVal ? parseFloat(weightVal) : null;
+          state.biomarkers.height_cm = heightVal ? parseFloat(heightVal) : null;
+          state.biomarkers.body_fat_pct = bodyfatVal ? parseFloat(bodyfatVal) : null;
+
           state.biomarkers.blood_pressure = parseFloat(document.getElementById('bio-bp').value) || 120;
           state.biomarkers.sleep_hours = parseFloat(document.getElementById('bio-sleep').value) || 7.5;
           state.biomarkers.alt_u_l = parseFloat(document.getElementById('bio-alt').value) || 25;
           state.biomarkers.hematocrit_pct = parseFloat(document.getElementById('bio-hematocrit').value) || 46;
+
           evaluateStack();
-        });
+        };
+        el.addEventListener('input', handler);
+        el.addEventListener('change', handler);
       });
 
       document.getElementById('clear-stack-btn').addEventListener('click', () => {
@@ -2431,6 +2480,11 @@
             timing: c.timing,
             frequency: c.frequency || 'daily',
           })),
+          sex: state.biomarkers.sex,
+          age: state.biomarkers.age,
+          weight_kg: state.biomarkers.weight_kg,
+          height_cm: state.biomarkers.height_cm,
+          body_fat_pct: state.biomarkers.body_fat_pct,
           blood_pressure: state.biomarkers.blood_pressure,
           sleep_hours: state.biomarkers.sleep_hours,
           timeline: state.timeline || 'steady_state',

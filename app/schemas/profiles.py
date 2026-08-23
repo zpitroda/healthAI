@@ -51,11 +51,11 @@ class UserProfile(BaseModel):
     stack: List[Any] = Field(default_factory=list)
     goals: List[str] = Field(default_factory=list)
     experience: str = "intermediate"
-    sex: str = "male"
-    age: int = 30
-    weight_kg: float = 70.0
-    height_cm: float = 175.0
-    sleep_hours: float = 7.0
+    sex: Optional[str] = None
+    age: Optional[int] = None
+    weight_kg: Optional[float] = None
+    height_cm: Optional[float] = None
+    sleep_hours: Optional[float] = 7.0
     body_fat_pct: Optional[float] = None
     blood_pressure: Optional[float] = None
     labs: LabProfile = Field(default_factory=LabProfile)
@@ -65,12 +65,12 @@ class InteractionWorkbenchRequest(BaseModel):
     """Payload for evaluating multi-compound pharmacodynamic/pharmacokinetic collision matrix & cascades."""
     stack: List[Any] = Field(default_factory=list)
     labs: LabProfile = Field(default_factory=LabProfile)
-    sleep_hours: float = 7.5
-    blood_pressure: float = 120.0
-    sex: str = "male"
-    age: int = 30
-    weight_kg: float = 75.0
-    height_cm: float = 175.0
+    sleep_hours: Optional[float] = 7.5
+    blood_pressure: Optional[float] = 120.0
+    sex: Optional[str] = None
+    age: Optional[int] = None
+    weight_kg: Optional[float] = None
+    height_cm: Optional[float] = None
     body_fat_pct: Optional[float] = None
     timeline: Optional[str] = "steady_state"
     timeline_days: Optional[float] = None

@@ -87,3 +87,45 @@ def test_population_variability_distribution_curves():
     assert tp.c_plasma_distribution.p5 <= tp.c_plasma_distribution.p25 <= tp.c_plasma_distribution.p50 <= tp.c_plasma_distribution.p75 <= tp.c_plasma_distribution.p95
     assert tp.effect_distribution is not None
     assert tp.effect_distribution.p5 <= tp.effect_distribution.p25 <= tp.effect_distribution.p50 <= tp.effect_distribution.p75 <= tp.effect_distribution.p95
+
+
+def test_missing_biometrics_widens_distribution_curves():
+    """Verify that leaving biometric fields blank (None) expands distribution percentile bands due to unknown uncertainty."""
+    service = CatalogService()
+    compound = service.get_compound("caffeine") or {
+        "key": "caffeine",
+        "name": "Caffeine",
+        "t_half_numeric": 5.0,
+        "volume_of_distribution_l_kg": 0.6,
+    }
+
+    # Fully specified biometrics
+    req_known = PKPDSimulationRequest(
+        compound_key="caffeine",
+        dose_mg=200.0,
+        sex="male",
+        age=30,
+        weight_kg=70.0,
+        height_cm=175.0,
+        steady_state=True,
+    )
+    res_known = PKPDEngine.simulate(compound, req_known)
+
+    # Completely blank/unspecified biometrics
+    req_unknown = PKPDSimulationRequest(
+        compound_key="caffeine",
+        dose_mg=200.0,
+        sex=None,
+        age=None,
+        weight_kg=None,
+        height_cm=None,
+        steady_state=True,
+    )
+    res_unknown = PKPDEngine.simulate(compound, req_unknown)
+
+    # Compare distribution widths (p95 - p5)
+    known_width = res_known.c_max_distribution.percentiles.p95 - res_known.c_max_distribution.percentiles.p5
+    unknown_width = res_unknown.c_max_distribution.percentiles.p95 - res_unknown.c_max_distribution.percentiles.p5
+
+    assert res_unknown.patient_biometrics["unknown_biometrics_count"] == 4
+    assert unknown_width > known_width * 1.5  # Significantly wider uncertainty band

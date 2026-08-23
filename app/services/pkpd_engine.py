@@ -43,12 +43,24 @@ class PKPDEngine:
         duration = max(tau, min(168.0, float(request.simulation_duration_h)))
         is_steady_state = bool(request.steady_state)
 
-        # Biometric patient characteristics
+        # Biometric patient characteristics (Track whether fields were specified or left unknown)
+        is_sex_known = request.sex is not None and str(request.sex).strip() != ""
+        is_age_known = request.age is not None
+        is_weight_known = request.weight_kg is not None
+        is_height_known = request.height_cm is not None
+
         sex = str(request.sex or "male").strip().lower()
-        age = max(1, min(120, int(request.age or 30)))
-        weight_kg = max(20.0, float(request.weight_kg or 70.0))
-        height_cm = max(100.0, float(request.height_cm or 175.0))
+        age = max(1, min(120, int(request.age if request.age is not None else 30)))
+        weight_kg = max(20.0, float(request.weight_kg if request.weight_kg is not None else 70.0))
+        height_cm = max(100.0, float(request.height_cm if request.height_cm is not None else 175.0))
         body_fat_pct = request.body_fat_pct
+
+        # Base Coefficient of Variation (CV) for population distribution curves
+        # Base PK CV = 25%, Base PD CV = 20%
+        # If biometric parameters are unspecified/unknown, expand distribution uncertainty bands
+        unknown_biometric_count = sum([not is_sex_known, not is_age_known, not is_weight_known, not is_height_known])
+        cv_pk_scale = 0.25 + (unknown_biometric_count * 0.08)  # Up to 57% CV if all unknown
+        cv_pd_scale = 0.20 + (unknown_biometric_count * 0.06)  # Up to 44% CV if all unknown
 
         # 1. Calculate Patient Biometrics (Lean Body Mass, Total Body Water, BMI, eGFR)
         height_m = height_cm / 100.0
@@ -82,14 +94,16 @@ class PKPDEngine:
             egfr = max(15.0, min(150.0, cg_crcl))
 
         patient_biometrics = {
-            "sex": sex,
-            "age_years": age,
-            "weight_kg": round(weight_kg, 1),
-            "height_cm": round(height_cm, 1),
+            "sex": sex if is_sex_known else "unspecified (default male)",
+            "age_years": age if is_age_known else "unspecified (default 30)",
+            "weight_kg": round(weight_kg, 1) if is_weight_known else "unspecified (default 70.0)",
+            "height_cm": round(height_cm, 1) if is_height_known else "unspecified (default 175.0)",
             "bmi": round(bmi, 1),
             "lean_body_mass_kg": round(lbm_kg, 1),
             "total_body_water_l": round(tbw_l, 1),
             "egfr_ml_min": round(egfr, 1),
+            "unknown_biometrics_count": unknown_biometric_count,
+            "distribution_cv_multiplier": round(cv_pk_scale / 0.25, 2),
         }
 
         # 2. Resolve / Infer Core Quantitative PK Parameters
@@ -366,9 +380,9 @@ class PKPDEngine:
             else:
                 time_subtherapeutic_count += 1
 
-            # Inter-Individual Variability Distribution at time t (CV = 25% for PK, CV = 20% for PD)
-            c_dist = cls._calculate_distribution_percentiles(c_p, cv=0.25)
-            eff_dist = cls._calculate_distribution_percentiles(effect, cv=0.20, max_bound=100.0)
+            # Inter-Individual Variability Distribution at time t (scaled CV if biometrics unknown)
+            c_dist = cls._calculate_distribution_percentiles(c_p, cv=cv_pk_scale)
+            eff_dist = cls._calculate_distribution_percentiles(effect, cv=cv_pd_scale, max_bound=100.0)
 
             time_series.append(
                 TimePoint(
@@ -422,12 +436,12 @@ class PKPDEngine:
             pd_conc_points.append(round(conc_val, 4))
             pd_effect_points.append(round(eff_val, 2))
 
-        # Generate Population Metric Distribution Curves (CV ~ 25-30% inter-individual variability)
-        c_max_dist = cls._calculate_distribution_percentiles(c_max, cv=0.25)
-        c_avg_dist = cls._calculate_distribution_percentiles(c_avg_ss, cv=0.25)
-        auc_dist = cls._calculate_distribution_percentiles(auc_0_tau, cv=0.28)
-        clearance_dist = cls._calculate_distribution_percentiles(cl_effective_avg, cv=0.25)
-        half_life_dist = cls._calculate_distribution_percentiles(t_half_effective_h, cv=0.22)
+        # Generate Population Metric Distribution Curves (scaled CV if biometrics unknown)
+        c_max_dist = cls._calculate_distribution_percentiles(c_max, cv=cv_pk_scale)
+        c_avg_dist = cls._calculate_distribution_percentiles(c_avg_ss, cv=cv_pk_scale)
+        auc_dist = cls._calculate_distribution_percentiles(auc_0_tau, cv=cv_pk_scale * 1.1)
+        clearance_dist = cls._calculate_distribution_percentiles(cl_effective_avg, cv=cv_pk_scale)
+        half_life_dist = cls._calculate_distribution_percentiles(t_half_effective_h, cv=cv_pk_scale * 0.9)
 
         return PKPDSimulationResponse(
             compound_key=str(compound.get("key") or request.compound_key),

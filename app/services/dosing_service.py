@@ -98,6 +98,9 @@ SEED_CLINICAL_REFERENCE_DOSES_MG: Dict[str, float] = {
     "rosuvastatin": 10.0,     # 10 mg/day
     "chembl438": 10.0,
     "simvastatin": 20.0,      # 20 mg/day
+    "pitavastatin": 2.0,      # 2 mg/day
+    "pitavastatincalcium": 2.0,
+    "chembl1200547": 2.0,
     "ezetimibe": 10.0,        # 10 mg/day
     "berberine": 500.0,       # 500 mg/day
 
@@ -275,18 +278,30 @@ def get_default_compound_dose(
     dose_mg: Optional[float] = None
     basis = "clinical_reference"
 
-    # 1. Check SQLite Persistent Cache
-    try:
-        with _get_db_connection(db_path) as conn:
-            row = conn.execute(
-                "SELECT dose_mg, basis FROM cached_reference_doses WHERE compound_key IN (?, ?, ?, ?)",
-                (key_str, clean_key, name_str, clean_name),
-            ).fetchone()
-            if row:
-                dose_mg = float(row["dose_mg"])
-                basis = str(row["basis"])
-    except Exception:
-        pass
+    # 1. Authoritative seed reference table lookup
+    seed_dose = (
+        SEED_CLINICAL_REFERENCE_DOSES_MG.get(key_str)
+        or SEED_CLINICAL_REFERENCE_DOSES_MG.get(clean_key)
+        or SEED_CLINICAL_REFERENCE_DOSES_MG.get(name_str)
+        or SEED_CLINICAL_REFERENCE_DOSES_MG.get(clean_name)
+    )
+    if seed_dose is not None:
+        dose_mg = float(seed_dose)
+        basis = "clinical_reference"
+
+    # 2. Check SQLite Persistent Cache
+    if dose_mg is None:
+        try:
+            with _get_db_connection(db_path) as conn:
+                row = conn.execute(
+                    "SELECT dose_mg, basis FROM cached_reference_doses WHERE compound_key IN (?, ?, ?, ?)",
+                    (key_str, clean_key, name_str, clean_name),
+                ).fetchone()
+                if row:
+                    dose_mg = float(row["dose_mg"])
+                    basis = str(row["basis"])
+        except Exception:
+            pass
 
     # 2. Check compound structured dosing dictionary if available
     if dose_mg is None and dosing_data:

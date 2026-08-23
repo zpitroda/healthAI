@@ -2250,6 +2250,9 @@
                 return `<span class="contrib-chip"><strong>${c.compound_label}:</strong> ${c.formatted_delta}</span>`;
               }).join('');
 
+              const dist = b.distribution || {};
+              const p5p95Str = b.p5_p95_range_str || (dist.p5 !== undefined ? `${dist.p5} - ${dist.p95} ${b.unit}` : '');
+
               return `
                 <div class="biomarker-card" id="cascade-item-${b.biomarker_id}">
                   <div class="biomarker-header-row">
@@ -2265,10 +2268,19 @@
                     <span>Baseline: <strong>${b.baseline_value} ${b.unit}</strong> → Projected: <strong>${b.estimated_value} ${b.unit}</strong></span>
                     ${rangePill}
                   </div>
+                  ${p5p95Str ? `
+                  <div class="biomarker-meta-row" style="margin-top:-2px;">
+                    <span style="color:#00f2fe; font-family:'JetBrains Mono',monospace; font-size:0.68rem;" title="90% Population Percentile Distribution Curve (p5 to p95)">
+                      📊 p5–p95 Curve: <strong>${p5p95Str}</strong>
+                    </span>
+                    <span>Net Shift: <strong>${b.net_shift > 0 ? '+' : ''}${b.net_shift}</strong></span>
+                  </div>
+                  ` : `
                   <div class="biomarker-meta-row" style="margin-top:-2px;">
                     <span>Safe Reference: <strong>${b.safe_range} ${b.unit}</strong></span>
                     <span>Net Shift: <strong>${b.net_shift > 0 ? '+' : ''}${b.net_shift}</strong></span>
                   </div>
+                  `}
                   <div class="biomarker-meta-row" style="margin-top:1px; font-size:0.65rem; color:#38bdf8; border-top:1px dashed rgba(255,255,255,0.06); padding-top:2px;" title="${b.time_course_description || ''}">
                     <span>⏱️ Steady-State: <strong>~${b.time_to_steady_state_weeks || 1} wks</strong> (t½: ${b.half_time_days || 3}d)</span>
                     <span style="text-transform:capitalize; color:var(--text-muted);">${(b.kinetic_profile || '').replace(/_/g, ' ')}</span>
@@ -2287,6 +2299,7 @@
               const isMod = p.risk_status === 'MODERATE_RISK';
               const tagCls = isSuppressed ? 'risk-suppressed' : (isHigh ? 'risk-high' : (isMod ? 'risk-moderate' : 'risk-neutral'));
               const icon = isSuppressed ? '🛡️' : (p.severity === 'high' || p.severity === 'critical' ? '⚠️' : '🎯');
+              const pDistStr = p.p5_p95_range_str || '';
               
               const contribPills = (p.compound_contributions || []).map(c => {
                 return `<span class="contrib-chip"><strong>${c.compound_label}:</strong> ${c.formatted_risk}</span>`;
@@ -2301,9 +2314,14 @@
                     <span class="pheno-risk-tag ${tagCls}">${p.risk_badge || p.risk_status || 'OUTCOME'}</span>
                   </div>
                   <div style="display:flex; justify-content:space-between; font-size:0.70rem; color:var(--text-secondary); font-family:'JetBrains Mono', monospace;">
-                    <span>Estimated Risk Shift: <strong style="color:var(--text-primary);">${p.formatted_risk || `${p.risk_delta_pct}%`}</strong></span>
+                    <span>Est. Risk Shift: <strong style="color:var(--text-primary);">${p.formatted_risk || `${p.risk_delta_pct}%`}</strong></span>
                     <span style="text-transform:capitalize;">Severity: <strong>${p.severity || 'Moderate'}</strong></span>
                   </div>
+                  ${pDistStr ? `
+                  <div style="font-size:0.66rem; color:#00f2fe; font-family:'JetBrains Mono', monospace; margin-top:2px;" title="90% Inter-individual Risk Shift Distribution (p5 to p95)">
+                    📊 p5–p95 Risk Band: <strong>${pDistStr}</strong>
+                  </div>
+                  ` : ''}
                   ${p.description ? `<p style="font-size:0.68rem; color:var(--text-muted); margin:0;">${p.description}</p>` : ''}
                   ${contribPills ? `<div class="contrib-chips-list">${contribPills}</div>` : ''}
                 </div>

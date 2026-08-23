@@ -257,7 +257,7 @@ CORE_ESTER_LIBRARY: Dict[str, Dict[str, Any]] = {
         "receptor_targets": [
             {"target": "Androgen Receptor (AR / NR3C4)", "action": "agonist", "family": "Nuclear Receptor", "affinity_ki": 0.5, "gene_symbol": "AR"},
             {"target": "Estrogen Receptor Alpha (ESR1 / ER-alpha)", "action": "agonist (via aromatization)", "family": "Nuclear Receptor", "gene_symbol": "ESR1"},
-            {"target": "5-Alpha Reductase Type 1 & 2 (SRD5A1 / SRD5A2)", "action": "substrate (to DHT)", "family": "Enzyme", "gene_symbol": "SRD5A2"}
+            {"target": "5-Alpha Reductase Type 1 & 2 (SRD5A1 / SRD5A2)", "action": "substrate (to DHT)", "family": "Enzyme", "gene_symbol": "SRD5A2", "affinity_ki": 2500.0}
         ],
         "cyp_enzymes": {"substrates": ["CYP3A4", "CYP2C19"], "inhibitors": [], "inducers": []},
     },
@@ -638,6 +638,10 @@ CANONICAL_SYNONYM_MAP: Dict[str, str] = {
     "deltasleepinducingpeptide": "dsip",
     "oxytocin": "oxytocin",
     "pitocin": "oxytocin",
+    "masteron": "drostanolone",
+    "masteronpropionate": "drostanolone",
+    "masteronenanthate": "drostanolone",
+    "drostanolonepropionate": "drostanolone",
     "motsc": "mots_c",
     "mots": "mots_c",
     "ss31": "elamipretide",

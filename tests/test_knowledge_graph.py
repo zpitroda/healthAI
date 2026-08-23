@@ -131,7 +131,7 @@ def test_unmapped_target_dynamic_fallback_cascade():
 
     # Create a custom mock catalog service with a compound having an unusual target
     class CustomCatalogService(CatalogService):
-        def get_compound(self, key: str):
+        def get_compound(self, key: str, *args, **kwargs):
             if key == "novel_compound":
                 return {
                     "key": "novel_compound",
@@ -140,7 +140,7 @@ def test_unmapped_target_dynamic_fallback_cascade():
                         {"target": "Novel Orphan Receptor XYZ", "action": "agonist"}
                     ]
                 }
-            return super().get_compound(key)
+            return super().get_compound(key, *args, **kwargs)
 
     service = CustomCatalogService()
     graph = build_selected_compound_graph(["novel_compound"], catalog_service=service)

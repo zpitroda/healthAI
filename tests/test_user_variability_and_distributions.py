@@ -129,3 +129,129 @@ def test_missing_biometrics_widens_distribution_curves():
 
     assert res_unknown.patient_biometrics["unknown_biometrics_count"] == 4
     assert unknown_width > known_width * 1.5  # Significantly wider uncertainty band
+
+
+def test_cascade_biometric_and_lab_calibration():
+    """Verify that propagate_cascade accepts personal biometrics and lab inputs to calibrate baselines and outcome distribution curves."""
+    from app.services.graph_service import build_selected_compound_graph
+    from app.services.interaction_engine import InteractionEngine
+
+    graph = build_selected_compound_graph(["telmisartan", "testosterone"])
+
+    # 1. Simulate with default (unspecified) biometrics & labs
+    res_default = graph.propagate_cascade(["telmisartan", "testosterone"])
+    assert "biomarker_shifts" in res_default
+    assert "phenotypes" in res_default
+
+    # Verify distribution objects on default result
+    for b in res_default["biomarker_shifts"]:
+        dist = b.get("distribution")
+        assert dist is not None
+        assert "p5" in dist and "p95" in dist
+        assert dist["p5"] <= dist["p25"] <= dist["p50"] <= dist["p75"] <= dist["p95"]
+
+    for p in res_default["phenotypes"]:
+        dist = p.get("distribution")
+        assert dist is not None
+        assert "p5" in dist and "p95" in dist
+        assert "p5_p95_range_str" in p
+
+    # 2. Simulate with user-provided lab baselines (e.g. ALT=65 U/L, BP=135 mmHg)
+    user_labs = {"alt_u_l": 65.0, "blood_pressure": 135.0}
+    user_biometrics = {"sex": "male", "age": 45, "weight_kg": 90.0, "height_cm": 180.0}
+    res_calibrated = graph.propagate_cascade(
+        ["telmisartan", "testosterone"],
+        patient_biometrics=user_biometrics,
+        user_labs=user_labs,
+    )
+
+    alt_shift = next((b for b in res_calibrated["biomarker_shifts"] if b["biomarker_id"] == "bio_alt"), None)
+    if alt_shift:
+        assert alt_shift["baseline_value"] == 65.0  # Personalized lab baseline applied
+        assert alt_shift["user_baseline_calibrated"] is True
+
+
+def test_full_stack_balance_distribution_curves_and_biometrics():
+    """Verify Holistic Stack Equilibrium panel returns distribution percentile curves (p5-p95) for all axes and scales CV on unknown biometrics."""
+    from app.services.interaction_engine import InteractionEngine
+
+    engine = InteractionEngine()
+    compounds = [
+        {"key": "testosterone", "name": "Testosterone", "dose": 100, "unit": "mg", "frequency": "weekly"},
+        {"key": "telmisartan", "name": "Telmisartan", "dose": 40, "unit": "mg", "frequency": "daily"},
+    ]
+
+    # Full biometrics provided
+    profile_known = {
+        "sex": "male",
+        "age": 35,
+        "weight_kg": 80.0,
+        "height_cm": 182.0,
+        "labs": {"alt_u_l": 30.0, "blood_pressure": 122.0},
+    }
+    analysis_known = engine.analyze_stack(compounds, profile=profile_known)
+    balance_known = analysis_known.get("full_stack_balance", {})
+
+    assert "axes" in balance_known
+    assert len(balance_known["axes"]) > 0
+    assert balance_known["patient_biometrics"]["unknown_biometrics_count"] == 0
+
+    axis_known = balance_known["axes"][0]
+    assert "distribution" in axis_known
+    dist_k = axis_known["distribution"]
+    assert dist_k["p5"] <= dist_k["p25"] <= dist_k["p50"] <= dist_k["p75"] <= dist_k["p95"]
+
+    # Unknown biometrics
+    profile_unknown = {"sex": None, "age": None, "weight_kg": None, "height_cm": None}
+    analysis_unknown = engine.analyze_stack(compounds, profile=profile_unknown)
+    balance_unknown = analysis_unknown.get("full_stack_balance", {})
+
+    assert balance_unknown["patient_biometrics"]["unknown_biometrics_count"] == 4
+    axis_un = next((a for a in balance_unknown["axes"] if a["name"] == axis_known["name"]), balance_unknown["axes"][0])
+
+    width_known = dist_k["p95"] - dist_k["p5"]
+    width_unknown = axis_un["distribution"]["p95"] - axis_un["distribution"]["p5"]
+    assert width_unknown >= width_known  # Uncertainty band expands when biometrics are unknown
+
+
+def test_demographic_calibrated_reference_ranges():
+    """Verify reference ranges (safe_lower, safe_upper) adjust dynamically based on sex (female vs male), age, and BMI, defaulting to general healthy population when unspecified."""
+    from app.knowledge_graph.graph import get_demographic_calibrated_reference_range
+
+    # 1. Unspecified sex / no biometrics -> General Healthy Population Default (15.0 - 1000.0 ng/dL for Total Testosterone)
+    t_base_gen, t_low_gen, t_high_gen, t_adj_gen = get_demographic_calibrated_reference_range("bio_testosterone", None, 350.0, 15.0, 1000.0)
+    assert t_base_gen == 350.0
+    assert t_low_gen == 15.0
+    assert t_high_gen == 1000.0
+    assert len(t_adj_gen) == 0
+
+    # 2. Male sex reference range calibration for Total Testosterone (300-1000 ng/dL)
+    male_bio = {"sex": "male", "age": 30, "weight_kg": 75.0, "height_cm": 178.0}
+    t_base_m, t_low_m, t_high_m, t_adj_m = get_demographic_calibrated_reference_range("bio_testosterone", male_bio, 350.0, 15.0, 1000.0)
+    assert t_base_m == 550.0
+    assert t_low_m == 300.0
+    assert t_high_m == 1000.0
+    assert any("Male Sex" in a for a in t_adj_m)
+
+    # 3. Female sex reference range calibration for Total Testosterone (15-70 ng/dL) and Estradiol (30-200 pg/mL)
+    female_bio = {"sex": "female", "age": 28, "weight_kg": 60.0, "height_cm": 165.0}
+    t_base_f, t_low_f, t_high_f, t_adj_f = get_demographic_calibrated_reference_range("bio_testosterone", female_bio, 350.0, 15.0, 1000.0)
+    assert t_base_f == 35.0
+    assert t_low_f == 15.0
+    assert t_high_f == 70.0
+    assert any("Female Sex" in a for a in t_adj_f)
+
+    e2_base, e2_low, e2_high, e2_adj = get_demographic_calibrated_reference_range("bio_estradiol", female_bio, 35.0, 15.0, 200.0)
+    assert e2_low == 30.0
+    assert e2_high == 200.0
+
+    # 4. Male senior age (68y) reference range calibration for eGFR and Systolic BP
+    senior_bio = {"sex": "male", "age": 68, "weight_kg": 78.0, "height_cm": 175.0}
+    egfr_base, egfr_low, egfr_high, egfr_adj = get_demographic_calibrated_reference_range("bio_egfr", senior_bio, 105.0, 60.0, 130.0)
+    assert egfr_base < 100.0  # Age-related GFR decline accounted for
+    assert any("Age" in a for a in egfr_adj)
+
+    bp_base, bp_low, bp_high, bp_adj = get_demographic_calibrated_reference_range("bio_blood_pressure", senior_bio, 120.0, 90.0, 120.0)
+    assert bp_high == 130.0
+    assert any("Senior Age" in a for a in bp_adj)
+

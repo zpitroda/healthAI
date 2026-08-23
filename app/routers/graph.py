@@ -65,6 +65,16 @@ def graph_data(
     stack: Optional[List[str]] = Query(default=None),
     timeline: Optional[str] = Query(default=None),
     timeline_days: Optional[float] = Query(default=None),
+    sex: Optional[str] = Query(default=None),
+    age: Optional[int] = Query(default=None),
+    weight_kg: Optional[float] = Query(default=None),
+    height_cm: Optional[float] = Query(default=None),
+    body_fat_pct: Optional[float] = Query(default=None),
+    blood_pressure: Optional[float] = Query(default=None),
+    alt_u_l: Optional[float] = Query(default=None),
+    egfr: Optional[float] = Query(default=None),
+    hematocrit_pct: Optional[float] = Query(default=None),
+    potassium_meq_l: Optional[float] = Query(default=None),
 ) -> JSONResponse:
     """Return JSON node and edge network graph data, dynamic cascade simulation, and combined target receptor activation for the active compound stack."""
     focus_str = focus if isinstance(focus, str) else None
@@ -110,13 +120,35 @@ def graph_data(
     # Compute multi-compound combined receptor effects & occupancy
     combined_effects = compute_target_combined_effects(graph, custom_doses=custom_doses)
 
-    # Run dynamic cascade propagation with saturation, net activation, and timeline calibration
+    def _clean_param(v: Any) -> Any:
+        if v is None or type(v).__name__ == "Query" or (hasattr(v, "__class__") and "Query" in getattr(v, "__class__").__name__):
+            return None
+        return v
+
+    patient_biometrics = {
+        "sex": _clean_param(sex),
+        "age": _clean_param(age),
+        "weight_kg": _clean_param(weight_kg),
+        "height_cm": _clean_param(height_cm),
+        "body_fat_pct": _clean_param(body_fat_pct),
+    }
+    user_labs = {
+        "blood_pressure": _clean_param(blood_pressure),
+        "alt_u_l": _clean_param(alt_u_l),
+        "egfr": _clean_param(egfr),
+        "hematocrit_pct": _clean_param(hematocrit_pct),
+        "potassium_meq_l": _clean_param(potassium_meq_l),
+    }
+
+    # Run dynamic cascade propagation with saturation, net activation, biometrics, and timeline calibration
     resolved_keys = resolve_stack_to_catalog_keys(parsed_stack)
     cascade_results = graph.propagate_cascade(
         resolved_keys or parsed_stack,
         combined_effects=combined_effects,
         timeline=timeline,
         timeline_days=timeline_days,
+        patient_biometrics=patient_biometrics,
+        user_labs=user_labs,
     )
 
     if focus_str:

@@ -52,6 +52,9 @@ INITIAL_TARGET_SEED_METADATA: Dict[str, Dict[str, str]] = {
     "srd5a2": {"symbol": "SRD5A2", "uniprot": "P31213", "ensembl": "ENSG00000099958", "name": "5-Alpha Reductase Subtype 2 (SRD5A2)"},
     "5-alpha reductase": {"symbol": "SRD5A2", "uniprot": "P31213", "ensembl": "ENSG00000099958", "name": "5-Alpha Reductase Subtype 1 & 2"},
     "hmgcr": {"symbol": "HMGCR", "uniprot": "P04035", "ensembl": "ENSG00000112972", "name": "HMG-CoA Reductase"},
+    "hmg-coa reductase": {"symbol": "HMGCR", "uniprot": "P04035", "ensembl": "ENSG00000112972", "name": "HMG-CoA Reductase"},
+    "hmg-coa reductase (hmgcr)": {"symbol": "HMGCR", "uniprot": "P04035", "ensembl": "ENSG00000112972", "name": "HMG-CoA Reductase"},
+    "pitavastatin": {"symbol": "HMGCR", "uniprot": "P04035", "ensembl": "ENSG00000112972", "name": "HMG-CoA Reductase"},
     "pde5a": {"symbol": "PDE5A", "uniprot": "O76074", "ensembl": "ENSG00000138735", "chembl": "CHEMBL1824", "name": "Phosphodiesterase 5A (PDE5)"},
     "chembl1824": {"symbol": "PDE5A", "uniprot": "O76074", "ensembl": "ENSG00000138735", "chembl": "CHEMBL1824", "name": "Phosphodiesterase 5A (PDE5)"},
     "slc5a2": {"symbol": "SLC5A2", "uniprot": "P31930", "ensembl": "ENSG00000140675", "name": "Sodium-Glucose Cotransporter 2 (SGLT2 / SLC5A2)"},
@@ -820,6 +823,23 @@ class PathwayService:
             pheno_nodes.extend([
                 {"id": "pheno_insulin_sensitization", "label": "Adipose & Peripheral Insulin Sensitization", "cat": "therapeutic_benefit", "sev": "high", "mag": 0.90},
                 {"id": "pheno_glycemic_control", "label": "Enhanced Glycemic Regulation & Free Fatty Acid Clearance", "cat": "therapeutic_benefit", "sev": "high", "mag": 0.85},
+            ])
+
+        # 18b. HMG-CoA Reductase (HMGCR) / Statin Lipid & Cholesterol Biosynthesis Cascade
+        elif "hmg" in t_lower or "statin" in t_lower or "cholesterol" in t_lower or "lipid metabolism" in t_lower or sym == "HMGCR":
+            organ = "Hepatic / Cardiovascular"
+            biomarkers.extend([
+                {"id": "bio_ldl_c", "label": "Serum LDL Cholesterol", "unit": "mg/dL", "panel": "Lipid Panel", "lower": 50.0, "upper": 100.0, "mag": 0.85},
+                {"id": "bio_total_cholesterol", "label": "Serum Total Cholesterol", "unit": "mg/dL", "panel": "Lipid Panel", "lower": 125.0, "upper": 200.0, "mag": 0.75},
+                {"id": "bio_triglycerides", "label": "Serum Triglycerides", "unit": "mg/dL", "panel": "Lipid Panel", "lower": 40.0, "upper": 150.0, "mag": 0.35},
+                {"id": "bio_apob", "label": "Apolipoprotein B (ApoB)", "unit": "mg/dL", "panel": "Lipid Panel", "lower": 60.0, "upper": 110.0, "mag": 0.80},
+                {"id": "bio_hdl_c", "label": "Serum HDL Cholesterol", "unit": "mg/dL", "panel": "Lipid Panel", "lower": 40.0, "upper": 90.0, "mag": -0.15},
+            ])
+            pheno_nodes.extend([
+                {"id": "pheno_ldl_reduction", "label": "Potent Hepatic HMG-CoA Reductase Inhibition & LDL Receptor Up-regulation", "cat": "therapeutic_benefit", "sev": "high", "mag": 0.95},
+                {"id": "pheno_cholesterol_lowering", "label": "Atherogenic Lipid Clearance & Systemic Cholesterol Lowering", "cat": "therapeutic_benefit", "sev": "high", "mag": 0.90},
+                {"id": "pheno_cardiovascular_risk_reduction", "label": "Atherosclerotic Plaque Stabilization & Major Adverse Cardiac Event (MACE) Reduction", "cat": "therapeutic_benefit", "sev": "high", "mag": 0.88},
+                {"id": "pheno_statins_myopathy_risk", "label": "Statin-Associated Muscle Symptom (SAMS) & Myopathy Sparing Risk", "cat": "adverse_effect", "sev": "moderate", "mag": 0.40},
             ])
 
         # 19. Generic / Dynamic OpenTargets Phenotypes Fallback

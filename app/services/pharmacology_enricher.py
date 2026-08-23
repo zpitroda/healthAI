@@ -742,6 +742,34 @@ class PharmacologyEnricher:
     ATC classifications, textual mechanisms, and target binding profiles.
     """
 
+    @staticmethod
+    def _match_usan_stem_rule(rule: Dict[str, Any], usan_stem: Optional[str], name_lower: str, key_lower: str) -> bool:
+        """
+        Deterministically match WHO INN / USAN stem rules using string suffixing and token equality
+        without regex execution.
+        """
+        stems = rule.get("stems")
+        if not stems:
+            raw_pat = str(rule.get("pattern", ""))
+            clean_stem = raw_pat.replace("(?:", "").replace(")$", "").replace("$", "").replace("^", "").replace("(", "").replace(")", "").strip()
+            stems = [s.strip().lower() for s in clean_stem.split("|") if s.strip()]
+
+        if usan_stem:
+            u_clean = str(usan_stem).lower().strip()
+            if any(u_clean == s or u_clean.endswith(s) for s in stems):
+                return True
+
+        for s in stems:
+            if name_lower.endswith(s) or key_lower.endswith(s):
+                return True
+
+        tokens = name_lower.replace("-", " ").replace("_", " ").split()
+        for s in stems:
+            if any(tok.endswith(s) for tok in tokens):
+                return True
+
+        return False
+
     @classmethod
     def enrich_compound(cls, compound: Dict[str, Any]) -> Dict[str, Any]:
         """
@@ -792,11 +820,9 @@ class PharmacologyEnricher:
         matched_tpsa: Optional[float] = None
         is_nti = bool(compound.get("is_narrow_therapeutic_index", False))
 
-        # 1. Match USAN Stems
+        # 1. Match USAN Stems via Deterministic String Suffixing (Zero-Regex)
         for rule in USAN_STEM_RULES:
-            pat = rule["pattern"]
-            stem_match = (usan_stem and re.search(pat, usan_stem)) or re.search(pat, name_lower) or re.search(pat, key)
-            if stem_match:
+            if cls._match_usan_stem_rule(rule, usan_stem, name_lower, key.lower()):
                 matched_cyp_sub.update(rule.get("cyp_substrates", []))
                 matched_cyp_inh.update(rule.get("cyp_inhibitors", []))
                 matched_cyp_ind.update(rule.get("cyp_inducers", []))
@@ -828,6 +854,9 @@ class PharmacologyEnricher:
                     matched_tpsa = rule["tpsa"]
                 if rule.get("is_narrow_therapeutic_index"):
                     is_nti = True
+
+                if not enriched.get("drug_class") and rule.get("class_name"):
+                    enriched["drug_class"] = rule["class_name"]
 
                 for t in rule.get("targets", []):
                     matched_targets.append(t)

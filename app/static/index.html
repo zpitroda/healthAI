@@ -2208,6 +2208,8 @@
         if (k.includes('aspirin')) return { dose: 81, unit: 'mg' };
         if (k.includes('atorvastatin')) return { dose: 20, unit: 'mg' };
         if (k.includes('rosuvastatin')) return { dose: 10, unit: 'mg' };
+        if (k.includes('simvastatin')) return { dose: 20, unit: 'mg' };
+        if (k.includes('pitavastatin')) return { dose: 2, unit: 'mg' };
         if (k.includes('tadalafil')) return { dose: 10, unit: 'mg' };
         if (k.includes('sildenafil')) return { dose: 50, unit: 'mg' };
         if (k.includes('finasteride')) return { dose: 1, unit: 'mg' };
@@ -2621,9 +2623,178 @@
           return (a.priority_tier || 5) - (b.priority_tier || 5) || (b.percent_shift || 0) - (a.percent_shift || 0) || a.name.localeCompare(b.name);
         });
 
+        function renderDistributionGraphSVG(axis, cardIdx) {
+          const base = parseFloat(axis.baseline || 0);
+          const est = parseFloat(axis.estimated_value || base);
+          const dist = axis.distribution || {};
+          const p5 = parseFloat(dist.p5 !== undefined ? dist.p5 : est);
+          const p25 = parseFloat(dist.p25 !== undefined ? dist.p25 : est);
+          const p50 = parseFloat(dist.p50 !== undefined ? dist.p50 : est);
+          const p75 = parseFloat(dist.p75 !== undefined ? dist.p75 : est);
+          const p95 = parseFloat(dist.p95 !== undefined ? dist.p95 : est);
+          const mean = parseFloat(dist.mean !== undefined ? dist.mean : est);
+          const stdDev = parseFloat(dist.std_dev !== undefined ? dist.std_dev : Math.max(0.1, (p95 - p5) / 3.29));
+
+          const sLower = axis.safe_lower !== undefined ? parseFloat(axis.safe_lower) : (base * 0.8);
+          const sUpper = axis.safe_upper !== undefined ? parseFloat(axis.safe_upper) : (base * 1.2);
+          const unit = axis.unit || '';
+          const statusColor = axis.status_color || '#34d399';
+
+          const minVal = Math.min(sLower, base, est, p5);
+          const maxVal = Math.max(sUpper, base, est, p95);
+          const padding = Math.max((maxVal - minVal) * 0.18, Math.max(est, base) * 0.1, 1.0);
+          const xMin = Math.max(0, minVal - padding);
+          const xMax = maxVal + padding;
+          const rangeX = (xMax - xMin) || 1.0;
+
+          const width = 340;
+          const height = 95;
+          const baselineY = 78;
+          const peakY = 16;
+          const chartHeight = baselineY - peakY;
+
+          const toX = (v) => Math.max(6, Math.min(width - 6, ((v - xMin) / rangeX) * width));
+
+          const mu = p50;
+          const sigma = Math.max(0.001, (p95 - p5) / 3.29);
+          const stepCount = 80;
+          const points = [];
+
+          for (let i = 0; i <= stepCount; i++) {
+            const vx = xMin + (i / stepCount) * rangeX;
+            const z = (vx - mu) / sigma;
+            const density = Math.exp(-0.5 * z * z);
+            const px = toX(vx);
+            const py = baselineY - (density * chartHeight);
+            points.push({ x: px, y: py, val: vx });
+          }
+
+          const pathD = points.map((p, i) => `${i === 0 ? 'M' : 'L'} ${p.x.toFixed(1)} ${p.y.toFixed(1)}`).join(' ');
+
+          const safeLeftX = toX(sLower);
+          const safeRightX = toX(sUpper);
+          const safeWidthX = Math.max(2, safeRightX - safeLeftX);
+
+          const p5X = toX(p5);
+          const p95X = toX(p95);
+          const p50X = toX(p50);
+          const basePointX = toX(base);
+
+          const curveAreaD = pathD + ` L ${points[points.length - 1].x.toFixed(1)} ${baselineY} L ${points[0].x.toFixed(1)} ${baselineY} Z`;
+
+          let beginnerSummaryText = '';
+          let beginnerBadgeClass = 'safe';
+          if (p95 <= sUpper && p5 >= sLower) {
+            beginnerSummaryText = `✓ High Safety Margin: 90% of projected outcomes (${p5}–${p95} ${unit}) fall strictly inside safe limits [${sLower}–${sUpper} ${unit}].`;
+            beginnerBadgeClass = 'safe';
+          } else if (est > sUpper || p95 > sUpper * 1.15) {
+            beginnerSummaryText = `⚠️ High Risk Hazard: Upper 95th percentile (${p95} ${unit}) breaks above the maximum safe threshold (${sUpper} ${unit}).`;
+            beginnerBadgeClass = 'warning';
+          } else if (est < sLower || p5 < sLower * 0.85) {
+            beginnerSummaryText = `⚠️ Suppression Alert: Lower 5th percentile (${p5} ${unit}) falls below the physiological lower bound (${sLower} ${unit}).`;
+            beginnerBadgeClass = 'warning';
+          } else {
+            beginnerSummaryText = `ℹ️ Active Shift: Expected median centered at ${est} ${unit} (90% distribution between ${p5} and ${p95} ${unit}).`;
+            beginnerBadgeClass = 'info';
+          }
+
+          const chartId = `dist-chart-${cardIdx}-${Math.floor(Math.random() * 10000)}`;
+
+          return `
+            <div class="dist-chart-wrapper" style="background: rgba(5, 11, 24, 0.7); border: 1px solid rgba(0, 242, 254, 0.18); border-radius: 10px; padding: 12px; margin: 10px 0;">
+              <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
+                <span style="font-size: 0.74rem; font-weight: 700; color: #00f2fe; display: flex; align-items: center; gap: 6px;">
+                  <span>📈 Projected Outcome Probability Distribution</span>
+                </span>
+                <button 
+                  type="button"
+                  class="power-user-toggle-btn"
+                  onclick="const el=document.getElementById('${chartId}-stats'); el.style.display=(el.style.display==='none'||!el.style.display)?'block':'none';"
+                  style="background: rgba(0, 242, 254, 0.12); border: 1px solid rgba(0, 242, 254, 0.35); color: #00f2fe; font-size: 0.68rem; font-weight: 700; padding: 3px 9px; border-radius: 5px; cursor: pointer; transition: all 0.2s ease;"
+                >
+                  📊 Power User Stats
+                </button>
+              </div>
+
+              <div style="font-size: 0.75rem; line-height: 1.4; color: ${beginnerBadgeClass === 'warning' ? '#f87171' : (beginnerBadgeClass === 'safe' ? '#34d399' : '#94a3b8')}; background: ${beginnerBadgeClass === 'warning' ? 'rgba(239,68,68,0.12)' : (beginnerBadgeClass === 'safe' ? 'rgba(16,185,129,0.12)' : 'rgba(148,163,184,0.12)')}; padding: 6px 10px; border-radius: 6px; margin-bottom: 8px; border: 1px solid ${beginnerBadgeClass === 'warning' ? 'rgba(239,68,68,0.3)' : (beginnerBadgeClass === 'safe' ? 'rgba(16,185,129,0.3)' : 'rgba(148,163,184,0.3)')}; font-weight: 600;">
+                ${beginnerSummaryText}
+              </div>
+
+              <div style="position: relative; width: 100%;">
+                <svg viewBox="0 0 ${width} ${height}" style="width: 100%; height: auto; overflow: visible; display: block;">
+                  <defs>
+                    <linearGradient id="${chartId}-curve-grad" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="0%" stop-color="#00f2fe" stop-opacity="0.38" />
+                      <stop offset="100%" stop-color="#00f2fe" stop-opacity="0.0" />
+                    </linearGradient>
+                    <linearGradient id="${chartId}-safe-grad" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="0%" stop-color="#10b981" stop-opacity="0.22" />
+                      <stop offset="100%" stop-color="#10b981" stop-opacity="0.04" />
+                    </linearGradient>
+                  </defs>
+
+                  <rect x="${safeLeftX.toFixed(1)}" y="${peakY}" width="${safeWidthX.toFixed(1)}" height="${chartHeight}" fill="url(#${chartId}-safe-grad)" rx="4" />
+                  <line x1="${safeLeftX.toFixed(1)}" y1="${peakY}" x2="${safeLeftX.toFixed(1)}" y2="${baselineY}" stroke="#10b981" stroke-dasharray="3,3" stroke-opacity="0.7" stroke-width="1.2" />
+                  <line x1="${safeRightX.toFixed(1)}" y1="${peakY}" x2="${safeRightX.toFixed(1)}" y2="${baselineY}" stroke="#10b981" stroke-dasharray="3,3" stroke-opacity="0.7" stroke-width="1.2" />
+                  <text x="${((safeLeftX + safeRightX) / 2).toFixed(1)}" y="${peakY + 10}" fill="#34d399" font-size="7.5" font-weight="800" text-anchor="middle" letter-spacing="0.04em">SAFE TARGET ZONE</text>
+
+                  <path d="${curveAreaD}" fill="url(#${chartId}-curve-grad)" />
+                  <path d="${pathD}" fill="none" stroke="#00f2fe" stroke-width="2.4" stroke-linecap="round" />
+
+                  <line x1="${basePointX.toFixed(1)}" y1="${peakY + 4}" x2="${basePointX.toFixed(1)}" y2="${baselineY}" stroke="#94a3b8" stroke-dasharray="2,2" stroke-width="1.2" />
+                  <circle cx="${basePointX.toFixed(1)}" cy="${baselineY}" r="2.8" fill="#94a3b8" />
+                  <text x="${basePointX.toFixed(1)}" y="${baselineY + 12}" fill="#94a3b8" font-size="7.5" font-weight="600" text-anchor="middle">Base: ${base}</text>
+
+                  <line x1="${p50X.toFixed(1)}" y1="${peakY}" x2="${p50X.toFixed(1)}" y2="${baselineY}" stroke="${statusColor}" stroke-width="2" />
+                  <circle cx="${p50X.toFixed(1)}" cy="${peakY + 3}" r="4" fill="${statusColor}" stroke="#0b1324" stroke-width="1.5" />
+                  <text x="${p50X.toFixed(1)}" y="${peakY - 3}" fill="${statusColor}" font-size="8.5" font-weight="800" text-anchor="middle">Est: ${est} ${unit}</text>
+
+                  <line x1="${p5X.toFixed(1)}" y1="${baselineY - 8}" x2="${p5X.toFixed(1)}" y2="${baselineY}" stroke="#00f2fe" stroke-width="1.5" />
+                  <text x="${p5X.toFixed(1)}" y="${baselineY + 12}" fill="#00f2fe" font-size="7.5" font-weight="700" text-anchor="middle">p5: ${p5}</text>
+
+                  <line x1="${p95X.toFixed(1)}" y1="${baselineY - 8}" x2="${p95X.toFixed(1)}" y2="${baselineY}" stroke="#00f2fe" stroke-width="1.5" />
+                  <text x="${p95X.toFixed(1)}" y="${baselineY + 12}" fill="#00f2fe" font-size="7.5" font-weight="700" text-anchor="middle">p95: ${p95}</text>
+                </svg>
+              </div>
+
+              <div id="${chartId}-stats" style="display: none; margin-top: 10px; padding-top: 10px; border-top: 1px solid rgba(255, 255, 255, 0.08);">
+                <div style="font-size: 0.7rem; font-weight: 800; text-transform: uppercase; color: #00f2fe; margin-bottom: 6px; letter-spacing: 0.04em;">📊 Power User Percentile Distribution & Variance Analysis</div>
+                <div style="display: grid; grid-template-columns: repeat(5, 1fr); gap: 4px; text-align: center; background: rgba(0, 0, 0, 0.35); padding: 8px; border-radius: 6px; margin-bottom: 6px;">
+                  <div>
+                    <div style="font-size: 0.62rem; color: var(--text-muted);">p5 (Lower 5%)</div>
+                    <div style="font-size: 0.78rem; font-weight: 700; color: #00f2fe; font-family: 'JetBrains Mono', monospace;">${p5}</div>
+                  </div>
+                  <div>
+                    <div style="font-size: 0.62rem; color: var(--text-muted);">p25 (25th %)</div>
+                    <div style="font-size: 0.78rem; font-weight: 700; color: #94a3b8; font-family: 'JetBrains Mono', monospace;">${p25}</div>
+                  </div>
+                  <div>
+                    <div style="font-size: 0.62rem; color: var(--text-muted);">p50 (Median)</div>
+                    <div style="font-size: 0.82rem; font-weight: 800; color: ${statusColor}; font-family: 'JetBrains Mono', monospace;">${p50}</div>
+                  </div>
+                  <div>
+                    <div style="font-size: 0.62rem; color: var(--text-muted);">p75 (75th %)</div>
+                    <div style="font-size: 0.78rem; font-weight: 700; color: #94a3b8; font-family: 'JetBrains Mono', monospace;">${p75}</div>
+                  </div>
+                  <div>
+                    <div style="font-size: 0.62rem; color: var(--text-muted);">p95 (Upper 95%)</div>
+                    <div style="font-size: 0.78rem; font-weight: 700; color: #00f2fe; font-family: 'JetBrains Mono', monospace;">${p95}</div>
+                  </div>
+                </div>
+
+                <div style="display: flex; justify-content: space-between; font-size: 0.7rem; color: var(--text-secondary); background: rgba(255,255,255,0.03); padding: 5px 8px; border-radius: 5px;">
+                  <span>Mean ($\mu$): <strong>${mean} ${unit}</strong></span>
+                  <span>Std Dev ($\sigma$): <strong>${stdDev.toFixed(2)} ${unit}</strong></span>
+                  <span>90% Confidence Width: <strong>${(p95 - p5).toFixed(1)} ${unit}</strong></span>
+                </div>
+              </div>
+            </div>
+          `;
+        }
+
         let axesHtml = '';
         if (filteredAxes.length) {
-          axesHtml = filteredAxes.map(axis => {
+          axesHtml = filteredAxes.map((axis, cardIdx) => {
             const statusColor = axis.status_color || '#34d399';
             const compList = axis.compounds_breakdown || [];
             const tier = axis.priority_tier || 5;
@@ -2655,18 +2826,10 @@
               `;
             }).join('');
 
-            // Calculate Range Progress Bar Percentages
-            const base = axis.baseline;
-            const est = axis.estimated_value;
-            const sLower = axis.safe_lower !== undefined ? axis.safe_lower : (base * 0.8);
-            const sUpper = axis.safe_upper !== undefined ? axis.safe_upper : (base * 1.2);
-            const minV = Math.min(sLower * 0.85, base * 0.85, est * 0.85);
-            const maxV = Math.max(sUpper * 1.15, base * 1.15, est * 1.15);
-            const span = (maxV - minV) || 1;
-            const safeLeft = Math.max(0, Math.min(100, ((sLower - minV) / span) * 100));
-            const safeWidth = Math.max(6, Math.min(100 - safeLeft, ((sUpper - sLower) / span) * 100));
-            const estPos = Math.max(3, Math.min(97, ((est - minV) / span) * 100));
-            const basePos = Math.max(3, Math.min(97, ((base - minV) / span) * 100));
+            const dist = axis.distribution || {};
+            const p5 = dist.p5 !== undefined ? dist.p5 : axis.estimated_value;
+            const p95 = dist.p95 !== undefined ? dist.p95 : axis.estimated_value;
+            const p5p95Str = axis.p5_p95_range_str || `${p5} - ${p95} ${axis.unit}`;
 
             return `
               <div class="axis-card ${cardTierClass}">
@@ -2687,29 +2850,30 @@
 
                 <div class="axis-values-row">
                   <div>
-                    <span style="font-size: 0.72rem; color: var(--text-muted); text-transform: uppercase;">Baseline → Est. Value</span>
+                    <span style="font-size: 0.72rem; color: var(--text-muted); text-transform: uppercase;">Baseline → Median Est.</span>
                     <div class="axis-val-primary" style="color: ${statusColor};">
                       ${axis.baseline} → ${axis.estimated_value} <span style="font-size: 0.85rem; font-weight: 600;">${axis.unit}</span>
                     </div>
                   </div>
-                  <div class="axis-val-delta" style="color: ${axis.estimated_value >= axis.baseline ? '#f87171' : '#34d399'};">
-                    Net: ${axis.net_delta_str}
+                  <div style="text-align: right;">
+                    <span style="font-size: 0.68rem; color: #00f2fe; font-weight: 700; text-transform: uppercase; font-family: 'JetBrains Mono', monospace;" title="90% Population Percentile Distribution Curve (p5 to p95)">
+                      📊 p5–p95 Curve: ${p5p95Str}
+                    </span>
+                    <div class="axis-val-delta" style="color: ${axis.estimated_value >= axis.baseline ? '#f87171' : '#34d399'}; margin-top:2px;">
+                      Net Shift: ${axis.net_delta_str}
+                    </div>
                   </div>
                 </div>
 
-                <!-- Visual Range Bar -->
-                <div class="axis-range-visualizer">
-                  <div class="range-track-container" title="Target Range: ${sLower} - ${sUpper} ${axis.unit} | Baseline: ${base} | Estimated: ${est}">
-                    <div class="range-safe-window" style="left: ${safeLeft}%; width: ${safeWidth}%;"></div>
-                    <div class="range-marker-baseline" style="left: ${basePos}%;" title="Baseline: ${base} ${axis.unit}"></div>
-                    <div class="range-marker-current" style="left: ${estPos}%; background: ${statusColor}; color: ${statusColor};" title="Estimated Value: ${est} ${axis.unit}"></div>
+                ${axis.target_tissue || (axis.biometric_modifiers_applied && axis.biometric_modifiers_applied.length) ? `
+                  <div style="display: flex; flex-wrap: wrap; gap: 6px; margin: 6px 0;">
+                    ${axis.target_tissue ? `<span style="font-size: 0.72rem; color: #a7f3d0; background: rgba(16, 185, 129, 0.12); padding: 2px 8px; border-radius: 4px; border: 1px solid rgba(16, 185, 129, 0.25);">🎯 Target Tissue: <strong>${axis.target_tissue}</strong></span>` : ''}
+                    ${(axis.biometric_modifiers_applied || []).map(m => `<span style="font-size: 0.7rem; color: #fde047; background: rgba(245, 158, 11, 0.15); padding: 2px 6px; border-radius: 4px; border: 1px solid rgba(245, 158, 11, 0.3);">⚙️ ${m}</span>`).join('')}
                   </div>
-                  <div class="range-meta-labels">
-                    <span>${Math.round(minV * 10) / 10}</span>
-                    <span style="color: #34d399;">Safe Zone [${sLower} - ${sUpper}]</span>
-                    <span>${Math.round(maxV * 10) / 10} ${axis.unit}</span>
-                  </div>
-                </div>
+                ` : ''}
+
+                <!-- Dynamic Probability Distribution Curve Graph -->
+                ${renderDistributionGraphSVG(axis, cardIdx)}
 
                 ${contribRows ? `
                   <div>

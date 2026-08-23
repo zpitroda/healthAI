@@ -112,7 +112,7 @@ def test_testosterone_plus_anastrozole_and_finasteride_stack(catalog):
     assert aromatase_target["net_activation"] < 0, f"Expected negative net activation for Aromatase due to Anastrozole, got {aromatase_target['net_activation']}"
 
     # 5-Alpha Reductase target should show inhibition from Finasteride
-    srd5a_target = next((v for k, v in effects.items() if "5-Alpha" in k or "Reductase" in k), None)
+    srd5a_target = next((v for k, v in effects.items() if ("5-Alpha" in k or "SRD5A" in k) and any("finasteride" in c["compound_label"].lower() for c in v.get("compounds", []))), None)
     assert srd5a_target is not None, f"5AR target missing in combined effects: {list(effects.keys())}"
     assert srd5a_target["net_activation"] < 0, f"Expected negative net activation for 5AR due to Finasteride, got {srd5a_target['net_activation']}"
 

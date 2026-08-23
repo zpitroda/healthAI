@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import math
 import re
 from enum import Enum
 from typing import Any, Dict, List, Optional, Set, Tuple
@@ -779,6 +780,7 @@ class InteractionEngine:
             combined_effects=combined_effects,
             timeline=timeline,
             timeline_days=timeline_days,
+            profile_data=profile_data,
         )
 
         # ---------------------------------------------------------
@@ -1817,6 +1819,8 @@ class InteractionEngine:
             axes.append({
                 "name": axis_name,
                 "biomarker_id": bio_id,
+                "target_tissue": b.get("target_tissue", "Systemic Circulation & Peripheral Tissues"),
+                "biometric_modifiers_applied": b.get("biometric_modifiers_applied", []),
                 "baseline": baseline,
                 "estimated_value": est_val,
                 "unit": unit,
@@ -1836,9 +1840,16 @@ class InteractionEngine:
         # Calculate Overall Health Index & Equilibrium Status
         num_mitigations = len(active_mitigations)
         num_uncompensated = len(uncompensated_risks)
-        all_in_safe = all(a.get("in_safe_range", True) for a in axes)
+        # Calculate Biometric Uncertainty CV Scale
+        is_sex_known = profile_data.get("sex") is not None if profile_data else False
+        is_age_known = profile_data.get("age") is not None if profile_data else False
+        is_weight_known = profile_data.get("weight_kg") is not None if profile_data else False
+        is_height_known = profile_data.get("height_cm") is not None if profile_data else False
 
-        # Tag Priority Tiers and Calculate Percent Shifts for each Axis
+        unknown_biometrics_count = sum([not is_sex_known, not is_age_known, not is_weight_known, not is_height_known])
+        cv_scale = 0.20 + (unknown_biometrics_count * 0.06)
+
+        # Tag Priority Tiers, Percent Shifts, and Distribution Curves for each Axis
         for a in axes:
             status = str(a.get("status", ""))
             status_color = str(a.get("status_color", ""))
@@ -1847,6 +1858,29 @@ class InteractionEngine:
             est_val = float(a.get("estimated_value", baseline))
             pct_shift = (abs(est_val - baseline) / max(abs(baseline), 1e-4) * 100.0) if baseline != 0 else (abs(est_val) * 100.0)
             a["percent_shift"] = round(pct_shift, 2)
+
+            # Compute log-normal probability distribution percentiles (p5, p25, p50, p75, p95)
+            v = max(0.0001, est_val)
+            sigma_log = math.sqrt(math.log(1.0 + cv_scale * cv_scale))
+            mu_log = math.log(v)
+            p5 = round(math.exp(mu_log - 1.645 * sigma_log), 2 if v < 10 else 1)
+            p25 = round(math.exp(mu_log - 0.6745 * sigma_log), 2 if v < 10 else 1)
+            p50 = round(v, 2 if v < 10 else 1)
+            p75 = round(math.exp(mu_log + 0.6745 * sigma_log), 2 if v < 10 else 1)
+            p95 = round(math.exp(mu_log + 1.645 * sigma_log), 2 if v < 10 else 1)
+
+            unit_str = str(a.get("unit") or "")
+            a["distribution"] = {
+                "p5": p5,
+                "p25": p25,
+                "p50": p50,
+                "p75": p75,
+                "p95": p95,
+                "mean": p50,
+                "std_dev": round(v * cv_scale, 2),
+                "p5_p95_range_str": f"{p5} - {p95} {unit_str}".strip(),
+            }
+            a["p5_p95_range_str"] = f"{p5} - {p95} {unit_str}".strip()
 
             if status_color == "#ef4444" or (not in_safe and any(k in status for k in ["CRASH", "STRAIN", "HYPERKALEMIA", "ELEVATED_RISK", "SUPPRESSED_RISK"])):
                 a["priority_tier"] = 1
@@ -1871,6 +1905,8 @@ class InteractionEngine:
             -x.get("percent_shift", 0.0),
             x.get("name", "")
         ))
+
+        all_in_safe = all(a.get("in_safe_range", True) for a in axes)
 
         if num_uncompensated == 0 and num_mitigations > 0 and all_in_safe:
             overall_status = "OPTIMAL_EQUILIBRIUM"
@@ -1900,6 +1936,15 @@ class InteractionEngine:
             "timeline": cascade_results.get("timeline", "steady_state"),
             "timeline_days": cascade_results.get("timeline_days"),
             "timeline_label": cascade_results.get("timeline_label", "Steady State (Full Equilibrium)"),
+            "patient_biometrics": {
+                "sex": profile_data.get("sex") if profile_data else None,
+                "age": profile_data.get("age") if profile_data else None,
+                "weight_kg": profile_data.get("weight_kg") if profile_data else None,
+                "height_cm": profile_data.get("height_cm") if profile_data else None,
+                "body_fat_pct": profile_data.get("body_fat_pct") if profile_data else None,
+                "unknown_biometrics_count": unknown_biometrics_count,
+                "cv_uncertainty_scale": round(cv_scale, 2),
+            },
             "axes": axes,
             "active_mitigations": active_mitigations,
             "uncompensated_risks": uncompensated_risks,

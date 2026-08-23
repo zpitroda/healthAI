@@ -340,15 +340,23 @@ class PKPDEnricher:
 
     @classmethod
     def match_usan_pkpd(cls, compound_dict: Dict[str, Any]) -> Optional[Dict[str, Any]]:
-        """Matches clinical consensus USAN reference benchmarks for standard drug classes."""
-        import re
-        name = str(compound_dict.get("name") or compound_dict.get("key") or "").lower()
-        key = str(compound_dict.get("key") or "").lower()
+        """Matches clinical consensus USAN reference benchmarks for standard drug classes without regex."""
+        name = str(compound_dict.get("name") or compound_dict.get("key") or "").lower().strip()
+        key = str(compound_dict.get("key") or "").lower().strip()
 
         for rule in USAN_PKPD_BENCHMARKS:
-            pat = rule["pattern"]
-            if re.search(pat, name) or re.search(pat, key):
-                return rule
+            stems = rule.get("stems")
+            if not stems:
+                raw_pat = str(rule.get("pattern", ""))
+                clean_stem = raw_pat.replace("(?:", "").replace(")$", "").replace("$", "").replace("^", "").replace("(", "").replace(")", "").strip().lower()
+                stems = [s.strip() for s in clean_stem.split("|") if s.strip()]
+
+            for s in stems:
+                if name.endswith(s) or key.endswith(s):
+                    return rule
+                tokens = name.replace("-", " ").replace("_", " ").split()
+                if any(tok.endswith(s) for tok in tokens):
+                    return rule
         return None
 
     def enrich_compound_pkpd(self, compound_dict: Dict[str, Any], online: bool = False) -> Dict[str, Any]:

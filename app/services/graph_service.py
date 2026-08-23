@@ -475,19 +475,8 @@ def build_selected_compound_graph(stack: List[Any], catalog_service: CatalogServ
         eff_daily_display = str(compound_entry.get("effective_daily_display") or f"{eff_daily_mg:g} mg/day")
 
         if compound is None:
-            graph.add_node(
-                CompoundNode(
-                    node_id=compound_key,
-                    label=compound_key.title(),
-                ),
-                dose_mg=dose_mg,
-                dose_str=dose_str,
-                frequency=frequency,
-                frequency_multiplier=freq_mult,
-                effective_daily_dose_mg=eff_daily_mg,
-                effective_daily_display=eff_daily_display,
-            )
-            continue
+            from app.services.pharmacology_enricher import PharmacologyEnricher
+            compound = PharmacologyEnricher().enrich_compound({"key": compound_key, "name": compound_key.title()})
 
         compound_id = str(compound.get("key") or compound_key)
         compound_label = str(compound.get("name") or compound_id)
@@ -584,6 +573,27 @@ def build_selected_compound_graph(stack: List[Any], catalog_service: CatalogServ
                     "action": "inhibitor",
                     "family": "Enzyme",
                     "intrinsic_efficacy": ai_eff,
+                    "pre_computed_stress": True,
+                })
+
+        # 5-Alpha Reductase Inhibitors (Finasteride, Dutasteride)
+        is_5ari = any(w in c_name_lower or w in drug_class_lower or w in mechanism_text for w in ["5-alpha reductase", "5ari", "finasteride", "dutasteride", "steride"])
+        if is_5ari:
+            is_duta = "dutasteride" in c_name_lower
+            ari_eff = -0.95 if is_duta else -min(0.90, 0.70 + 0.15 * math.log10(max(0.1, dose_mg / 1.0)))
+            existing_5ar = next((t for t in receptor_targets if any(w in str(t.get("target", "")).lower() for w in ["5-alpha", "srd5a", "5ar"])), None)
+            if existing_5ar:
+                existing_5ar["target"] = "5-Alpha Reductase Subtype 1 & 2"
+                existing_5ar["action"] = "inhibitor"
+                existing_5ar["family"] = "Enzyme"
+                existing_5ar["intrinsic_efficacy"] = ari_eff
+                existing_5ar["pre_computed_stress"] = True
+            else:
+                receptor_targets.append({
+                    "target": "5-Alpha Reductase Subtype 1 & 2",
+                    "action": "inhibitor",
+                    "family": "Enzyme",
+                    "intrinsic_efficacy": ari_eff,
                     "pre_computed_stress": True,
                 })
 
@@ -1591,6 +1601,7 @@ def compute_target_combined_effects(
 
             edge_data = graph.graph.edges[pred, node_id]
             edge_type = str(edge_data.get("edge_type", "MODULATES")).upper()
+            action_str = str(edge_data.get("action", "")).upper()
             mag = float(edge_data.get("vector_magnitude", 1.0))
             ki = edge_data.get("affinity_ki")
             ic50 = edge_data.get("inhibition_ic50")
@@ -1598,12 +1609,13 @@ def compute_target_combined_effects(
             pred_label = pred_attrs.get("label", pred)
 
             # Determine action classification & intrinsic efficacy
-            is_pam = "POSITIVE_ALLOSTERIC" in edge_type or "PAM" in edge_type
-            is_nam = "NEGATIVE_ALLOSTERIC" in edge_type or "NAM" in edge_type
-            is_antagonist = any(k in edge_type for k in ["ANTAGONIZ", "BLOCK"])
-            is_inhibitor = not is_antagonist and any(k in edge_type for k in ["INHIBIT"])
-            is_substrate = "SUBSTRATE" in edge_type
-            is_agonist = not is_antagonist and not is_inhibitor and not is_substrate and any(k in edge_type for k in ["AGONIZ", "ACTIVAT", "OPEN", "INDUCE"])
+            combined_type_str = f"{edge_type} {action_str}"
+            is_pam = "POSITIVE_ALLOSTERIC" in combined_type_str or "PAM" in combined_type_str
+            is_nam = "NEGATIVE_ALLOSTERIC" in combined_type_str or "NAM" in combined_type_str
+            is_antagonist = any(k in combined_type_str for k in ["ANTAGONIZ", "BLOCK"])
+            is_inhibitor = not is_antagonist and any(k in combined_type_str for k in ["INHIBIT"])
+            is_substrate = "SUBSTRATE" in combined_type_str
+            is_agonist = not is_antagonist and not is_inhibitor and not is_substrate and any(k in combined_type_str for k in ["AGONIZ", "ACTIVAT", "OPEN", "INDUCE"])
 
             if is_pam:
                 action_name = "Positive Allosteric Modulator (PAM)"
@@ -1699,6 +1711,9 @@ def compute_target_combined_effects(
 
             # Calculate Biophysical Receptor Binding Drive W_i = [L_free] / K_i
             affinity_val = ki or ic50 or ec50
+            if not affinity_val and is_substrate:
+                affinity_val = 2500.0
+
             if affinity_val and float(affinity_val) > 0:
                 potency_weight = max(0.0001, c_free_nm / float(affinity_val))
             else:
@@ -1756,10 +1771,16 @@ def compute_target_combined_effects(
 
         ortho_total = sum(c["potency_weight"] for c in orthosteric_compounds)
         if orthosteric_compounds:
-            ortho_net = sum(
-                c["intrinsic_efficacy"] * c["potency_weight"]
-                for c in orthosteric_compounds
-            ) / (1.0 + ortho_total)
+            inhibitors = [c for c in orthosteric_compounds if c.get("is_antagonist") or c.get("intrinsic_efficacy", 0) < 0]
+            agonists_substrates = [c for c in orthosteric_compounds if c not in inhibitors]
+            
+            inh_potency = sum(c["potency_weight"] for c in inhibitors)
+            suppression_factor = 1.0 / (1.0 + inh_potency) if inh_potency > 0 else 1.0
+            
+            inh_sum = sum(c["intrinsic_efficacy"] * c["potency_weight"] for c in inhibitors)
+            act_sum = sum(c["intrinsic_efficacy"] * c["potency_weight"] for c in agonists_substrates) * suppression_factor
+            
+            ortho_net = (inh_sum + act_sum) / (1.0 + ortho_total)
         else:
             ortho_net = 0.0
 

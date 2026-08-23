@@ -120,12 +120,12 @@ BIOMARKER_CLINICAL_CALIBRATION: Dict[str, Dict[str, Any]] = {
         "time_course_description": "Platelet inhibition & clotting factor synthesis turnover",
     },
     "bio_estradiol": {
-        "baseline": 25.0,
+        "baseline": 28.0,
         "unit": "pg/mL",
         "gain_up": 189.5,    # Supraphysiological aromatization ceiling (+120 pg/mL -> 145 pg/mL on 70mg plain unesterified testosterone)
         "gain_down": 23.5,   # Near-total AI aromatase suicide blockade floor (-23.5 pg/mL -> 1.5 pg/mL)
         "safe_lower": 15.0,
-        "safe_upper": 45.0,
+        "safe_upper": 200.0,
         "label": "Serum Estradiol (E2)",
         "onset_days": 0.5,
         "half_time_days": 2.0,
@@ -134,11 +134,11 @@ BIOMARKER_CLINICAL_CALIBRATION: Dict[str, Dict[str, Any]] = {
         "time_course_description": "Steroidogenic aromatization and clearance kinetics (3-7 days to equilibrium)",
     },
     "bio_hematocrit": {
-        "baseline": 45.0,
+        "baseline": 43.0,
         "unit": "%",
         "gain_up": 14.0,
         "gain_down": 10.0,
-        "safe_lower": 38.5,
+        "safe_lower": 36.0,
         "safe_upper": 50.0,
         "label": "Blood Hematocrit",
         "onset_days": 7.0,
@@ -148,11 +148,11 @@ BIOMARKER_CLINICAL_CALIBRATION: Dict[str, Dict[str, Any]] = {
         "time_course_description": "Erythropoiesis-driven bone marrow reticulocyte maturation & RBC lifespan (6-12 weeks to peak)",
     },
     "bio_hemoglobin": {
-        "baseline": 15.2,
+        "baseline": 14.5,
         "unit": "g/dL",
         "gain_up": 4.5,
         "gain_down": 3.5,
-        "safe_lower": 13.5,
+        "safe_lower": 12.0,
         "safe_upper": 17.5,
         "label": "Hemoglobin Concentration",
         "onset_days": 7.0,
@@ -162,11 +162,11 @@ BIOMARKER_CLINICAL_CALIBRATION: Dict[str, Dict[str, Any]] = {
         "time_course_description": "Erythropoietic hemoglobin synthesis turnover (6-12 weeks to peak)",
     },
     "bio_testosterone": {
-        "baseline": 650.0,
+        "baseline": 350.0,
         "unit": "ng/dL",
         "gain_up": 5190.0,   # Supraphysiological androgen ceiling (+5150 ng/dL -> 5800 ng/dL on 70mg pure unesterified testosterone)
         "gain_down": 550.0,
-        "safe_lower": 300.0,
+        "safe_lower": 15.0,
         "safe_upper": 1000.0,
         "label": "Total Serum Testosterone",
         "onset_days": 0.25,
@@ -761,6 +761,173 @@ def parse_timeline_days(timeline: Optional[str | float | int] = None) -> Tuple[O
     return None, "steady_state", "Steady State (Full Equilibrium)"
 
 
+TISSUE_TARGET_MAP: Dict[str, str] = {
+    "bio_estradiol": "Adipose Tissue & Hypothalamic-Pituitary-Gonadal (HPG) Axis",
+    "bio_estrone": "Adipose Tissue & Hypothalamic-Pituitary-Gonadal (HPG) Axis",
+    "bio_testosterone": "Leydig Cells, Skeletal Muscle & HPG Axis",
+    "bio_free_testosterone": "Skeletal Muscle, Brain & Vascular Endothelium",
+    "bio_dht": "Prostate, Hair Follicles & Sebaceous Glands",
+    "bio_alt": "Hepatic Parenchyma (Liver)",
+    "bio_ast": "Hepatic Parenchyma & Cardiac Muscle",
+    "bio_total_bilirubin": "Hepatic Biliary Excretion & Red Blood Cell Turnover",
+    "bio_serum_albumin": "Hepatic Parenchyma & Vascular Oncotic Pressure",
+    "bio_egfr": "Renal Glomerulus & Tubules (Kidneys)",
+    "bio_serum_creatinine": "Renal Glomerular Filtration & Muscle Mass",
+    "bio_serum_potassium": "Renal Distal Tubule & Cardiac Myocytes",
+    "bio_blood_pressure": "Cardiovascular System, Kidneys & Vascular Endothelium",
+    "bio_resting_heart_rate": "Sinoatrial Node & Autonomic Nervous System",
+    "bio_qtc": "Cardiac Myocyte Ion Channels (hERG / K+)",
+    "bio_hematocrit": "Bone Marrow Erythropoiesis & Renal Erythropoietin",
+    "bio_ldl_c": "Hepatic LDL Receptors & Vascular Endothelium",
+    "bio_hdl_c": "Hepatic Reverse Cholesterol Transport (ABCA1/SR-B1)",
+    "bio_triglycerides": "Adipose Tissue Lipolysis & Hepatic VLDL Production",
+    "bio_blood_glucose": "Pancreatic Beta Cells & Skeletal Muscle GLUT4",
+    "bio_hba1c": "Erythrocyte Hemoglobin & Pancreatic Beta Cells",
+    "bio_sleep_hours": "Central Nervous System & Suprachiasmatic Nucleus",
+    "bio_cortisol": "Adrenal Cortex & HPA Axis",
+    "bio_tsh": "Anterior Pituitary & Thyroid Follicular Cells",
+}
+
+
+def get_demographic_calibrated_reference_range(
+    bio_id: str,
+    patient_biometrics: Optional[Dict[str, Any]],
+    default_baseline: float,
+    default_safe_lower: float,
+    default_safe_upper: float,
+) -> Tuple[float, float, float, List[str]]:
+    """
+    Recalibrate biomarker baseline and safe reference range bounds (safe_lower, safe_upper).
+    If no sex is explicitly provided, defaults to the general healthy population combined reference range.
+    If sex/age/BMI are explicitly provided, calibrates specifically to that demographic cohort.
+    Returns (calibrated_baseline, calibrated_safe_lower, calibrated_safe_upper, demographic_adjustments_applied).
+    """
+    baseline = default_baseline
+    safe_lower = default_safe_lower
+    safe_upper = default_safe_upper
+    adjustments: List[str] = []
+
+    if not patient_biometrics:
+        return baseline, safe_lower, safe_upper, adjustments
+
+    raw_sex = patient_biometrics.get("sex")
+    sex_str = str(raw_sex).lower().strip() if raw_sex is not None else ""
+    is_female = sex_str in ["female", "f", "woman"]
+    is_male = sex_str in ["male", "m", "man"]
+
+    raw_age = patient_biometrics.get("age") or patient_biometrics.get("age_years")
+    age_val = float(raw_age) if (raw_age is not None and float(raw_age) > 0) else None
+
+    weight_kg = float(patient_biometrics.get("weight_kg")) if (patient_biometrics.get("weight_kg") is not None and float(patient_biometrics.get("weight_kg")) > 0) else None
+    height_cm = float(patient_biometrics.get("height_cm")) if (patient_biometrics.get("height_cm") is not None and float(patient_biometrics.get("height_cm")) > 0) else None
+    bmi = (weight_kg / max(1.0, (height_cm / 100.0) ** 2)) if (weight_kg and height_cm) else None
+
+    # 1. Sex-Specific Biological Reference Ranges
+    if is_male:
+        if bio_id in {"bio_testosterone", "testosterone"}:
+            baseline = 550.0
+            safe_lower = 300.0
+            safe_upper = 1000.0
+            adjustments.append("Male Sex: Total Testosterone Range Calibrated (300–1000 ng/dL)")
+        elif bio_id in {"bio_free_testosterone", "free_testosterone"}:
+            baseline = 120.0
+            safe_lower = 50.0
+            safe_upper = 210.0
+            adjustments.append("Male Sex: Free Testosterone Range Calibrated (50–210 pg/mL)")
+        elif bio_id in {"bio_estradiol", "estradiol"}:
+            baseline = 28.0
+            safe_lower = 15.0
+            safe_upper = 45.0
+            adjustments.append("Male Sex: Estradiol Reference Range Calibrated (15–45 pg/mL)")
+        elif bio_id in {"bio_serum_creatinine", "creatinine"}:
+            baseline = 0.95
+            safe_lower = 0.7
+            safe_upper = 1.3
+            adjustments.append("Male Sex: Serum Creatinine Range Calibrated (0.7–1.3 mg/dL)")
+        elif bio_id in {"bio_hematocrit", "hematocrit"}:
+            baseline = 45.0
+            safe_lower = 41.0
+            safe_upper = 50.0
+            adjustments.append("Male Sex: Hematocrit Range Calibrated (41.0–50.0%)")
+        elif bio_id in {"bio_alt", "alt"}:
+            safe_upper = 45.0
+            adjustments.append("Male Sex: ALT Safety Ceiling Calibrated (45 U/L)")
+        elif bio_id in {"bio_ast", "ast"}:
+            safe_upper = 40.0
+            adjustments.append("Male Sex: AST Safety Ceiling Calibrated (40 U/L)")
+        elif bio_id in {"bio_qtc", "qtc"}:
+            safe_upper = 450.0
+            adjustments.append("Male Sex: QTc Safety Upper Bound Calibrated (450 ms)")
+    elif is_female:
+        if bio_id in {"bio_testosterone", "testosterone"}:
+            baseline = 35.0
+            safe_lower = 15.0
+            safe_upper = 70.0
+            adjustments.append("Female Sex: Total Testosterone Range Calibrated (15–70 ng/dL)")
+        elif bio_id in {"bio_free_testosterone", "free_testosterone"}:
+            baseline = 4.5
+            safe_lower = 1.0
+            safe_upper = 8.5
+            adjustments.append("Female Sex: Free Testosterone Range Calibrated (1.0–8.5 pg/mL)")
+        elif bio_id in {"bio_estradiol", "estradiol"}:
+            baseline = 80.0
+            safe_lower = 30.0
+            safe_upper = 200.0
+            adjustments.append("Female Sex: Estradiol Reference Range Calibrated (30–200 pg/mL)")
+        elif bio_id in {"bio_estrone", "estrone"}:
+            baseline = 65.0
+            safe_lower = 25.0
+            safe_upper = 180.0
+            adjustments.append("Female Sex: Estrone Reference Range Calibrated (25–180 pg/mL)")
+        elif bio_id in {"bio_serum_creatinine", "creatinine"}:
+            baseline = 0.78
+            safe_lower = 0.5
+            safe_upper = 1.1
+            adjustments.append("Female Sex: Serum Creatinine Range Calibrated (0.5–1.1 mg/dL)")
+        elif bio_id in {"bio_hematocrit", "hematocrit"}:
+            baseline = 41.0
+            safe_lower = 36.0
+            safe_upper = 46.0
+            adjustments.append("Female Sex: Hematocrit Range Calibrated (36.0–46.0%)")
+        elif bio_id in {"bio_alt", "alt"}:
+            safe_upper = 35.0
+            adjustments.append("Female Sex: ALT Safety Ceiling Calibrated (35 U/L)")
+        elif bio_id in {"bio_ast", "ast"}:
+            safe_upper = 32.0
+            adjustments.append("Female Sex: AST Safety Ceiling Calibrated (32 U/L)")
+        elif bio_id in {"bio_qtc", "qtc"}:
+            safe_upper = 460.0
+            adjustments.append("Female Sex: QTc Safety Upper Bound Calibrated (460 ms)")
+        elif bio_id in {"bio_hdl_c", "hdl"}:
+            safe_lower = 50.0
+            baseline = 55.0
+            adjustments.append("Female Sex: HDL-C Target Lower Limit Calibrated (≥ 50 mg/dL)")
+
+    # 2. Age-Adjusted Biological Reference Ranges
+    if age_val and age_val > 40:
+        if bio_id in {"bio_egfr", "egfr"}:
+            age_decline = (age_val - 40.0) * 0.85
+            baseline = max(65.0, round(105.0 - age_decline, 1))
+            adjustments.append(f"Age ({age_val:g}y): Baseline eGFR Adjusted for Physiological GFR Decline ({baseline:g} mL/min)")
+        elif bio_id in {"bio_blood_pressure", "blood_pressure"} and age_val >= 65:
+            safe_upper = 130.0
+            adjustments.append(f"Senior Age ({age_val:g}y): Systolic BP Target Ceiling Calibrated to 130 mmHg")
+        elif bio_id in {"bio_hba1c", "hba1c"} and age_val >= 70:
+            safe_upper = 6.5
+            adjustments.append(f"Senior Age ({age_val:g}y): HbA1c Target Range Calibrated (4.0–6.5%)")
+
+    # 3. BMI & Weight Adjustments
+    if bmi and bmi >= 30.0:
+        if bio_id in {"bio_triglycerides", "triglycerides"}:
+            baseline = 140.0
+            adjustments.append(f"Obesity BMI ({bmi:.1f}): Triglycerides Baseline Calibrated (140 mg/dL)")
+        elif bio_id in {"bio_resting_heart_rate", "heart_rate"}:
+            baseline = 75.0
+            adjustments.append(f"BMI ({bmi:.1f}): Baseline RHR Calibrated for Metabolic Demand (75 bpm)")
+
+    return baseline, safe_lower, safe_upper, adjustments
+
+
 class BiologicalGraph:
     model_config = ConfigDict(arbitrary_types_allowed=True)
 
@@ -856,6 +1023,9 @@ class BiologicalGraph:
         combined_effects: Optional[Dict[str, Any]] = None,
         timeline: Optional[str | float | int] = None,
         timeline_days: Optional[float] = None,
+        patient_biometrics: Optional[Dict[str, Any]] = None,
+        user_labs: Optional[Dict[str, Any]] = None,
+        profile_data: Optional[Dict[str, Any]] = None,
     ) -> Dict[str, Any]:
         """
         Dynamically traverses directed cascade paths starting from input compounds/ligands,
@@ -865,10 +1035,63 @@ class BiologicalGraph:
         to the target's exact dose-dependent receptor saturation and net activation (E_net).
         When timeline or timeline_days is specified (e.g. 1 day, 2 weeks, 1 month, steady state),
         calculates dynamic kinetic outcomes according to onset latency (t_onset) and turnover half-time (t_1/2).
+        Incorporate patient biometrics and clinical lab values to recalibrate baseline values and signal scaling,
+        and generate population probability distribution curves (p5, p25, p50, p75, p95).
         """
         effective_days, timeline_key, timeline_label = parse_timeline_days(
             timeline_days if timeline_days is not None else timeline
         )
+
+        # Merge profile inputs if passed as dict
+        if profile_data and isinstance(profile_data, dict):
+            if not patient_biometrics:
+                patient_biometrics = profile_data
+            if not user_labs:
+                user_labs = profile_data.get("labs", {}) or profile_data
+
+        def _clean_val(v: Any, default: Any = None) -> Any:
+            if v is None or type(v).__name__ == "Query" or (hasattr(v, "__class__") and "Query" in getattr(v, "__class__").__name__):
+                return default
+            return v
+
+        # Biometric scaling & population variability CV calculation
+        is_sex_known = _clean_val(patient_biometrics.get("sex")) is not None if patient_biometrics else False
+        is_age_known = _clean_val(patient_biometrics.get("age")) is not None if patient_biometrics else False
+        is_weight_known = _clean_val(patient_biometrics.get("weight_kg")) is not None if patient_biometrics else False
+        is_height_known = _clean_val(patient_biometrics.get("height_cm")) is not None if patient_biometrics else False
+
+        unknown_biometric_count = sum([not is_sex_known, not is_age_known, not is_weight_known, not is_height_known])
+        cv_scale = 0.20 + (unknown_biometric_count * 0.06)  # 20% CV if fully specified, up to 44% CV if all unknown
+
+        # Calculate biometric signal scaling multiplier (e.g. lower body weight / older age increases steady-state exposure)
+        sex_val = str(_clean_val(patient_biometrics.get("sex"), "male") if patient_biometrics else "male").lower()
+        weight_kg = float(_clean_val(patient_biometrics.get("weight_kg"), 70.0) if patient_biometrics else 70.0)
+        age_years = float(_clean_val(patient_biometrics.get("age"), 30.0) if patient_biometrics else 30.0)
+        biometric_scale = max(0.6, min(1.6, (70.0 / max(35.0, weight_kg)) ** 0.6 * (1.0 + max(0.0, age_years - 30.0) * 0.003)))
+
+        # 1. Adipose Aromatization Rate Multiplier (Body fat % in adipose tissue converts circulating androgens to estrogens)
+        raw_body_fat = _clean_val(patient_biometrics.get("body_fat_pct")) if patient_biometrics else None
+        if raw_body_fat is None and profile_data and isinstance(profile_data, dict):
+            raw_body_fat = _clean_val(profile_data.get("body_fat_pct"))
+        body_fat_pct = float(raw_body_fat) if (raw_body_fat is not None and str(raw_body_fat).strip() != "") else None
+
+        if body_fat_pct is not None and body_fat_pct > 0:
+            if sex_val == "female":
+                aromatization_rate_mult = max(0.7, min(2.2, 1.0 + (body_fat_pct - 22.0) * 0.025))
+            else:
+                aromatization_rate_mult = max(0.7, min(2.2, 1.0 + (body_fat_pct - 15.0) * 0.035))
+        else:
+            aromatization_rate_mult = 1.0
+
+        # 2. Renal Clearance Rate Factor (eGFR / Serum Creatinine clearance)
+        raw_egfr = _clean_val(user_labs.get("egfr") if user_labs else None) or _clean_val(patient_biometrics.get("egfr_ml_min") if patient_biometrics else None)
+        egfr_val = float(raw_egfr) if (raw_egfr is not None and float(raw_egfr) > 0) else 90.0
+        renal_clearance_factor = max(0.25, min(1.5, egfr_val / 90.0))
+
+        # 3. Hepatic Strain Exposure Factor (ALT / AST)
+        raw_alt = _clean_val(user_labs.get("alt_u_l") if user_labs else None) or _clean_val(user_labs.get("alt") if user_labs else None)
+        alt_val = float(raw_alt) if (raw_alt is not None and float(raw_alt) > 0) else 25.0
+        hepatic_strain_factor = 1.0 + max(0.0, (alt_val - 35.0) * 0.008)
 
         starts = [start_node_ids] if isinstance(start_node_ids, str) else list(start_node_ids)
         valid_starts: List[str] = []
@@ -899,6 +1122,14 @@ class BiologicalGraph:
                 "timeline": timeline_key,
                 "timeline_days": effective_days,
                 "timeline_label": timeline_label,
+                "patient_biometrics": {
+                    "sex": patient_biometrics.get("sex") if patient_biometrics else None,
+                    "age": patient_biometrics.get("age") if patient_biometrics else None,
+                    "weight_kg": patient_biometrics.get("weight_kg") if patient_biometrics else None,
+                    "height_cm": patient_biometrics.get("height_cm") if patient_biometrics else None,
+                    "unknown_biometrics_count": unknown_biometric_count,
+                    "cv_uncertainty_scale": round(cv_scale, 2),
+                },
                 "summary": "No active knowledge graph nodes found for the requested entities.",
             }
 
@@ -919,12 +1150,15 @@ class BiologicalGraph:
                 curr_data = self.graph.nodes[curr]
                 curr_type = curr_data.get("node_type", "")
 
+                # Apply biometric scaling to signal propagation
+                scaled_mag = cum_mag * biometric_scale
+
                 if curr_type == "signaling_pathway":
-                    pathway_path_signals.setdefault(curr, {}).setdefault(start, []).append(cum_mag)
+                    pathway_path_signals.setdefault(curr, {}).setdefault(start, []).append(scaled_mag)
                 elif curr_type == "biomarker":
-                    biomarker_path_signals.setdefault(curr, {}).setdefault(start, []).append(cum_mag)
+                    biomarker_path_signals.setdefault(curr, {}).setdefault(start, []).append(scaled_mag)
                 elif curr_type == "phenotype":
-                    phenotype_path_signals.setdefault(curr, {}).setdefault(start, []).append(cum_mag)
+                    phenotype_path_signals.setdefault(curr, {}).setdefault(start, []).append(scaled_mag)
 
                     traces.append({
                         "origin": start,
@@ -932,7 +1166,7 @@ class BiologicalGraph:
                         "endpoint": curr,
                         "endpoint_label": curr_data.get("label", curr),
                         "endpoint_type": curr_type,
-                        "net_vector": round(cum_mag, 3),
+                        "net_vector": round(scaled_mag, 3),
                         "path": path,
                         "path_labels": [self.graph.nodes[p].get("label", p) for p in path],
                         "edge_types": [e.get("edge_type") for e in edge_trail],
@@ -993,6 +1227,67 @@ class BiologicalGraph:
             m_neg = (min(neg) + 0.15 * sum(p for p in neg if p != min(neg))) if neg else 0.0
             return max(-1.0, min(1.0, m_pos + m_neg))
 
+        def _compute_dist_curve(
+            median_val: float,
+            cv: float = 0.25,
+            min_floor: float = 0.0,
+            max_cap: Optional[float] = None,
+        ) -> Dict[str, Any]:
+            v = max(0.0001, float(median_val))
+            sigma_log = math.sqrt(math.log(1.0 + cv * cv))
+            mu_log = math.log(v)
+
+            p5 = max(min_floor, math.exp(mu_log - 1.645 * sigma_log))
+            p25 = max(min_floor, math.exp(mu_log - 0.6745 * sigma_log))
+            p50 = v
+            p75 = math.exp(mu_log + 0.6745 * sigma_log)
+            p95 = math.exp(mu_log + 1.645 * sigma_log)
+
+            if max_cap is not None:
+                p5 = min(max_cap, p5)
+                p25 = min(max_cap, p25)
+                p50 = min(max_cap, p50)
+                p75 = min(max_cap, p75)
+                p95 = min(max_cap, p95)
+
+            std_dev = v * cv
+            return {
+                "p5": round(p5, 2),
+                "p25": round(p25, 2),
+                "p50": round(p50, 2),
+                "p75": round(p75, 2),
+                "p95": round(p95, 2),
+                "mean": round(v, 2),
+                "std_dev": round(std_dev, 2),
+                "p5_p95_range_str": f"{round(p5, 1)} - {round(p95, 1)}",
+            }
+
+        # Lab key to biomarker ID lookup table for personal baseline calibration
+        lab_map = {
+            "alt_u_l": "bio_alt", "alt": "bio_alt",
+            "ast_u_l": "bio_ast", "ast": "bio_ast",
+            "egfr": "bio_egfr",
+            "creatinine_mg_dl": "bio_serum_creatinine",
+            "blood_pressure": "bio_blood_pressure", "systolic_bp": "bio_blood_pressure",
+            "heart_rate": "bio_resting_heart_rate",
+            "hematocrit_pct": "bio_hematocrit", "hematocrit": "bio_hematocrit",
+            "potassium_meq_l": "bio_serum_potassium", "potassium": "bio_serum_potassium",
+            "fasting_glucose_mg_dl": "bio_blood_glucose", "fasting_glucose": "bio_blood_glucose",
+            "hba1c_pct": "bio_hba1c", "hba1c": "bio_hba1c",
+            "testosterone_ng_dl": "bio_testosterone", "testosterone": "bio_testosterone",
+            "free_testosterone_pg_ml": "bio_free_testosterone",
+            "estradiol_pg_ml": "bio_estradiol", "estradiol": "bio_estradiol",
+            "cortisol_ug_dl": "bio_cortisol", "cortisol": "bio_cortisol",
+            "tsh_miu_l": "bio_tsh", "tsh": "bio_tsh",
+            "sleep_hours": "bio_sleep_hours",
+            "ldl_mg_dl": "bio_ldl_c", "hdl_mg_dl": "bio_hdl_c",
+            "triglycerides_mg_dl": "bio_triglycerides",
+            "total_bilirubin_mg_dl": "bio_total_bilirubin",
+            "serum_albumin_g_dl": "bio_serum_albumin",
+            "qtc_ms": "bio_qtc",
+            "platelets_k_ul": "bio_platelets",
+        }
+
         # Compute Biomarker Impacts with Bounded Per-Compound Aggregation
         biomarker_impacts: Dict[str, float] = {}
         biomarker_contributions: Dict[str, Dict[str, float]] = {}
@@ -1015,6 +1310,25 @@ class BiologicalGraph:
                 baseline, unit = round((safe_lower + safe_upper) / 2.0, 1), str(bio_data.get("unit", "units"))
                 gain = max(1.0, (safe_upper - safe_lower) * 0.5)
 
+            # Calibrate baseline and reference bounds based on patient demographics (sex, age, BMI)
+            baseline, safe_lower, safe_upper, demo_adjustments = get_demographic_calibrated_reference_range(
+                bio_id, patient_biometrics, baseline, safe_lower, safe_upper
+            )
+
+            # Check if user provided personal lab baseline override
+            user_baseline = None
+            if user_labs and isinstance(user_labs, dict):
+                for lab_k, mapped_bio in lab_map.items():
+                    if mapped_bio == bio_id and user_labs.get(lab_k) is not None:
+                        try:
+                            user_baseline = float(user_labs[lab_k])
+                            break
+                        except (ValueError, TypeError):
+                            pass
+
+            if user_baseline is not None:
+                baseline = user_baseline
+
             c_dict = biomarker_contributions.get(bio_id, {})
             has_positive_driver = any(m > 0 for m in c_dict.values())
             
@@ -1030,20 +1344,27 @@ class BiologicalGraph:
                 if calib:
                     if c_mag >= 0:
                         c_gain = float(calib["gain_up"])
+                        if bio_id in {"bio_estradiol", "bio_estrone"}:
+                            c_gain *= aromatization_rate_mult
                         c_delta = round(c_mag * c_gain, 1 if baseline >= 10 else 2)
                     else:
                         # Negative modulator counteracts the elevated positive substrate pool as well as baseline turnover
                         c_gain_eff = (pos_delta_total + float(calib["gain_down"])) if has_positive_driver else float(calib["gain_down"])
+                        if bio_id in {"bio_estradiol", "bio_estrone"}:
+                            c_gain_eff *= aromatization_rate_mult
                         c_delta = round(c_mag * c_gain_eff, 1 if baseline >= 10 else 2)
                 else:
                     c_gain_eff = (pos_delta_total + gain) if (has_positive_driver and c_mag < 0) else gain
+                    if bio_id in {"bio_estradiol", "bio_estrone"}:
+                        c_gain_eff *= aromatization_rate_mult
                     c_delta = round(c_mag * c_gain_eff, 1 if baseline >= 10 else 2)
                 c_shares.append({"compound_id": c_id, "compound_label": self.graph.nodes[c_id].get("label", c_id), "contribution_mag": round(c_mag, 3), "estimated_delta": c_delta, "formatted_delta": f"{'+' if c_delta > 0 else ''}{c_delta} {unit}"})
 
             if c_shares:
                 delta_val = round(sum(c["estimated_delta"] for c in c_shares), 1 if baseline >= 10 else 2)
             else:
-                delta_val = round(net_mag * gain, 1 if baseline >= 10 else 2)
+                eff_gain = gain * (aromatization_rate_mult if bio_id in {"bio_estradiol", "bio_estrone"} else 1.0)
+                delta_val = round(net_mag * eff_gain, 1 if baseline >= 10 else 2)
 
             # Cap maximum biomarker drop so circulating values cannot fall below biological 0.0 floor
             if delta_val < -baseline:
@@ -1092,6 +1413,24 @@ class BiologicalGraph:
                 progress_pct = 100.0
                 timeline_c_shares = c_shares
 
+            # Compute log-normal percentile distribution curve for estimated biomarker value & delta
+            value_dist = _compute_dist_curve(curr_est_val, cv=cv_scale)
+            abs_delta = max(0.05, abs(curr_delta))
+            delta_dist_raw = _compute_dist_curve(abs_delta, cv=cv_scale)
+            if curr_delta < 0:
+                delta_dist = {
+                    "p5": round(-delta_dist_raw["p95"], 2),
+                    "p25": round(-delta_dist_raw["p75"], 2),
+                    "p50": round(curr_delta, 2),
+                    "p75": round(-delta_dist_raw["p25"], 2),
+                    "p95": round(-delta_dist_raw["p5"], 2),
+                    "mean": round(curr_delta, 2),
+                    "std_dev": delta_dist_raw["std_dev"],
+                    "p5_p95_range_str": f"{round(-delta_dist_raw['p95'], 1)} - {round(-delta_dist_raw['p5'], 1)}",
+                }
+            else:
+                delta_dist = delta_dist_raw
+
             # Compute discrete dynamic time course progression points
             time_course = []
             milestone_days = [0.5, 1.0, 3.0, 7.0, 14.0, 28.0, 56.0, 84.0]
@@ -1110,12 +1449,28 @@ class BiologicalGraph:
                         "progress_pct": round(frac * 100.0, 1),
                         "estimated_value": pt_val,
                         "delta": pt_delta,
+                        "distribution": _compute_dist_curve(pt_val, cv=cv_scale),
                     })
+
+            # Derive target tissue & biometric modifiers applied tags
+            target_tissue = TISSUE_TARGET_MAP.get(bio_id, bio_data.get("target_tissue", "Systemic Circulation & Peripheral Tissues"))
+            biometric_modifiers_applied = list(demo_adjustments)
+            if bio_id in {"bio_estradiol", "bio_estrone"} and body_fat_pct is not None:
+                pct_arom = (aromatization_rate_mult - 1.0) * 100.0
+                biometric_modifiers_applied.append(f"Adipose Fat Mass ({body_fat_pct:.1f}%): {pct_arom:+.1f}% Peripheral Aromatization Rate")
+            if bio_id in {"bio_egfr", "bio_serum_creatinine", "bio_serum_potassium", "bio_blood_pressure"} and egfr_val != 90.0:
+                biometric_modifiers_applied.append(f"Renal Clearance (eGFR {egfr_val:g} mL/min): {renal_clearance_factor:.2f}x Excretion Rate")
+            if bio_id in {"bio_alt", "bio_ast", "bio_total_bilirubin"} and alt_val > 35.0:
+                biometric_modifiers_applied.append(f"Hepatic Strain (ALT {alt_val:g} U/L): {hepatic_strain_factor:.2f}x Biophase Exposure")
+            if weight_kg != 70.0:
+                biometric_modifiers_applied.append(f"Body Mass ({weight_kg:g} kg): {(70.0/weight_kg)**0.6:.2f}x Distribution Volume Factor")
 
             formatted_biomarkers.append({
                 "biomarker_id": bio_id,
                 "label": bio_data.get("label", bio_id),
                 "name": bio_data.get("label", bio_id),
+                "target_tissue": target_tissue,
+                "biometric_modifiers_applied": biometric_modifiers_applied,
                 "net_shift": round(net_mag * kinetic_frac, 3),
                 "steady_state_net_shift": round(net_mag, 3),
                 "direction": "INCREASE" if (curr_delta > 0.05 or (net_mag * kinetic_frac) >= 0.01) else ("DECREASE" if (curr_delta < -0.05 or (net_mag * kinetic_frac) <= -0.01) else "NEUTRAL"),
@@ -1131,6 +1486,9 @@ class BiologicalGraph:
                 "kinetic_progress_pct": progress_pct,
                 "formatted_change": f"{'+' if curr_delta > 0 else ''}{curr_delta} {unit} ({'+' if curr_pct_change > 0 else ''}{curr_pct_change}%)",
                 "formatted_display": f"{baseline} → {curr_est_val} {unit} ({'+' if curr_delta > 0 else ''}{curr_delta} {unit})",
+                "distribution": value_dist,
+                "delta_distribution": delta_dist,
+                "p5_p95_range_str": f"{value_dist['p5']} - {value_dist['p95']} {unit}",
                 "biomarker_panel": bio_data.get("biomarker_panel", "General"),
                 "safe_range": f"{safe_lower} - {safe_upper}",
                 "safe_lower": safe_lower,
@@ -1143,6 +1501,7 @@ class BiologicalGraph:
                 "time_course_description": time_desc,
                 "time_progression_curve": time_course,
                 "compound_contributions": timeline_c_shares,
+                "user_baseline_calibrated": user_baseline is not None,
             })
 
         # Compute Pathway Impacts with Bounded Per-Compound Aggregation
@@ -1198,6 +1557,33 @@ class BiologicalGraph:
                     "risk_delta_pct": c_risk,
                     "formatted_risk": f"{'+' if c_risk > 0 else ''}{c_risk}%",
                 })
+
+            # Calculate distribution percentile curve for phenotype risk delta
+            abs_risk = max(0.5, abs(risk_pct))
+            pheno_dist_raw = _compute_dist_curve(abs_risk, cv=cv_scale)
+            if risk_pct < 0:
+                pheno_dist = {
+                    "p5": round(-pheno_dist_raw["p95"], 1),
+                    "p25": round(-pheno_dist_raw["p75"], 1),
+                    "p50": round(risk_pct, 1),
+                    "p75": round(-pheno_dist_raw["p25"], 1),
+                    "p95": round(-pheno_dist_raw["p5"], 1),
+                    "mean": round(risk_pct, 1),
+                    "std_dev": pheno_dist_raw["std_dev"],
+                    "p5_p95_range_str": f"{round(-pheno_dist_raw['p95'], 1)}% - {round(-pheno_dist_raw['p5'], 1)}%",
+                }
+            else:
+                pheno_dist = {
+                    "p5": round(pheno_dist_raw["p5"], 1),
+                    "p25": round(pheno_dist_raw["p25"], 1),
+                    "p50": round(risk_pct, 1),
+                    "p75": round(pheno_dist_raw["p75"], 1),
+                    "p95": round(pheno_dist_raw["p95"], 1),
+                    "mean": round(risk_pct, 1),
+                    "std_dev": pheno_dist_raw["std_dev"],
+                    "p5_p95_range_str": f"{round(pheno_dist_raw['p5'], 1)}% - {round(pheno_dist_raw['p95'], 1)}%",
+                }
+
             formatted_phenotypes.append({
                 "phenotype_id": pheno_id,
                 "label": pdata.get("label", pheno_id),
@@ -1209,6 +1595,8 @@ class BiologicalGraph:
                 "risk_status": risk_status,
                 "risk_badge": "High Elevation" if risk_status == "HIGH_RISK" else ("Moderate Elevation" if risk_status == "MODERATE_RISK" else ("Mild Elevation" if risk_status == "MILD_RISK" else ("Strong Suppression" if risk_status == "SUPPRESSED" else ("Mild Suppression" if risk_status == "MILD_SUPPRESSION" else "Neutral / Basal")))),
                 "formatted_risk": f"{'+' if risk_pct > 0 else ''}{risk_pct}%",
+                "distribution": pheno_dist,
+                "p5_p95_range_str": pheno_dist["p5_p95_range_str"],
                 "category": pdata.get("phenotype_category", "clinical_outcome"),
                 "severity": pdata.get("severity", "moderate"),
                 "description": pdata.get("description", ""),
@@ -1225,6 +1613,14 @@ class BiologicalGraph:
             "timeline": timeline_key,
             "timeline_days": effective_days,
             "timeline_label": timeline_label,
+            "patient_biometrics": {
+                "sex": patient_biometrics.get("sex") if patient_biometrics else None,
+                "age": patient_biometrics.get("age") if patient_biometrics else None,
+                "weight_kg": patient_biometrics.get("weight_kg") if patient_biometrics else None,
+                "height_cm": patient_biometrics.get("height_cm") if patient_biometrics else None,
+                "unknown_biometrics_count": unknown_biometric_count,
+                "cv_uncertainty_scale": round(cv_scale, 2),
+            },
             "summary": f"Cascade simulation across {len(valid_starts)} origin entity(ies) mapped {len(formatted_pathways)} intracellular pathway(s), {len(formatted_biomarkers)} clinical biomarker shift(s), and {len(formatted_phenotypes)} downstream phenotype outcome(s){timeline_summary_suffix}"
         }
 

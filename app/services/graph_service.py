@@ -23,6 +23,7 @@ from app.knowledge_graph.models import (
     TransporterNode,
 )
 from app.services.catalog_service import CatalogService
+from app.services.redox_enricher import RedoxEnricher
 
 
 def normalize_stack_name(value: Any) -> str:
@@ -871,57 +872,32 @@ def build_selected_compound_graph(stack: List[Any], catalog_service: CatalogServ
                     "pre_computed_stress": True,
                 })
 
-        # 3. Dynamic Cellular Redox & Mitochondrial Stress
-        is_blocker = any(w in drug_class_lower for w in ["blocker", "antagonist", "inhibitor"])
-        comp_class_lower = str(compound.get("compound_class") or "").lower()
-        is_antioxidant = any(
-            w in drug_class_lower or w in mechanism_text or w in comp_class_lower or w in c_name_lower
-            for w in [
-                "antioxidant",
-                "glutathione",
-                "scavenger",
-                "n-acetylcysteine",
-                "acetylcysteine",
-                "tudca",
-                "mucolytic",
-                "reductant",
-                "neutralizing reactive oxygen",
-                "protects against oxidative",
-                "radical scavenger",
-                "lipoic acid",
-                "coq10",
-                "ubiquinone",
-                "ubiquinol",
-                "tocopherol",
-                "ascorbic",
-            ]
+        # 3. Dynamic Cellular Redox & Mitochondrial Stress (Algorithmic & Online Literature Query)
+        redox_eval = RedoxEnricher().evaluate_mechanistic_redox_burden(
+            compound_name=str(compound.get("name") or compound.get("key") or ""),
+            drug_class=str(compound.get("drug_class") or compound.get("compound_class") or ""),
+            mechanism_text=mechanism_text,
+            targets=receptor_targets,
+            cyp_substrates=compound.get("cyp_substrates", []),
+            cyp_inducers=compound.get("cyp_inducers", []),
+            organ_burdens=compound.get("organ_burdens", {}),
+            dose_mg=dose_mg,
         )
-        has_redox_stress = (
-            not is_blocker
-            and not is_antioxidant
-            and (
-                is_17aa
-                or ("beta" in drug_class_lower and "agonist" in drug_class_lower)
-                or any(w in drug_class_lower for w in ["sympathomimetic", "xanthine", "stimulant", "mitochondrial uncoupler", "quinone", "17alpha-alkylated", "17a-alkylated"])
-                or any(w in mechanism_text for w in ["beta-1 agonist", "beta-2 agonist", "camp surge", "uncoupl", "generates reactive oxygen", "mitochondrial uncoupling", "induces ros", "oxidative phosphorylation uncoupling", "lipid peroxidation"])
-            )
-        )
-        if has_redox_stress and not any("uncoupl" in str(t.get("target", "")).lower() or "ros generation" in str(t.get("target", "")).lower() or "oxidative" in str(t.get("target", "")).lower() for t in receptor_targets):
-            ox_efficacy = min(0.65, (0.25 if is_17aa else 0.15) + 0.10 * math.log10(max(1.0, dose_mg)))
+
+        if redox_eval.get("is_pro_oxidant") and not any("uncoupl" in str(t.get("target", "")).lower() or "ros generation" in str(t.get("target", "")).lower() or "oxidative" in str(t.get("target", "")).lower() for t in receptor_targets):
             receptor_targets.append({
-                "target": "Pathological Mitochondrial Uncoupling & ROS Generation",
-                "action": "inducer",
-                "family": "Mitochondrial Stress",
-                "intrinsic_efficacy": ox_efficacy,
+                "target": redox_eval.get("primary_target_node", "Pathological Mitochondrial Uncoupling & ROS Generation"),
+                "action": redox_eval.get("action", "inducer"),
+                "family": redox_eval.get("family", "Mitochondrial Stress"),
+                "intrinsic_efficacy": redox_eval.get("net_redox_efficacy", 0.35),
                 "pre_computed_stress": True,
             })
-        elif is_antioxidant and not any("glutathione" in str(t.get("target", "")).lower() or "cystine" in str(t.get("target", "")).lower() or "antioxidant defense" in str(t.get("target", "")).lower() for t in receptor_targets):
-            antiox_efficacy = min(0.85, 0.35 + 0.15 * math.log10(max(1.0, dose_mg)))
+        elif redox_eval.get("is_antioxidant") and not any("glutathione" in str(t.get("target", "")).lower() or "cystine" in str(t.get("target", "")).lower() or "antioxidant defense" in str(t.get("target", "")).lower() for t in receptor_targets):
             receptor_targets.append({
-                "target": "Glutathione Biosynthesis & Cellular Antioxidant Defense (System xc- / Nrf2 / GCL)",
-                "action": "agonist",
-                "family": "Antioxidant Defense",
-                "intrinsic_efficacy": antiox_efficacy,
+                "target": redox_eval.get("primary_target_node", "Glutathione Biosynthesis & Cellular Antioxidant Defense (System xc- / Nrf2 / GCL)"),
+                "action": redox_eval.get("action", "agonist"),
+                "family": redox_eval.get("family", "Antioxidant Defense"),
+                "intrinsic_efficacy": redox_eval.get("net_redox_efficacy", 0.50),
             })
 
         # Connect Targets & Multi-Tier Cascades

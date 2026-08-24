@@ -232,6 +232,74 @@ CORE_SUPPLEMENT_LIBRARY: Dict[str, Dict[str, Any]] = {
             {"target": "PPAR-alpha (PPARA)", "action": "agonist", "family": "Nuclear Receptor"}
         ],
     },
+    "nac": {
+        "name": "N-Acetylcysteine (NAC)",
+        "canonical_name": "N-Acetylcysteine",
+        "synonyms": ["nac", "nacetylcysteine", "acetylcysteine", "mucomyst"],
+        "drug_class": "Antioxidant / Mucolytic / Glutathione Precursor",
+        "categories": ["Dietary Supplement", "Antioxidant", "Hepatic Support", "Cytoprotective"],
+        "molecular_weight": 163.19,
+        "logp": -0.6,
+        "oral_bioavailability": 0.10,
+        "volume_of_distribution": 0.47,
+        "protein_binding": 83.0,
+        "mechanism": "Provides bioavailable L-cysteine substrate for rate-limiting glutathione (GSH) synthesis, scavenges reactive oxygen species (ROS), and activates Nrf2 cytoprotective pathway.",
+        "receptor_targets": [
+            {"target": "Glutathione Biosynthesis (GCLC / GCLM / SLC7A11)", "action": "substrate", "family": "Redox Defense", "gene_symbol": "GCLC"},
+            {"target": "Nrf2 Cytoprotective Pathway (NFE2L2)", "action": "activator", "family": "Transcription Factor", "gene_symbol": "NFE2L2"},
+            {"target": "Cellular Reactive Oxygen Species (ROS)", "action": "scavenger", "family": "Redox Defense"}
+        ],
+    },
+    "astaxanthin": {
+        "name": "Astaxanthin",
+        "canonical_name": "Astaxanthin",
+        "synonyms": ["astaxanthin", "asta"],
+        "drug_class": "Dietary Supplement / Carotenoid Antioxidant",
+        "categories": ["Dietary Supplement", "Antioxidant", "Endothelial Protection", "Mitochondrial Support"],
+        "molecular_weight": 596.84,
+        "logp": 8.0,
+        "oral_bioavailability": 0.40,
+        "volume_of_distribution": 2.0,
+        "protein_binding": 95.0,
+        "mechanism": "Transmembrane lipophilic antioxidant that quenches singlet oxygen and lipid peroxides across cellular membranes, protecting mitochondrial double membranes.",
+        "receptor_targets": [
+            {"target": "Cellular Redox Homeostasis & Lipid Peroxidation (MDA / ROS)", "action": "scavenger", "family": "Redox Defense"},
+            {"target": "Nrf2 Cytoprotective Pathway (NFE2L2)", "action": "activator", "family": "Transcription Factor", "gene_symbol": "NFE2L2"}
+        ],
+    },
+    "coq10": {
+        "name": "Coenzyme Q10 (Ubiquinol)",
+        "canonical_name": "Coenzyme Q10",
+        "synonyms": ["coq10", "ubiquinol", "ubiquinone", "coenzymeq10"],
+        "drug_class": "Dietary Supplement / Bioenergetic Antioxidant",
+        "categories": ["Dietary Supplement", "Antioxidant", "Mitochondrial Bioenergetics", "Cardiovascular Support"],
+        "molecular_weight": 863.34,
+        "logp": 10.5,
+        "oral_bioavailability": 0.06,
+        "volume_of_distribution": 1.5,
+        "protein_binding": 99.0,
+        "mechanism": "Essential mitochondrial electron transport chain electron carrier and lipid-soluble antioxidant, protecting LDL particles and cellular membranes from oxidative damage.",
+        "receptor_targets": [
+            {"target": "Mitochondrial Electron Transport Complex I & III", "action": "cofactor", "family": "Mitochondrial Bioenergetics"},
+            {"target": "Cellular Redox Homeostasis & Lipid Peroxidation (MDA / ROS)", "action": "antioxidant", "family": "Redox Defense"}
+        ],
+    },
+    "curcumin": {
+        "name": "Curcumin",
+        "canonical_name": "Curcumin",
+        "synonyms": ["curcumin", "turmeric", "turmericextract"],
+        "drug_class": "Dietary Supplement / Polyphenolic Antioxidant",
+        "categories": ["Dietary Supplement", "Antioxidant", "Anti-Inflammatory"],
+        "molecular_weight": 368.38,
+        "logp": 3.2,
+        "oral_bioavailability": 0.01,
+        "volume_of_distribution": 2.1,
+        "protein_binding": 90.0,
+        "receptor_targets": [
+            {"target": "Nrf2 Cytoprotective Pathway (NFE2L2)", "action": "activator", "family": "Transcription Factor", "gene_symbol": "NFE2L2"},
+            {"target": "NF-κB & Pro-Inflammatory Cytokines (NFKB1 / PTGS2)", "action": "inhibitor", "family": "Inflammatory Signaling", "gene_symbol": "NFKB1"}
+        ],
+    },
 }
 
 

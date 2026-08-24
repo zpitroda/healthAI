@@ -834,6 +834,20 @@ class InteractionEngine:
             if comp.get("is_narrow_therapeutic_index"):
                 total_risk_points += 10.0
 
+        # Discount cardiovascular organ burden for bioidentical testosterone when downstream end-effects (BP & lipids) are managed
+        has_cv_mitigation = any(m.get("benefited_axis") in {"Blood Pressure", "Lipid Profile / Cardioprotective"} for m in active_mitigations)
+        is_normotensive = blood_pressure <= 128
+        hdl_val_check = labs.get("hdl_c_mg_dl") if labs.get("hdl_c_mg_dl") is not None else labs.get("hdl")
+        is_normolipidemic = hdl_val_check is None or hdl_val_check >= 40.0
+
+        if (has_cv_mitigation or (is_normotensive and is_normolipidemic)):
+            for comp in compounds:
+                c_name = str(comp.get("canonical_name") or comp.get("name") or comp.get("key") or "").lower()
+                d_class = str(comp.get("drug_class") or "").lower()
+                is_bioidentical_test = ("testosterone" in c_name or "androgen" in d_class) and not any(w in c_name for w in ["trenbolone", "nandrolone", "drostanolone", "oxandrolone", "boldenone", "stanozolol", "dihydrotestosterone", "sarm", "rad140", "lgd"])
+                if is_bioidentical_test:
+                    organ_scores["cardiovascular"] = max(0.0, organ_scores["cardiovascular"] - 30.0)
+
         # Evaluate pairwise collisions (N x N)
         for i in range(n):
             row: List[Dict[str, Any]] = []
@@ -902,8 +916,24 @@ class InteractionEngine:
         # Multi-Compound Syndromic Evaluator
         syndromes = self._evaluate_multi_compound_syndromes(compounds, labs)
         for syn in syndromes:
+            is_syn_mitigated = False
+            syn_title = str(syn.get("title", "")).lower()
+            syn_name = str(syn.get("syndrome", "")).lower()
+            if "potassium" in syn_title or "potassium" in syn_name:
+                k_axis = next((a for a in full_stack_balance.get("axes", []) if a.get("biomarker_id") in {"bio_serum_potassium", "bio_potassium"}), None)
+                if k_axis and k_axis.get("in_safe_range"):
+                    is_syn_mitigated = True
+            elif "blood pressure" in syn_title or "hypertensive" in syn_title or "hypotension" in syn_title:
+                bp_axis = next((a for a in full_stack_balance.get("axes", []) if a.get("biomarker_id") == "bio_blood_pressure"), None)
+                if bp_axis and (bp_axis.get("status") == "BALANCED_NORMOTENSIVE" or bp_axis.get("in_safe_range")):
+                    is_syn_mitigated = True
+
+            if is_syn_mitigated:
+                syn["is_mitigated"] = True
+                syn["mitigation_summary"] = "Counterbalanced by full stack physiological equilibrium."
+            else:
+                total_risk_points += syn["severity_score"]
             syndrome_alerts.append(syn)
-            total_risk_points += syn["severity_score"]
 
         # Dynamic Biomarker Vector Convergence Evaluator
         vector_alerts = self._evaluate_biomarker_vector_convergence(compounds, labs)
@@ -912,13 +942,14 @@ class InteractionEngine:
             is_mitigated = False
             if "blood pressure" in str(valert.get("title", "")).lower() or "hypertensive" in str(valert.get("title", "")).lower():
                 bp_axis = next((a for a in full_stack_balance.get("axes", []) if a.get("biomarker_id") == "bio_blood_pressure"), None)
-                if bp_axis and bp_axis.get("status") == "BALANCED_NORMOTENSIVE":
+                if bp_axis and (bp_axis.get("status") == "BALANCED_NORMOTENSIVE" or bp_axis.get("in_safe_range")):
                     is_mitigated = True
             elif "potassium" in str(valert.get("title", "")).lower():
-                k_axis = next((a for a in full_stack_balance.get("axes", []) if a.get("biomarker_id") == "bio_serum_potassium"), None)
+                k_axis = next((a for a in full_stack_balance.get("axes", []) if a.get("biomarker_id") in {"bio_serum_potassium", "bio_potassium"}), None)
                 if k_axis and k_axis.get("in_safe_range"):
                     is_mitigated = True
 
+            valert["is_mitigated"] = is_mitigated
             if not is_mitigated:
                 if not any(valert.get("syndrome") == s.get("syndrome") or valert.get("title") == s.get("title") for s in syndrome_alerts):
                     syndrome_alerts.append(valert)
@@ -1021,16 +1052,58 @@ class InteractionEngine:
             biomarker_warnings.append(warning)
             total_risk_points += 8.0
 
+        # 7. Atherogenic Lipid Disruption
+        hdl_val = labs.get("hdl_c_mg_dl") if labs.get("hdl_c_mg_dl") is not None else labs.get("hdl")
+        ldl_val = labs.get("ldl_mg_dl") if labs.get("ldl_mg_dl") is not None else labs.get("ldl_c_mg_dl")
+        if (hdl_val is not None and hdl_val < 35.0) or (ldl_val is not None and ldl_val > 135.0):
+            has_lipid_mitigation = any("Lipid" in m.get("title", "") for m in active_mitigations)
+            if not has_lipid_mitigation:
+                warning = {
+                    "biomarker": "Lipid Panel (HDL / LDL)",
+                    "value": f"HDL {hdl_val or 'N/A'} mg/dL, LDL {ldl_val or 'N/A'} mg/dL",
+                    "severity": "HIGH_RISK" if (hdl_val and hdl_val < 28) or (ldl_val and ldl_val > 160) else "MODERATE_RISK",
+                    "title": "Atherogenic Lipid Disruption & Cardio-Metabolic Strain",
+                    "description": f"Uncompensated atherogenic lipid shift (HDL {hdl_val or 'N/A'} mg/dL, LDL {ldl_val or 'N/A'} mg/dL) elevates cardiovascular endothelial risk.",
+                    "clinical_recommendation": "Incorporate lipid protection (Pitavastatin 2 mg daily or Ezetimibe) and optimize dietary fats.",
+                }
+                biomarker_warnings.append(warning)
+                total_risk_points += 15.0
+
         # Cumulative Score (0-100 bounded)
         cumulative_score = min(100, round(total_risk_points + (organ_scores["cardiovascular"] * 0.15) + (organ_scores["cns_stimulant"] * 0.15)))
 
-        has_severe = any(s.get("severity") == "SEVERE_CONTRAINDICATION" for s in syndrome_alerts) or any(
-            any(c.get("severity") == "SEVERE_CONTRAINDICATION" for c in row if not c.get("is_self")) for row in matrix
+        # Filter unmitigated conflicts
+        unmitigated_cyp = [c for c in cyp_conflicts if not c.get("is_mitigated_by_stack")]
+        unmitigated_transporter = [c for c in transporter_conflicts if not c.get("is_mitigated_by_stack")]
+        unmitigated_phase2 = [c for c in phase2_conflicts if not c.get("is_mitigated_by_stack")]
+        unmitigated_receptor = [c for c in receptor_conflicts if c.get("severity") in {"HIGH_RISK", "SEVERE_CONTRAINDICATION", "MODERATE_RISK"} and not c.get("is_mitigated_by_stack")]
+        unmitigated_syndromes = [s for s in syndrome_alerts if s.get("severity") in {"HIGH_RISK", "SEVERE_CONTRAINDICATION"} and not s.get("is_mitigated")]
+
+        conflict_count = (
+            len(unmitigated_cyp)
+            + len(unmitigated_transporter)
+            + len(unmitigated_phase2)
+            + len(unmitigated_receptor)
+            + len(unmitigated_syndromes)
+            + len(uncompensated_risks)
+        )
+        synergy_count = len(synergistic_benefits) + len(active_mitigations)
+
+        has_severe_unmitigated = any(s.get("severity") == "SEVERE_CONTRAINDICATION" and not s.get("is_mitigated") for s in syndrome_alerts) or any(
+            any(c.get("severity") == "SEVERE_CONTRAINDICATION" and not c.get("is_mitigated_by_stack") for c in row if not c.get("is_self")) for row in matrix
         )
 
-        if has_severe or cumulative_score > 75:
+        has_high_unmitigated = any(
+            c.get("severity") == "HIGH_RISK" and not c.get("is_mitigated_by_stack")
+            for c in (receptor_conflicts + cyp_conflicts + transporter_conflicts + phase2_conflicts)
+        ) or any(s.get("severity") == "HIGH_RISK" and not s.get("is_mitigated") for s in syndrome_alerts)
+
+        if len(active_mitigations) > 0 and len(uncompensated_risks) == 0 and conflict_count == 0:
+            cumulative_score = min(cumulative_score, 18)
+
+        if has_severe_unmitigated or cumulative_score > 75:
             risk_band = "SEVERE"
-        elif cumulative_score > 45 or any(c.get("severity") == "HIGH_RISK" for c in receptor_conflicts + cyp_conflicts + transporter_conflicts + phase2_conflicts):
+        elif cumulative_score > 45 or has_high_unmitigated:
             risk_band = "ELEVATED"
         elif cumulative_score > 25:
             risk_band = "MODERATE"
@@ -1038,16 +1111,6 @@ class InteractionEngine:
             risk_band = "LOW"
         else:
             risk_band = "MINIMAL"
-
-        conflict_count = (
-            len(cyp_conflicts)
-            + len(transporter_conflicts)
-            + len(phase2_conflicts)
-            + len([c for c in receptor_conflicts if c.get("severity") in {"HIGH_RISK", "SEVERE_CONTRAINDICATION", "MODERATE_RISK"} and not c.get("is_mitigated_by_stack")])
-            + len([s for s in syndrome_alerts if s.get("severity") in {"HIGH_RISK", "SEVERE_CONTRAINDICATION"}])
-            + len(uncompensated_risks)
-        )
-        synergy_count = len(synergistic_benefits) + len(active_mitigations)
 
         if len(active_mitigations) > 0 and len(uncompensated_risks) == 0 and conflict_count <= len(active_mitigations):
             summary = f"Holistic Stack Equilibrium: Detected {len(active_mitigations)} active protective counterbalance(s) with clean dose compensation ({cumulative_score}/100 cumulative risk)."
@@ -1098,6 +1161,8 @@ class InteractionEngine:
                 },
                 "synergistic_benefits": synergistic_benefits,
                 "biomarker_warnings": biomarker_warnings,
+                "active_mitigations": active_mitigations,
+                "uncompensated_risks": uncompensated_risks,
             },
             "conflict_count": conflict_count,
             "synergy_count": synergy_count,
@@ -1578,13 +1643,13 @@ class InteractionEngine:
         # 6. SYSTEMIC OXIDATIVE STRESS & REDOX AXIS
         gsh_shift = shifts_by_id.get("bio_gsh_redox_ratio")
         mda_shift = shifts_by_id.get("bio_mda")
-        if gsh_shift or mda_shift:
-            primary_redox = gsh_shift or mda_shift
-            bio_id = primary_redox.get("biomarker_id")
+        if True:  # Always include Systemic Oxidative Stress & Redox Axis in Full Stack Equilibrium
+            primary_redox = gsh_shift or mda_shift or {}
+            bio_id = primary_redox.get("biomarker_id", "bio_gsh_redox_ratio")
             processed_bio_ids.add("bio_gsh_redox_ratio")
             processed_bio_ids.add("bio_mda")
-            
-            baseline = float(primary_redox.get("baseline_value", 100.0 if bio_id == "bio_gsh_redox_ratio" else 1.8))
+
+            baseline = float(primary_redox.get("baseline_value", labs.get("gsh_redox_ratio") or 150.0))
             est_val = float(primary_redox.get("estimated_value", baseline))
             delta = float(primary_redox.get("estimated_delta", 0.0))
             unit = str(primary_redox.get("unit", "index" if bio_id == "bio_gsh_redox_ratio" else "μmol/L"))
@@ -1735,6 +1800,141 @@ class InteractionEngine:
                 "net_delta_str": f"{'+' if delta > 0 else ''}{delta} {unit}",
                 "compounds_breakdown": comp_shares,
                 "panel": "Inflammatory Panel",
+            })
+
+        # 8. LIPID & ATHEROGENIC RISK AXIS
+        hdl_shift = shifts_by_id.get("bio_hdl_c") or shifts_by_id.get("bio_hdl")
+        ldl_shift = shifts_by_id.get("bio_ldl_c") or shifts_by_id.get("bio_ldl")
+        apob_shift = shifts_by_id.get("bio_apob")
+
+        if hdl_shift or ldl_shift or apob_shift or "hdl_c_mg_dl" in labs or "ldl_mg_dl" in labs or "apob_mg_dl" in labs:
+            primary_lipid = hdl_shift or ldl_shift or apob_shift
+            bio_id = primary_lipid.get("biomarker_id") if primary_lipid else "bio_hdl_c"
+            processed_bio_ids.add("bio_hdl_c")
+            processed_bio_ids.add("bio_hdl")
+            processed_bio_ids.add("bio_ldl_c")
+            processed_bio_ids.add("bio_ldl")
+            processed_bio_ids.add("bio_apob")
+
+            hdl_val = float(labs.get("hdl_c_mg_dl") if labs.get("hdl_c_mg_dl") is not None else (labs.get("hdl") or (hdl_shift.get("estimated_value") if hdl_shift else 50.0)))
+            ldl_val = float(labs.get("ldl_mg_dl") if labs.get("ldl_mg_dl") is not None else (labs.get("ldl_c_mg_dl") or labs.get("ldl") or (ldl_shift.get("estimated_value") if ldl_shift else 95.0)))
+
+            has_lipid_protective = any(
+                any(w in str(comp.get("drug_class", "")).lower() or w in str(comp.get("name", "")).lower() or w in str(comp.get("key", "")).lower()
+                    for w in ["statin", "pitavastatin", "atorvastatin", "rosuvastatin", "ezetimibe", "pcsk9", "bempedoic", "niacin", "bergamot", "lipid-lowering", "hmg-coa"])
+                for comp in compounds
+            )
+            has_androgen_load = any(
+                "androgen" in str(comp.get("drug_class", "")).lower() or "testosterone" in str(comp.get("key", "")).lower() or "anabolic" in str(comp.get("drug_class", "")).lower()
+                for comp in compounds
+            )
+
+            participating_lipid_comps = [
+                c.get("name") or c.get("key") for c in compounds
+                if any(w in str(c.get("drug_class", "")).lower() or w in str(c.get("key", "")).lower() or w in str(c.get("name", "")).lower()
+                       for w in ["statin", "pitavastatin", "atorvastatin", "rosuvastatin", "ezetimibe", "pcsk9", "lipid", "androgen", "testosterone"])
+            ]
+
+            if (has_lipid_protective or (hdl_val >= 40.0 and ldl_val <= 125.0)) and (has_androgen_load or has_lipid_protective):
+                status = "BALANCED_NORMLIPIDEMIC"
+                status_label = f"Normolipidemic Equilibrium (HDL {hdl_val}, LDL {ldl_val} mg/dL)"
+                status_color = "#10b981"
+                active_mitigations.append({
+                    "title": "Lipid Protection & Endothelial Counterbalance",
+                    "description": (
+                        f"Co-administration of lipid-modulating therapy (e.g. Statin/Ezetimibe) or normolipidemic baseline "
+                        f"effectively counterbalances androgenic lipolytic shift, maintaining cardioprotective HDL-C ({hdl_val} mg/dL) "
+                        f"and controlling atherogenic LDL-C ({ldl_val} mg/dL)."
+                    ),
+                    "participating_compounds": participating_lipid_comps,
+                    "benefited_axis": "Lipid Profile / Cardioprotective",
+                    "risk_reduction_points": 20.0,
+                })
+            elif hdl_val < 35.0 or ldl_val >= 135.0:
+                if has_lipid_protective:
+                    status = "PARTIAL_LIPID_ATTENUATION"
+                    status_label = f"Sub-Target Lipid Shift (HDL {hdl_val}, LDL {ldl_val} mg/dL)"
+                    status_color = "#f59e0b"
+                    uncompensated_risks.append({
+                        "axis": "Lipid Panel (HDL / LDL)",
+                        "severity": "MODERATE_RISK",
+                        "title": "Sub-Optimal Lipid Attenuation",
+                        "description": f"Despite lipid-modulating therapy, HDL-C remains suppressed ({hdl_val} mg/dL) or LDL-C remains elevated ({ldl_val} mg/dL).",
+                        "clinical_recommendation": "Titrate statin therapy (e.g., adjust Pitavastatin or add Ezetimibe) and monitor lipid panel in 6 weeks.",
+                    })
+                else:
+                    status = "ATHEROGENIC_LIPID_SHIFT"
+                    status_label = f"Atherogenic Lipid Shift (HDL {hdl_val}, LDL {ldl_val} mg/dL)"
+                    status_color = "#ef4444"
+                    uncompensated_risks.append({
+                        "axis": "Lipid Panel (HDL / LDL)",
+                        "severity": "HIGH_RISK" if (hdl_val < 28.0 or ldl_val >= 160.0) else "MODERATE_RISK",
+                        "title": "Uncompensated Atherogenic Lipid Shift",
+                        "description": f"Androgen load depresses cardioprotective HDL-C to {hdl_val} mg/dL and/or elevates LDL-C to {ldl_val} mg/dL without co-administered lipid-protective coverage.",
+                        "clinical_recommendation": "Incorporate endothelial and lipid protection (e.g., Pitavastatin 2 mg daily or Ezetimibe) and re-check lipid panel in 6-8 weeks.",
+                    })
+            else:
+                status = "NORMAL_PHYSIOLOGICAL"
+                status_label = f"Normolipidemic Baseline (HDL {hdl_val}, LDL {ldl_val} mg/dL)"
+                status_color = "#34d399"
+
+            axes.append({
+                "name": "Lipid & Atherogenic Risk Axis",
+                "biomarker_id": bio_id,
+                "baseline": hdl_val,
+                "estimated_value": hdl_val,
+                "unit": "mg/dL",
+                "safe_range": "HDL > 40 mg/dL, LDL < 100 mg/dL",
+                "safe_lower": 40.0,
+                "safe_upper": 125.0,
+                "in_safe_range": hdl_val >= 40.0 and ldl_val <= 125.0,
+                "status": status,
+                "status_label": status_label,
+                "status_color": status_color,
+                "net_delta_str": f"HDL {hdl_val} / LDL {ldl_val} mg/dL",
+                "compounds_breakdown": [],
+                "panel": "Lipid Panel",
+            })
+
+        # 9. SERUM TOTAL TESTOSTERONE / ENDOCRINE AXIS
+        testo_shift = shifts_by_id.get("bio_testosterone")
+        if testo_shift or "bio_testosterone" in labs or "testosterone_ng_dl" in labs:
+            processed_bio_ids.add("bio_testosterone")
+            baseline = float(testo_shift.get("baseline_value", labs.get("testosterone_ng_dl") or 650.0) if testo_shift else (labs.get("testosterone_ng_dl") or 650.0))
+            est_val = float(testo_shift.get("estimated_value", baseline) if testo_shift else baseline)
+            unit = "ng/dL"
+            safe_lower = 300.0
+            safe_upper = 1000.0
+
+            if est_val > 1000.0:
+                status = "ELEVATED_PHYSIOLOGICAL"
+                status_label = f"Optimized Anabolic Pool ({est_val} {unit})"
+                status_color = "#10b981"
+            elif est_val < 300.0:
+                status = "SUPPRESSED_TESTOSTERONE"
+                status_label = f"Suppressed Serum Testosterone ({est_val} {unit})"
+                status_color = "#ef4444"
+            else:
+                status = "NORMAL_PHYSIOLOGICAL"
+                status_label = f"Physiological Serum Testosterone ({est_val} {unit})"
+                status_color = "#34d399"
+
+            axes.append({
+                "name": "Serum Total Testosterone Axis",
+                "biomarker_id": "bio_testosterone",
+                "baseline": baseline,
+                "estimated_value": est_val,
+                "unit": unit,
+                "safe_range": f"{safe_lower} - {safe_upper} {unit}",
+                "safe_lower": safe_lower,
+                "safe_upper": safe_upper,
+                "in_safe_range": safe_lower <= est_val <= safe_upper,
+                "status": status,
+                "status_label": status_label,
+                "status_color": status_color,
+                "net_delta_str": f"{est_val} {unit}",
+                "compounds_breakdown": [],
+                "panel": "Endocrine Panel",
             })
 
         # 8. ALL OTHER AFFECTED BIOMARKERS FROM DYNAMIC GRAPH CASCADE

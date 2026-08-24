@@ -13,6 +13,7 @@ logger = logging.getLogger("healthai.pkpd_enricher")
 # STRUCTURED CLINICAL USAN STEM QUANTITATIVE PK/PD REFERENCE BENCHMARKS
 USAN_PKPD_BENCHMARKS: List[Dict[str, Any]] = [
     {
+        "stems": ["statin"],
         "pattern": r"(?:statin)$",
         "class_name": "HMG-CoA Reductase Inhibitor",
         "t_half_numeric": 14.0,
@@ -35,6 +36,7 @@ USAN_PKPD_BENCHMARKS: List[Dict[str, Any]] = [
         "pathway": {"id": "R-HSA-191273", "name": "Cholesterol Biosynthesis"},
     },
     {
+        "stems": ["sartan"],
         "pattern": r"(?:sartan)$",
         "class_name": "Angiotensin II Receptor Blocker (ARB)",
         "t_half_numeric": 24.0,
@@ -57,6 +59,7 @@ USAN_PKPD_BENCHMARKS: List[Dict[str, Any]] = [
         "pathway": {"id": "R-HSA-2022377", "name": "RAAS Signaling Pathway"},
     },
     {
+        "stems": ["pril"],
         "pattern": r"(?:pril)$",
         "class_name": "ACE Inhibitor",
         "t_half_numeric": 11.5,
@@ -79,6 +82,7 @@ USAN_PKPD_BENCHMARKS: List[Dict[str, Any]] = [
         "pathway": {"id": "R-HSA-2022377", "name": "RAAS Signaling Pathway"},
     },
     {
+        "stems": ["olol"],
         "pattern": r"(?:olol)$",
         "class_name": "Beta-Adrenergic Blocker",
         "t_half_numeric": 5.0,
@@ -101,6 +105,7 @@ USAN_PKPD_BENCHMARKS: List[Dict[str, Any]] = [
         "pathway": {"id": "R-HSA-388396", "name": "GPCR Downstream Signaling"},
     },
     {
+        "stems": ["oxetine", "pram", "traline", "faxine"],
         "pattern": r"(?:oxetine|pram|traline|faxine)$",
         "class_name": "SSRI / SNRI",
         "t_half_numeric": 30.0,

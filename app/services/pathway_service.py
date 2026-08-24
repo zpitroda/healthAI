@@ -758,12 +758,12 @@ class PathwayService:
             ])
 
         # 14. Pathological Mitochondrial Uncoupling & ROS Generation (Mitochondrial Toxicity / Pro-Oxidant)
-        elif ("uncoupl" in t_lower or "ros generation" in t_lower or "pro-oxidant" in t_lower or "oxidative damage" in t_lower) and "homeostasis" not in t_lower and "defense" not in t_lower and "antioxidant" not in t_lower:
+        elif ("uncoupl" in t_lower or "ros generation" in t_lower or "pro-oxidant" in t_lower or "mitochondrial stress" in t_lower or "mitochondrial" in t_lower or "oxidative" in t_lower) and "homeostasis" not in t_lower and "defense" not in t_lower and "antioxidant" not in t_lower:
             organ = "Cellular Bioenergetics"
             biomarkers.extend([
                 {"id": "bio_mda", "label": "Malondialdehyde (Lipid Peroxidation)", "unit": "μmol/L", "panel": "Redox Panel", "lower": 0.5, "upper": 2.0, "mag": 0.8},
-                {"id": "bio_gsh_redox_ratio", "label": "Glutathione Redox Ratio (GSH:GSSG)", "unit": "ratio", "panel": "Redox Panel", "lower": 100.0, "upper": 300.0, "mag": -0.8},
-                {"id": "bio_ros_level", "label": "Cellular Reactive Oxygen Species Index", "unit": "index", "panel": "Redox Panel", "lower": 10, "upper": 50, "mag": 0.8},
+                {"id": "bio_gsh_redox_ratio", "label": "Glutathione Redox Ratio (GSH:GSSG)", "unit": "ratio", "panel": "Redox Panel", "lower": 100.0, "upper": 300.0, "mag": -85.0},
+                {"id": "bio_ros_level", "label": "Cellular Reactive Oxygen Species Index", "unit": "index", "panel": "Redox Panel", "lower": 10, "upper": 50, "mag": 35.0},
                 {"id": "bio_crp", "label": "High-Sensitivity C-Reactive Protein (hs-CRP)", "unit": "mg/L", "panel": "Inflammatory Panel", "lower": 0.0, "upper": 1.0, "mag": 0.5},
             ])
             pheno_nodes.extend([
@@ -775,7 +775,7 @@ class PathwayService:
             organ = "Systemic / Cytoprotective"
             biomarkers.extend([
                 {"id": "bio_mda", "label": "Malondialdehyde (Lipid Peroxidation)", "unit": "μmol/L", "panel": "Redox Panel", "lower": 0.5, "upper": 2.0, "mag": -0.8},
-                {"id": "bio_gsh_redox_ratio", "label": "Glutathione Redox Ratio (GSH:GSSG)", "unit": "ratio", "panel": "Redox Panel", "lower": 100.0, "upper": 300.0, "mag": 0.85},
+                {"id": "bio_gsh_redox_ratio", "label": "Glutathione Redox Ratio (GSH:GSSG)", "unit": "ratio", "panel": "Redox Panel", "lower": 100.0, "upper": 300.0, "mag": 85.0},
                 {"id": "bio_crp", "label": "High-Sensitivity C-Reactive Protein (hs-CRP)", "unit": "mg/L", "panel": "Inflammatory Panel", "lower": 0.0, "upper": 1.0, "mag": -0.70},
             ])
             pheno_nodes.extend([

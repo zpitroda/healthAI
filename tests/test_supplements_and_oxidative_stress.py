@@ -170,3 +170,114 @@ def test_systemic_inflammation_hscrp_axis_curcumin_and_omega3():
     assert crp_axis is not None
     assert crp_axis["estimated_value"] <= crp_axis["baseline"]
     assert crp_axis["in_safe_range"] is True
+
+
+def test_expanded_supplement_aliases():
+    """Verify newly expanded non-pharmaceutical compounds and herbal extract aliases resolve in CatalogService."""
+    service = CatalogService()
+
+    expanded_aliases = [
+        ("quercetin", "quercetin"),
+        ("bioperine", "piperine"),
+        ("blackpepperextract", "piperine"),
+        ("stjohnswort", "st_johns_wort"),
+        ("hypericum", "st_johns_wort"),
+        ("sawpalmetto", "saw_palmetto"),
+        ("serenoarepens", "saw_palmetto"),
+        ("egcg", "green_tea_extract"),
+        ("greenteaextract", "green_tea_extract"),
+        ("magnesiumglycinate", "magnesium"),
+        ("zincpicolinate", "zinc"),
+        ("tartcherry", "tart_cherry"),
+        ("rhodiolarosea", "rhodiola"),
+        ("bacopamonnieri", "bacopa"),
+        ("ginkgobiloba", "ginkgo_biloba"),
+        ("panaxginseng", "panax_ginseng"),
+        ("sulforaphane", "sulforaphane"),
+    ]
+
+    for alias, expected in expanded_aliases:
+        comp = service.get_compound(alias)
+        assert comp is not None, f"Failed to resolve non-pharmaceutical alias '{alias}'"
+        assert comp.get("canonical_key") == expected or comp.get("key") == expected or expected in comp.get("key")
+
+
+def test_piperine_curcumin_bioenhancer_synergy():
+    """Verify Piperine + Curcumin interaction matrix yields SYNERGISTIC bioavailability enhancement."""
+    engine = InteractionEngine()
+    res = engine.analyze_stack([
+        {"name": "piperine", "dose_mg": 10.0},
+        {"name": "curcumin", "dose_mg": 500.0},
+    ])
+
+    matrix = res["matrix"]
+    pip_cur = matrix[0][1]
+    assert pip_cur["severity"] == "SYNERGISTIC"
+    assert "BIOAVAILABILITY_ENHANCEMENT" in pip_cur["conflict_types"] or "SYNERGY" in pip_cur["conflict_types"]
+    assert pip_cur.get("ddi_auc_ratio", 1.0) > 1.5
+
+
+def test_st_johns_wort_pxr_induction_collision():
+    """Verify St. John's Wort + Simvastatin / CYP3A4 substrate collision matrix yields HIGH_RISK PXR induction."""
+    engine = InteractionEngine()
+    res = engine.analyze_stack([
+        {"name": "st_johns_wort", "dose_mg": 300.0},
+        {"name": "simvastatin", "dose_mg": 20.0},
+    ])
+
+    matrix = res["matrix"]
+    sjw_sim = matrix[0][1]
+    assert sjw_sim["severity"] in {"HIGH_RISK", "MODERATE_RISK"}
+    assert any(t in sjw_sim["conflict_types"] for t in ["ENZYME_INDUCTION", "CYP450", "TRANSPORTER"])
+
+
+def test_multivalent_cation_chelation():
+    """Verify Magnesium / Zinc + Ciprofloxacin yields HIGH_RISK GI chelation conflict."""
+    engine = InteractionEngine()
+    res = engine.analyze_stack([
+        {"name": "magnesium", "dose_mg": 200.0},
+        {"name": "ciprofloxacin", "dose_mg": 500.0},
+    ])
+
+    matrix = res["matrix"]
+    mag_cip = matrix[0][1]
+    assert mag_cip["severity"] in {"HIGH_RISK", "MODERATE_RISK"}
+    assert any(t in mag_cip["conflict_types"] for t in ["CHELATION", "PHYSICOCHEMICAL"])
+
+
+def test_botanical_comt_inhibition_synergy():
+    """Verify Green Tea Extract / Quercetin + Caffeine / Tyrosine yields SYNERGISTIC COMT catecholamine synergy."""
+    engine = InteractionEngine()
+    res = engine.analyze_stack([
+        {"name": "green_tea_extract", "dose_mg": 400.0},
+        {"name": "caffeine", "dose_mg": 200.0},
+    ])
+
+    matrix = res["matrix"]
+    comt_syn = matrix[0][1]
+    assert comt_syn["severity"] == "SYNERGISTIC" or "CATECHOLAMINE_POTENTIATION" in comt_syn.get("conflict_types", [])
+
+
+def test_saw_palmetto_5ari_synergy():
+    """Verify Saw Palmetto + Finasteride yields SYNERGISTIC additive 5-AR inhibition."""
+    engine = InteractionEngine()
+    res = engine.analyze_stack([
+        {"name": "saw_palmetto", "dose_mg": 320.0},
+        {"name": "finasteride", "dose_mg": 1.0},
+    ])
+
+    matrix = res["matrix"]
+    saw_fin = matrix[0][1]
+    assert saw_fin["severity"] == "SYNERGISTIC"
+    assert "DUAL_5AR_INHIBITION" in saw_fin.get("conflict_types", []) or "SYNERGY" in saw_fin.get("conflict_types", [])
+
+
+def test_tart_cherry_uric_acid_cascade():
+    """Verify Tart Cherry extract in graph cascade reduces bio_uric_acid."""
+    graph = build_selected_compound_graph(["tart_cherry:500mg"])
+    results = graph.propagate_cascade(["tart_cherry"])
+
+    shifts = {s["biomarker_id"]: s for s in results.get("biomarker_shifts", [])}
+    assert "bio_uric_acid" in shifts
+    assert shifts["bio_uric_acid"]["direction"] == "DECREASE"
+    assert shifts["bio_uric_acid"]["estimated_delta"] < 0

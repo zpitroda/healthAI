@@ -1649,12 +1649,13 @@ class InteractionEngine:
             processed_bio_ids.add("bio_gsh_redox_ratio")
             processed_bio_ids.add("bio_mda")
 
-            baseline = float(primary_redox.get("baseline_value", labs.get("gsh_redox_ratio") or 150.0))
+            is_gsh = bio_id == "bio_gsh_redox_ratio"
+            baseline = float(primary_redox.get("baseline_value") or labs.get("gsh_redox_ratio") or (100.0 if is_gsh else 1.2))
             est_val = float(primary_redox.get("estimated_value", baseline))
             delta = float(primary_redox.get("estimated_delta", 0.0))
-            unit = str(primary_redox.get("unit", "index" if bio_id == "bio_gsh_redox_ratio" else "μmol/L"))
-            safe_lower = float(primary_redox.get("safe_lower", 80.0 if bio_id == "bio_gsh_redox_ratio" else 1.0))
-            safe_upper = float(primary_redox.get("safe_upper", 120.0 if bio_id == "bio_gsh_redox_ratio" else 2.5))
+            unit = str(primary_redox.get("unit", "ratio" if is_gsh else "μmol/L"))
+            safe_lower = float(primary_redox.get("safe_lower", 80.0 if is_gsh else 0.5))
+            safe_upper = float(primary_redox.get("safe_upper", 160.0 if is_gsh else 1.8))
             
             contributions = primary_redox.get("compound_contributions") or primary_redox.get("contributions") or []
             comp_shares = [
@@ -1810,11 +1811,11 @@ class InteractionEngine:
         if hdl_shift or ldl_shift or apob_shift or "hdl_c_mg_dl" in labs or "ldl_mg_dl" in labs or "apob_mg_dl" in labs:
             primary_lipid = hdl_shift or ldl_shift or apob_shift
             bio_id = primary_lipid.get("biomarker_id") if primary_lipid else "bio_hdl_c"
-            processed_bio_ids.add("bio_hdl_c")
-            processed_bio_ids.add("bio_hdl")
-            processed_bio_ids.add("bio_ldl_c")
-            processed_bio_ids.add("bio_ldl")
-            processed_bio_ids.add("bio_apob")
+            processed_bio_ids.add(bio_id)
+            if bio_id == "bio_hdl_c":
+                processed_bio_ids.add("bio_hdl")
+            elif bio_id == "bio_ldl_c":
+                processed_bio_ids.add("bio_ldl")
 
             hdl_val = float(labs.get("hdl_c_mg_dl") if labs.get("hdl_c_mg_dl") is not None else (labs.get("hdl") or (hdl_shift.get("estimated_value") if hdl_shift else 50.0)))
             ldl_val = float(labs.get("ldl_mg_dl") if labs.get("ldl_mg_dl") is not None else (labs.get("ldl_c_mg_dl") or labs.get("ldl") or (ldl_shift.get("estimated_value") if ldl_shift else 95.0)))

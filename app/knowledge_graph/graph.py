@@ -262,8 +262,8 @@ BIOMARKER_CLINICAL_CALIBRATION: Dict[str, Dict[str, Any]] = {
     "bio_crp": {
         "baseline": 0.5,
         "unit": "mg/L",
-        "gain_up": 6.5,
-        "gain_down": 0.4,
+        "gain_up": 2.2,
+        "gain_down": 1.8,
         "safe_lower": 0.0,
         "safe_upper": 1.0,
         "label": "High-Sensitivity C-Reactive Protein (hs-CRP)",
@@ -286,34 +286,6 @@ BIOMARKER_CLINICAL_CALIBRATION: Dict[str, Dict[str, Any]] = {
         "time_to_steady_state_weeks": 2.0,
         "kinetic_profile": "direct_endocrine",
         "time_course_description": "Exogenous androgen pool expansion and endocrine distribution (1-2 weeks)",
-    },
-    "bio_gsh_redox_ratio": {
-        "baseline": 100.0,
-        "unit": "ratio",
-        "gain_up": 60.0,
-        "gain_down": 45.0,
-        "safe_lower": 80.0,
-        "safe_upper": 160.0,
-        "label": "Glutathione Redox Ratio (GSH:GSSG)",
-        "onset_days": 0.5,
-        "half_time_days": 2.0,
-        "time_to_steady_state_weeks": 0.5,
-        "kinetic_profile": "direct_endocrine",
-        "time_course_description": "Intracellular glutathione redox buffering and Nrf2 transcription",
-    },
-    "bio_mda": {
-        "baseline": 1.2,
-        "unit": "μmol/L",
-        "gain_up": 1.8,
-        "gain_down": 0.6,
-        "safe_lower": 0.5,
-        "safe_upper": 1.8,
-        "label": "Malondialdehyde (Lipid Peroxidation)",
-        "onset_days": 1.0,
-        "half_time_days": 3.0,
-        "time_to_steady_state_weeks": 1.0,
-        "kinetic_profile": "direct_endocrine",
-        "time_course_description": "Polyunsaturated fatty acid lipid peroxidation byproduct",
     },
     # 1. Hepatobiliary Domain
     "bio_alt": {
@@ -446,31 +418,45 @@ BIOMARKER_CLINICAL_CALIBRATION: Dict[str, Dict[str, Any]] = {
     # 3. Oxidative Stress & Redox Domain
     "bio_gsh_redox_ratio": {
         "baseline": 100.0,
-        "unit": "index",
-        "gain_up": 25.0,
-        "gain_down": 65.0,
+        "unit": "ratio",
+        "gain_up": 60.0,
+        "gain_down": 45.0,
         "safe_lower": 80.0,
-        "safe_upper": 140.0,
-        "label": "Glutathione Redox Index (GSH:GSSG)",
+        "safe_upper": 160.0,
+        "label": "Glutathione Redox Ratio (GSH:GSSG)",
         "onset_days": 0.5,
         "half_time_days": 1.5,
         "time_to_steady_state_weeks": 0.5,
         "kinetic_profile": "cellular_redox",
-        "time_course_description": "Intracellular reduced glutathione reserve and antioxidant capacity",
+        "time_course_description": "Intracellular glutathione redox buffering and Nrf2 transcription",
     },
     "bio_mda": {
-        "baseline": 1.8,
+        "baseline": 1.2,
         "unit": "μmol/L",
-        "gain_up": 4.2,
-        "gain_down": 0.8,
-        "safe_lower": 1.0,
-        "safe_upper": 2.5,
-        "label": "Serum Malondialdehyde (MDA / Lipid Peroxidation)",
+        "gain_up": 1.8,
+        "gain_down": 0.6,
+        "safe_lower": 0.5,
+        "safe_upper": 1.8,
+        "label": "Malondialdehyde (Lipid Peroxidation)",
         "onset_days": 1.0,
         "half_time_days": 3.0,
         "time_to_steady_state_weeks": 1.0,
         "kinetic_profile": "cellular_redox",
-        "time_course_description": "Reactive oxygen species attack on polyunsaturated membrane phospholipids",
+        "time_course_description": "Polyunsaturated fatty acid lipid peroxidation byproduct",
+    },
+    "bio_ros_level": {
+        "baseline": 30.0,
+        "unit": "index",
+        "gain_up": 22.0,
+        "gain_down": 20.0,
+        "safe_lower": 10.0,
+        "safe_upper": 50.0,
+        "label": "Cellular Reactive Oxygen Species Index",
+        "onset_days": 0.2,
+        "half_time_days": 1.0,
+        "time_to_steady_state_weeks": 0.5,
+        "kinetic_profile": "cellular_redox",
+        "time_course_description": "Mitochondrial electron transport leak and intracellular radical scavenging",
     },
     # 4. Myocardial & Cardiovascular Domain
     "bio_nt_probnp": {
@@ -1348,13 +1334,19 @@ class BiologicalGraph:
                             c_gain *= aromatization_rate_mult
                         c_delta = round(c_mag * c_gain, 1 if baseline >= 10 else 2)
                     else:
-                        # Negative modulator counteracts the elevated positive substrate pool as well as baseline turnover
-                        c_gain_eff = (pos_delta_total + float(calib["gain_down"])) if has_positive_driver else float(calib["gain_down"])
+                        # Negative modulator counteracts the elevated positive substrate pool only for enzymatic precursor conversions (e.g. aromatase on estrogens, 5AR on DHT)
+                        if has_positive_driver and bio_id in {"bio_estradiol", "bio_estrone", "bio_dht"}:
+                            c_gain_eff = pos_delta_total + float(calib["gain_down"])
+                        else:
+                            c_gain_eff = float(calib["gain_down"])
                         if bio_id in {"bio_estradiol", "bio_estrone"}:
                             c_gain_eff *= aromatization_rate_mult
                         c_delta = round(c_mag * c_gain_eff, 1 if baseline >= 10 else 2)
                 else:
-                    c_gain_eff = (pos_delta_total + gain) if (has_positive_driver and c_mag < 0) else gain
+                    if has_positive_driver and c_mag < 0 and bio_id in {"bio_estradiol", "bio_estrone", "bio_dht"}:
+                        c_gain_eff = pos_delta_total + gain
+                    else:
+                        c_gain_eff = gain
                     if bio_id in {"bio_estradiol", "bio_estrone"}:
                         c_gain_eff *= aromatization_rate_mult
                     c_delta = round(c_mag * c_gain_eff, 1 if baseline >= 10 else 2)

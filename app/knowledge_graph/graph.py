@@ -10,11 +10,10 @@ BIOMARKER_CLINICAL_CALIBRATION: Dict[str, Dict[str, Any]] = {
     "bio_heart_rate": {
         "baseline": 70.0,
         "unit": "bpm",
-        "gain_up": 30.0,     # Max pharmacological chronotropic ceiling (+30 bpm -> 100 bpm resting tachycardia)
-        "gain_down": 22.0,   # Physiological intrinsic bradycardia floor (-22 bpm -> 48 bpm athletic floor)
+        "gain_up": 85.0,     # Max sympathoadrenal chronotropic surge (+85 bpm -> 155 bpm)
+        "gain_down": 32.0,   # Physiological intrinsic bradycardia floor (-32 bpm -> 38 bpm)
         "safe_lower": 50.0,
         "safe_upper": 90.0,
-        "biological_cv": 0.08,  # Normal human resting heart rate CV (~8%)
         "label": "Resting Heart Rate",
         "onset_days": 0.05,
         "half_time_days": 0.5,
@@ -25,11 +24,10 @@ BIOMARKER_CLINICAL_CALIBRATION: Dict[str, Dict[str, Any]] = {
     "bio_blood_pressure": {
         "baseline": 120.0,
         "unit": "mmHg",
-        "gain_up": 28.0,     # Pressor hypertensive ceiling (+28 mmHg -> 148 mmHg Stage 2 HTN)
-        "gain_down": 26.0,   # Vasodilatory hypotensive floor (-26 mmHg -> 94 mmHg)
+        "gain_up": 55.0,     # Pressor hypertensive ceiling (+55 mmHg -> 175 mmHg)
+        "gain_down": 40.0,   # Vasodilatory hypotensive floor (-40 mmHg -> 80 mmHg)
         "safe_lower": 90.0,
         "safe_upper": 120.0,
-        "biological_cv": 0.07,  # Normal resting systolic blood pressure CV (~7%)
         "label": "Systolic Blood Pressure",
         "onset_days": 0.1,
         "half_time_days": 0.75,
@@ -40,11 +38,10 @@ BIOMARKER_CLINICAL_CALIBRATION: Dict[str, Dict[str, Any]] = {
     "bio_potassium": {
         "baseline": 4.2,
         "unit": "mEq/L",
-        "gain_up": 1.3,      # Hyperkalemia ceiling (+1.3 mEq/L -> 5.5 mEq/L)
-        "gain_down": 1.1,    # Hypokalemia floor (-1.1 mEq/L -> 3.1 mEq/L)
+        "gain_up": 2.2,      # Hyperkalemia ceiling (+2.2 mEq/L -> 6.4 mEq/L)
+        "gain_down": 1.5,    # Hypokalemia floor (-1.5 mEq/L -> 2.7 mEq/L)
         "safe_lower": 3.5,
         "safe_upper": 5.0,
-        "biological_cv": 0.05,  # Tight homeostatic serum electrolyte CV (~5%)
         "label": "Serum Potassium",
         "onset_days": 0.25,
         "half_time_days": 1.0,
@@ -55,11 +52,10 @@ BIOMARKER_CLINICAL_CALIBRATION: Dict[str, Dict[str, Any]] = {
     "bio_qtc": {
         "baseline": 410.0,
         "unit": "ms",
-        "gain_up": 50.0,     # hERG blockade prolongation ceiling (+50 ms -> 460 ms borderline prolongation)
-        "gain_down": 30.0,   # QTc shortening floor (-30 ms -> 380 ms)
+        "gain_up": 140.0,    # hERG blockade prolongation ceiling (+140 ms -> 550 ms)
+        "gain_down": 60.0,   # QTc shortening floor (-60 ms -> 350 ms)
         "safe_lower": 360.0,
         "safe_upper": 440.0,
-        "biological_cv": 0.04,  # Ventricular repolarization CV (~4%)
         "label": "Corrected QT Interval (QTc)",
         "onset_days": 0.05,
         "half_time_days": 0.25,
@@ -169,7 +165,7 @@ BIOMARKER_CLINICAL_CALIBRATION: Dict[str, Dict[str, Any]] = {
         "baseline": 350.0,
         "unit": "ng/dL",
         "gain_up": 5190.0,   # Supraphysiological androgen ceiling (+5150 ng/dL -> 5800 ng/dL on 70mg pure unesterified testosterone)
-        "gain_down": 1150.0,  # Endogenous HPG testicular steroidogenesis shutdown (down to castrate <50-100 ng/dL)
+        "gain_down": 550.0,
         "safe_lower": 15.0,
         "safe_upper": 1000.0,
         "label": "Total Serum Testosterone",
@@ -266,8 +262,8 @@ BIOMARKER_CLINICAL_CALIBRATION: Dict[str, Dict[str, Any]] = {
     "bio_crp": {
         "baseline": 0.5,
         "unit": "mg/L",
-        "gain_up": 2.2,
-        "gain_down": 1.8,
+        "gain_up": 6.5,
+        "gain_down": 0.4,
         "safe_lower": 0.0,
         "safe_upper": 1.0,
         "label": "High-Sensitivity C-Reactive Protein (hs-CRP)",
@@ -290,6 +286,20 @@ BIOMARKER_CLINICAL_CALIBRATION: Dict[str, Dict[str, Any]] = {
         "time_to_steady_state_weeks": 2.0,
         "kinetic_profile": "direct_endocrine",
         "time_course_description": "Exogenous androgen pool expansion and endocrine distribution (1-2 weeks)",
+    },
+    "bio_gsh_redox_ratio": {
+        "baseline": 100.0,
+        "unit": "index",
+        "gain_up": 25.0,
+        "gain_down": 18.0,
+        "safe_lower": 80.0,
+        "safe_upper": 140.0,
+        "label": "Glutathione Redox Index (GSH:GSSG)",
+        "onset_days": 0.5,
+        "half_time_days": 1.5,
+        "time_to_steady_state_weeks": 0.5,
+        "kinetic_profile": "cellular_redox",
+        "time_course_description": "Intracellular reduced glutathione reserve and antioxidant capacity",
     },
     "bio_mda": {
         "baseline": 1.2,
@@ -434,47 +444,19 @@ BIOMARKER_CLINICAL_CALIBRATION: Dict[str, Dict[str, Any]] = {
         "time_course_description": "Endogenous nucleated cell production & pure glomerular filtration",
     },
     # 3. Oxidative Stress & Redox Domain
-    "bio_gsh_redox_ratio": {
-        "baseline": 100.0,
-        "unit": "ratio",
-        "gain_up": 60.0,
-        "gain_down": 45.0,
-        "safe_lower": 80.0,
-        "safe_upper": 160.0,
-        "label": "Glutathione Redox Ratio (GSH:GSSG)",
-        "onset_days": 0.5,
-        "half_time_days": 1.5,
-        "time_to_steady_state_weeks": 0.5,
-        "kinetic_profile": "cellular_redox",
-        "time_course_description": "Intracellular glutathione redox buffering and Nrf2 transcription",
-    },
     "bio_mda": {
-        "baseline": 1.2,
+        "baseline": 1.8,
         "unit": "μmol/L",
-        "gain_up": 1.8,
-        "gain_down": 0.6,
-        "safe_lower": 0.5,
-        "safe_upper": 1.8,
-        "label": "Malondialdehyde (Lipid Peroxidation)",
+        "gain_up": 4.2,
+        "gain_down": 0.8,
+        "safe_lower": 1.0,
+        "safe_upper": 2.5,
+        "label": "Serum Malondialdehyde (MDA / Lipid Peroxidation)",
         "onset_days": 1.0,
         "half_time_days": 3.0,
         "time_to_steady_state_weeks": 1.0,
         "kinetic_profile": "cellular_redox",
-        "time_course_description": "Polyunsaturated fatty acid lipid peroxidation byproduct",
-    },
-    "bio_ros_level": {
-        "baseline": 30.0,
-        "unit": "index",
-        "gain_up": 22.0,
-        "gain_down": 20.0,
-        "safe_lower": 10.0,
-        "safe_upper": 50.0,
-        "label": "Cellular Reactive Oxygen Species Index",
-        "onset_days": 0.2,
-        "half_time_days": 1.0,
-        "time_to_steady_state_weeks": 0.5,
-        "kinetic_profile": "cellular_redox",
-        "time_course_description": "Mitochondrial electron transport leak and intracellular radical scavenging",
+        "time_course_description": "Reactive oxygen species attack on polyunsaturated membrane phospholipids",
     },
     # 4. Myocardial & Cardiovascular Domain
     "bio_nt_probnp": {
@@ -663,20 +645,6 @@ BIOMARKER_CLINICAL_CALIBRATION: Dict[str, Dict[str, Any]] = {
         "time_to_steady_state_weeks": 0.2,
         "kinetic_profile": "rapid_autonomic",
         "time_course_description": "Ascending reticular activating system arousal and cortical vigilance",
-    },
-    "bio_carnosine_stores": {
-        "baseline": 25.0,
-        "unit": "mmol/kg dw",
-        "gain_up": 25.0,
-        "gain_down": 10.0,
-        "safe_lower": 15.0,
-        "safe_upper": 60.0,
-        "label": "Intramuscular Carnosine Pool",
-        "onset_days": 3.0,
-        "half_time_days": 14.0,
-        "time_to_steady_state_weeks": 4.0,
-        "kinetic_profile": "direct_endocrine",
-        "time_course_description": "Progressive skeletal muscle carnosine synthesis and intracellular storage (2-4 weeks to saturation)",
     },
 }
 
@@ -1287,8 +1255,7 @@ class BiologicalGraph:
             "egfr": "bio_egfr",
             "creatinine_mg_dl": "bio_serum_creatinine",
             "blood_pressure": "bio_blood_pressure", "systolic_bp": "bio_blood_pressure",
-            "heart_rate": "bio_heart_rate", "resting_heart_rate": "bio_heart_rate",
-            "bio_resting_heart_rate": "bio_heart_rate", "bio_heart_rate": "bio_heart_rate",
+            "heart_rate": "bio_resting_heart_rate",
             "hematocrit_pct": "bio_hematocrit", "hematocrit": "bio_hematocrit",
             "potassium_meq_l": "bio_serum_potassium", "potassium": "bio_serum_potassium",
             "fasting_glucose_mg_dl": "bio_blood_glucose", "fasting_glucose": "bio_blood_glucose",
@@ -1367,19 +1334,13 @@ class BiologicalGraph:
                             c_gain *= aromatization_rate_mult
                         c_delta = round(c_mag * c_gain, 1 if baseline >= 10 else 2)
                     else:
-                        # Negative modulator counteracts the elevated positive substrate pool only for enzymatic precursor conversions (e.g. aromatase on estrogens, 5AR on DHT)
-                        if has_positive_driver and bio_id in {"bio_estradiol", "bio_estrone", "bio_dht"}:
-                            c_gain_eff = pos_delta_total + float(calib["gain_down"])
-                        else:
-                            c_gain_eff = float(calib["gain_down"])
+                        # Negative modulator counteracts the elevated positive substrate pool as well as baseline turnover
+                        c_gain_eff = (pos_delta_total + float(calib["gain_down"])) if has_positive_driver else float(calib["gain_down"])
                         if bio_id in {"bio_estradiol", "bio_estrone"}:
                             c_gain_eff *= aromatization_rate_mult
                         c_delta = round(c_mag * c_gain_eff, 1 if baseline >= 10 else 2)
                 else:
-                    if has_positive_driver and c_mag < 0 and bio_id in {"bio_estradiol", "bio_estrone", "bio_dht"}:
-                        c_gain_eff = pos_delta_total + gain
-                    else:
-                        c_gain_eff = gain
+                    c_gain_eff = (pos_delta_total + gain) if (has_positive_driver and c_mag < 0) else gain
                     if bio_id in {"bio_estradiol", "bio_estrone"}:
                         c_gain_eff *= aromatization_rate_mult
                     c_delta = round(c_mag * c_gain_eff, 1 if baseline >= 10 else 2)
@@ -1391,10 +1352,9 @@ class BiologicalGraph:
                 eff_gain = gain * (aromatization_rate_mult if bio_id in {"bio_estradiol", "bio_estrone"} else 1.0)
                 delta_val = round(net_mag * eff_gain, 1 if baseline >= 10 else 2)
 
-            # Cap maximum biomarker drop so circulating values cannot fall below biological floor
-            min_bio_floor = 15.0 if bio_id == "bio_testosterone" else (1.5 if bio_id in {"bio_estradiol", "bio_estrone"} else 0.0)
-            if delta_val < (-baseline + min_bio_floor):
-                delta_val = round(-baseline + min_bio_floor, 1 if baseline >= 10 else 2)
+            # Cap maximum biomarker drop so circulating values cannot fall below biological 0.0 floor
+            if delta_val < -baseline:
+                delta_val = -baseline
 
             ss_delta = delta_val
             ss_est_val = round(baseline + ss_delta, 1 if baseline >= 10 else 2)
@@ -1439,14 +1399,10 @@ class BiologicalGraph:
                 progress_pct = 100.0
                 timeline_c_shares = c_shares
 
-            # Determine physiological biomarker variability CV
-            bio_cv = float(calib.get("biological_cv", 0.12)) if calib else 0.12
-            bio_effective_cv = bio_cv * (1.0 + (unknown_biometric_count * 0.05))
-
             # Compute log-normal percentile distribution curve for estimated biomarker value & delta
-            value_dist = _compute_dist_curve(curr_est_val, cv=bio_effective_cv)
+            value_dist = _compute_dist_curve(curr_est_val, cv=cv_scale)
             abs_delta = max(0.05, abs(curr_delta))
-            delta_dist_raw = _compute_dist_curve(abs_delta, cv=bio_effective_cv)
+            delta_dist_raw = _compute_dist_curve(abs_delta, cv=cv_scale)
             if curr_delta < 0:
                 delta_dist = {
                     "p5": round(-delta_dist_raw["p95"], 2),
@@ -1576,15 +1532,7 @@ class BiologicalGraph:
             curr_pheno_mag = net_mag * pheno_kinetic_frac
             risk_pct = round(curr_pheno_mag * 100.0, 1)
             ss_risk_pct = round(net_mag * 100.0, 1)
-            pcat = str(pdata.get("phenotype_category", "clinical_outcome")).lower()
-            is_benefit = "benefit" in pcat or "therapeutic" in pcat
-            if is_benefit:
-                risk_status = "STRONG_BENEFIT" if curr_pheno_mag > 0.4 else ("MODERATE_BENEFIT" if curr_pheno_mag > 0.15 else ("MILD_BENEFIT" if curr_pheno_mag > 0.03 else "NEUTRAL"))
-                risk_badge = "Strong Benefit" if risk_status == "STRONG_BENEFIT" else ("Moderate Benefit" if risk_status == "MODERATE_BENEFIT" else ("Mild Benefit" if risk_status == "MILD_BENEFIT" else "Neutral / Basal"))
-            else:
-                risk_status = "HIGH_RISK" if curr_pheno_mag > 0.4 else ("MODERATE_RISK" if curr_pheno_mag > 0.15 else ("MILD_RISK" if curr_pheno_mag > 0.03 else ("SUPPRESSED" if curr_pheno_mag < -0.15 else ("MILD_SUPPRESSION" if curr_pheno_mag < -0.03 else "NEUTRAL"))))
-                risk_badge = "High Elevation" if risk_status == "HIGH_RISK" else ("Moderate Elevation" if risk_status == "MODERATE_RISK" else ("Mild Elevation" if risk_status == "MILD_RISK" else ("Strong Suppression" if risk_status == "SUPPRESSED" else ("Mild Suppression" if risk_status == "MILD_SUPPRESSION" else "Neutral / Basal"))))
-
+            risk_status = "HIGH_RISK" if curr_pheno_mag > 0.4 else ("MODERATE_RISK" if curr_pheno_mag > 0.15 else ("MILD_RISK" if curr_pheno_mag > 0.03 else ("SUPPRESSED" if curr_pheno_mag < -0.15 else ("MILD_SUPPRESSION" if curr_pheno_mag < -0.03 else "NEUTRAL"))))
             c_shares = []
             for c_id, c_mag in phenotype_contributions.get(pheno_id, {}).items():
                 c_risk = round(c_mag * pheno_kinetic_frac * 100.0, 1)
@@ -1631,7 +1579,7 @@ class BiologicalGraph:
                 "risk_delta_pct": risk_pct,
                 "steady_state_risk_pct": ss_risk_pct,
                 "risk_status": risk_status,
-                "risk_badge": risk_badge,
+                "risk_badge": "High Elevation" if risk_status == "HIGH_RISK" else ("Moderate Elevation" if risk_status == "MODERATE_RISK" else ("Mild Elevation" if risk_status == "MILD_RISK" else ("Strong Suppression" if risk_status == "SUPPRESSED" else ("Mild Suppression" if risk_status == "MILD_SUPPRESSION" else "Neutral / Basal")))),
                 "formatted_risk": f"{'+' if risk_pct > 0 else ''}{risk_pct}%",
                 "distribution": pheno_dist,
                 "p5_p95_range_str": pheno_dist["p5_p95_range_str"],

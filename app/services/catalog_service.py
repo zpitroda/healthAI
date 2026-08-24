@@ -722,6 +722,7 @@ CANONICAL_SYNONYM_MAP: Dict[str, str] = {
     "nac": "nac",
     "nacetylcysteine": "nac",
     "acetylcysteine": "nac",
+    "nacetylcysteine": "nac",
     "tudca": "tudca",
     "tauroursodeoxycholicacid": "tudca",
     "tauroursodeoxycholate": "tudca",
@@ -745,68 +746,6 @@ CANONICAL_SYNONYM_MAP: Dict[str, str] = {
     "ksm66": "ashwagandha",
     "sensoril": "ashwagandha",
     "withaniasomnifera": "ashwagandha",
-    "quercetin": "quercetin",
-    "quercetine": "quercetin",
-    "quercetindihydrate": "quercetin",
-    "isoquercetin": "quercetin",
-    "bioflavonoid": "quercetin",
-    "resveratrol": "resveratrol",
-    "transresveratrol": "resveratrol",
-    "stilbenoid": "resveratrol",
-    "rhodiola": "rhodiola",
-    "rhodiolarosea": "rhodiola",
-    "salidroside": "rhodiola",
-    "rosavin": "rhodiola",
-    "goldenroot": "rhodiola",
-    "bacopa": "bacopa",
-    "bacopamonnieri": "bacopa",
-    "brahmi": "bacopa",
-    "bacosides": "bacopa",
-    "ginkgobiloba": "ginkgo_biloba",
-    "ginkgo": "ginkgo_biloba",
-    "ginkgoextract": "ginkgo_biloba",
-    "egb761": "ginkgo_biloba",
-    "ginkgolides": "ginkgo_biloba",
-    "panaxginseng": "panax_ginseng",
-    "ginseng": "panax_ginseng",
-    "redginseng": "panax_ginseng",
-    "koreanginseng": "panax_ginseng",
-    "ginsenosides": "panax_ginseng",
-    "piperine": "piperine",
-    "bioperine": "piperine",
-    "blackpepperextract": "piperine",
-    "pipernigrum": "piperine",
-    "sulforaphane": "sulforaphane",
-    "broccolisproutextract": "sulforaphane",
-    "glucoraphanin": "sulforaphane",
-    "stjohnswort": "st_johns_wort",
-    "stjohnwort": "st_johns_wort",
-    "hypericum": "st_johns_wort",
-    "hypericumperforatum": "st_johns_wort",
-    "hyperforin": "st_johns_wort",
-    "hypericin": "st_johns_wort",
-    "sawpalmetto": "saw_palmetto",
-    "serenoarepens": "saw_palmetto",
-    "permixon": "saw_palmetto",
-    "greenteaextract": "green_tea_extract",
-    "greentea": "green_tea_extract",
-    "egcg": "green_tea_extract",
-    "epigallocatechingallate": "green_tea_extract",
-    "magnesium": "magnesium",
-    "magnesiumglycinate": "magnesium",
-    "magnesiumbisglycinate": "magnesium",
-    "magnesiumcitrate": "magnesium",
-    "magnesiumlthreonate": "magnesium",
-    "magglycinate": "magnesium",
-    "zinc": "zinc",
-    "zincpicolinate": "zinc",
-    "zinccitrate": "zinc",
-    "zincgluconate": "zinc",
-    "optizinc": "zinc",
-    "tartcherry": "tart_cherry",
-    "tartcherryextract": "tart_cherry",
-    "montmorencycherry": "tart_cherry",
-    "prunuscerasus": "tart_cherry",
     # Peptides & Research Bioregulators
     "bpc157": "bpc_157",
     "bpc": "bpc_157",
@@ -917,11 +856,9 @@ class CatalogService:
                 conn.commit()
 
     def sync_seed_compounds(self) -> None:
-        with self._connect() as conn:
-            existing_keys = {str(row["key"]).lower() for row in conn.execute("SELECT key FROM compounds").fetchall()}
         for compound in _get_default_compounds():
-            k = str(compound.get("key") or compound.get("name")).lower()
-            if k and k not in existing_keys:
+            k = compound.get("key") or compound.get("name")
+            if k:
                 self.upsert_compound(compound)
 
     def refresh_seed_compounds(self) -> None:
@@ -1619,9 +1556,7 @@ class CatalogService:
                 if dose_mg is not None:
                     new_entry["dose_mg"] = dose_mg
                     new_entry["dose"] = dose_mg
-                raw_k_lower = raw_key.lower()
-                is_test_raw = "testosterone" in raw_k_lower and not any(w in raw_k_lower for w in ["trenbolone", "nandrolone", "drostanolone", "oxandrolone", "boldenone", "stanozolol", "dihydrotestosterone", "epitestosterone", "sarm", "rad140", "lgd", "ostarine", "s-4", "yk-11"])
-                new_entry["route"] = str(item.get("route") or (comp.get("route") if comp else None) or (comp.get("default_route") if comp else None) or ("intramuscular" if is_test_raw else "oral")).strip().lower()
+                    new_entry["unit"] = unit
                 merged_by_canonical[canonical_id] = new_entry
 
         return list(merged_by_canonical.values())

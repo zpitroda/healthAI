@@ -84,8 +84,6 @@ INITIAL_TARGET_SEED_METADATA: Dict[str, Dict[str, str]] = {
     "tmsb4x": {"symbol": "TMSB4X", "uniprot": "P62328", "ensembl": "ENSG00000205542", "name": "Thymosin Beta-4 (TMSB4X / G-Actin Sequestration)"},
     "oxtr": {"symbol": "OXTR", "uniprot": "P30559", "ensembl": "ENSG00000180914", "name": "Oxytocin Receptor (OXTR)"},
     "avpr2": {"symbol": "AVPR2", "uniprot": "P30518", "ensembl": "ENSG00000126895", "name": "Vasopressin V2 Receptor (AVPR2)"},
-    "carns1": {"symbol": "CARNS1", "uniprot": "A5YM72", "ensembl": "ENSG00000172508", "name": "Carnosine Synthase 1 (CARNS1 / Intramuscular Proton Buffering)"},
-    "mrgprd": {"symbol": "MRGPRD", "uniprot": "Q8TDF5", "ensembl": "ENSG00000188987", "name": "Mas-Related G-Protein Coupled Receptor Member D (MRGPRD / Cutaneous Paresthesia)"},
 }
 
 # Backward compatibility alias
@@ -186,10 +184,6 @@ class PathwayService:
                 """
             )
             conn.execute("DELETE FROM cached_target_cascades WHERE cascade_json LIKE '%-85.0%'")
-            conn.commit()
-
-            # Purge stale Xanthine / XDH cached cascade entries if present
-            conn.execute("DELETE FROM cached_target_cascades WHERE LOWER(target_id) LIKE '%xanthine%' OR LOWER(target_id) LIKE '%xdh%'")
             conn.commit()
 
             # Warm initial metadata cache if empty
@@ -602,7 +596,6 @@ class PathwayService:
                 {"id": "bio_hematocrit", "label": "Blood Hematocrit", "unit": "%", "panel": "Hematology Panel", "lower": 38.5, "upper": 50.0, "mag": 0.6},
                 {"id": "bio_luteinizing_hormone", "label": "Luteinizing Hormone (LH)", "unit": "IU/L", "panel": "Endocrine Panel", "lower": 1.5, "upper": 9.3, "mag": -0.85},
                 {"id": "bio_fsh", "label": "Follicle-Stimulating Hormone (FSH)", "unit": "IU/L", "panel": "Endocrine Panel", "lower": 1.4, "upper": 12.4, "mag": -0.85},
-                {"id": "bio_testosterone", "label": "Serum Total Testosterone", "unit": "ng/dL", "panel": "Endocrine Panel", "lower": 300.0, "upper": 1000.0, "mag": -0.92},
                 {"id": "bio_hdl_c", "label": "Serum HDL Cholesterol", "unit": "mg/dL", "panel": "Lipid Panel", "lower": 40.0, "upper": 90.0, "mag": -0.65},
                 {"id": "bio_ldl_c", "label": "Serum LDL Cholesterol", "unit": "mg/dL", "panel": "Lipid Panel", "lower": 50.0, "upper": 100.0, "mag": 0.55},
                 {"id": "bio_triglycerides", "label": "Serum Triglycerides", "unit": "mg/dL", "panel": "Lipid Panel", "lower": 40.0, "upper": 150.0, "mag": 0.35},
@@ -615,20 +608,6 @@ class PathwayService:
                 {"id": "pheno_polycythemia_risk", "label": "Secondary Polycythemia & Hyperviscosity Vulnerability", "cat": "adverse_effect", "sev": "moderate", "mag": 0.7},
                 {"id": "pheno_androgenic_alopecia", "label": "Follicular Miniaturization & Prostatic Hypertrophy Risk", "cat": "adverse_effect", "sev": "moderate", "mag": 0.7},
                 {"id": "pheno_lvh", "label": "Left Ventricular Concentric Hypertrophy & Myocardial Remodeling", "cat": "adverse_effect", "sev": "moderate", "mag": 0.65},
-            ])
-
-        # 3a. Progesterone Receptor (PGR / NR3C3) - 19-nor Steroids & Progestogens
-        elif "progesterone receptor" in t_lower or "pgr" in t_lower or "nr3c3" in t_lower or sym == "PGR":
-            organ = "Endocrine / Reproductive"
-            biomarkers.extend([
-                {"id": "bio_luteinizing_hormone", "label": "Luteinizing Hormone (LH)", "unit": "IU/L", "panel": "Endocrine Panel", "lower": 1.5, "upper": 9.3, "mag": -0.85},
-                {"id": "bio_fsh", "label": "Follicle-Stimulating Hormone (FSH)", "unit": "IU/L", "panel": "Endocrine Panel", "lower": 1.4, "upper": 12.4, "mag": -0.85},
-                {"id": "bio_testosterone", "label": "Serum Total Testosterone", "unit": "ng/dL", "panel": "Endocrine Panel", "lower": 300.0, "upper": 1000.0, "mag": -0.90},
-                {"id": "bio_prolactin", "label": "Serum Prolactin", "unit": "ng/mL", "panel": "Endocrine Panel", "lower": 2.0, "upper": 18.0, "mag": 0.80},
-            ])
-            pheno_nodes.extend([
-                {"id": "pheno_hyperprolactinemia", "label": "Progestogenic Pituitary Prolactin Hypersecretion & Galactorrhea Risk", "cat": "adverse_effect", "sev": "moderate", "mag": 0.85},
-                {"id": "pheno_hpg_axis_shutdown", "label": "Profound Endogenous Androgen Suppression & Testicular Dysfunction", "cat": "toxicity", "sev": "severe", "mag": -0.95},
             ])
 
         # 3b. Circulating Serum Testosterone / Bioidentical Androgen Pool
@@ -658,8 +637,8 @@ class PathwayService:
         elif "adrb1" in t_lower or "adrb2" in t_lower or "beta-1" in t_lower or "beta-2" in t_lower or sym in ("ADRB1", "ADRB2"):
             organ = "Cardiovascular / Pulmonary"
             biomarkers.extend([
-                {"id": "bio_heart_rate", "label": "Resting Heart Rate", "unit": "bpm", "panel": "Vitals", "lower": 50, "upper": 90, "mag": 0.35},
-                {"id": "bio_blood_pressure", "label": "Systolic Blood Pressure", "unit": "mmHg", "panel": "Vitals", "lower": 90, "upper": 120, "mag": 0.25},
+                {"id": "bio_heart_rate", "label": "Resting Heart Rate", "unit": "bpm", "panel": "Vitals", "lower": 50, "upper": 90, "mag": 0.8},
+                {"id": "bio_blood_pressure", "label": "Systolic Blood Pressure", "unit": "mmHg", "panel": "Vitals", "lower": 90, "upper": 120, "mag": 0.6},
             ])
             pheno_nodes.extend([
                 {"id": "pheno_inotropic", "label": "Myocardial Inotropy & Chronotropic Acceleration", "cat": "therapeutic_benefit", "sev": "high", "mag": 0.85},
@@ -671,8 +650,8 @@ class PathwayService:
         elif "adra2" in t_lower or "alpha-2" in t_lower or sym == "ADRA2A":
             organ = "Autonomic / Cardiovascular"
             biomarkers.extend([
-                {"id": "bio_heart_rate", "label": "Resting Heart Rate", "unit": "bpm", "panel": "Vitals", "lower": 50, "upper": 90, "mag": -0.25},
-                {"id": "bio_blood_pressure", "label": "Systolic Blood Pressure", "unit": "mmHg", "panel": "Vitals", "lower": 90, "upper": 120, "mag": -0.20},
+                {"id": "bio_heart_rate", "label": "Resting Heart Rate", "unit": "bpm", "panel": "Vitals", "lower": 50, "upper": 90, "mag": -0.7},
+                {"id": "bio_blood_pressure", "label": "Systolic Blood Pressure", "unit": "mmHg", "panel": "Vitals", "lower": 90, "upper": 120, "mag": -0.6},
             ])
             pheno_nodes.extend([
                 {"id": "pheno_sympathetic_activation", "label": "Sympathoadrenal Arousal, Lipolysis & Chronotropic Stimulation", "cat": "therapeutic_benefit", "sev": "moderate", "mag": -0.85},
@@ -683,8 +662,8 @@ class PathwayService:
         elif "adenosine" in t_lower or "adora" in t_lower or "a1 receptor" in t_lower or "a2a receptor" in t_lower or t_lower.startswith("a1") or t_lower.startswith("a2a") or sym in ("ADORA1", "ADORA2A"):
             organ = "Central Nervous System"
             biomarkers.extend([
-                {"id": "bio_heart_rate", "label": "Resting Heart Rate", "unit": "bpm", "panel": "Vitals", "lower": 50, "upper": 90, "mag": -0.18},
-                {"id": "bio_blood_pressure", "label": "Systolic Blood Pressure", "unit": "mmHg", "panel": "Vitals", "lower": 90, "upper": 120, "mag": -0.15},
+                {"id": "bio_heart_rate", "label": "Resting Heart Rate", "unit": "bpm", "panel": "Vitals", "lower": 50, "upper": 90, "mag": -0.6},
+                {"id": "bio_blood_pressure", "label": "Systolic Blood Pressure", "unit": "mmHg", "panel": "Vitals", "lower": 90, "upper": 120, "mag": -0.5},
             ])
             pheno_nodes.extend([
                 {"id": "pheno_vigilance", "label": "Heightened Cognitive Vigilance & Reaction Time", "cat": "therapeutic_benefit", "sev": "moderate", "mag": -0.8},
@@ -702,8 +681,8 @@ class PathwayService:
         elif ("gaba" in t_lower or "theanine" in t_lower or sym in ("GABRA1", "GABRA2")) and "glutamat" not in t_lower and "nmda" not in t_lower:
             organ = "Central Nervous System"
             biomarkers.extend([
-                {"id": "bio_heart_rate", "label": "Resting Heart Rate", "unit": "bpm", "panel": "Vitals", "lower": 50, "upper": 90, "mag": -0.15},
-                {"id": "bio_cortisol", "label": "Serum Cortisol Concentration", "unit": "μg/dL", "panel": "Endocrine Panel", "lower": 6.0, "upper": 18.0, "mag": -0.25},
+                {"id": "bio_heart_rate", "label": "Resting Heart Rate", "unit": "bpm", "panel": "Vitals", "lower": 50, "upper": 90, "mag": -0.5},
+                {"id": "bio_cortisol", "label": "Serum Cortisol Concentration", "unit": "μg/dL", "panel": "Endocrine Panel", "lower": 6.0, "upper": 18.0, "mag": -0.6},
             ])
             pheno_nodes.extend([
                 {"id": "pheno_anxiolysis", "label": "Rapid Anxiolysis & Somatic Stress Reduction", "cat": "therapeutic_benefit", "sev": "high", "mag": 0.85},
@@ -714,14 +693,14 @@ class PathwayService:
         elif "glutamat" in t_lower or "nmda" in t_lower or sym in ("GRIN1", "GRIN2A"):
             organ = "Central Nervous System"
             biomarkers.extend([
-                {"id": "bio_heart_rate", "label": "Resting Heart Rate", "unit": "bpm", "panel": "Vitals", "lower": 50, "upper": 90, "mag": 0.15},
-                {"id": "bio_cortisol", "label": "Serum Cortisol Concentration", "unit": "μg/dL", "panel": "Endocrine Panel", "lower": 6.0, "upper": 18.0, "mag": 0.20},
+                {"id": "bio_heart_rate", "label": "Resting Heart Rate", "unit": "bpm", "panel": "Vitals", "lower": 50, "upper": 90, "mag": 0.5},
+                {"id": "bio_cortisol", "label": "Serum Cortisol Concentration", "unit": "μg/dL", "panel": "Endocrine Panel", "lower": 6.0, "upper": 18.0, "mag": 0.6},
             ])
             pheno_nodes.extend([
                 {"id": "pheno_neuroexcitation", "label": "Glutamatergic Excitotoxicity & Central Nervous System Arousal", "cat": "adverse_effect", "sev": "moderate", "mag": 0.75},
             ])
 
-        # 7d. Skeletal Muscle ATP-PCr Phosphagen System (Creatine)
+        # 7c. Skeletal Muscle ATP-PCr Phosphagen System (Creatine)
         elif "creatine" in t_lower or "phosphagen" in t_lower or "atp-pcr" in t_lower or sym in ("CKM", "CKMT2", "SLC6A8"):
             organ = "Skeletal Muscle"
             biomarkers.extend([
@@ -731,17 +710,6 @@ class PathwayService:
             pheno_nodes.extend([
                 {"id": "pheno_power_output", "label": "Enhanced Anaerobic Peak Power & Repeated Sprint Capacity", "cat": "therapeutic_benefit", "sev": "high", "mag": 0.9},
                 {"id": "pheno_lean_mass", "label": "Accelerated Resistance Training Lean Mass Adaptation", "cat": "therapeutic_benefit", "sev": "high", "mag": 0.8},
-            ])
-
-        # 7e. Skeletal Muscle Carnosine Synthesis & Intracellular Proton Buffering (CARNS1 / Beta-Alanine)
-        elif "carnosine" in t_lower or "carns1" in t_lower or "beta-alanine" in t_lower or "beta alanine" in t_lower or sym in ("CARNS1", "MRGPRD"):
-            organ = "Skeletal Muscle / Performance"
-            biomarkers.extend([
-                {"id": "bio_carnosine_stores", "label": "Intramuscular Carnosine Pool", "unit": "mmol/kg dw", "panel": "Muscle Panel", "lower": 15, "upper": 60, "mag": 0.85},
-            ])
-            pheno_nodes.extend([
-                {"id": "pheno_anaerobic_endurance", "label": "Intramuscular Proton Buffering & Delayed Fatigue in High-Intensity Exercise", "cat": "therapeutic_benefit", "sev": "high", "mag": 0.90},
-                {"id": "pheno_paresthesia", "label": "Transient Sensory Paresthesia (Benign Cutaneous MrgprD Stimulation)", "cat": "therapeutic_benefit", "sev": "moderate", "mag": 0.65},
             ])
 
         # 8. Growth Hormone Axis (GHSR / GHRHR)
@@ -819,10 +787,10 @@ class PathwayService:
         elif ("uncoupl" in t_lower or "ros generation" in t_lower or "pro-oxidant" in t_lower or "mitochondrial stress" in t_lower or "mitochondrial" in t_lower or "oxidative" in t_lower) and "homeostasis" not in t_lower and "defense" not in t_lower and "antioxidant" not in t_lower:
             organ = "Cellular Bioenergetics"
             biomarkers.extend([
-                {"id": "bio_mda", "label": "Malondialdehyde (Lipid Peroxidation)", "unit": "μmol/L", "panel": "Redox Panel", "lower": 0.5, "upper": 2.0, "mag": 0.80},
-                {"id": "bio_gsh_redox_ratio", "label": "Glutathione Redox Ratio (GSH:GSSG)", "unit": "ratio", "panel": "Redox Panel", "lower": 100.0, "upper": 300.0, "mag": -0.85},
-                {"id": "bio_ros_level", "label": "Cellular Reactive Oxygen Species Index", "unit": "index", "panel": "Redox Panel", "lower": 10, "upper": 50, "mag": 0.85},
-                {"id": "bio_crp", "label": "High-Sensitivity C-Reactive Protein (hs-CRP)", "unit": "mg/L", "panel": "Inflammatory Panel", "lower": 0.0, "upper": 1.0, "mag": 0.50},
+                {"id": "bio_mda", "label": "Malondialdehyde (Lipid Peroxidation)", "unit": "μmol/L", "panel": "Redox Panel", "lower": 0.5, "upper": 2.0, "mag": 0.8},
+                {"id": "bio_gsh_redox_ratio", "label": "Glutathione Redox Ratio (GSH:GSSG)", "unit": "ratio", "panel": "Redox Panel", "lower": 100.0, "upper": 300.0, "mag": -25.0},
+                {"id": "bio_ros_level", "label": "Cellular Reactive Oxygen Species Index", "unit": "index", "panel": "Redox Panel", "lower": 10, "upper": 50, "mag": 35.0},
+                {"id": "bio_crp", "label": "High-Sensitivity C-Reactive Protein (hs-CRP)", "unit": "mg/L", "panel": "Inflammatory Panel", "lower": 0.0, "upper": 1.0, "mag": 0.5},
             ])
             pheno_nodes.extend([
                 {"id": "pheno_oxidative_stress", "label": "Mitochondrial ROS Production & Cellular Oxidative Stress", "cat": "toxicity", "sev": "high", "mag": 0.85},
@@ -832,9 +800,8 @@ class PathwayService:
         elif "glutathione" in t_lower or "antioxidant" in t_lower or "redox" in t_lower or "bioenergetics" in t_lower or "cystine" in t_lower or "xc-" in t_lower or "gcl" in t_lower or "astaxanthin" in t_lower or "nrf2" in t_lower or "curcumin" in t_lower or "omega" in t_lower or sym in ("SLC7A11", "GCLC", "GCLM", "NFE2L2"):
             organ = "Systemic / Cytoprotective"
             biomarkers.extend([
-                {"id": "bio_mda", "label": "Malondialdehyde (Lipid Peroxidation)", "unit": "μmol/L", "panel": "Redox Panel", "lower": 0.5, "upper": 2.0, "mag": -0.80},
-                {"id": "bio_gsh_redox_ratio", "label": "Glutathione Redox Ratio (GSH:GSSG)", "unit": "ratio", "panel": "Redox Panel", "lower": 100.0, "upper": 300.0, "mag": 0.85},
-                {"id": "bio_ros_level", "label": "Cellular Reactive Oxygen Species Index", "unit": "index", "panel": "Redox Panel", "lower": 10, "upper": 50, "mag": -0.85},
+                {"id": "bio_mda", "label": "Malondialdehyde (Lipid Peroxidation)", "unit": "μmol/L", "panel": "Redox Panel", "lower": 0.5, "upper": 2.0, "mag": -0.8},
+                {"id": "bio_gsh_redox_ratio", "label": "Glutathione Redox Ratio (GSH:GSSG)", "unit": "ratio", "panel": "Redox Panel", "lower": 100.0, "upper": 300.0, "mag": 25.0},
                 {"id": "bio_crp", "label": "High-Sensitivity C-Reactive Protein (hs-CRP)", "unit": "mg/L", "panel": "Inflammatory Panel", "lower": 0.0, "upper": 1.0, "mag": -0.70},
             ])
             pheno_nodes.extend([
@@ -899,58 +866,6 @@ class PathwayService:
                 {"id": "pheno_cholesterol_lowering", "label": "Atherogenic Lipid Clearance & Systemic Cholesterol Lowering", "cat": "therapeutic_benefit", "sev": "high", "mag": 0.90},
                 {"id": "pheno_cardiovascular_risk_reduction", "label": "Atherosclerotic Plaque Stabilization & Major Adverse Cardiac Event (MACE) Reduction", "cat": "therapeutic_benefit", "sev": "high", "mag": 0.88},
                 {"id": "pheno_statins_myopathy_risk", "label": "Statin-Associated Muscle Symptom (SAMS) & Myopathy Sparing Risk", "cat": "adverse_effect", "sev": "moderate", "mag": 0.40},
-            ])
-
-        # 18c. Catechol-O-Methyltransferase (COMT / Green Tea / Quercetin)
-        elif "comt" in t_lower or "catechol-o-methyltransferase" in t_lower or sym == "COMT":
-            organ = "Central Nervous System / Catecholamines"
-            biomarkers.extend([
-                {"id": "bio_dopamine", "label": "Synaptic Dopamine Index", "unit": "index", "panel": "Neurochemical Panel", "lower": 50.0, "upper": 150.0, "mag": 0.75},
-            ])
-            pheno_nodes.extend([
-                {"id": "pheno_comt_inhibition", "label": "COMT Inhibition & Prolonged Synaptic Dopaminergic Half-Life", "cat": "therapeutic_benefit", "sev": "high", "mag": 0.85},
-            ])
-
-        # 18d. Pregnane X Receptor (PXR / NR1I2 / St. John's Wort)
-        elif "pxr" in t_lower or "pregnane x" in t_lower or sym == "NR1I2":
-            organ = "Hepatic / Xenobiotic Clearance"
-            biomarkers.extend([
-                {"id": "bio_cyp3a4_activity", "label": "Hepatic & Intestinal CYP3A4 Activity Index", "unit": "index", "panel": "Metabolic Panel", "lower": 50.0, "upper": 150.0, "mag": 0.90},
-            ])
-            pheno_nodes.extend([
-                {"id": "pheno_pxr_induction", "label": "Nuclear PXR Activation & Accelerated Drug Metabolism", "cat": "adverse_effect", "sev": "high", "mag": 0.90},
-            ])
-
-        # 18e. Xanthine Dehydrogenase / Oxidase (XDH / XO / Tart Cherry Extract)
-        elif "xanthine" in t_lower or "xdh" in t_lower or "uric acid" in t_lower or sym == "XDH":
-            organ = "Purine Metabolism / Joints"
-            biomarkers.extend([
-                {"id": "bio_uric_acid", "label": "Serum Uric Acid", "unit": "mg/dL", "panel": "Metabolic Panel", "lower": 3.5, "upper": 7.2, "mag": 0.85},
-                {"id": "bio_crp", "label": "High-Sensitivity C-Reactive Protein (hs-CRP)", "unit": "mg/L", "panel": "Inflammatory Panel", "lower": 0.0, "upper": 1.0, "mag": -0.60},
-            ])
-            pheno_nodes.extend([
-                {"id": "pheno_uric_acid_lowering", "label": "Xanthine Oxidase Inhibition & Uric Acid Lowering", "cat": "therapeutic_benefit", "sev": "high", "mag": -0.90},
-            ])
-
-        # 18f. Multivalent Cation GI Chelation Site (Magnesium, Zinc)
-        elif "chelation" in t_lower or "multivalent cation" in t_lower:
-            organ = "Gastrointestinal Lumen"
-            biomarkers.extend([
-                {"id": "bio_antibiotic_absorption", "label": "Intestinal Antibiotic Bioavailability Index", "unit": "pct", "panel": "Absorption Panel", "lower": 70.0, "upper": 100.0, "mag": -0.85},
-            ])
-            pheno_nodes.extend([
-                {"id": "pheno_gi_chelation_failure", "label": "Gastrointestinal Insoluble Complexation & Loss of Antibiotic Bioavailability", "cat": "adverse_effect", "sev": "high", "mag": -0.85},
-            ])
-
-        # 18g. Endothelial Nitric Oxide Synthase (eNOS / NOS3 / Panax Ginseng / Ginkgo Biloba)
-        elif "enos" in t_lower or "nos3" in t_lower or "nitric oxide synthase" in t_lower or sym == "NOS3":
-            organ = "Vascular Endothelium"
-            biomarkers.extend([
-                {"id": "bio_nitric_oxide", "label": "Endothelial Nitric Oxide Synthesis Rate", "unit": "μmol/L", "panel": "Vascular Panel", "lower": 10.0, "upper": 50.0, "mag": 0.80},
-                {"id": "bio_blood_pressure", "label": "Systolic Blood Pressure", "unit": "mmHg", "panel": "Vitals", "lower": 90.0, "upper": 120.0, "mag": -0.40},
-            ])
-            pheno_nodes.extend([
-                {"id": "pheno_enos_vasodilation", "label": "Endothelial Nitric Oxide Production & Microvascular Perfusion", "cat": "therapeutic_benefit", "sev": "high", "mag": 0.85},
             ])
 
         # 19. Generic / Dynamic OpenTargets Phenotypes Fallback

@@ -43,6 +43,7 @@ def evaluate_interaction_matrix(payload: InteractionWorkbenchRequest) -> JSONRes
             comp_copy["frequency_multiplier"] = parsed.get("frequency_multiplier", 1.0)
             comp_copy["effective_daily_dose_mg"] = parsed.get("effective_daily_dose_mg", comp_copy["dose_mg"])
             comp_copy["effective_daily_display"] = parsed.get("effective_daily_display", f"{comp_copy['dose_mg']:g} mg/day")
+            comp_copy["route"] = str(item.get("route") if isinstance(item, dict) and item.get("route") else parsed.get("route", comp.get("route") or "oral")).strip().lower()
             if isinstance(item, dict):
                 comp_copy["timing"] = item.get("timing", "morning")
                 if item.get("frequency"):
@@ -62,6 +63,7 @@ def evaluate_interaction_matrix(payload: InteractionWorkbenchRequest) -> JSONRes
                 "frequency_multiplier": parsed.get("frequency_multiplier", 1.0),
                 "effective_daily_dose_mg": parsed.get("effective_daily_dose_mg", parsed.get("dose_mg", 10.0)),
                 "effective_daily_display": parsed.get("effective_daily_display", "10 mg/day"),
+                "route": str(item.get("route") if isinstance(item, dict) and item.get("route") else parsed.get("route", "oral")).strip().lower(),
                 "timing": item.get("timing", "morning") if isinstance(item, dict) else "morning",
                 "receptor_targets": [],
                 "cyp_enzymes": {"substrates": [], "inhibitors": [], "inducers": []},

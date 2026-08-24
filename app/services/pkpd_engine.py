@@ -12,6 +12,8 @@ from app.schemas.pkpd import (
     PathwayAnnotation,
     DistributionPercentiles,
     MetricDistribution,
+    RoutePKParameters,
+    MetaboliteProfile,
 )
 
 
@@ -157,8 +159,14 @@ class PKPDEngine:
             compound, co_compounds_data or []
         )
 
-        f_oral = 1.0 if route == "iv" else max(0.05, min(1.0, pk.bioavailability_f))
-        k_a = 50.0 if route == "iv" else max(0.05, pk.absorption_rate_ka)
+        from app.services.pkpd_enricher import PKPDEnricher
+        route_calc = PKPDEnricher.calculate_route_pk_parameters(compound, route)
+
+        f_route = route_calc["bioavailability_f"]
+        k_a = route_calc["absorption_rate_ka"]
+        first_pass_pct = route_calc["first_pass_hepatic_pct"]
+        bypass_pct = route_calc["first_pass_bypass_pct"]
+        metabolites_list = route_calc["metabolites"]
 
         # Compartments and Non-Linear Kinetics Configuration
         n_compartments = pk.number_of_compartments
@@ -176,6 +184,9 @@ class PKPDEngine:
             v2_total_l = 0.0
             k12 = 0.0
             k21 = 0.0
+
+        v_met_total_l = v1_total_l * 1.25
+        k_el_met = max(0.02, math.log(2.0) / max(0.5, pk.t_half_h * 1.4))
 
         # Michaelis-Menten Parameters
         vmax_total_mg_h = (pk.vmax_mg_h_kg * weight_kg) if (is_saturable and pk.vmax_mg_h_kg) else 0.0
@@ -257,11 +268,12 @@ class PKPDEngine:
             return max(0.005, cl_t)
 
         # 2. ODE System for Continuous Simulation (RK4 Integrator)
-        # State vector: y = [A_abs (mg), A_1 (mg), A_2 (mg)]
+        # State vector: y = [A_abs (mg), A_1 (mg), A_2 (mg), A_met (mg)]
         def ode_derivatives(t: float, y: List[float]) -> List[float]:
             a_abs = max(0.0, y[0])
             a1 = max(0.0, y[1])
             a2 = max(0.0, y[2])
+            a_met = max(0.0, y[3])
 
             c1_ng_ml = (a1 * 1000.0) / v1_total_l
 
@@ -279,21 +291,22 @@ class PKPDEngine:
             da_abs_dt = -k_a * a_abs
             da1_dt = (k_a * a_abs) - elim_rate_mg_h - (k12 * a1) + (k21 * a2)
             da2_dt = (k12 * a1) - (k21 * a2) if n_compartments == 2 else 0.0
+            da_met_dt = (0.45 * elim_rate_mg_h) - (k_el_met * a_met)
 
-            return [da_abs_dt, da1_dt, da2_dt]
+            return [da_abs_dt, da1_dt, da2_dt, da_met_dt]
 
         def rk4_step(t: float, y: List[float], dt: float) -> List[float]:
             k1 = ode_derivatives(t, y)
-            y_k2 = [y[i] + 0.5 * dt * k1[i] for i in range(3)]
+            y_k2 = [y[i] + 0.5 * dt * k1[i] for i in range(4)]
             k2 = ode_derivatives(t + 0.5 * dt, y_k2)
-            y_k3 = [y[i] + 0.5 * dt * k2[i] for i in range(3)]
+            y_k3 = [y[i] + 0.5 * dt * k2[i] for i in range(4)]
             k3 = ode_derivatives(t + 0.5 * dt, y_k3)
-            y_k4 = [y[i] + dt * k3[i] for i in range(3)]
+            y_k4 = [y[i] + dt * k3[i] for i in range(4)]
             k4 = ode_derivatives(t + dt, y_k4)
 
             return [
                 max(0.0, y[i] + (dt / 6.0) * (k1[i] + 2.0 * k2[i] + 2.0 * k3[i] + k4[i]))
-                for i in range(3)
+                for i in range(4)
             ]
 
         # Multi-Dose / Steady-State Initialization
@@ -303,7 +316,8 @@ class PKPDEngine:
             ester_weight_factor = 1.0
 
         effective_active_dose_mg = dose_mg * ester_weight_factor
-        init_dose_mg = effective_active_dose_mg * f_oral
+        init_dose_mg = effective_active_dose_mg * f_route
+        first_pass_initial_met_mg = (effective_active_dose_mg * ((100.0 - bypass_pct) / 100.0) * 0.35) if route_calc["route_name"] in ["oral", "rectal"] else 0.0
 
         if compound.get("is_ester") or ester_weight_factor < 1.0 or compound.get("parent_compound_id"):
             patient_biometrics["ester_info"] = {
@@ -315,20 +329,21 @@ class PKPDEngine:
                 "effective_active_dose_mg": round(effective_active_dose_mg, 2),
             }
 
-        if route == "iv":
-            y_state = [0.0, init_dose_mg, 0.0]
+        if route_calc["route_name"] == "intravenous":
+            y_state = [0.0, init_dose_mg, 0.0, 0.0]
         else:
-            y_state = [init_dose_mg, 0.0, 0.0]
+            y_state = [init_dose_mg, 0.0, 0.0, first_pass_initial_met_mg]
 
         if is_steady_state:
             # Run 12 dosing cycles to establish exact numerical steady-state
             cycles = 12
             for c in range(cycles):
                 if c > 0:
-                    if route == "iv":
+                    if route_calc["route_name"] == "intravenous":
                         y_state[1] += init_dose_mg
                     else:
                         y_state[0] += init_dose_mg
+                        y_state[3] += first_pass_initial_met_mg
 
                 t_cycle = 0.0
                 while t_cycle < tau:
@@ -337,10 +352,11 @@ class PKPDEngine:
                     t_cycle += step_dt
 
             # Apply final dose for reported steady-state cycle
-            if route == "iv":
+            if route_calc["route_name"] == "intravenous":
                 y_state[1] += init_dose_mg
             else:
                 y_state[0] += init_dose_mg
+                y_state[3] += first_pass_initial_met_mg
 
         # 3. Simulate and Record Report Time Series
         steps = 120
@@ -378,6 +394,7 @@ class PKPDEngine:
 
             c_p = (cur_y[1] * 1000.0) / v1_total_l
             c_tissue = (cur_y[2] * 1000.0) / v2_total_l if n_compartments == 2 else 0.0
+            c_met = (cur_y[3] * 1000.0) / v_met_total_l
             c_free = c_p * fu_adjusted
 
             cl_inst = get_instantaneous_clearance(target_t)
@@ -406,6 +423,7 @@ class PKPDEngine:
                     c_free_ng_ml=round(c_free, 2),
                     receptor_occupancy_pct=round(min(100.0, ro), 1),
                     effect_pct=round(min(100.0, effect), 1),
+                    c_metabolite_ng_ml=round(c_met, 2),
                     c_tissue_ng_ml=round(c_tissue, 2) if n_compartments == 2 else None,
                     cl_instantaneous_l_h=round(cl_inst, 2),
                     inhibitor_conc_ng_ml=round(i_conc, 2) if inhibitor_profiles else None,
@@ -430,7 +448,7 @@ class PKPDEngine:
         c_avg_ss = max(0.01, auc_0_tau / tau)
         ptf = ((c_max - c_min) / c_avg_ss) * 100.0 if is_steady_state else 0.0
 
-        cl_effective_avg = (effective_active_dose_mg * f_oral * 1000.0) / max(1.0, auc_0_tau)
+        cl_effective_avg = (effective_active_dose_mg * f_route * 1000.0) / max(1.0, auc_0_tau)
         k_e_eff = max(0.0001, cl_effective_avg / v_d_total_l)
         t_half_effective_h = math.log(2.0) / k_e_eff
 
@@ -448,24 +466,39 @@ class PKPDEngine:
             conc_val = ec50_ng_ml * math.pow(10.0, exponent)
             cp = math.pow(conc_val, hill_gamma)
             eff_val = (emax * cp) / (ec50_pow + cp)
-            pd_conc_points.append(round(conc_val, 4))
+            pd_conc_points.append(round(conc_val, 3))
             pd_effect_points.append(round(eff_val, 2))
 
-        # Generate Population Metric Distribution Curves (scaled CV if biometrics unknown)
+        # Overall Metric Distributions
         c_max_dist = cls._calculate_distribution_percentiles(c_max, cv=cv_pk_scale)
         c_avg_dist = cls._calculate_distribution_percentiles(c_avg_ss, cv=cv_pk_scale)
-        auc_dist = cls._calculate_distribution_percentiles(auc_0_tau, cv=cv_pk_scale * 1.1)
+        auc_dist = cls._calculate_distribution_percentiles(auc_0_tau, cv=cv_pk_scale)
         clearance_dist = cls._calculate_distribution_percentiles(cl_effective_avg, cv=cv_pk_scale)
-        half_life_dist = cls._calculate_distribution_percentiles(t_half_effective_h, cv=cv_pk_scale * 0.9)
+        half_life_dist = cls._calculate_distribution_percentiles(t_half_effective_h, cv=cv_pk_scale)
+
+        parsed_mets = [MetaboliteProfile(**m) if isinstance(m, dict) else m for m in metabolites_list]
 
         return PKPDSimulationResponse(
-            compound_key=str(compound.get("key") or request.compound_key),
+            compound_key=request.compound_key,
             compound_name=comp_name,
             dose_mg=dose_mg,
             dosing_interval_h=tau,
-            route=route,
+            route=route_calc["route_name"],
             steady_state=is_steady_state,
             patient_biometrics=patient_biometrics,
+            route_pk_details=RoutePKParameters(
+                route_name=route_calc["route_name"],
+                bioavailability_f=route_calc["bioavailability_f"],
+                absorption_rate_ka=route_calc["absorption_rate_ka"],
+                t_max_h=route_calc["t_max_h"],
+                apparent_t_half_h=route_calc["apparent_t_half_h"],
+                first_pass_hepatic_pct=route_calc["first_pass_hepatic_pct"],
+                first_pass_bypass_pct=route_calc["first_pass_bypass_pct"],
+                metabolites=parsed_mets,
+            ),
+            first_pass_metabolism_pct=route_calc["first_pass_hepatic_pct"],
+            first_pass_bypass_pct=route_calc["first_pass_bypass_pct"],
+            metabolites=parsed_mets,
             c_max_ng_ml=round(c_max, 2),
             t_max_h=round(t_max_ss, 2),
             c_min_trough_ng_ml=round(c_min, 2),
@@ -560,7 +593,15 @@ class PKPDEngine:
             trans_info = {}
         trans_substrates = [str(t).upper() for t in trans_info.get("substrates") or []]
 
-        if not substrates and not trans_substrates:
+        phase2_info = substrate_compound.get("phase2_enzymes") or {}
+        if not isinstance(phase2_info, dict):
+            phase2_info = {}
+        phase2_substrates = [str(p).upper() for p in phase2_info.get("substrates") or []]
+
+        sub_text_lower = f"{substrate_compound.get('name', '')} {substrate_compound.get('key', '')} {substrate_compound.get('drug_class', '')}".lower()
+        is_polyphenol = any(w in sub_text_lower for w in ["curcumin", "resveratrol", "quercetin", "polyphenol", "flavonoid", "astaxanthin", "coq10", "berberine"])
+
+        if not substrates and not trans_substrates and not phase2_substrates and not is_polyphenol:
             return 1.0, 1.0, []
 
         # Fractional contribution of major enzymes (default equal split among substrates)
@@ -574,6 +615,20 @@ class PKPDEngine:
             if str(other.get("key")) == str(substrate_compound.get("key")):
                 continue
 
+            other_text_lower = f"{other.get('name', '')} {other.get('key', '')} {other.get('drug_class', '')}".lower()
+            is_piperine = any(w in other_text_lower for w in ["piperine", "bioperine", "black pepper"])
+            is_st_john = any(w in other_text_lower for w in ["st john", "hypericum", "hyperforin"])
+
+            # Special bioenhancer effect (Piperine boosts polyphenol / P-gp / UGT1A1 / CYP3A4 substrate AUC)
+            if is_piperine and (is_polyphenol or "CYP3A4" in substrates or "P-GP" in trans_substrates or "UGT1A1" in phase2_substrates):
+                total_inhib_factor += 0.65  # ~2.8x exposure multiplier
+                interacting_enzymes.append(f"Intestinal P-gp & UGT1A1 Bioenhancement by {other.get('name') or 'Piperine'}")
+
+            # Special PXR nuclear induction effect (St. John's Wort strongly induces CYP3A4, CYP2C9, P-gp)
+            if is_st_john and ("CYP3A4" in substrates or "CYP2C9" in substrates or "P-GP" in trans_substrates):
+                total_inhib_factor -= 0.60  # ~0.4x exposure reduction
+                interacting_enzymes.append(f"Nuclear PXR Enzyme & P-gp Induction by {other.get('name') or 'St. John\'s Wort'}")
+
             other_cyp = other.get("cyp_enzymes") or {}
             if isinstance(other_cyp, dict):
                 # Strong/moderate inhibitors
@@ -581,7 +636,6 @@ class PKPDEngine:
                     inh_clean = str(inh).upper()
                     if inh_clean in substrates:
                         fm = fm_map.get(inh_clean, 0.4)
-                        # Assume clinical I/Ki ratio of 3.0 for strong/moderate catalog inhibitors
                         i_over_ki = 3.0
                         total_inhib_factor += fm * (1.0 - (1.0 / (1.0 + i_over_ki)))
                         if inh_clean not in interacting_enzymes:
@@ -605,6 +659,16 @@ class PKPDEngine:
                         total_inhib_factor += 0.25  # Reduces efflux clearance
                         if t_clean not in interacting_enzymes:
                             interacting_enzymes.append(f"{t_clean} Efflux Inhibition by {other.get('name') or other.get('key')}")
+
+            # Phase II inhibitors (e.g. UGT1A1, UGT2B7)
+            other_p2 = other.get("phase2_enzymes") or {}
+            if isinstance(other_p2, dict):
+                for p_inh in other_p2.get("inhibitors") or []:
+                    p_clean = str(p_inh).upper()
+                    if p_clean in phase2_substrates:
+                        total_inhib_factor += 0.25
+                        if p_clean not in interacting_enzymes:
+                            interacting_enzymes.append(f"{p_clean} Glucuronidation Inhibition by {other.get('name') or other.get('key')}")
 
         aucr = 1.0 / max(0.15, 1.0 - total_inhib_factor)
         aucr = max(0.3, min(8.0, aucr))

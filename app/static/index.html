@@ -2186,86 +2186,145 @@
 
       function getDefaultDoseFallback(key) {
         const k = String(key || '').toLowerCase().replace(/[^a-z0-9]/g, '');
-        if (k.includes('clenbuterol')) return { dose: 40, unit: 'μg' };
-        if (k.includes('clonidine')) return { dose: 100, unit: 'μg' };
-        if (k.includes('alprazolam')) return { dose: 0.5, unit: 'mg' };
-        if (k.includes('nebivolol')) return { dose: 5, unit: 'mg' };
-        if (k.includes('caffeine')) return { dose: 200, unit: 'mg' };
-        if (k.includes('theanine')) return { dose: 200, unit: 'mg' };
-        if (k.includes('creatine')) return { dose: 5, unit: 'g' };
-        if (k.includes('citrulline')) return { dose: 6, unit: 'g' };
-        if (k.includes('betaalanine')) return { dose: 3.2, unit: 'g' };
-        if (k.includes('yohimbine')) return { dose: 5, unit: 'mg' };
-        if (k.includes('telmisartan')) return { dose: 40, unit: 'mg' };
-        if (k.includes('losartan')) return { dose: 50, unit: 'mg' };
-        if (k.includes('valsartan')) return { dose: 80, unit: 'mg' };
-        if (k.includes('eplerenone')) return { dose: 50, unit: 'mg' };
-        if (k.includes('spironolactone')) return { dose: 50, unit: 'mg' };
-        if (k.includes('metformin')) return { dose: 500, unit: 'mg' };
-        if (k.includes('empagliflozin') || k.includes('dapagliflozin')) return { dose: 10, unit: 'mg' };
-        if (k.includes('semaglutide')) return { dose: 0.25, unit: 'mg' };
-        if (k.includes('testosterone')) return { dose: 20, unit: 'mg' };
-        if (k.includes('aspirin')) return { dose: 81, unit: 'mg' };
-        if (k.includes('atorvastatin')) return { dose: 20, unit: 'mg' };
-        if (k.includes('rosuvastatin')) return { dose: 10, unit: 'mg' };
-        if (k.includes('simvastatin')) return { dose: 20, unit: 'mg' };
-        if (k.includes('pitavastatin')) return { dose: 2, unit: 'mg' };
-        if (k.includes('tadalafil')) return { dose: 10, unit: 'mg' };
-        if (k.includes('sildenafil')) return { dose: 50, unit: 'mg' };
-        if (k.includes('finasteride')) return { dose: 1, unit: 'mg' };
-        if (k.includes('dutasteride')) return { dose: 0.5, unit: 'mg' };
-        if (k.includes('diazepam')) return { dose: 10, unit: 'mg' };
-        return { dose: 10, unit: 'mg' };
+        if (k.includes('clenbuterol')) return { dose: 40, unit: 'μg', route: 'oral' };
+        if (k.includes('clonidine')) return { dose: 100, unit: 'μg', route: 'oral' };
+        if (k.includes('alprazolam')) return { dose: 0.5, unit: 'mg', route: 'oral' };
+        if (k.includes('nebivolol')) return { dose: 5, unit: 'mg', route: 'oral' };
+        if (k.includes('caffeine')) return { dose: 200, unit: 'mg', route: 'oral' };
+        if (k.includes('theanine')) return { dose: 200, unit: 'mg', route: 'oral' };
+        if (k.includes('creatine')) return { dose: 5, unit: 'g', route: 'oral' };
+        if (k.includes('citrulline')) return { dose: 6, unit: 'g', route: 'oral' };
+        if (k.includes('betaalanine')) return { dose: 3.2, unit: 'g', route: 'oral' };
+        if (k.includes('yohimbine')) return { dose: 5, unit: 'mg', route: 'oral' };
+        if (k.includes('telmisartan')) return { dose: 40, unit: 'mg', route: 'oral' };
+        if (k.includes('losartan')) return { dose: 50, unit: 'mg', route: 'oral' };
+        if (k.includes('valsartan')) return { dose: 80, unit: 'mg', route: 'oral' };
+        if (k.includes('eplerenone')) return { dose: 50, unit: 'mg', route: 'oral' };
+        if (k.includes('spironolactone')) return { dose: 50, unit: 'mg', route: 'oral' };
+        if (k.includes('metformin')) return { dose: 500, unit: 'mg', route: 'oral' };
+        if (k.includes('empagliflozin') || k.includes('dapagliflozin')) return { dose: 10, unit: 'mg', route: 'oral' };
+        if (k.includes('semaglutide') || k.includes('tirzepatide') || k.includes('liraglutide') || k.includes('bpc157')) return { dose: 0.25, unit: 'mg', route: 'subcutaneous' };
+        if (k.includes('testosterone') || k.includes('nandrolone') || k.includes('trenbolone') || k.includes('boldenone') || k.includes('drostanolone') || k.includes('primobolan') || k.includes('methenolone') || k.includes('deca') || k.includes('masteron')) return { dose: 20, unit: 'mg', route: 'intramuscular' };
+        if (k.includes('aspirin')) return { dose: 81, unit: 'mg', route: 'oral' };
+        if (k.includes('atorvastatin')) return { dose: 20, unit: 'mg', route: 'oral' };
+        if (k.includes('rosuvastatin')) return { dose: 10, unit: 'mg', route: 'oral' };
+        if (k.includes('simvastatin')) return { dose: 20, unit: 'mg', route: 'oral' };
+        if (k.includes('pitavastatin')) return { dose: 2, unit: 'mg', route: 'oral' };
+        if (k.includes('tadalafil')) return { dose: 10, unit: 'mg', route: 'oral' };
+        if (k.includes('sildenafil')) return { dose: 50, unit: 'mg', route: 'oral' };
+        if (k.includes('finasteride')) return { dose: 1, unit: 'mg', route: 'oral' };
+        if (k.includes('dutasteride')) return { dose: 0.5, unit: 'mg', route: 'oral' };
+        if (k.includes('diazepam')) return { dose: 10, unit: 'mg', route: 'oral' };
+        return { dose: 10, unit: 'mg', route: 'oral' };
       }
 
       function addCompoundKey(key) {
-        if (!key || state.stack.some(c => c.key.toLowerCase() === key.toLowerCase())) return;
-        fetch(`/catalog/${encodeURIComponent(key)}`)
+        if (!key) return;
+        const cleanKey = String(key).trim().toLowerCase().split(':')[0];
+        if (!cleanKey || state.stack.some(c => String(c.key).toLowerCase() === cleanKey)) return;
+        fetch(`/catalog/${encodeURIComponent(cleanKey)}`)
           .then(res => {
             if (!res.ok) throw new Error('Compound not found');
             return res.json();
           })
           .then(compound => {
-            const fallback = getDefaultDoseFallback(compound.key || key);
+            const fallback = getDefaultDoseFallback(compound.key || cleanKey);
             const defDose = compound.default_dose || {};
             const doseVal = defDose.dose_val !== undefined ? defDose.dose_val : (compound.dose !== undefined ? compound.dose : fallback.dose);
             const doseUnit = defDose.dose_unit || compound.unit || fallback.unit;
+            const routeVal = compound.route || compound.default_route || fallback.route || 'oral';
 
             state.stack.push({
-              key: compound.key || key,
-              name: compound.name || key.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase()),
+              key: compound.key || cleanKey,
+              name: compound.name || cleanKey.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase()),
               drug_class: compound.drug_class || 'Compound',
               mechanism: compound.mechanism || '',
               dose: doseVal,
               unit: doseUnit,
               frequency: 'daily',
               timing: 'morning',
+              route: routeVal,
             });
             syncAndEvaluateStack();
           })
           .catch(() => {
-            const fallback = getDefaultDoseFallback(key);
+            const fallback = getDefaultDoseFallback(cleanKey);
             state.stack.push({
-              key: key,
-              name: key.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase()),
+              key: cleanKey,
+              name: cleanKey.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase()),
               drug_class: 'custom compound',
               dose: fallback.dose,
               unit: fallback.unit,
               frequency: 'daily',
               timing: 'morning',
+              route: fallback.route || 'oral',
             });
             syncAndEvaluateStack();
           });
       }
 
       function removeCompoundKey(key) {
-        state.stack = state.stack.filter(c => c.key.toLowerCase() !== key.toLowerCase());
+        if (!key) return;
+        const cleanKey = String(key).trim().toLowerCase().split(':')[0];
+        state.stack = state.stack.filter(c => String(c.key).toLowerCase() !== cleanKey);
         syncAndEvaluateStack();
+      }
+
+      let _evalDebounce = null;
+      function debouncedEvaluate() {
+        clearTimeout(_evalDebounce);
+        _evalDebounce = setTimeout(() => evaluateStack(), 300);
       }
 
       function syncAndEvaluateStack() {
         renderStackList();
-        evaluateStack();
+        debouncedEvaluate();
+      }
+
+      // For in-place value changes (dose, unit, route, timing, frequency),
+      // only persist to localStorage + re-evaluate; do NOT re-render the list
+      // because that destroys the DOM element the user is interacting with.
+      function persistAndEvaluate() {
+        try {
+          localStorage.setItem('healthai_stack', JSON.stringify(state.stack));
+          window.dispatchEvent(new CustomEvent('healthai:stack-updated'));
+        } catch (e) { /* ignore */ }
+
+        // Update nav link URLs
+        const keys = state.stack.map(c => {
+          const u = (c.unit || 'mg').replace('μg', 'ug');
+          const freq = c.frequency || 'daily';
+          const route = c.route || 'oral';
+          return `${encodeURIComponent(c.key)}:${c.dose}${u}:${freq}:${route}`;
+        }).join(',');
+        const targetUrl = keys ? `/graph?stack=${keys}&timeline=${state.timeline || 'steady_state'}` : '/graph';
+        const graphLink = document.getElementById('nav-graph-link');
+        if (graphLink) graphLink.href = targetUrl;
+        const openBtn = document.getElementById('open-full-graph-btn');
+        if (openBtn) openBtn.href = targetUrl;
+
+        // Update effective daily display text per card
+        state.stack.forEach(c => {
+          const card = stackItemsWrap.querySelector(`.stack-item-card[data-key="${c.key}"]`);
+          if (!card) return;
+          const unit = c.unit || 'mg';
+          const freq = c.frequency || 'daily';
+          const mult = getFrequencyMultiplierClient(freq);
+          const effDaily = c.dose * mult;
+          const effSpan = card.querySelector('[title="Effective continuous daily load"]');
+          if (effSpan) {
+            if (mult !== 1.0) {
+              const displayVal = effDaily >= 1.0 ? effDaily.toFixed(effDaily >= 10 ? 1 : 2) : (effDaily * 1000).toFixed(1);
+              const displayUnit = effDaily >= 1.0 ? unit : (unit === 'mg' ? 'μg' : unit);
+              effSpan.textContent = `≈ ${displayVal} ${displayUnit}/day`;
+              effSpan.parentElement.style.display = '';
+            } else {
+              effSpan.parentElement.style.display = 'none';
+            }
+          }
+        });
+
+        debouncedEvaluate();
       }
 
       function renderStackList() {
@@ -2280,11 +2339,12 @@
           console.warn('localStorage error', e);
         }
 
-        // Update nav link and tab button URLs with compound + dose + frequency params
+        // Update nav link and tab button URLs with compound + dose + frequency + route params
         const keys = state.stack.map(c => {
           const u = (c.unit || 'mg').replace('μg', 'ug');
           const freq = c.frequency || 'daily';
-          return `${encodeURIComponent(c.key)}:${c.dose}${u}:${freq}`;
+          const route = c.route || 'oral';
+          return `${encodeURIComponent(c.key)}:${c.dose}${u}:${freq}:${route}`;
         }).join(',');
         const targetUrl = keys ? `/graph?stack=${keys}&timeline=${state.timeline || 'steady_state'}` : '/graph';
         const graphLink = document.getElementById('nav-graph-link');
@@ -2303,6 +2363,7 @@
         stackItemsWrap.innerHTML = state.stack.map(c => {
           const unit = c.unit || 'mg';
           const freq = c.frequency || 'daily';
+          const route = c.route || 'oral';
           const mult = getFrequencyMultiplierClient(freq);
           const effDaily = c.dose * mult;
           const effDisplay = mult !== 1.0 
@@ -2350,7 +2411,22 @@
                     <option value="before bed" ${c.timing === 'before bed' ? 'selected' : ''}>Before Bed</option>
                   </select>
                 </div>
-                <div style="display:flex; gap:6px; align-items:center; justify-content:space-between;">
+                <div style="display:flex; gap:6px; align-items:center;">
+                  <select 
+                    class="control-select" 
+                    style="flex:1; font-size:0.75rem; font-weight:600;" 
+                    onchange="updateRoute('${c.key}', this.value)" 
+                    title="Select Route of Administration (Oral, Sublingual, SubQ, IM, Transdermal, IV, Inhalation)"
+                  >
+                    <option value="oral" ${route === 'oral' ? 'selected' : ''}>Oral (PO)</option>
+                    <option value="sublingual" ${route === 'sublingual' ? 'selected' : ''}>Sublingual / Buccal (SL)</option>
+                    <option value="subcutaneous" ${route === 'subcutaneous' ? 'selected' : ''}>Subcutaneous (SC)</option>
+                    <option value="intramuscular" ${route === 'intramuscular' ? 'selected' : ''}>Intramuscular (IM)</option>
+                    <option value="transdermal" ${route === 'transdermal' ? 'selected' : ''}>Transdermal / Gel (TD)</option>
+                    <option value="intravenous" ${route === 'intravenous' ? 'selected' : ''}>Intravenous (IV)</option>
+                    <option value="inhalation" ${route === 'inhalation' ? 'selected' : ''}>Inhalation / Nasal (IN)</option>
+                    <option value="rectal" ${route === 'rectal' ? 'selected' : ''}>Rectal (PR)</option>
+                  </select>
                   <select 
                     class="control-select" 
                     style="flex:1; font-size:0.75rem; font-weight:600;" 
@@ -2368,8 +2444,8 @@
                     <option value="monthly" ${freq === 'monthly' ? 'selected' : ''}>Monthly (QM)</option>
                     <option value="as_needed" ${freq === 'as_needed' ? 'selected' : ''}>As Needed (PRN)</option>
                   </select>
-                  ${effDisplay ? `<span style="font-size:0.68rem; color:#38bdf8; font-family:'JetBrains Mono',monospace; white-space:nowrap; font-weight:700;" title="Effective continuous daily load">${effDisplay}</span>` : ''}
                 </div>
+                ${effDisplay ? `<div style="text-align:right;"><span style="font-size:0.68rem; color:#38bdf8; font-family:'JetBrains Mono',monospace; white-space:nowrap; font-weight:700;" title="Effective continuous daily load">${effDisplay}</span></div>` : ''}
               </div>
             </div>
           `;
@@ -2379,34 +2455,47 @@
       window.updateDoseVal = (key, val) => {
         const parsed = parseFloat(val);
         if (isNaN(parsed) || parsed <= 0) return;
-        const item = state.stack.find(c => c.key === key);
+        const cleanKey = String(key || '').trim().toLowerCase().split(':')[0];
+        const item = state.stack.find(c => String(c.key).toLowerCase() === cleanKey);
         if (item) {
           item.dose = parsed;
-          syncAndEvaluateStack();
+          persistAndEvaluate();
         }
       };
 
       window.updateDoseUnit = (key, unit) => {
-        const item = state.stack.find(c => c.key === key);
+        const cleanKey = String(key || '').trim().toLowerCase().split(':')[0];
+        const item = state.stack.find(c => String(c.key).toLowerCase() === cleanKey);
         if (item) {
           item.unit = unit || 'mg';
-          syncAndEvaluateStack();
+          persistAndEvaluate();
         }
       };
 
       window.updateTiming = (key, val) => {
-        const item = state.stack.find(c => c.key === key);
+        const cleanKey = String(key || '').trim().toLowerCase().split(':')[0];
+        const item = state.stack.find(c => String(c.key).toLowerCase() === cleanKey);
         if (item) {
           item.timing = val;
-          syncAndEvaluateStack();
+          persistAndEvaluate();
+        }
+      };
+
+      window.updateRoute = (key, val) => {
+        const cleanKey = String(key || '').trim().toLowerCase().split(':')[0];
+        const item = state.stack.find(c => String(c.key).toLowerCase() === cleanKey);
+        if (item) {
+          item.route = val || 'oral';
+          persistAndEvaluate();
         }
       };
 
       window.updateFrequency = (key, val) => {
-        const item = state.stack.find(c => c.key === key);
+        const cleanKey = String(key || '').trim().toLowerCase().split(':')[0];
+        const item = state.stack.find(c => String(c.key).toLowerCase() === cleanKey);
         if (item) {
           item.frequency = val;
-          syncAndEvaluateStack();
+          persistAndEvaluate();
         }
       };
 
@@ -2416,6 +2505,10 @@
       };
 
       window.removeCompoundKey = removeCompoundKey;
+      window.addCompoundKey = addCompoundKey;
+      window.syncAndEvaluateStack = syncAndEvaluateStack;
+      window.renderStackList = renderStackList;
+      window.evaluateStack = evaluateStack;
 
       // BIOMARKER INPUT LISTENERS
       ['bio-sex', 'bio-age', 'bio-weight', 'bio-height', 'bio-bodyfat', 'bio-bp', 'bio-sleep', 'bio-alt', 'bio-hematocrit'].forEach(id => {
@@ -2481,6 +2574,7 @@
             unit: c.unit || 'mg',
             timing: c.timing,
             frequency: c.frequency || 'daily',
+            route: c.route || 'oral',
           })),
           sex: state.biomarkers.sex,
           age: state.biomarkers.age,
@@ -3243,7 +3337,10 @@
         let unit = 'mg';
         let timing = 'morning';
         let frequency = 'daily';
+        let route = '';
         let drugClass = 'Compound';
+
+        function strClean(s) { return typeof s === 'string' ? s.trim() : ''; }
 
         if (typeof item === 'string') {
           const parts = item.split(':');
@@ -3257,12 +3354,34 @@
               if (unit === 'ug' || unit === 'mcg') unit = 'μg';
             }
           }
+          if (parts.length > 2) {
+            frequency = parts[2].trim();
+          }
+          if (parts.length > 3) {
+            route = parts[3].trim().toLowerCase();
+          }
         } else if (typeof item === 'object') {
-          key = item.key || item.name || '';
+          let rawKey = strClean(item.key || item.name || '');
+          if (rawKey.includes(':')) {
+            const parts = rawKey.split(':');
+            key = parts[0].trim();
+            if (parts.length > 1 && (item.dose === undefined || item.dose === null)) {
+              const m = parts[1].trim().match(/^([\d.]+)\s*([a-zA-Zμµ]*)$/);
+              if (m) {
+                dose = parseFloat(m[1]);
+                unit = m[2] || 'mg';
+              }
+            }
+            if (parts.length > 2 && !item.frequency) frequency = parts[2].trim();
+            if (parts.length > 3 && !item.route) route = parts[3].trim().toLowerCase();
+          } else {
+            key = rawKey;
+          }
           name = item.name || key.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
           drugClass = item.drug_class || 'Compound';
           timing = item.timing || 'morning';
-          frequency = item.frequency || 'daily';
+          frequency = item.frequency || frequency || 'daily';
+          route = (strClean(item.route || route || '')).toLowerCase();
           if (item.dose !== undefined && item.dose !== null && !isNaN(parseFloat(item.dose))) {
             dose = parseFloat(item.dose);
             unit = item.unit || 'mg';
@@ -3270,11 +3389,15 @@
           }
         }
 
+        key = key.trim().toLowerCase().split(':')[0];
         if (!key) return null;
-        if (dose === null) {
-          const def = getDefaultDoseFallback(key);
+        const def = getDefaultDoseFallback(key);
+        if (dose === null || isNaN(dose) || dose <= 0) {
           dose = def.dose;
           unit = def.unit;
+        }
+        if (!route) {
+          route = def.route || 'oral';
         }
 
         return {
@@ -3285,6 +3408,7 @@
           unit,
           timing,
           frequency,
+          route,
         };
       }
 

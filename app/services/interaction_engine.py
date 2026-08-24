@@ -758,19 +758,21 @@ class InteractionEngine:
             dose_val = c.get("dose") if c.get("dose") is not None else c.get("dose_mg")
             unit_val = str(c.get("unit") or "mg").strip()
             freq_val = str(c.get("frequency") or c.get("dosing_frequency") or "daily").strip()
+            route_val = str(c.get("route") or c.get("route_of_administration") or c.get("default_route") or ("intramuscular" if "testosterone" in k.lower() and not any(w in k.lower() for w in ["trenbolone", "nandrolone", "drostanolone", "oxandrolone", "boldenone", "stanozolol", "dihydrotestosterone", "epitestosterone", "sarm", "rad140", "lgd", "ostarine", "s-4", "yk-11"]) else "oral")).strip().lower()
             if dose_val is not None:
                 spec_dict = {
                     "key": k,
                     "dose": dose_val,
                     "unit": unit_val,
                     "frequency": freq_val,
+                    "route": route_val,
                 }
                 stack_specs.append(spec_dict)
                 parsed = parse_compound_spec(spec_dict)
                 custom_doses[k.lower()] = parsed
                 custom_doses[canonicalize_match_token(k)] = parsed
             else:
-                stack_specs.append({"key": k, "frequency": freq_val})
+                stack_specs.append({"key": k, "frequency": freq_val, "route": route_val})
 
         graph = build_selected_compound_graph(stack_specs)
         combined_effects = compute_target_combined_effects(graph, custom_doses=custom_doses)
@@ -818,9 +820,12 @@ class InteractionEngine:
             "sedative": 0.0,
         }
 
-        # Accumulate individual organ burdens
+        # Accumulate individual organ burdens with route-dependent portal bypass scaling
         for comp in compounds:
             burdens = comp.get("organ_burdens", {}) or {}
+            c_route = str(comp.get("route") or "oral").strip().lower()
+            bypasses_first_pass = c_route in ["sublingual", "subcutaneous", "intramuscular", "transdermal", "intravenous", "inhalation"]
+
             for organ, weight in [
                 ("hepatic", {"low": 8, "moderate": 18, "high": 35}),
                 ("renal", {"low": 6, "moderate": 15, "high": 30}),
@@ -829,7 +834,11 @@ class InteractionEngine:
                 ("sedative", {"low": 6, "moderate": 16, "high": 32}),
             ]:
                 val = str(burdens.get(organ, "none")).lower()
-                organ_scores[organ] += weight.get(val, 0)
+                base_w = weight.get(val, 0)
+                # First-pass portal bypass discounts hepatic strain from oral transit
+                if organ == "hepatic" and bypasses_first_pass:
+                    base_w = base_w * 0.50
+                organ_scores[organ] += base_w
 
             if comp.get("is_narrow_therapeutic_index"):
                 total_risk_points += 10.0
@@ -2235,6 +2244,188 @@ class InteractionEngine:
                 "evidence_level": "strong",
             }
 
+        # 1b. Specific Herb-Drug & Supplement Interaction Rule Engines
+        tags_a = _get_compound_ontology_tags(comp_a)
+        tags_b = _get_compound_ontology_tags(comp_b)
+
+        # Piperine Bioenhancer Effect
+        is_pip_a = _has_any_ontology_match(tags_a, ["piperine", "bioperine", "black pepper"])
+        is_pip_b = _has_any_ontology_match(tags_b, ["piperine", "bioperine", "black pepper"])
+        if is_pip_a or is_pip_b:
+            pip_name = name_a if is_pip_a else name_b
+            sub_comp = comp_b if is_pip_a else comp_a
+            sub_name = name_b if is_pip_a else name_a
+            sub_tags = tags_b if is_pip_a else tags_a
+
+            is_polyphenol = _has_any_ontology_match(sub_tags, ["curcumin", "turmeric", "resveratrol", "quercetin", "polyphenol", "flavonoid", "coq10", "berberine"])
+            is_sensitive_drug = sub_comp.get("is_narrow_therapeutic_index") or _has_any_ontology_match(sub_tags, ["statin", "tacrolimus", "cyclosporine", "digoxin", "warfarin", "theophylline"])
+
+            from app.services.pkpd_engine import PKPDEngine
+            aucr_val, cmax_mult, _ = PKPDEngine.calculate_ddi_shift(sub_comp, [comp_a if is_pip_a else comp_b])
+
+            if is_polyphenol and not is_sensitive_drug:
+                return {
+                    "source_key": key_a,
+                    "source_name": name_a,
+                    "target_key": key_b,
+                    "target_name": name_b,
+                    "is_self": False,
+                    "severity": "SYNERGISTIC",
+                    "severity_score": -5,
+                    "conflict_types": ["SYNERGY", "BIOAVAILABILITY_ENHANCEMENT"],
+                    "title": f"Botanical Bioavailability Synergy ({pip_name} + {sub_name})",
+                    "description": (
+                        f"{pip_name} inhibits intestinal P-glycoprotein (ABCB1) efflux and UGT1A1 glucuronidation, "
+                        f"dramatically overcoming the intestinal first-pass metabolism bottleneck for {sub_name} "
+                        f"(estimated +{int(round((aucr_val - 1.0) * 100))}% AUC bioavailability surge, {round(aucr_val, 1)}x exposure)."
+                    ),
+                    "affected_targets": ["P-glycoprotein / ABCB1", "UDP-Glucuronosyltransferase 1A1 (UGT1A1)", "CYP3A4"],
+                    "clinical_recommendation": f"Co-administration with {pip_name} optimizes clinical oral absorption of {sub_name}.",
+                    "evidence_level": "strong",
+                    "ddi_auc_ratio": round(aucr_val, 2),
+                    "ddi_cmax_multiplier": round(cmax_mult, 2),
+                }
+            elif is_sensitive_drug:
+                return {
+                    "source_key": key_a,
+                    "source_name": name_a,
+                    "target_key": key_b,
+                    "target_name": name_b,
+                    "is_self": False,
+                    "severity": "HIGH_RISK",
+                    "severity_score": 25,
+                    "conflict_types": ["TRANSPORTER", "CYP450", "PHASE_II"],
+                    "title": f"Bioenhancer Drug Toxicity Surge ({pip_name} + {sub_name})",
+                    "description": (
+                        f"{pip_name} inhibits P-gp efflux, CYP3A4, and UGT1A1 clearance, elevating systemic exposure of {sub_name} "
+                        f"({round(aucr_val, 1)}x AUC surge) and predisposing to narrow-therapeutic-index toxicity."
+                    ),
+                    "affected_targets": ["P-glycoprotein / ABCB1", "CYP3A4", "UGT1A1"],
+                    "clinical_recommendation": f"Monitor {sub_name} serum levels closely or separate dosing from {pip_name}.",
+                    "evidence_level": "strong",
+                    "ddi_auc_ratio": round(aucr_val, 2),
+                    "ddi_cmax_multiplier": round(cmax_mult, 2),
+                }
+
+        # St. John's Wort PXR Nuclear Receptor Enzyme Induction
+        is_sjw_a = _has_any_ontology_match(tags_a, ["st john", "st. john", "hypericum", "hyperforin"])
+        is_sjw_b = _has_any_ontology_match(tags_b, ["st john", "st. john", "hypericum", "hyperforin"])
+        if is_sjw_a or is_sjw_b:
+            sjw_name = name_a if is_sjw_a else name_b
+            sub_comp = comp_b if is_sjw_a else comp_a
+            sub_name = name_b if is_sjw_a else name_a
+            sub_tags = tags_b if is_sjw_a else tags_a
+
+            cyp_sub = sub_comp.get("cyp_enzymes", {}) or {}
+            trans_sub = sub_comp.get("transporters", {}) or {}
+            is_cyp_p_gp_sub = any(e in ["CYP3A4", "CYP2C9", "CYP2C19"] for e in (cyp_sub.get("substrates") or [])) or "P-GP" in [t.upper() for t in (trans_sub.get("substrates") or [])] or _has_any_ontology_match(sub_tags, ["contraceptive", "statin", "cyclosporine", "tacrolimus", "digoxin", "warfarin", "antiretroviral", "protease inhibitor"])
+
+            if is_cyp_p_gp_sub:
+                from app.services.pkpd_engine import PKPDEngine
+                aucr_val, cmax_mult, _ = PKPDEngine.calculate_ddi_shift(sub_comp, [comp_a if is_sjw_a else comp_b])
+                return {
+                    "source_key": key_a,
+                    "source_name": name_a,
+                    "target_key": key_b,
+                    "target_name": name_b,
+                    "is_self": False,
+                    "severity": "HIGH_RISK",
+                    "severity_score": 30,
+                    "conflict_types": ["CYP450", "TRANSPORTER", "ENZYME_INDUCTION"],
+                    "title": f"Nuclear PXR Enzyme & P-gp Induction ({sjw_name} + {sub_name})",
+                    "description": (
+                        f"{sjw_name} (Hyperforin) activates Pregnane X Receptor (PXR), powerfully inducing hepatic and intestinal "
+                        f"expression of CYP3A4, CYP2C9, and P-gp. This accelerates clearance of {sub_name}, causing a dramatic drop "
+                        f"in systemic exposure ({round(aucr_val, 2)}x AUC drop, ~50-70% reduction) and risking therapeutic failure or breakthrough."
+                    ),
+                    "affected_targets": ["Pregnane X Receptor (PXR / NR1I2)", "CYP3A4", "CYP2C9", "P-glycoprotein / ABCB1"],
+                    "clinical_recommendation": f"Avoid concurrent use. Discontinue {sjw_name} or select alternative therapy not cleared via CYP3A4/P-gp.",
+                    "evidence_level": "strong",
+                    "ddi_auc_ratio": round(aucr_val, 2),
+                    "ddi_cmax_multiplier": round(cmax_mult, 2),
+                }
+
+        # Multivalent Cation Gastrointestinal Chelation Collision
+        is_mineral_a = _has_any_ontology_match(tags_a, ["magnesium", "zinc", "calcium", "iron", "aluminum", "multivalent cation"])
+        is_mineral_b = _has_any_ontology_match(tags_b, ["magnesium", "zinc", "calcium", "iron", "aluminum", "multivalent cation"])
+        is_chelatable_a = _has_any_ontology_match(tags_a, ["fluoroquinolone", "ciprofloxacin", "levofloxacin", "moxifloxacin", "tetracycline", "doxycycline", "minocycline", "bisphosphonate", "alendronate"])
+        is_chelatable_b = _has_any_ontology_match(tags_b, ["fluoroquinolone", "ciprofloxacin", "levofloxacin", "moxifloxacin", "tetracycline", "doxycycline", "minocycline", "bisphosphonate", "alendronate"])
+
+        if (is_mineral_a and is_chelatable_b) or (is_mineral_b and is_chelatable_a):
+            min_name = name_a if is_mineral_a else name_b
+            drug_name = name_b if is_mineral_a else name_a
+            return {
+                "source_key": key_a,
+                "source_name": name_a,
+                "target_key": key_b,
+                "target_name": name_b,
+                "is_self": False,
+                "severity": "HIGH_RISK",
+                "severity_score": 28,
+                "conflict_types": ["CHELATION", "PHYSICOCHEMICAL"],
+                "title": f"Gastrointestinal Multivalent Cation Chelation ({min_name} + {drug_name})",
+                "description": (
+                    f"Multivalent cations in {min_name} form insoluble non-absorbable chelate complexes with {drug_name} "
+                    f"in the gastrointestinal lumen, reducing antibiotic/drug oral absorption by 70-90% and causing treatment failure."
+                ),
+                "affected_targets": ["Gastrointestinal Intestinal Absorption Site", "Chelation Complex"],
+                "clinical_recommendation": f"Separate oral administration of {min_name} and {drug_name} by at least 2 hours before or 4 hours after.",
+                "evidence_level": "strong",
+            }
+
+        # Botanical COMT Inhibition Catecholamine Synergy
+        is_comt_a = _has_any_ontology_match(tags_a, ["egcg", "green tea", "quercetin", "comt inhibitor"])
+        is_comt_b = _has_any_ontology_match(tags_b, ["egcg", "green tea", "quercetin", "comt inhibitor"])
+        is_catechol_a = _has_any_ontology_match(tags_a, ["caffeine", "tyrosine", "ephedrine", "dopamine", "levodopa", "l-dopa", "amphetamine", "synephrine"])
+        is_catechol_b = _has_any_ontology_match(tags_b, ["caffeine", "tyrosine", "ephedrine", "dopamine", "levodopa", "l-dopa", "amphetamine", "synephrine"])
+
+        if (is_comt_a and is_catechol_b) or (is_comt_b and is_catechol_a):
+            comt_name = name_a if is_comt_a else name_b
+            cat_name = name_b if is_comt_a else name_a
+            return {
+                "source_key": key_a,
+                "source_name": name_a,
+                "target_key": key_b,
+                "target_name": name_b,
+                "is_self": False,
+                "severity": "SYNERGISTIC",
+                "severity_score": -5,
+                "conflict_types": ["SYNERGY", "CATECHOLAMINE_POTENTIATION"],
+                "title": f"Botanical COMT Inhibition & Catecholamine Synergy ({comt_name} + {cat_name})",
+                "description": (
+                    f"{comt_name} inhibits Catechol-O-Methyltransferase (COMT), slowing enzymatic degradation of {cat_name} "
+                    f"and prolonging synaptic dopamine/norepinephrine signaling and cognitive focus."
+                ),
+                "affected_targets": ["Catechol-O-Methyltransferase (COMT)", "Dopamine / Norepinephrine Synaptic Half-Life"],
+                "clinical_recommendation": f"Standardized pairing. Monitor for excessive sympathetic stimulation at high doses.",
+                "evidence_level": "strong",
+            }
+
+        # Botanical 5-Alpha Reductase Inhibition Synergy
+        is_saw_a = _has_any_ontology_match(tags_a, ["saw palmetto", "serenoa", "permixon"])
+        is_saw_b = _has_any_ontology_match(tags_b, ["saw palmetto", "serenoa", "permixon"])
+        is_5ari_a = _has_any_ontology_match(tags_a, ["finasteride", "dutasteride", "5-alpha reductase inhibitor"])
+        is_5ari_b = _has_any_ontology_match(tags_b, ["finasteride", "dutasteride", "5-alpha reductase inhibitor"])
+
+        if (is_saw_a and is_5ari_b) or (is_saw_b and is_5ari_a):
+            saw_name = name_a if is_saw_a else name_b
+            ari_name = name_b if is_saw_a else name_a
+            return {
+                "source_key": key_a,
+                "source_name": name_a,
+                "target_key": key_b,
+                "target_name": name_b,
+                "is_self": False,
+                "severity": "SYNERGISTIC",
+                "severity_score": -5,
+                "conflict_types": ["SYNERGY", "DUAL_5AR_INHIBITION"],
+                "title": f"Additive 5-Alpha Reductase Inhibition ({saw_name} + {ari_name})",
+                "description": f"Co-administration of {saw_name} and {ari_name} provides additive 5-alpha reductase enzyme suppression, reducing follicular DHT conversion.",
+                "affected_targets": ["5-Alpha Reductase Subtype 1 & 2 (SRD5A1 / SRD5A2)"],
+                "clinical_recommendation": "Monitor for androgenic/DHT suppression symptoms.",
+                "evidence_level": "strong",
+            }
+
         # 2. CYP450 Collisions
         cyp_a = comp_a.get("cyp_enzymes", {}) or {}
         cyp_b = comp_b.get("cyp_enzymes", {}) or {}
@@ -3048,13 +3239,26 @@ class InteractionEngine:
             })
 
         # 12. Hypoestrogenemia & HPG Axis Shutdown without Testosterone Base
-        has_bioidentical_test = any(
-            ("testosterone" in str(c.get("canonical_name") or c.get("name") or c.get("key") or "").lower()
-             and not any(w in str(c.get("canonical_name") or c.get("name") or c.get("key") or "").lower()
-                         for w in ["trenbolone", "nandrolone", "drostanolone", "oxandrolone", "boldenone", "stanozolol", "dihydrotestosterone", "epitestosterone", "sarm", "rad140", "lgd", "ostarine", "s-4", "yk-11"]))
-            or "hcg" in str(c.get("canonical_name") or c.get("name") or c.get("key") or "").lower()
-            for c in compounds
-        )
+        def _is_effective_testosterone_base(c: Dict[str, Any]) -> bool:
+            c_name = str(c.get("canonical_name") or c.get("name") or c.get("key") or "").lower()
+            if "hcg" in c_name:
+                return True
+            is_test = "testosterone" in c_name and not any(w in c_name for w in [
+                "trenbolone", "nandrolone", "drostanolone", "oxandrolone", "boldenone", "stanozolol",
+                "dihydrotestosterone", "epitestosterone", "sarm", "rad140", "lgd", "ostarine", "s-4", "yk-11"
+            ])
+            if not is_test:
+                return False
+            # Check route of administration
+            c_route = str(c.get("route") or c.get("route_of_administration") or "").lower().strip()
+            # If explicit oral route without 17a-alkylation, oral testosterone undergoes ~97% first-pass clearance
+            if c_route in ["oral", "po", "swallow"]:
+                eff_mg = float(c.get("effective_daily_dose_mg") or c.get("dose_mg") or c.get("dose") or 0.0)
+                return (eff_mg * 0.03) >= 10.0
+            # Parenteral / transdermal or default unstated route is bioavailable
+            return True
+
+        has_bioidentical_test = any(_is_effective_testosterone_base(c) for c in compounds)
         non_test_androgens = []
         for c in compounds:
             c_name = str(c.get("canonical_name") or c.get("name") or c.get("key") or "").lower()

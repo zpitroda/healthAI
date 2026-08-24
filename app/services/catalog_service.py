@@ -300,6 +300,317 @@ CORE_SUPPLEMENT_LIBRARY: Dict[str, Dict[str, Any]] = {
             {"target": "NF-κB & Pro-Inflammatory Cytokines (NFKB1 / PTGS2)", "action": "inhibitor", "family": "Inflammatory Signaling", "gene_symbol": "NFKB1"}
         ],
     },
+    "creatine": {
+        "name": "Creatine",
+        "canonical_name": "Creatine",
+        "synonyms": ["creatine", "creatinemonohydrate"],
+        "drug_class": "Dietary Supplement / Ergogenic Aid",
+        "categories": ["Dietary Supplement", "Ergogenic Aid", "Muscle Support"],
+        "molecular_weight": 131.13,
+        "logp": -0.9,
+        "oral_bioavailability": 0.99,
+        "volume_of_distribution": 0.8,
+        "protein_binding": 0.0,
+        "dosing": {
+            "unit": "mg/day",
+            "basis": "bodyweight",
+            "mg_per_kg": {"threshold": 10, "common": 20, "heavy": 30},
+        },
+        "reason": "Expands intramuscular phosphocreatine reserves to accelerate ATP resynthesis during high-intensity resistance training.",
+        "receptor_targets": [
+            {"target": "Skeletal Muscle ATP-PCr Phosphagen System (CKM / SLC6A8)", "action": "agonist", "family": "Phosphagen System"}
+        ],
+    },
+    "caffeine": {
+        "name": "Caffeine",
+        "canonical_name": "Caffeine",
+        "synonyms": ["caffeine", "caffeineanhydrous", "guarana"],
+        "drug_class": "Dietary Supplement / CNS Psychostimulant",
+        "categories": ["Dietary Supplement", "CNS Stimulant", "Adenosine Antagonist"],
+        "molecular_weight": 194.19,
+        "logp": -0.07,
+        "oral_bioavailability": 0.99,
+        "volume_of_distribution": 0.6,
+        "protein_binding": 36.0,
+        "dosing": {
+            "unit": "mg/day",
+            "basis": "bodyweight",
+            "mg_per_kg": {"threshold": 1, "common": 3, "heavy": 6},
+        },
+        "reason": "Antagonizes central adenosine A1 and A2A receptors to suppress fatigue and enhance alertness.",
+        "receptor_targets": [
+            {"target": "A1 receptor", "action": "antagonist", "family": "GPCR / Adenosine"},
+            {"target": "Adenosine Receptor (ADORA1 / ADORA2A)", "action": "antagonist", "family": "GPCR / Adenosine"}
+        ],
+        "cyp_enzymes": {"substrates": ["CYP1A2"], "inhibitors": ["CYP1A2"], "inducers": []},
+    },
+    "semaglutide": {
+        "name": "Semaglutide",
+        "canonical_name": "Semaglutide",
+        "synonyms": ["semaglutide", "ozempic", "wegovy", "rybelsus"],
+        "drug_class": "GLP-1 Receptor Agonist",
+        "categories": ["Approved Drug", "GLP-1 Receptor Agonist", "Antidiabetic", "Anti-Obesity"],
+        "molecular_weight": 4113.58,
+        "logp": -1.2,
+        "oral_bioavailability": 0.89,
+        "volume_of_distribution": 12.5,
+        "protein_binding": 99.0,
+        "metadata": {
+            "evidence_tier": "FDA_APPROVED_CLINICAL_DATA",
+            "regulatory_status": "APPROVED_RX",
+            "human_clinical_trials": True,
+        },
+        "receptor_targets": [
+            {"target": "Glucagon-Like Peptide 1 Receptor (GLP1R)", "action": "agonist", "family": "GPCR Class B", "affinity_ki": 0.0005}
+        ],
+    },
+    "retatrutide": {
+        "name": "Retatrutide",
+        "canonical_name": "Retatrutide",
+        "synonyms": ["retatrutide", "ly3437943"],
+        "drug_class": "Triple Incretin GIP / GLP-1 / Glucagon Receptor Agonist",
+        "categories": ["Investigational Peptide", "GIP/GLP-1/Glucagon Tri-Agonist"],
+        "molecular_weight": 4731.33,
+        "logp": -1.5,
+        "oral_bioavailability": 0.80,
+        "volume_of_distribution": 10.5,
+        "protein_binding": 99.0,
+        "metadata": {
+            "evidence_tier": "IN_VITRO_AND_ALLOMETRIC_EXTRAPOLATION",
+            "regulatory_status": "RESEARCH_CHEMICAL",
+            "human_clinical_trials": True,
+        },
+        "receptor_targets": [
+            {"target": "Gastric Inhibitory Polypeptide Receptor (GIPR)", "action": "agonist", "family": "GPCR Class B", "affinity_ki": 0.05},
+            {"target": "Glucagon-Like Peptide 1 Receptor (GLP1R)", "action": "agonist", "family": "GPCR Class B", "affinity_ki": 0.77},
+            {"target": "Glucagon Receptor (GCGR)", "action": "agonist", "family": "GPCR Class B", "affinity_ki": 0.58},
+        ],
+    },
+    "quercetin": {
+        "name": "Quercetin",
+        "canonical_name": "Quercetin",
+        "synonyms": ["quercetine", "quercetindihydrate", "isoquercetin", "bioflavonoid"],
+        "drug_class": "Dietary Supplement / Polyphenolic Flavonoid",
+        "categories": ["Dietary Supplement", "Antioxidant", "Anti-Inflammatory", "Flavonoid"],
+        "molecular_weight": 302.24,
+        "logp": 1.8,
+        "oral_bioavailability": 0.05,
+        "volume_of_distribution": 2.0,
+        "protein_binding": 98.0,
+        "receptor_targets": [
+            {"target": "Catechol-O-Methyltransferase (COMT)", "action": "inhibitor", "family": "Enzyme / Catecholamine Metabolism", "gene_symbol": "COMT"},
+            {"target": "Glutathione Biosynthesis & Cellular Antioxidant Defense (System xc- / Nrf2 / GCL)", "action": "agonist", "family": "Antioxidant Defense"}
+        ],
+    },
+    "resveratrol": {
+        "name": "Resveratrol",
+        "canonical_name": "Resveratrol",
+        "synonyms": ["transresveratrol", "stilbenoid"],
+        "drug_class": "Dietary Supplement / Polyphenolic Stilbenoid",
+        "categories": ["Dietary Supplement", "Antioxidant", "Sirtuin Activator"],
+        "molecular_weight": 228.25,
+        "logp": 3.1,
+        "oral_bioavailability": 0.01,
+        "volume_of_distribution": 1.8,
+        "protein_binding": 95.0,
+        "receptor_targets": [
+            {"target": "Sirtuin 1 (SIRT1)", "action": "agonist", "family": "Deacetylase / Longevity"},
+            {"target": "Glutathione Biosynthesis & Cellular Antioxidant Defense (System xc- / Nrf2 / GCL)", "action": "agonist", "family": "Antioxidant Defense"}
+        ],
+    },
+    "rhodiola": {
+        "name": "Rhodiola Rosea",
+        "canonical_name": "Rhodiola Rosea",
+        "synonyms": ["rhodiolarosea", "salidroside", "rosavin", "goldenroot"],
+        "drug_class": "Dietary Supplement / Botanical Adaptogen",
+        "categories": ["Dietary Supplement", "Adaptogen", "Nootropic", "Herbal Extract"],
+        "molecular_weight": 300.30,
+        "logp": 0.8,
+        "oral_bioavailability": 0.30,
+        "volume_of_distribution": 1.5,
+        "protein_binding": 50.0,
+        "receptor_targets": [
+            {"target": "Monoamine Oxidase Subtype A & B (MAOA / MAOB)", "action": "inhibitor", "family": "Enzyme / Neurotransmitter", "gene_symbol": "MAOA"}
+        ],
+    },
+    "bacopa": {
+        "name": "Bacopa Monnieri",
+        "canonical_name": "Bacopa Monnieri",
+        "synonyms": ["bacopamonnieri", "brahmi", "bacosides"],
+        "drug_class": "Dietary Supplement / Botanical Nootropic",
+        "categories": ["Dietary Supplement", "Nootropic", "Adaptogen", "Herbal Extract"],
+        "molecular_weight": 768.80,
+        "logp": 1.2,
+        "oral_bioavailability": 0.25,
+        "volume_of_distribution": 1.2,
+        "protein_binding": 60.0,
+        "receptor_targets": [
+            {"target": "Tryptophan Hydroxylase & Serotonin Biosynthesis (TPH2)", "action": "activator", "family": "Neurotransmitter Biosynthesis", "gene_symbol": "TPH2"}
+        ],
+    },
+    "ginkgo_biloba": {
+        "name": "Ginkgo Biloba",
+        "canonical_name": "Ginkgo Biloba",
+        "synonyms": ["ginkgo", "ginkgoextract", "egb761", "ginkgolides"],
+        "drug_class": "Dietary Supplement / Botanical Vasodilator",
+        "categories": ["Dietary Supplement", "Nootropic", "Vasodilator", "Herbal Extract"],
+        "molecular_weight": 408.40,
+        "logp": 1.5,
+        "oral_bioavailability": 0.80,
+        "volume_of_distribution": 1.4,
+        "protein_binding": 50.0,
+        "receptor_targets": [
+            {"target": "Platelet-Activating Factor Receptor (PTAFR)", "action": "antagonist", "family": "GPCR / Hemostasis"},
+            {"target": "Endothelial Nitric Oxide Synthase (eNOS / NOS3)", "action": "activator", "family": "Endothelial Vasodilation"}
+        ],
+    },
+    "panax_ginseng": {
+        "name": "Panax Ginseng",
+        "canonical_name": "Panax Ginseng",
+        "synonyms": ["ginseng", "redginseng", "koreanginseng", "ginsenosides"],
+        "drug_class": "Dietary Supplement / Botanical Adaptogen",
+        "categories": ["Dietary Supplement", "Adaptogen", "Herbal Extract"],
+        "molecular_weight": 800.00,
+        "logp": 1.1,
+        "oral_bioavailability": 0.10,
+        "volume_of_distribution": 1.8,
+        "protein_binding": 70.0,
+        "receptor_targets": [
+            {"target": "Endothelial Nitric Oxide Synthase (eNOS / NOS3)", "action": "activator", "family": "Endothelial Vasodilation", "gene_symbol": "NOS3"}
+        ],
+    },
+    "piperine": {
+        "name": "Piperine",
+        "canonical_name": "Piperine (Black Pepper Extract)",
+        "synonyms": ["bioperine", "blackpepperextract", "pipernigrum"],
+        "drug_class": "Dietary Supplement / Bioenhancer Alkaloid",
+        "categories": ["Dietary Supplement", "Bioenhancer", "Alkaloid"],
+        "molecular_weight": 285.34,
+        "logp": 3.7,
+        "oral_bioavailability": 0.90,
+        "volume_of_distribution": 1.0,
+        "protein_binding": 95.0,
+        "receptor_targets": [
+            {"target": "Transient Receptor Potential Vanilloid 1 (TRPV1)", "action": "agonist", "family": "Ion Channel", "gene_symbol": "TRPV1"},
+            {"target": "P-glycoprotein / ABCB1 Efflux Transporter (ABCB1)", "action": "inhibitor", "family": "ABC Transporter", "gene_symbol": "ABCB1"},
+            {"target": "UDP-Glucuronosyltransferase 1A1 (UGT1A1)", "action": "inhibitor", "family": "Phase II Conjugation", "gene_symbol": "UGT1A1"}
+        ],
+        "cyp_enzymes": {"substrates": ["CYP3A4"], "inhibitors": ["CYP3A4", "CYP2C9"], "inducers": []},
+        "transporters": {"substrates": ["P-gp"], "inhibitors": ["P-gp"], "inducers": []},
+        "phase2_enzymes": {"substrates": [], "inhibitors": ["UGT1A1"], "inducers": []},
+    },
+    "sulforaphane": {
+        "name": "Sulforaphane",
+        "canonical_name": "Sulforaphane",
+        "synonyms": ["broccolisproutextract", "glucoraphanin"],
+        "drug_class": "Dietary Supplement / Isothiocyanate Nrf2 Inducer",
+        "categories": ["Dietary Supplement", "Antioxidant", "Detoxification"],
+        "molecular_weight": 177.29,
+        "logp": 0.2,
+        "oral_bioavailability": 0.80,
+        "volume_of_distribution": 0.9,
+        "protein_binding": 40.0,
+        "receptor_targets": [
+            {"target": "Nrf2 / Keap1 Cytoprotective & Phase II Detoxification Pathway (NFE2L2)", "action": "activator", "family": "Transcription Factor", "gene_symbol": "NFE2L2"}
+        ],
+    },
+    "st_johns_wort": {
+        "name": "St. John's Wort",
+        "canonical_name": "St. John's Wort (Hypericum perforatum)",
+        "synonyms": ["stjohnswort", "stjohnwort", "hypericum", "hypericumperforatum", "hyperforin", "hypericin"],
+        "drug_class": "Dietary Supplement / Botanical PXR Inducer",
+        "categories": ["Dietary Supplement", "Herbal Extract", "Antidepressant"],
+        "molecular_weight": 536.70,
+        "logp": 4.2,
+        "oral_bioavailability": 0.20,
+        "volume_of_distribution": 1.5,
+        "protein_binding": 90.0,
+        "receptor_targets": [
+            {"target": "Pregnane X Receptor (PXR / NR1I2 / CYP3A4 Inducer)", "action": "inducer", "family": "Nuclear Receptor", "gene_symbol": "NR1I2"},
+            {"target": "Sodium-Dependent Serotonin Transporter (SERT / SLC6A4)", "action": "inhibitor", "family": "Monoamine Transporter", "gene_symbol": "SLC6A4"}
+        ],
+        "cyp_enzymes": {"substrates": ["CYP3A4", "CYP2C9"], "inhibitors": [], "inducers": ["CYP3A4", "CYP2C9", "CYP2C19"]},
+        "transporters": {"substrates": ["P-gp"], "inhibitors": [], "inducers": ["P-gp"]},
+    },
+    "saw_palmetto": {
+        "name": "Saw Palmetto",
+        "canonical_name": "Saw Palmetto (Serenoa repens)",
+        "synonyms": ["sawpalmetto", "serenoarepens", "permixon"],
+        "drug_class": "Dietary Supplement / Botanical 5-AR Inhibitor",
+        "categories": ["Dietary Supplement", "Herbal Extract", "Prostate Support"],
+        "molecular_weight": 280.00,
+        "logp": 4.5,
+        "oral_bioavailability": 0.40,
+        "volume_of_distribution": 1.0,
+        "protein_binding": 90.0,
+        "receptor_targets": [
+            {"target": "5-Alpha Reductase Subtype 1 & 2 (SRD5A1 / SRD5A2)", "action": "inhibitor", "family": "Steroid Biosynthesis", "gene_symbol": "SRD5A2"},
+            {"target": "Androgen Receptor (AR / NR3C4)", "action": "antagonist", "family": "Nuclear Receptor", "gene_symbol": "AR"}
+        ],
+    },
+    "green_tea_extract": {
+        "name": "Green Tea Extract (EGCG)",
+        "canonical_name": "Green Tea Extract (Epigallocatechin Gallate)",
+        "synonyms": ["greenteaextract", "greentea", "egcg", "epigallocatechingallate"],
+        "drug_class": "Dietary Supplement / Botanical Polyphenol",
+        "categories": ["Dietary Supplement", "Antioxidant", "Herbal Extract"],
+        "molecular_weight": 458.37,
+        "logp": 1.1,
+        "oral_bioavailability": 0.05,
+        "volume_of_distribution": 1.2,
+        "protein_binding": 80.0,
+        "receptor_targets": [
+            {"target": "Catechol-O-Methyltransferase (COMT)", "action": "inhibitor", "family": "Enzyme / Catecholamine Metabolism", "gene_symbol": "COMT"},
+            {"target": "Glutathione Biosynthesis & Cellular Antioxidant Defense (System xc- / Nrf2 / GCL)", "action": "agonist", "family": "Antioxidant Defense"}
+        ],
+    },
+    "magnesium": {
+        "name": "Magnesium Glycinate",
+        "canonical_name": "Magnesium Glycinate",
+        "synonyms": ["magnesiumglycinate", "magnesiumbisglycinate", "magnesiumcitrate", "magnesiumlthreonate", "magglycinate"],
+        "drug_class": "Dietary Supplement / Essential Mineral",
+        "categories": ["Dietary Supplement", "Essential Mineral", "Relaxant"],
+        "molecular_weight": 172.46,
+        "logp": -1.0,
+        "oral_bioavailability": 0.40,
+        "volume_of_distribution": 1.0,
+        "protein_binding": 30.0,
+        "receptor_targets": [
+            {"target": "Multivalent Cation Gastrointestinal Chelation Site", "action": "chelator", "family": "Physicochemical Interaction"},
+            {"target": "NMDA Receptor Ion Channel Voltage-Dependent Blockade (GRIN1 / GRIN2B)", "action": "antagonist", "family": "Ion Channel", "gene_symbol": "GRIN1"}
+        ],
+    },
+    "zinc": {
+        "name": "Zinc Picolinate",
+        "canonical_name": "Zinc Picolinate",
+        "synonyms": ["zincpicolinate", "zinccitrate", "zincgluconate", "optizinc"],
+        "drug_class": "Dietary Supplement / Essential Mineral",
+        "categories": ["Dietary Supplement", "Essential Mineral", "Immune Support"],
+        "molecular_weight": 309.52,
+        "logp": -0.5,
+        "oral_bioavailability": 0.50,
+        "volume_of_distribution": 1.0,
+        "protein_binding": 90.0,
+        "receptor_targets": [
+            {"target": "Multivalent Cation Gastrointestinal Chelation Site", "action": "chelator", "family": "Physicochemical Interaction"}
+        ],
+    },
+    "tart_cherry": {
+        "name": "Tart Cherry Extract",
+        "canonical_name": "Tart Cherry Extract (Montmorency)",
+        "synonyms": ["tartcherry", "tartcherryextract", "montmorencycherry", "prunuscerasus"],
+        "drug_class": "Dietary Supplement / Botanical Flavonoid",
+        "categories": ["Dietary Supplement", "Antioxidant", "Herbal Extract"],
+        "molecular_weight": 448.38,
+        "logp": 0.8,
+        "oral_bioavailability": 0.20,
+        "volume_of_distribution": 1.2,
+        "protein_binding": 70.0,
+        "receptor_targets": [
+            {"target": "Xanthine Dehydrogenase / Oxidase (XDH / XO)", "action": "inhibitor", "family": "Purine Metabolism", "gene_symbol": "XDH"},
+            {"target": "NF-κB & Pro-Inflammatory Cytokines (NFKB1 / PTGS2)", "action": "inhibitor", "family": "Inflammatory Signaling"}
+        ],
+    },
 }
 
 
@@ -625,7 +936,6 @@ CANONICAL_SYNONYM_MAP: Dict[str, str] = {
     "nac": "nac",
     "nacetylcysteine": "nac",
     "acetylcysteine": "nac",
-    "nacetylcysteine": "nac",
     "tudca": "tudca",
     "tauroursodeoxycholicacid": "tudca",
     "tauroursodeoxycholate": "tudca",
@@ -649,6 +959,68 @@ CANONICAL_SYNONYM_MAP: Dict[str, str] = {
     "ksm66": "ashwagandha",
     "sensoril": "ashwagandha",
     "withaniasomnifera": "ashwagandha",
+    "quercetin": "quercetin",
+    "quercetine": "quercetin",
+    "quercetindihydrate": "quercetin",
+    "isoquercetin": "quercetin",
+    "bioflavonoid": "quercetin",
+    "resveratrol": "resveratrol",
+    "transresveratrol": "resveratrol",
+    "stilbenoid": "resveratrol",
+    "rhodiola": "rhodiola",
+    "rhodiolarosea": "rhodiola",
+    "salidroside": "rhodiola",
+    "rosavin": "rhodiola",
+    "goldenroot": "rhodiola",
+    "bacopa": "bacopa",
+    "bacopamonnieri": "bacopa",
+    "brahmi": "bacopa",
+    "bacosides": "bacopa",
+    "ginkgobiloba": "ginkgo_biloba",
+    "ginkgo": "ginkgo_biloba",
+    "ginkgoextract": "ginkgo_biloba",
+    "egb761": "ginkgo_biloba",
+    "ginkgolides": "ginkgo_biloba",
+    "panaxginseng": "panax_ginseng",
+    "ginseng": "panax_ginseng",
+    "redginseng": "panax_ginseng",
+    "koreanginseng": "panax_ginseng",
+    "ginsenosides": "panax_ginseng",
+    "piperine": "piperine",
+    "bioperine": "piperine",
+    "blackpepperextract": "piperine",
+    "pipernigrum": "piperine",
+    "sulforaphane": "sulforaphane",
+    "broccolisproutextract": "sulforaphane",
+    "glucoraphanin": "sulforaphane",
+    "stjohnswort": "st_johns_wort",
+    "stjohnwort": "st_johns_wort",
+    "hypericum": "st_johns_wort",
+    "hypericumperforatum": "st_johns_wort",
+    "hyperforin": "st_johns_wort",
+    "hypericin": "st_johns_wort",
+    "sawpalmetto": "saw_palmetto",
+    "serenoarepens": "saw_palmetto",
+    "permixon": "saw_palmetto",
+    "greenteaextract": "green_tea_extract",
+    "greentea": "green_tea_extract",
+    "egcg": "green_tea_extract",
+    "epigallocatechingallate": "green_tea_extract",
+    "magnesium": "magnesium",
+    "magnesiumglycinate": "magnesium",
+    "magnesiumbisglycinate": "magnesium",
+    "magnesiumcitrate": "magnesium",
+    "magnesiumlthreonate": "magnesium",
+    "magglycinate": "magnesium",
+    "zinc": "zinc",
+    "zincpicolinate": "zinc",
+    "zinccitrate": "zinc",
+    "zincgluconate": "zinc",
+    "optizinc": "zinc",
+    "tartcherry": "tart_cherry",
+    "tartcherryextract": "tart_cherry",
+    "montmorencycherry": "tart_cherry",
+    "prunuscerasus": "tart_cherry",
     # Peptides & Research Bioregulators
     "bpc157": "bpc_157",
     "bpc": "bpc_157",
@@ -750,9 +1122,11 @@ class CatalogService:
         self.sync_seed_compounds()
 
     def sync_seed_compounds(self) -> None:
+        with self._connect() as conn:
+            existing_keys = {str(row["key"]).lower() for row in conn.execute("SELECT key FROM compounds").fetchall()}
         for compound in _get_default_compounds():
-            k = compound.get("key") or compound.get("name")
-            if k:
+            k = str(compound.get("key") or compound.get("name")).lower()
+            if k and k not in existing_keys:
                 self.upsert_compound(compound)
 
     @property
@@ -1441,7 +1815,9 @@ class CatalogService:
                 if dose_mg is not None:
                     new_entry["dose_mg"] = dose_mg
                     new_entry["dose"] = dose_mg
-                    new_entry["unit"] = unit
+                raw_k_lower = raw_key.lower()
+                is_test_raw = "testosterone" in raw_k_lower and not any(w in raw_k_lower for w in ["trenbolone", "nandrolone", "drostanolone", "oxandrolone", "boldenone", "stanozolol", "dihydrotestosterone", "epitestosterone", "sarm", "rad140", "lgd", "ostarine", "s-4", "yk-11"])
+                new_entry["route"] = str(item.get("route") or (comp.get("route") if comp else None) or (comp.get("default_route") if comp else None) or ("intramuscular" if is_test_raw else "oral")).strip().lower()
                 merged_by_canonical[canonical_id] = new_entry
 
         return list(merged_by_canonical.values())

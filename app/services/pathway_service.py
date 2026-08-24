@@ -185,6 +185,10 @@ class PathwayService:
             )
             conn.commit()
 
+            # Purge stale Xanthine / XDH cached cascade entries if present
+            conn.execute("DELETE FROM cached_target_cascades WHERE LOWER(target_id) LIKE '%xanthine%' OR LOWER(target_id) LIKE '%xdh%'")
+            conn.commit()
+
             # Warm initial metadata cache if empty
             count = conn.execute("SELECT count(*) FROM cached_target_metadata").fetchone()[0]
             if count == 0:
@@ -570,6 +574,7 @@ class PathwayService:
                 {"id": "bio_hematocrit", "label": "Blood Hematocrit", "unit": "%", "panel": "Hematology Panel", "lower": 38.5, "upper": 50.0, "mag": 0.6},
                 {"id": "bio_luteinizing_hormone", "label": "Luteinizing Hormone (LH)", "unit": "IU/L", "panel": "Endocrine Panel", "lower": 1.5, "upper": 9.3, "mag": -0.85},
                 {"id": "bio_fsh", "label": "Follicle-Stimulating Hormone (FSH)", "unit": "IU/L", "panel": "Endocrine Panel", "lower": 1.4, "upper": 12.4, "mag": -0.85},
+                {"id": "bio_testosterone", "label": "Serum Total Testosterone", "unit": "ng/dL", "panel": "Endocrine Panel", "lower": 300.0, "upper": 1000.0, "mag": -0.92},
                 {"id": "bio_hdl_c", "label": "Serum HDL Cholesterol", "unit": "mg/dL", "panel": "Lipid Panel", "lower": 40.0, "upper": 90.0, "mag": -0.65},
                 {"id": "bio_ldl_c", "label": "Serum LDL Cholesterol", "unit": "mg/dL", "panel": "Lipid Panel", "lower": 50.0, "upper": 100.0, "mag": 0.55},
                 {"id": "bio_triglycerides", "label": "Serum Triglycerides", "unit": "mg/dL", "panel": "Lipid Panel", "lower": 40.0, "upper": 150.0, "mag": 0.35},
@@ -582,6 +587,20 @@ class PathwayService:
                 {"id": "pheno_polycythemia_risk", "label": "Secondary Polycythemia & Hyperviscosity Vulnerability", "cat": "adverse_effect", "sev": "moderate", "mag": 0.7},
                 {"id": "pheno_androgenic_alopecia", "label": "Follicular Miniaturization & Prostatic Hypertrophy Risk", "cat": "adverse_effect", "sev": "moderate", "mag": 0.7},
                 {"id": "pheno_lvh", "label": "Left Ventricular Concentric Hypertrophy & Myocardial Remodeling", "cat": "adverse_effect", "sev": "moderate", "mag": 0.65},
+            ])
+
+        # 3a. Progesterone Receptor (PGR / NR3C3) - 19-nor Steroids & Progestogens
+        elif "progesterone receptor" in t_lower or "pgr" in t_lower or "nr3c3" in t_lower or sym == "PGR":
+            organ = "Endocrine / Reproductive"
+            biomarkers.extend([
+                {"id": "bio_luteinizing_hormone", "label": "Luteinizing Hormone (LH)", "unit": "IU/L", "panel": "Endocrine Panel", "lower": 1.5, "upper": 9.3, "mag": -0.85},
+                {"id": "bio_fsh", "label": "Follicle-Stimulating Hormone (FSH)", "unit": "IU/L", "panel": "Endocrine Panel", "lower": 1.4, "upper": 12.4, "mag": -0.85},
+                {"id": "bio_testosterone", "label": "Serum Total Testosterone", "unit": "ng/dL", "panel": "Endocrine Panel", "lower": 300.0, "upper": 1000.0, "mag": -0.90},
+                {"id": "bio_prolactin", "label": "Serum Prolactin", "unit": "ng/mL", "panel": "Endocrine Panel", "lower": 2.0, "upper": 18.0, "mag": 0.80},
+            ])
+            pheno_nodes.extend([
+                {"id": "pheno_hyperprolactinemia", "label": "Progestogenic Pituitary Prolactin Hypersecretion & Galactorrhea Risk", "cat": "adverse_effect", "sev": "moderate", "mag": 0.85},
+                {"id": "pheno_hpg_axis_shutdown", "label": "Profound Endogenous Androgen Suppression & Testicular Dysfunction", "cat": "toxicity", "sev": "severe", "mag": -0.95},
             ])
 
         # 3b. Circulating Serum Testosterone / Bioidentical Androgen Pool
@@ -841,6 +860,58 @@ class PathwayService:
                 {"id": "pheno_cholesterol_lowering", "label": "Atherogenic Lipid Clearance & Systemic Cholesterol Lowering", "cat": "therapeutic_benefit", "sev": "high", "mag": 0.90},
                 {"id": "pheno_cardiovascular_risk_reduction", "label": "Atherosclerotic Plaque Stabilization & Major Adverse Cardiac Event (MACE) Reduction", "cat": "therapeutic_benefit", "sev": "high", "mag": 0.88},
                 {"id": "pheno_statins_myopathy_risk", "label": "Statin-Associated Muscle Symptom (SAMS) & Myopathy Sparing Risk", "cat": "adverse_effect", "sev": "moderate", "mag": 0.40},
+            ])
+
+        # 18c. Catechol-O-Methyltransferase (COMT / Green Tea / Quercetin)
+        elif "comt" in t_lower or "catechol-o-methyltransferase" in t_lower or sym == "COMT":
+            organ = "Central Nervous System / Catecholamines"
+            biomarkers.extend([
+                {"id": "bio_dopamine", "label": "Synaptic Dopamine Index", "unit": "index", "panel": "Neurochemical Panel", "lower": 50.0, "upper": 150.0, "mag": 0.75},
+            ])
+            pheno_nodes.extend([
+                {"id": "pheno_comt_inhibition", "label": "COMT Inhibition & Prolonged Synaptic Dopaminergic Half-Life", "cat": "therapeutic_benefit", "sev": "high", "mag": 0.85},
+            ])
+
+        # 18d. Pregnane X Receptor (PXR / NR1I2 / St. John's Wort)
+        elif "pxr" in t_lower or "pregnane x" in t_lower or sym == "NR1I2":
+            organ = "Hepatic / Xenobiotic Clearance"
+            biomarkers.extend([
+                {"id": "bio_cyp3a4_activity", "label": "Hepatic & Intestinal CYP3A4 Activity Index", "unit": "index", "panel": "Metabolic Panel", "lower": 50.0, "upper": 150.0, "mag": 0.90},
+            ])
+            pheno_nodes.extend([
+                {"id": "pheno_pxr_induction", "label": "Nuclear PXR Activation & Accelerated Drug Metabolism", "cat": "adverse_effect", "sev": "high", "mag": 0.90},
+            ])
+
+        # 18e. Xanthine Dehydrogenase / Oxidase (XDH / XO / Tart Cherry Extract)
+        elif "xanthine" in t_lower or "xdh" in t_lower or "uric acid" in t_lower or sym == "XDH":
+            organ = "Purine Metabolism / Joints"
+            biomarkers.extend([
+                {"id": "bio_uric_acid", "label": "Serum Uric Acid", "unit": "mg/dL", "panel": "Metabolic Panel", "lower": 3.5, "upper": 7.2, "mag": 0.85},
+                {"id": "bio_crp", "label": "High-Sensitivity C-Reactive Protein (hs-CRP)", "unit": "mg/L", "panel": "Inflammatory Panel", "lower": 0.0, "upper": 1.0, "mag": -0.60},
+            ])
+            pheno_nodes.extend([
+                {"id": "pheno_uric_acid_lowering", "label": "Xanthine Oxidase Inhibition & Uric Acid Lowering", "cat": "therapeutic_benefit", "sev": "high", "mag": -0.90},
+            ])
+
+        # 18f. Multivalent Cation GI Chelation Site (Magnesium, Zinc)
+        elif "chelation" in t_lower or "multivalent cation" in t_lower:
+            organ = "Gastrointestinal Lumen"
+            biomarkers.extend([
+                {"id": "bio_antibiotic_absorption", "label": "Intestinal Antibiotic Bioavailability Index", "unit": "pct", "panel": "Absorption Panel", "lower": 70.0, "upper": 100.0, "mag": -0.85},
+            ])
+            pheno_nodes.extend([
+                {"id": "pheno_gi_chelation_failure", "label": "Gastrointestinal Insoluble Complexation & Loss of Antibiotic Bioavailability", "cat": "adverse_effect", "sev": "high", "mag": -0.85},
+            ])
+
+        # 18g. Endothelial Nitric Oxide Synthase (eNOS / NOS3 / Panax Ginseng / Ginkgo Biloba)
+        elif "enos" in t_lower or "nos3" in t_lower or "nitric oxide synthase" in t_lower or sym == "NOS3":
+            organ = "Vascular Endothelium"
+            biomarkers.extend([
+                {"id": "bio_nitric_oxide", "label": "Endothelial Nitric Oxide Synthesis Rate", "unit": "μmol/L", "panel": "Vascular Panel", "lower": 10.0, "upper": 50.0, "mag": 0.80},
+                {"id": "bio_blood_pressure", "label": "Systolic Blood Pressure", "unit": "mmHg", "panel": "Vitals", "lower": 90.0, "upper": 120.0, "mag": -0.40},
+            ])
+            pheno_nodes.extend([
+                {"id": "pheno_enos_vasodilation", "label": "Endothelial Nitric Oxide Production & Microvascular Perfusion", "cat": "therapeutic_benefit", "sev": "high", "mag": 0.85},
             ])
 
         # 19. Generic / Dynamic OpenTargets Phenotypes Fallback

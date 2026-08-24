@@ -165,7 +165,7 @@ BIOMARKER_CLINICAL_CALIBRATION: Dict[str, Dict[str, Any]] = {
         "baseline": 350.0,
         "unit": "ng/dL",
         "gain_up": 5190.0,   # Supraphysiological androgen ceiling (+5150 ng/dL -> 5800 ng/dL on 70mg pure unesterified testosterone)
-        "gain_down": 550.0,
+        "gain_down": 1150.0,  # Endogenous HPG testicular steroidogenesis shutdown (down to castrate <50-100 ng/dL)
         "safe_lower": 15.0,
         "safe_upper": 1000.0,
         "label": "Total Serum Testosterone",
@@ -272,20 +272,6 @@ BIOMARKER_CLINICAL_CALIBRATION: Dict[str, Dict[str, Any]] = {
         "time_to_steady_state_weeks": 0.5,
         "kinetic_profile": "direct_endocrine",
         "time_course_description": "Hepatic acute phase reactant synthesis (1-3 days to peak)",
-    },
-    "bio_testosterone": {
-        "baseline": 650.0,
-        "unit": "ng/dL",
-        "gain_up": 850.0,
-        "gain_down": 450.0,
-        "safe_lower": 300.0,
-        "safe_upper": 1000.0,
-        "label": "Serum Total Testosterone",
-        "onset_days": 1.0,
-        "half_time_days": 4.0,
-        "time_to_steady_state_weeks": 2.0,
-        "kinetic_profile": "direct_endocrine",
-        "time_course_description": "Exogenous androgen pool expansion and endocrine distribution (1-2 weeks)",
     },
     # 1. Hepatobiliary Domain
     "bio_alt": {
@@ -1358,9 +1344,10 @@ class BiologicalGraph:
                 eff_gain = gain * (aromatization_rate_mult if bio_id in {"bio_estradiol", "bio_estrone"} else 1.0)
                 delta_val = round(net_mag * eff_gain, 1 if baseline >= 10 else 2)
 
-            # Cap maximum biomarker drop so circulating values cannot fall below biological 0.0 floor
-            if delta_val < -baseline:
-                delta_val = -baseline
+            # Cap maximum biomarker drop so circulating values cannot fall below biological floor
+            min_bio_floor = 15.0 if bio_id == "bio_testosterone" else (1.5 if bio_id in {"bio_estradiol", "bio_estrone"} else 0.0)
+            if delta_val < (-baseline + min_bio_floor):
+                delta_val = round(-baseline + min_bio_floor, 1 if baseline >= 10 else 2)
 
             ss_delta = delta_val
             ss_est_val = round(baseline + ss_delta, 1 if baseline >= 10 else 2)

@@ -71,14 +71,40 @@ class PDParameters(BaseModel):
     pathways: List[PathwayAnnotation] = Field(default_factory=list)
 
 
+class MetaboliteProfile(BaseModel):
+    model_config = ConfigDict(extra="ignore")
+
+    name: str = Field(..., description="Metabolite name or identifier")
+    chembl_id: Optional[str] = Field(default=None, description="ChEMBL molecule ID if available")
+    inchikey: Optional[str] = Field(default=None, description="InChIKey identifier")
+    smiles: Optional[str] = Field(default=None, description="SMILES structure")
+    conversion_enzyme: Optional[str] = Field(default=None, description="Metabolizing enzyme (e.g. CYP3A4, UGT1A1, Esterase)")
+    is_active: bool = Field(default=False, description="Whether the metabolite possesses pharmacological activity")
+    activity_type: Optional[str] = Field(default=None, description="Active, inactive, toxic, or prodrug activation")
+    relative_exposure_pct: float = Field(default=10.0, ge=0.0, description="Estimated relative systemic AUC exposure percentage compared to parent")
+
+
+class RoutePKParameters(BaseModel):
+    model_config = ConfigDict(extra="ignore")
+
+    route_name: str = Field(..., description="Administration route (oral, sublingual, subcutaneous, intramuscular, transdermal, intravenous, inhalation, intranasal, rectal)")
+    bioavailability_f: float = Field(default=1.0, ge=0.0, le=1.0, description="Route-specific fraction absorbed into systemic circulation F")
+    absorption_rate_ka: float = Field(default=1.0, gt=0.0, description="Route-specific absorption rate constant ka (1/h)")
+    t_max_h: float = Field(default=2.0, gt=0.0, description="Time to maximum peak plasma concentration Tmax in hours")
+    apparent_t_half_h: Optional[float] = Field(default=None, description="Apparent elimination half-life for depot/sustained delivery (flip-flop kinetics)")
+    first_pass_hepatic_pct: float = Field(default=0.0, ge=0.0, le=100.0, description="Percentage of absorbed drug cleared via first-pass hepatic extraction")
+    first_pass_bypass_pct: float = Field(default=100.0, ge=0.0, le=100.0, description="Percentage bypassing first-pass portal transit")
+    metabolites: List[MetaboliteProfile] = Field(default_factory=list, description="Metabolites formed post-administration")
+
+
 class PKPDSimulationRequest(BaseModel):
     model_config = ConfigDict(extra="ignore")
 
     compound_key: str = Field(..., description="Compound identifier in catalog")
     dose_mg: float = Field(default=100.0, gt=0, description="Administered single dose in milligrams")
-    dosing_interval_h: float = Field(default=24.0, gt=0, description="Dosing interval tau in hours (e.g. 8, 12, 24)")
-    simulation_duration_h: float = Field(default=48.0, gt=0, le=168.0, description="Simulation time span in hours")
-    route: str = Field(default="oral", description="oral or iv")
+    dosing_interval_h: float = Field(default=24.0, gt=0, description="Dosing interval tau in hours (e.g. 8, 12, 24, 168)")
+    simulation_duration_h: float = Field(default=48.0, gt=0, le=336.0, description="Simulation time span in hours")
+    route: str = Field(default="oral", description="Administration route: oral, sublingual, subcutaneous, intramuscular, transdermal, intravenous, inhalation, intranasal, rectal")
     sex: Optional[str] = Field(default=None, description="Patient sex ('male' or 'female')")
     age: Optional[int] = Field(default=None, ge=1, le=120, description="Patient age in years")
     weight_kg: Optional[float] = Field(default=None, gt=0, description="Patient body weight in kg")
@@ -105,6 +131,7 @@ class TimePoint(BaseModel):
     c_free_ng_ml: float
     receptor_occupancy_pct: float
     effect_pct: float
+    c_metabolite_ng_ml: Optional[float] = Field(default=None, description="Primary active/major metabolite plasma concentration (ng/mL)")
     c_tissue_ng_ml: Optional[float] = Field(default=None, description="Peripheral compartment concentration for 2-compartment open models")
     cl_instantaneous_l_h: Optional[float] = Field(default=None, description="Instantaneous dynamic clearance at time t (L/h)")
     inhibitor_conc_ng_ml: Optional[float] = Field(default=None, description="Continuous inhibitor concentration I(t) modulating clearance")
@@ -131,6 +158,12 @@ class PKPDSimulationResponse(BaseModel):
 
     # Patient Biometric Context Used
     patient_biometrics: Dict[str, Any] = Field(default_factory=dict, description="Resolved biometric scaling inputs (sex, age, weight, height, BMI, LBM, TBW)")
+
+    # Route PK & First-Pass Characteristics
+    route_pk_details: Optional[RoutePKParameters] = Field(default=None, description="Route-specific biopharmaceutical absorption parameters")
+    first_pass_metabolism_pct: float = Field(default=0.0, description="First-pass hepatic extraction percentage")
+    first_pass_bypass_pct: float = Field(default=100.0, description="Portal bypass percentage")
+    metabolites: List[MetaboliteProfile] = Field(default_factory=list, description="Primary active and major metabolites")
 
     # Dynamic PK Metrics (Median / Central Estimate)
     c_max_ng_ml: float

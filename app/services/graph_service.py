@@ -53,6 +53,9 @@ def parse_compound_spec(spec: Any) -> Dict[str, Any]:
         freq_raw = spec.get("frequency") or spec.get("freq") or spec.get("dosing_frequency") or "daily"
         frequency = normalize_dosing_frequency(freq_raw)
         freq_mult = get_frequency_multiplier(frequency)
+        k_low = key.lower()
+        is_test_k = "testosterone" in k_low and not any(w in k_low for w in ["trenbolone", "nandrolone", "drostanolone", "oxandrolone", "boldenone", "stanozolol", "dihydrotestosterone", "epitestosterone", "sarm", "rad140", "lgd", "ostarine", "s-4", "yk-11"])
+        route = str(spec.get("route") or spec.get("route_of_administration") or spec.get("default_route") or ("intramuscular" if is_test_k else "oral")).strip().lower()
 
         if isinstance(dose, (int, float)) and float(dose) > 0:
             val = float(dose)
@@ -85,9 +88,10 @@ def parse_compound_spec(spec: Any) -> Dict[str, Any]:
                 "frequency_multiplier": freq_mult,
                 "effective_daily_dose_mg": round(eff_daily, 4),
                 "effective_daily_display": eff_display,
+                "route": route,
             }
         elif isinstance(dose, str) and dose.strip():
-            p = parse_compound_spec(f"{key}:{dose.strip()}:{frequency}")
+            p = parse_compound_spec(f"{key}:{dose.strip()}:{frequency}:{route}")
             return p
         else:
             default_info = get_default_compound_dose(key)
@@ -104,6 +108,7 @@ def parse_compound_spec(spec: Any) -> Dict[str, Any]:
                 "frequency_multiplier": freq_mult,
                 "effective_daily_dose_mg": round(eff_daily, 4),
                 "effective_daily_display": eff_display,
+                "route": route,
             }
 
     spec_str = str(spec or "").strip()
@@ -118,6 +123,7 @@ def parse_compound_spec(spec: Any) -> Dict[str, Any]:
             "frequency_multiplier": 1.0,
             "effective_daily_dose_mg": 10.0,
             "effective_daily_display": "10 mg/day",
+            "route": "oral",
         }
 
     parsed = parse_dose_string_or_spec(spec_str)
@@ -131,6 +137,11 @@ def parse_compound_spec(spec: Any) -> Dict[str, Any]:
         "frequency_multiplier": parsed.get("frequency_multiplier", 1.0),
         "effective_daily_dose_mg": parsed.get("effective_daily_dose_mg", parsed["dose_mg"]),
         "effective_daily_display": parsed.get("effective_daily_display", f"{parsed['dose_mg']:g} mg/day"),
+        "route": (
+            parsed.get("route")
+            if parsed.get("route") and (parsed.get("route") != "oral" or ":oral" in spec_str.lower())
+            else ("intramuscular" if ("testosterone" in str(parsed.get("key", "")).lower() and not any(w in str(parsed.get("key", "")).lower() for w in ["trenbolone", "nandrolone", "drostanolone", "oxandrolone", "boldenone", "stanozolol", "dihydrotestosterone", "epitestosterone", "sarm", "rad140", "lgd", "ostarine", "s-4", "yk-11"])) else "oral")
+        ),
     }
 
 
@@ -454,12 +465,25 @@ def build_selected_compound_graph(stack: List[Any], catalog_service: CatalogServ
         if c_obj:
             stack_compounds.append(c_obj)
 
+    def _is_effective_t_base_item(item_entry: Dict[str, Any], c_obj: Optional[Dict[str, Any]]) -> bool:
+        c_name = str((c_obj.get("canonical_name") if c_obj else "") or item_entry.get("key") or "").lower()
+        if "hcg" in c_name:
+            return True
+        is_test = "testosterone" in c_name and not any(w in c_name for w in [
+            "trenbolone", "nandrolone", "drostanolone", "oxandrolone", "boldenone", "stanozolol",
+            "dihydrotestosterone", "epitestosterone", "sarm", "rad140", "lgd", "ostarine", "s-4", "yk-11"
+        ])
+        if not is_test:
+            return False
+        c_route = str(item_entry.get("route") or (c_obj.get("route") if c_obj else "") or "").lower().strip()
+        if c_route in ["oral", "po", "swallow"]:
+            eff_mg = float(item_entry.get("effective_daily_dose_mg") or item_entry.get("dose_mg") or item_entry.get("dose") or 0.0)
+            return (eff_mg * 0.03) >= 10.0
+        return True
+
     has_bioidentical_test_in_stack = any(
-        ("testosterone" in str(c.get("canonical_name") or c.get("name") or c.get("key") or "").lower()
-         and not any(w in str(c.get("canonical_name") or c.get("name") or c.get("key") or "").lower()
-                     for w in ["trenbolone", "nandrolone", "drostanolone", "oxandrolone", "boldenone", "stanozolol", "dihydrotestosterone", "epitestosterone", "sarm", "rad140", "lgd", "ostarine", "s-4", "yk-11"]))
-        or "hcg" in str(c.get("canonical_name") or c.get("name") or c.get("key") or "").lower()
-        for c in stack_compounds
+        _is_effective_t_base_item(item, service.get_compound(item.get("key") or ""))
+        for item in merged_stack
     )
 
     graph = BiologicalGraph()
@@ -559,9 +583,14 @@ def build_selected_compound_graph(stack: List[Any], catalog_service: CatalogServ
         # Connect exogenous bioidentical testosterone to circulating hormone pool (scaling with effective daily continuous rate)
         is_bioidentical_test = "testosterone" in c_name_lower and not any(w in c_name_lower for w in ["trenbolone", "nandrolone", "drostanolone", "oxandrolone", "boldenone", "stanozolol", "dihydrotestosterone", "epitestosterone", "sarm", "rad140", "lgd"])
         if is_bioidentical_test:
-            ref_dose = eff_daily_mg
+            from app.services.pkpd_enricher import PKPDEnricher
+            c_route = str(compound_entry.get("route") or "oral").lower()
+            route_pk = PKPDEnricher.calculate_route_pk_parameters(compound, c_route)
+            route_f = float(route_pk.get("bioavailability_f") if route_pk.get("bioavailability_f") is not None else 0.03)
+            # Systemic bioavailable continuous dose (normalized to parenteral 95% standard)
+            ref_dose = eff_daily_mg * (route_f / 0.95)
             if ref_dose <= 10.0:
-                exo_efficacy = 0.62 * (max(0.1, ref_dose) / 10.0)
+                exo_efficacy = 0.62 * (max(0.001, ref_dose) / 10.0)
             else:
                 exo_efficacy = 0.62 + 0.015 * (ref_dose - 10.0)
             
@@ -579,7 +608,8 @@ def build_selected_compound_graph(stack: List[Any], catalog_service: CatalogServ
                     "pre_computed_stress": True,
                 })
 
-            exo_arom_eff = 0.20 * (max(0.1, dose_mg) / 10.0) if dose_mg <= 10.0 else min(0.48, 0.20 + 0.0025 * (dose_mg - 10.0))
+            ref_dose_single = dose_mg * (route_f / 0.95)
+            exo_arom_eff = 0.20 * (max(0.001, ref_dose_single) / 10.0) if ref_dose_single <= 10.0 else min(0.48, 0.20 + 0.0025 * (ref_dose_single - 10.0))
             existing_arom = next((t for t in receptor_targets if "aromatase" in str(t.get("target", "")).lower() or "cyp19a1" in str(t.get("target", "")).lower()), None)
             if existing_arom:
                 existing_arom["action"] = "substrate"
@@ -1657,11 +1687,11 @@ def compute_target_combined_effects(
                 is_allosteric = False
             elif is_agonist:
                 action_name = "Receptor Agonist (Activator)"
-                efficacy = 1.0 if mag >= 0.8 else (0.6 if mag > 0 else 1.0)
+                efficacy = float(mag) if mag is not None else 1.0
                 is_allosteric = False
             else:
                 action_name = "Allosteric / Functional Modulator"
-                efficacy = mag
+                efficacy = float(mag) if mag is not None else 1.0
                 is_allosteric = False
 
             # Resolve Dose (mg) & Dose Display
@@ -1707,12 +1737,17 @@ def compute_target_combined_effects(
 
             mw = _parse_num(pred_attrs.get("molecular_weight"), 300.0)
             
-            raw_f = pred_attrs.get("oral_bioavailability") or pred_attrs.get("bioavailability_f") or pred_attrs.get("bioavailability_pct")
-            if raw_f is not None:
-                f_val = _parse_num(raw_f, 80.0)
-                f_bio = f_val if f_val <= 1.0 else f_val / 100.0
-            else:
-                f_bio = 0.80
+            from app.services.pkpd_enricher import PKPDEnricher
+            pred_route = "oral"
+            if isinstance(custom_doses.get(pred), dict):
+                pred_route = str(custom_doses[pred].get("route") or "oral").lower()
+            elif isinstance(custom_doses.get(pred.lower()), dict):
+                pred_route = str(custom_doses[pred.lower()].get("route") or "oral").lower()
+            elif pred_attrs.get("route"):
+                pred_route = str(pred_attrs.get("route")).lower()
+
+            route_pk = PKPDEnricher.calculate_route_pk_parameters(pred_attrs, pred_route)
+            f_bio = float(route_pk.get("bioavailability_f") if route_pk.get("bioavailability_f") is not None else 0.80)
 
             vd_lkg = _parse_num(pred_attrs.get("volume_of_distribution") or pred_attrs.get("volume_of_distribution_l_kg"), 2.5)
 
@@ -1735,7 +1770,7 @@ def compute_target_combined_effects(
             if affinity_val and float(affinity_val) > 0:
                 potency_weight = max(0.0001, c_free_nm / float(affinity_val))
             else:
-                potency_weight = max(0.05, abs(mag) * (eff_daily_mg / 10.0))
+                potency_weight = max(0.001, abs(mag) * (eff_daily_mg / 10.0) * (f_bio / 0.80))
 
             incoming_compounds.append({
                 "compound_id": pred,

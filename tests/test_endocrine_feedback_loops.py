@@ -171,3 +171,62 @@ def test_exogenous_thyroid_t3_suppresses_tsh():
     thyroid_alert = next((s for s in syndromes if "thyroid" in s.get("syndrome", "").lower() or "tsh" in s.get("title", "").lower()), None)
     assert thyroid_alert is not None
     assert thyroid_alert["severity"] == "MODERATE_RISK"
+
+
+def test_oral_testosterone_with_aas_crashes_serum_testosterone():
+    """
+    When administering AAS (e.g. Drostanolone/Nandrolone) with ORAL unalkylated testosterone:
+    1. Oral testosterone undergoes ~97% first-pass hepatic/gut clearance (F ~ 0.03).
+    2. Exogenous AAS stimulation of Androgen Receptor shuts down HPG axis (LH/FSH -> 0).
+    3. Net serum testosterone crashes to hypogonadal/castrate levels (< 150 ng/dL).
+    4. HPG shutdown & uncompensated endocrine risk alert is triggered.
+    """
+    engine = InteractionEngine()
+    drostanolone = {
+        "key": "drostanolone",
+        "name": "Drostanolone",
+        "canonical_name": "Drostanolone",
+        "drug_class": "Anabolic Steroid / DHT Derivative",
+        "route": "intramuscular",
+        "dose_mg": 100.0,
+        "mechanism": "Androgen receptor agonist, non-aromatizable 2-methyl-DHT derivative",
+        "receptor_targets": [
+            {"target": "Androgen Receptor (AR / NR3C4)", "action": "agonist", "family": "Nuclear Receptor", "intrinsic_efficacy": 0.90}
+        ],
+        "cyp_enzymes": {"substrates": ["CYP3A4"], "inhibitors": [], "inducers": []},
+        "organ_burdens": {"cardiovascular": "moderate", "hepatic": "low"},
+    }
+    oral_testosterone = {
+        "key": "testosterone",
+        "name": "Testosterone",
+        "canonical_name": "Testosterone",
+        "drug_class": "Bioidentical Androgen",
+        "route": "oral",
+        "dose_mg": 25.0,
+        "mechanism": "Endogenous androgen receptor agonist and substrate for CYP19A1 aromatase and 5-alpha reductase",
+        "receptor_targets": [
+            {"target": "Circulating Serum Testosterone Pool", "action": "agonist", "family": "Endocrine Pool", "intrinsic_efficacy": 0.85},
+            {"target": "Aromatase (CYP19A1)", "action": "substrate", "family": "Steroidogenesis", "intrinsic_efficacy": 0.80},
+        ],
+        "cyp_enzymes": {"substrates": ["CYP3A4"], "inhibitors": [], "inducers": []},
+        "organ_burdens": {"cardiovascular": "low", "hepatic": "low"},
+    }
+
+    result = engine.analyze_stack([drostanolone, oral_testosterone])
+    syndromes = result.get("breakdown", {}).get("syndrome_alerts", [])
+    hpg_syndrome = next((s for s in syndromes if "hypoestrogenemia" in s.get("syndrome", "").lower() or "crashed" in s.get("title", "").lower()), None)
+    assert hpg_syndrome is not None
+    assert hpg_syndrome["severity"] == "HIGH_RISK"
+
+    # Test graph cascade simulation
+    from app.services.graph_service import build_selected_compound_graph
+    graph = build_selected_compound_graph([
+        {"key": "drostanolone", "dose": 100, "unit": "mg", "route": "intramuscular"},
+        {"key": "testosterone", "dose": 25, "unit": "mg", "route": "oral"},
+    ])
+    cascade = graph.propagate_cascade(["drostanolone", "testosterone"])
+    shifts = {b["biomarker_id"]: b for b in cascade.get("biomarker_shifts", [])}
+    assert "bio_testosterone" in shifts
+    # Total serum testosterone should crash below normal physiological range (< 150 ng/dL)
+    assert shifts["bio_testosterone"]["estimated_value"] < 150.0
+

@@ -698,9 +698,13 @@ def parse_dose_string_or_spec(spec_input: Any) -> Dict[str, Any]:
     parts = spec.split(":")
     key = parts[0].strip()
     freq_candidate = "daily"
+    route_candidate = "oral"
 
-    # Check if a frequency token is included in parts
-    if len(parts) >= 3:
+    # Check if frequency or route tokens are included in parts
+    if len(parts) >= 4:
+        freq_candidate = parts[2].strip()
+        route_candidate = parts[3].strip().lower()
+    elif len(parts) >= 3:
         freq_candidate = parts[2].strip()
     elif len(parts) == 2 and any(k in parts[1].lower() for k in ["daily", "weekly", "bid", "tid", "qid", "qod", "biw", "qw", "prn", "month"]):
         # e.g. key:weekly or key:10mg_weekly
@@ -726,6 +730,7 @@ def parse_dose_string_or_spec(spec_input: Any) -> Dict[str, Any]:
             "frequency_multiplier": freq_mult,
             "effective_daily_dose_mg": round(eff_daily, 4),
             "effective_daily_display": eff_display,
+            "route": route_candidate,
         }
 
     dose_part = parts[1].strip()
@@ -763,6 +768,7 @@ def parse_dose_string_or_spec(spec_input: Any) -> Dict[str, Any]:
             "frequency_multiplier": freq_mult,
             "effective_daily_dose_mg": round(eff_daily, 4),
             "effective_daily_display": eff_display,
+            "route": route_candidate,
         }
 
     try:
@@ -780,6 +786,7 @@ def parse_dose_string_or_spec(spec_input: Any) -> Dict[str, Any]:
             "frequency_multiplier": freq_mult,
             "effective_daily_dose_mg": round(eff_daily, 4),
             "effective_daily_display": eff_display,
+            "route": route_candidate,
         }
     except ValueError:
         default_info = get_default_compound_dose(key)
@@ -796,4 +803,5 @@ def parse_dose_string_or_spec(spec_input: Any) -> Dict[str, Any]:
             "frequency_multiplier": freq_mult,
             "effective_daily_dose_mg": round(eff_daily, 4),
             "effective_daily_display": eff_display,
+            "route": route_candidate,
         }

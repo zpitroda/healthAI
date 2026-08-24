@@ -72,6 +72,7 @@ class LiveEnrichmentService:
                         result["pharm_class_moa"] = openfda_info.get("pharm_class_moa", [])
                         result["pharm_class_pe"] = openfda_info.get("pharm_class_pe", [])
                         result["atc_codes"] = openfda_info.get("atc_codes", [])
+                        result["routes"] = [str(r).lower() for r in openfda_info.get("route", [])]
 
                         # Extract boxed warnings
                         if label.get("boxed_warning"):
@@ -937,6 +938,136 @@ class LiveEnrichmentService:
 
         # Dynamic synthesis of non-receptor targets for supplements & nutraceuticals from online MeSH & categories
         cat_str = " ".join(enriched["categories"]).lower()
+        all_text_lower = f"{name_lower} {cat_str} {enriched.get('mechanism', '')}".lower()
+
+        # 1. PXR Inducers & Serotoninergic Herbal Extracts (e.g., St. John's Wort / Hypericum)
+        if any(w in all_text_lower for w in ["st john", "st. john", "hypericum", "hyperforin", "hypericin"]):
+            if not any("pregnane x receptor" in t.get("target", "").lower() or "pxr" in t.get("target", "").lower() for t in existing_targets):
+                existing_targets.append({
+                    "target": "Pregnane X Receptor (PXR / NR1I2 / CYP3A4 Inducer)",
+                    "action": "inducer",
+                    "family": "Nuclear Receptor",
+                    "gene_symbol": "NR1I2",
+                    "uniprot_id": "O75469",
+                })
+            if not any("serotonin transporter" in t.get("target", "").lower() or "sert" in t.get("target", "").lower() for t in existing_targets):
+                existing_targets.append({
+                    "target": "Sodium-Dependent Serotonin Transporter (SERT / SLC6A4)",
+                    "action": "inhibitor",
+                    "family": "Monoamine Transporter",
+                    "gene_symbol": "SLC6A4",
+                    "uniprot_id": "P31645",
+                })
+
+        # 2. Bioenhancers & Efflux/Metabolic Inhibitors (e.g., Piperine / Bioperine)
+        if any(w in all_text_lower for w in ["piperine", "bioperine", "black pepper", "piper nigrum"]):
+            if not any("trpv1" in t.get("target", "").lower() for t in existing_targets):
+                existing_targets.append({
+                    "target": "Transient Receptor Potential Vanilloid 1 (TRPV1)",
+                    "action": "agonist",
+                    "family": "Ion Channel",
+                    "gene_symbol": "TRPV1",
+                    "uniprot_id": "Q8NER1",
+                })
+            if not any("p-glycoprotein" in t.get("target", "").lower() or "abcb1" in t.get("target", "").lower() for t in existing_targets):
+                existing_targets.append({
+                    "target": "P-glycoprotein / ABCB1 Efflux Transporter (ABCB1)",
+                    "action": "inhibitor",
+                    "family": "ABC Transporter",
+                    "gene_symbol": "ABCB1",
+                    "uniprot_id": "P08183",
+                })
+
+        # 3. COMT Inhibitors & Polyphenolic Flavonoids (e.g., EGCG, Green Tea, Quercetin)
+        if any(w in all_text_lower for w in ["egcg", "green tea", "epigallocatechin", "quercetin"]):
+            if not any("comt" in t.get("target", "").lower() or "catechol-o-methyltransferase" in t.get("target", "").lower() for t in existing_targets):
+                existing_targets.append({
+                    "target": "Catechol-O-Methyltransferase (COMT)",
+                    "action": "inhibitor",
+                    "family": "Enzyme / Catecholamine Metabolism",
+                    "gene_symbol": "COMT",
+                    "uniprot_id": "P21964",
+                })
+
+        # 4. Botanical 5-Alpha Reductase Inhibitors (e.g., Saw Palmetto / Serenoa repens)
+        if any(w in all_text_lower for w in ["saw palmetto", "serenoa", "permixon"]):
+            if not any("5-alpha reductase" in t.get("target", "").lower() or "srd5a" in t.get("target", "").lower() for t in existing_targets):
+                existing_targets.append({
+                    "target": "5-Alpha Reductase Subtype 1 & 2 (SRD5A1 / SRD5A2)",
+                    "action": "inhibitor",
+                    "family": "Steroid Biosynthesis",
+                    "gene_symbol": "SRD5A2",
+                    "uniprot_id": "P31213",
+                })
+
+        # 5. Isothiocyanates & Phase II Detoxification Inducers (e.g., Sulforaphane)
+        if any(w in all_text_lower for w in ["sulforaphane", "broccoli sprout", "glucoraphanin"]):
+            if not any("keap1" in t.get("target", "").lower() or "nrf2" in t.get("target", "").lower() for t in existing_targets):
+                existing_targets.append({
+                    "target": "Nrf2 / Keap1 Cytoprotective & Phase II Detoxification Pathway (NFE2L2)",
+                    "action": "activator",
+                    "family": "Transcription Factor",
+                    "gene_symbol": "NFE2L2",
+                    "uniprot_id": "Q16236",
+                })
+
+        # 6. Xanthine Oxidase & Uric Acid Modulators (e.g., Tart Cherry Extract)
+        if any(w in all_text_lower for w in ["tart cherry", "montmorency", "prunus cerasus"]):
+            if not any("xanthine" in t.get("target", "").lower() or "xdh" in t.get("target", "").lower() for t in existing_targets):
+                existing_targets.append({
+                    "target": "Xanthine Dehydrogenase / Oxidase (XDH / XO)",
+                    "action": "inhibitor",
+                    "family": "Purine Metabolism",
+                    "gene_symbol": "XDH",
+                    "uniprot_id": "P47989",
+                })
+
+        # 7. Multivalent Mineral Chelators & Ion Channel Blockers (Magnesium, Zinc)
+        if any(w in all_text_lower for w in ["magnesium", "zinc", "calcium", "iron"]):
+            if not any("chelation" in t.get("target", "").lower() for t in existing_targets):
+                existing_targets.append({
+                    "target": "Multivalent Cation Gastrointestinal Chelation Site",
+                    "action": "chelator",
+                    "family": "Physicochemical Interaction",
+                })
+            if "magnesium" in all_text_lower and not any("nmda" in t.get("target", "").lower() or "grin" in t.get("target", "").lower() for t in existing_targets):
+                existing_targets.append({
+                    "target": "NMDA Receptor Ion Channel Voltage-Dependent Blockade (GRIN1 / GRIN2B)",
+                    "action": "antagonist",
+                    "family": "Ion Channel",
+                    "gene_symbol": "GRIN1",
+                    "uniprot_id": "Q05586",
+                })
+
+        # 8. Adaptogens & Neuroendocrine Modulators (Rhodiola, Bacopa, Ginseng)
+        if any(w in all_text_lower for w in ["rhodiola", "salidroside", "rosavin"]):
+            if not any("monoamine oxidase" in t.get("target", "").lower() or "mao" in t.get("target", "").lower() for t in existing_targets):
+                existing_targets.append({
+                    "target": "Monoamine Oxidase Subtype A & B (MAOA / MAOB)",
+                    "action": "inhibitor",
+                    "family": "Enzyme / Neurotransmitter",
+                    "gene_symbol": "MAOA",
+                    "uniprot_id": "P21397",
+                })
+        if any(w in all_text_lower for w in ["bacopa", "brahmi", "bacoside"]):
+            if not any("tryptophan hydroxylase" in t.get("target", "").lower() or "tph" in t.get("target", "").lower() for t in existing_targets):
+                existing_targets.append({
+                    "target": "Tryptophan Hydroxylase & Serotonin Biosynthesis (TPH2)",
+                    "action": "activator",
+                    "family": "Neurotransmitter Biosynthesis",
+                    "gene_symbol": "TPH2",
+                    "uniprot_id": "Q8IWU9",
+                })
+        if any(w in all_text_lower for w in ["ginseng", "ginsenoside"]):
+            if not any("nitric oxide synthase" in t.get("target", "").lower() or "enos" in t.get("target", "").lower() for t in existing_targets):
+                existing_targets.append({
+                    "target": "Endothelial Nitric Oxide Synthase (eNOS / NOS3)",
+                    "action": "activator",
+                    "family": "Endothelial Vasodilation",
+                    "gene_symbol": "NOS3",
+                    "uniprot_id": "P29474",
+                })
+
         if any(w in cat_str for w in ["antioxidant", "free radical scavenger", "radical scavenger", "carotenoid"]):
             if not any(any(w in t.get("target", "").lower() for w in ["glutathione", "redox", "antioxidant"]) for t in existing_targets):
                 existing_targets.append({
@@ -1019,8 +1150,10 @@ class LiveEnrichmentService:
             enriched["interactions"] = fda_data["drug_interactions"]
 
         # Determine Regulatory & Evidence Tier
-        is_fda_approved = bool(fda_data.get("pharm_class_epc") or fda_data.get("boxed_warning") or fda_data.get("warnings"))
+        existing_meta = compound_dict.get("metadata", {}) or {}
+        is_fda_approved = bool(fda_data.get("pharm_class_epc") or fda_data.get("boxed_warning") or fda_data.get("warnings") or existing_meta.get("is_fda_approved"))
         is_vet = pubchem_data.get("is_veterinary", False)
+        has_clinical_mechanisms = bool(chembl_data.get("mechanisms")) or existing_meta.get("human_clinical_trials", False)
 
         data_sources = []
         if is_fda_approved:
@@ -1031,7 +1164,7 @@ class LiveEnrichmentService:
         else:
             evidence_tier = "IN_VITRO_AND_ALLOMETRIC_EXTRAPOLATION"
             reg_status = "VETERINARY" if is_vet else "RESEARCH_CHEMICAL"
-            human_clinical = False
+            human_clinical = has_clinical_mechanisms
             data_sources.extend([
                 "Recombinant Cloned Human Receptors (ChEMBL In Vitro Assays)",
                 "MeSH Pharmacological Classification (PubChem)",
@@ -1039,6 +1172,8 @@ class LiveEnrichmentService:
             ])
             if is_vet:
                 data_sources.append("FDA Green Book / Animal Veterinary Data")
+            if has_clinical_mechanisms:
+                data_sources.append("Published Human Clinical Phase 1-3 Literature")
 
         if pubchem_data.get("cid"):
             data_sources.append("PubChem Structure & Physicochemical Descriptors")

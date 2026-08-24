@@ -560,7 +560,15 @@ class PKPDEngine:
             trans_info = {}
         trans_substrates = [str(t).upper() for t in trans_info.get("substrates") or []]
 
-        if not substrates and not trans_substrates:
+        phase2_info = substrate_compound.get("phase2_enzymes") or {}
+        if not isinstance(phase2_info, dict):
+            phase2_info = {}
+        phase2_substrates = [str(p).upper() for p in phase2_info.get("substrates") or []]
+
+        sub_text_lower = f"{substrate_compound.get('name', '')} {substrate_compound.get('key', '')} {substrate_compound.get('drug_class', '')}".lower()
+        is_polyphenol = any(w in sub_text_lower for w in ["curcumin", "resveratrol", "quercetin", "polyphenol", "flavonoid", "astaxanthin", "coq10", "berberine"])
+
+        if not substrates and not trans_substrates and not phase2_substrates and not is_polyphenol:
             return 1.0, 1.0, []
 
         # Fractional contribution of major enzymes (default equal split among substrates)
@@ -574,6 +582,20 @@ class PKPDEngine:
             if str(other.get("key")) == str(substrate_compound.get("key")):
                 continue
 
+            other_text_lower = f"{other.get('name', '')} {other.get('key', '')} {other.get('drug_class', '')}".lower()
+            is_piperine = any(w in other_text_lower for w in ["piperine", "bioperine", "black pepper"])
+            is_st_john = any(w in other_text_lower for w in ["st john", "hypericum", "hyperforin"])
+
+            # Special bioenhancer effect (Piperine boosts polyphenol / P-gp / UGT1A1 / CYP3A4 substrate AUC)
+            if is_piperine and (is_polyphenol or "CYP3A4" in substrates or "P-GP" in trans_substrates or "UGT1A1" in phase2_substrates):
+                total_inhib_factor += 0.65  # ~2.8x exposure multiplier
+                interacting_enzymes.append(f"Intestinal P-gp & UGT1A1 Bioenhancement by {other.get('name') or 'Piperine'}")
+
+            # Special PXR nuclear induction effect (St. John's Wort strongly induces CYP3A4, CYP2C9, P-gp)
+            if is_st_john and ("CYP3A4" in substrates or "CYP2C9" in substrates or "P-GP" in trans_substrates):
+                total_inhib_factor -= 0.60  # ~0.4x exposure reduction
+                interacting_enzymes.append(f"Nuclear PXR Enzyme & P-gp Induction by {other.get('name') or 'St. John\'s Wort'}")
+
             other_cyp = other.get("cyp_enzymes") or {}
             if isinstance(other_cyp, dict):
                 # Strong/moderate inhibitors
@@ -581,7 +603,6 @@ class PKPDEngine:
                     inh_clean = str(inh).upper()
                     if inh_clean in substrates:
                         fm = fm_map.get(inh_clean, 0.4)
-                        # Assume clinical I/Ki ratio of 3.0 for strong/moderate catalog inhibitors
                         i_over_ki = 3.0
                         total_inhib_factor += fm * (1.0 - (1.0 / (1.0 + i_over_ki)))
                         if inh_clean not in interacting_enzymes:
@@ -605,6 +626,16 @@ class PKPDEngine:
                         total_inhib_factor += 0.25  # Reduces efflux clearance
                         if t_clean not in interacting_enzymes:
                             interacting_enzymes.append(f"{t_clean} Efflux Inhibition by {other.get('name') or other.get('key')}")
+
+            # Phase II inhibitors (e.g. UGT1A1, UGT2B7)
+            other_p2 = other.get("phase2_enzymes") or {}
+            if isinstance(other_p2, dict):
+                for p_inh in other_p2.get("inhibitors") or []:
+                    p_clean = str(p_inh).upper()
+                    if p_clean in phase2_substrates:
+                        total_inhib_factor += 0.25
+                        if p_clean not in interacting_enzymes:
+                            interacting_enzymes.append(f"{p_clean} Glucuronidation Inhibition by {other.get('name') or other.get('key')}")
 
         aucr = 1.0 / max(0.15, 1.0 - total_inhib_factor)
         aucr = max(0.3, min(8.0, aucr))

@@ -627,7 +627,8 @@ class PKPDEngine:
             # Special PXR nuclear induction effect (St. John's Wort strongly induces CYP3A4, CYP2C9, P-gp)
             if is_st_john and ("CYP3A4" in substrates or "CYP2C9" in substrates or "P-GP" in trans_substrates):
                 total_inhib_factor -= 0.60  # ~0.4x exposure reduction
-                interacting_enzymes.append(f"Nuclear PXR Enzyme & P-gp Induction by {other.get('name') or 'St. John\'s Wort'}")
+                other_name = other.get('name') or "St. John's Wort"
+                interacting_enzymes.append(f"Nuclear PXR Enzyme & P-gp Induction by {other_name}")
 
             other_cyp = other.get("cyp_enzymes") or {}
             if isinstance(other_cyp, dict):

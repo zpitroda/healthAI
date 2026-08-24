@@ -4,22 +4,34 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>HealthAI // Pharmacology Lab & Collision Matrix Engine</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700;800&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=Inter:wght@400;500;600;700&display=swap"
+      rel="stylesheet"
+    />
     <style>
       :root {
+        --bg-deep: #050811;
         --bg: #070f18;
         --bg-surface: #0c1826;
-        --bg-card: #112236;
-        --bg-card-hover: #162c46;
+        --bg-card: rgba(13, 24, 40, 0.85);
+        --bg-card-hover: rgba(19, 36, 60, 0.95);
+        --bg-glass: rgba(10, 20, 34, 0.8);
         --border: #1e3a59;
-        --border-subtle: #162b42;
-        --border-focus: #38bdf8;
+        --border-subtle: rgba(56, 189, 248, 0.14);
+        --border-mid: rgba(56, 189, 248, 0.28);
+        --border-focus: #00f2fe;
         
-        --text-primary: #f1f7fe;
+        --text-primary: #f8fafc;
         --text-secondary: #94a9c4;
         --text-muted: #627b99;
+        --text-dim: #475569;
         
-        --accent-cyan: #38bdf8;
+        --accent-cyan: #00f2fe;
         --accent-teal: #2dd4bf;
+        --accent-blue: #38bdf8;
+        --accent-indigo: #818cf8;
         
         --severity-synergy: #10b981;
         --severity-synergy-bg: rgba(16, 185, 129, 0.12);
@@ -41,15 +53,16 @@
         --severity-self-bg: rgba(59, 130, 246, 0.12);
         --severity-self-border: rgba(59, 130, 246, 0.35);
         
+        --radius-xs: 4px;
         --radius-sm: 8px;
         --radius-md: 12px;
         --radius-lg: 18px;
         --radius-xl: 24px;
         
-        --shadow-card: 0 10px 30px -8px rgba(0, 0, 0, 0.5);
-        --shadow-glow-cyan: 0 0 25px rgba(56, 189, 248, 0.18);
-        --shadow-glow-emerald: 0 0 25px rgba(16, 185, 129, 0.20);
-        --shadow-glow-crimson: 0 0 25px rgba(239, 68, 68, 0.20);
+        --shadow-card: 0 10px 30px -8px rgba(0, 0, 0, 0.55), inset 0 1px 0 rgba(255, 255, 255, 0.05);
+        --shadow-glow-cyan: 0 0 25px rgba(0, 242, 254, 0.22);
+        --shadow-glow-emerald: 0 0 25px rgba(16, 185, 129, 0.22);
+        --shadow-glow-crimson: 0 0 25px rgba(239, 68, 68, 0.22);
       }
 
       *, *::before, *::after {
@@ -64,40 +77,54 @@
       }
 
       body {
-        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
-        background-color: var(--bg);
+        font-family: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+        background-color: var(--bg-deep);
         background-image: 
-          radial-gradient(circle at 15% 15%, rgba(56, 189, 248, 0.04) 0%, transparent 40%),
-          radial-gradient(circle at 85% 85%, rgba(16, 185, 129, 0.03) 0%, transparent 45%),
-          linear-gradient(180deg, #070f18 0%, #0a1420 100%);
+          radial-gradient(circle at 15% 15%, rgba(0, 242, 254, 0.05) 0%, transparent 40%),
+          radial-gradient(circle at 85% 85%, rgba(16, 185, 129, 0.04) 0%, transparent 45%),
+          linear-gradient(180deg, #050811 0%, #08111e 100%);
         color: var(--text-primary);
         min-height: 100vh;
         overflow-x: hidden;
         line-height: 1.5;
         -webkit-font-smoothing: antialiased;
+        -moz-osx-font-smoothing: grayscale;
+      }
+
+      a {
+        color: var(--accent-blue);
+        text-decoration: none;
+        transition: color 0.15s ease;
+      }
+      a:hover {
+        color: var(--accent-cyan);
       }
 
       .app-wrapper {
-        max-width: 1440px;
+        max-width: 1520px;
         margin: 0 auto;
-        padding: 20px 24px 60px;
+        padding: 16px 22px 60px;
         box-sizing: border-box;
       }
 
+      /* ==========================================================================
+         TOPBAR & GLOBAL HEADER
+         ========================================================================== */
       .topbar {
         display: flex;
         justify-content: space-between;
         align-items: center;
-        padding: 14px 24px;
-        background: rgba(12, 24, 38, 0.85);
-        backdrop-filter: blur(16px);
-        -webkit-backdrop-filter: blur(16px);
-        border: 1px solid var(--border);
+        gap: 16px;
+        padding: 12px 20px;
+        background: var(--bg-glass);
+        backdrop-filter: blur(20px);
+        -webkit-backdrop-filter: blur(20px);
+        border: 1px solid var(--border-subtle);
         border-radius: var(--radius-lg);
         box-shadow: var(--shadow-card);
-        margin-bottom: 20px;
+        margin-bottom: 18px;
         position: relative;
-        z-index: 110;
+        z-index: 120;
       }
 
       .brand-group {
@@ -110,14 +137,14 @@
         width: 38px;
         height: 38px;
         border-radius: var(--radius-md);
-        background: linear-gradient(135deg, var(--accent-cyan), var(--accent-teal));
+        background: linear-gradient(135deg, var(--accent-cyan), #3b82f6);
         display: flex;
         align-items: center;
         justify-content: center;
         color: #04151b;
         font-weight: 900;
         font-size: 1.15rem;
-        box-shadow: 0 4px 14px rgba(56, 189, 248, 0.3);
+        box-shadow: 0 0 16px rgba(0, 242, 254, 0.4);
         flex-shrink: 0;
       }
 
@@ -127,40 +154,71 @@
       }
 
       .brand-title {
-        font-size: clamp(1rem, 2.5vw, 1.25rem);
+        font-size: clamp(1rem, 2.4vw, 1.22rem);
         font-weight: 800;
-        letter-spacing: 0.02em;
+        letter-spacing: -0.01em;
         color: var(--text-primary);
         line-height: 1.2;
       }
 
       .brand-subtitle {
-        font-size: clamp(0.68rem, 1.8vw, 0.76rem);
-        font-weight: 600;
+        font-size: clamp(0.68rem, 1.7vw, 0.74rem);
+        font-weight: 700;
         text-transform: uppercase;
         letter-spacing: 0.08em;
         color: var(--accent-cyan);
       }
 
-      .mobile-menu-toggle {
-        display: none;
-        background: var(--bg-card);
-        border: 1px solid var(--border);
-        color: var(--text-primary);
-        font-size: 1.25rem;
-        width: 42px;
-        height: 42px;
-        border-radius: var(--radius-md);
-        cursor: pointer;
+      .topbar-actions {
+        display: flex;
         align-items: center;
-        justify-content: center;
-        transition: all 0.2s ease;
+        gap: 10px;
       }
 
-      .mobile-menu-toggle:hover {
-        background: var(--bg-card-hover);
-        border-color: var(--accent-cyan);
+      .btn-header-action {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        background: rgba(255, 255, 255, 0.05);
+        border: 1px solid var(--border-subtle);
+        border-radius: var(--radius-sm);
+        padding: 6px 12px;
+        font-size: 0.8rem;
+        font-weight: 700;
+        color: var(--text-secondary);
+        cursor: pointer;
+        transition: all 0.2s ease;
+      }
+      .btn-header-action:hover {
+        background: rgba(0, 242, 254, 0.12);
+        color: var(--text-primary);
+        border-color: rgba(0, 242, 254, 0.4);
+        transform: translateY(-1px);
+      }
+
+      .mode-toggle-group {
+        display: flex;
+        background: rgba(0, 0, 0, 0.4);
+        border: 1px solid var(--border-subtle);
+        border-radius: 9999px;
+        padding: 2px;
+      }
+
+      .mode-btn {
+        background: none;
+        border: none;
+        padding: 5px 12px;
+        border-radius: 9999px;
+        font-size: 0.75rem;
+        font-weight: 700;
+        color: var(--text-muted);
+        cursor: pointer;
+        transition: all 0.2s ease;
+      }
+      .mode-btn.active {
+        background: linear-gradient(135deg, rgba(0, 242, 254, 0.25), rgba(59, 130, 246, 0.25));
         color: var(--accent-cyan);
+        box-shadow: 0 0 10px rgba(0, 242, 254, 0.25);
       }
 
       .nav-links {
@@ -170,41 +228,136 @@
       }
 
       .nav-link {
-        color: var(--text-secondary);
-        text-decoration: none;
-        font-size: 0.85rem;
-        font-weight: 600;
-        padding: 8px 14px;
+        padding: 6px 12px;
         border-radius: var(--radius-sm);
-        border: 1px solid transparent;
+        font-size: 0.84rem;
+        font-weight: 700;
+        color: var(--text-secondary);
         transition: all 0.2s ease;
-        white-space: nowrap;
       }
-
       .nav-link:hover {
         color: var(--text-primary);
-        background: var(--bg-card);
-        border-color: var(--border);
+        background: rgba(255, 255, 255, 0.05);
       }
-
       .nav-link.active {
-        color: var(--accent-cyan);
-        background: rgba(56, 189, 248, 0.08);
-        border-color: rgba(56, 189, 248, 0.25);
+        color: #04151b;
+        background: var(--accent-cyan);
+        box-shadow: 0 0 14px rgba(0, 242, 254, 0.35);
       }
 
-      /* SUMMARY & GAUGE BANNER */
+      .mobile-menu-toggle {
+        display: none;
+        background: var(--bg-card);
+        border: 1px solid var(--border);
+        color: var(--text-primary);
+        font-size: 1.25rem;
+        padding: 6px 12px;
+        border-radius: var(--radius-sm);
+        cursor: pointer;
+      }
+
+      /* ==========================================================================
+         PRESET SCENARIOS POPUP MENU
+         ========================================================================== */
+      .preset-dropdown-wrap {
+        position: relative;
+      }
+
+      .preset-menu {
+        display: none;
+        position: absolute;
+        top: calc(100% + 8px);
+        right: 0;
+        width: 360px;
+        background: rgba(10, 20, 36, 0.98);
+        backdrop-filter: blur(24px);
+        -webkit-backdrop-filter: blur(24px);
+        border: 1px solid var(--border-mid);
+        border-radius: var(--radius-md);
+        box-shadow: 0 18px 45px rgba(0, 0, 0, 0.7);
+        padding: 10px;
+        z-index: 160;
+      }
+      .preset-menu.open {
+        display: flex;
+        flex-direction: column;
+        gap: 6px;
+        animation: dropFade 0.2s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+      }
+
+      .preset-menu-header {
+        font-size: 0.72rem;
+        font-weight: 800;
+        text-transform: uppercase;
+        letter-spacing: 0.06em;
+        color: var(--text-muted);
+        padding: 4px 8px 6px;
+        border-bottom: 1px solid var(--border-subtle);
+        margin-bottom: 2px;
+        display: flex;
+        justify-content: space-between;
+      }
+
+      .preset-item {
+        display: flex;
+        flex-direction: column;
+        gap: 3px;
+        padding: 8px 10px;
+        border-radius: var(--radius-sm);
+        cursor: pointer;
+        transition: all 0.15s ease;
+        border: 1px solid transparent;
+        background: rgba(255, 255, 255, 0.02);
+      }
+      .preset-item:hover {
+        background: rgba(0, 242, 254, 0.12);
+        border-color: rgba(0, 242, 254, 0.35);
+        transform: translateX(2px);
+      }
+
+      .preset-item-title {
+        font-size: 0.86rem;
+        font-weight: 700;
+        color: var(--text-primary);
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+      }
+      .preset-badge {
+        font-size: 0.65rem;
+        font-weight: 700;
+        padding: 1px 6px;
+        border-radius: 4px;
+        background: rgba(0, 242, 254, 0.15);
+        color: #00f2fe;
+      }
+      .preset-item-desc {
+        font-size: 0.73rem;
+        color: var(--text-secondary);
+        line-height: 1.35;
+      }
+
+      @keyframes dropFade {
+        from { opacity: 0; transform: translateY(-6px); }
+        to { opacity: 1; transform: translateY(0); }
+      }
+
+      /* ==========================================================================
+         GAUGE & STATUS SUMMARY BANNER
+         ========================================================================== */
       .status-banner {
         display: grid;
-        grid-template-columns: 280px 1fr;
+        grid-template-columns: 260px 1fr;
         gap: 20px;
-        background: var(--bg-surface);
-        border: 1px solid var(--border);
+        padding: 18px 24px;
+        background: var(--bg-card);
+        border: 1px solid var(--border-subtle);
         border-radius: var(--radius-xl);
-        padding: 16px 24px;
         box-shadow: var(--shadow-card);
-        margin-bottom: 16px;
-        flex-shrink: 0;
+        margin-bottom: 20px;
+        backdrop-filter: blur(16px);
+        -webkit-backdrop-filter: blur(16px);
+        align-items: center;
       }
 
       .gauge-card {
@@ -212,29 +365,27 @@
         flex-direction: column;
         align-items: center;
         justify-content: center;
-        background: var(--bg-card);
+        padding: 16px;
+        background: rgba(0, 0, 0, 0.3);
         border: 1px solid var(--border-subtle);
         border-radius: var(--radius-lg);
-        padding: 20px 16px;
         text-align: center;
-        position: relative;
-        overflow: hidden;
       }
 
       .gauge-meter-wrap {
         position: relative;
-        width: 140px;
-        height: 140px;
+        width: 130px;
+        height: 130px;
+        margin-bottom: 8px;
         display: flex;
         align-items: center;
         justify-content: center;
-        margin-bottom: 12px;
       }
 
       .gauge-svg {
+        width: 130px;
+        height: 130px;
         transform: rotate(-90deg);
-        width: 140px;
-        height: 140px;
       }
 
       .gauge-bg-circle {
@@ -262,60 +413,84 @@
       }
 
       .gauge-score-val {
-        font-size: 2.2rem;
-        font-weight: 800;
-        letter-spacing: -0.03em;
+        font-size: 2.1rem;
+        font-weight: 900;
+        font-family: 'JetBrains Mono', monospace;
+        color: var(--text-primary);
         line-height: 1;
       }
 
       .gauge-score-label {
-        font-size: 0.72rem;
+        font-size: 0.68rem;
+        font-weight: 700;
         text-transform: uppercase;
         letter-spacing: 0.06em;
         color: var(--text-muted);
-        margin-top: 4px;
+        margin-top: 2px;
       }
 
       .risk-band-pill {
         display: inline-flex;
         align-items: center;
         gap: 6px;
-        padding: 4px 14px;
-        border-radius: 999px;
-        font-size: 0.8rem;
-        font-weight: 700;
-        letter-spacing: 0.05em;
+        padding: 4px 12px;
+        border-radius: 9999px;
+        font-size: 0.76rem;
+        font-weight: 800;
         text-transform: uppercase;
-        border: 1px solid var(--border);
+        letter-spacing: 0.04em;
+        border: 1px solid transparent;
       }
 
-      .band-minimal { background: var(--severity-synergy-bg); color: var(--severity-synergy); border-color: var(--severity-synergy-border); }
-      .band-low { background: var(--severity-synergy-bg); color: #34d399; border-color: var(--severity-synergy-border); }
-      .band-moderate { background: var(--severity-moderate-bg); color: var(--severity-moderate); border-color: var(--severity-moderate-border); }
-      .band-elevated { background: var(--severity-high-bg); color: #f87171; border-color: var(--severity-high-border); }
-      .band-severe { background: var(--severity-high-bg); color: var(--severity-high); border-color: var(--severity-high-border); }
+      .band-minimal {
+        background: var(--severity-synergy-bg);
+        color: var(--severity-synergy);
+        border-color: var(--severity-synergy-border);
+      }
+
+      .band-low {
+        background: rgba(52, 211, 153, 0.14);
+        color: #34d399;
+        border-color: rgba(52, 211, 153, 0.35);
+      }
+
+      .band-moderate {
+        background: var(--severity-moderate-bg);
+        color: var(--severity-moderate);
+        border-color: var(--severity-moderate-border);
+      }
+
+      .band-elevated {
+        background: rgba(248, 113, 113, 0.14);
+        color: #f87171;
+        border-color: rgba(248, 113, 113, 0.38);
+      }
+
+      .band-severe {
+        background: var(--severity-high-bg);
+        color: var(--severity-high);
+        border-color: var(--severity-high-border);
+        box-shadow: var(--shadow-glow-crimson);
+      }
 
       .summary-content {
         display: flex;
         flex-direction: column;
-        justify-content: space-between;
-        gap: 16px;
-      }
-
-      .summary-header-row {
-        display: flex;
-        justify-content: space-between;
-        align-items: flex-start;
-        gap: 16px;
+        gap: 14px;
       }
 
       .summary-heading {
-        font-size: 1.15rem;
-        font-weight: 700;
+        font-size: 1.18rem;
+        font-weight: 800;
         color: var(--text-primary);
-        display: flex;
-        align-items: center;
-        gap: 8px;
+        letter-spacing: -0.01em;
+        margin-bottom: 4px;
+      }
+
+      .summary-text-box {
+        font-size: 0.9rem;
+        color: var(--text-secondary);
+        line-height: 1.45;
       }
 
       .summary-stats-grid {
@@ -325,96 +500,110 @@
       }
 
       .stat-chip {
-        background: var(--bg-card);
+        background: rgba(0, 0, 0, 0.25);
         border: 1px solid var(--border-subtle);
         border-radius: var(--radius-md);
-        padding: 12px 14px;
+        padding: 10px 14px;
         display: flex;
         flex-direction: column;
-        gap: 4px;
+        gap: 2px;
       }
 
       .stat-chip-label {
-        font-size: 0.74rem;
+        font-size: 0.7rem;
+        font-weight: 700;
         text-transform: uppercase;
         letter-spacing: 0.05em;
         color: var(--text-muted);
-        font-weight: 600;
       }
 
       .stat-chip-val {
-        font-size: 1.25rem;
+        font-size: 1.3rem;
         font-weight: 800;
+        font-family: 'JetBrains Mono', monospace;
+        color: var(--text-primary);
       }
 
-      .summary-text-box {
-        background: rgba(17, 34, 54, 0.6);
-        border-left: 3px solid var(--accent-cyan);
-        border-radius: 0 var(--radius-sm) var(--radius-sm) 0;
-        padding: 12px 16px;
-        font-size: 0.92rem;
-        color: var(--text-secondary);
-        line-height: 1.5;
-      }
-
-      /* MAIN TWO COLUMN LAYOUT */
+      /* ==========================================================================
+         WORKBENCH LAYOUT
+         ========================================================================== */
       .workbench-layout {
         display: grid;
-        grid-template-columns: minmax(340px, 420px) minmax(0, 1fr);
-        gap: 24px;
-        align-items: start;
-        width: 100%;
-        max-width: 100%;
+        grid-template-columns: 430px 1fr;
+        gap: 20px;
+        align-items: flex-start;
       }
 
       .panel {
-        background: var(--bg-surface);
-        border: 1px solid var(--border);
+        background: var(--bg-card);
+        border: 1px solid var(--border-subtle);
         border-radius: var(--radius-xl);
-        padding: 24px;
+        padding: 20px;
         box-shadow: var(--shadow-card);
-        box-sizing: border-box;
-        min-width: 0;
-        max-width: 100%;
-      }
-
-      section.panel {
-        display: flex;
-        flex-direction: column;
-        min-height: 480px;
+        backdrop-filter: blur(16px);
+        -webkit-backdrop-filter: blur(16px);
       }
 
       .panel-header {
         display: flex;
         justify-content: space-between;
         align-items: center;
-        margin-bottom: 18px;
-        padding-bottom: 14px;
-        border-bottom: 1px solid var(--border-subtle);
+        margin-bottom: 14px;
       }
 
       .panel-title {
-        font-size: 1.1rem;
-        font-weight: 700;
+        font-size: 1.05rem;
+        font-weight: 800;
+        color: var(--text-primary);
         display: flex;
         align-items: center;
-        gap: 10px;
+        gap: 8px;
       }
 
       .panel-title-badge {
         font-size: 0.72rem;
         font-weight: 700;
         padding: 2px 8px;
-        border-radius: 999px;
-        background: rgba(56, 189, 248, 0.12);
+        border-radius: 9999px;
+        background: rgba(0, 242, 254, 0.12);
         color: var(--accent-cyan);
-        border: 1px solid rgba(56, 189, 248, 0.25);
+        border: 1px solid rgba(0, 242, 254, 0.3);
       }
 
-      /* AUTOCOMPLETE SEARCH */
+      /* PRESETS IN WORKBENCH QUICK BAR */
+      .workbench-presets-bar {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 6px;
+        margin-bottom: 14px;
+        padding-bottom: 10px;
+        border-bottom: 1px solid var(--border-subtle);
+      }
+
+      .preset-chip-btn {
+        background: rgba(0, 242, 254, 0.08);
+        border: 1px solid rgba(0, 242, 254, 0.25);
+        color: #e0f2fe;
+        font-size: 0.74rem;
+        font-weight: 700;
+        padding: 4px 10px;
+        border-radius: 9999px;
+        cursor: pointer;
+        transition: all 0.15s ease;
+      }
+      .preset-chip-btn:hover {
+        background: rgba(0, 242, 254, 0.2);
+        border-color: #00f2fe;
+        transform: translateY(-1px);
+        box-shadow: 0 0 10px rgba(0, 242, 254, 0.25);
+      }
+
+      /* ==========================================================================
+         SEARCH & QUICK TAGS
+         ========================================================================== */
       .search-container {
         position: relative;
-        margin-bottom: 16px;
+        margin-bottom: 14px;
       }
 
       .search-input-wrapper {
@@ -425,59 +614,61 @@
 
       .search-icon {
         position: absolute;
-        left: 14px;
-        color: var(--text-muted);
+        left: 12px;
+        font-size: 0.95rem;
+        opacity: 0.6;
         pointer-events: none;
       }
 
       .search-input {
         width: 100%;
-        padding: 12px 14px 12px 42px;
-        background: var(--bg-card);
+        background: rgba(5, 12, 22, 0.85);
         border: 1px solid var(--border);
         border-radius: var(--radius-md);
+        padding: 10px 14px 10px 36px;
         color: var(--text-primary);
-        font-size: 0.94rem;
+        font-size: 0.88rem;
+        font-family: inherit;
         outline: none;
         transition: all 0.2s ease;
       }
-
       .search-input:focus {
         border-color: var(--border-focus);
-        box-shadow: 0 0 0 3px rgba(56, 189, 248, 0.15);
+        box-shadow: 0 0 12px rgba(0, 242, 254, 0.2);
+        background: rgba(7, 16, 30, 0.95);
       }
 
       .search-dropdown {
+        display: none;
         position: absolute;
         top: calc(100% + 6px);
         left: 0;
         right: 0;
-        background: #0f2237;
-        border: 1px solid var(--border);
+        background: rgba(10, 22, 38, 0.98);
+        backdrop-filter: blur(20px);
+        -webkit-backdrop-filter: blur(20px);
+        border: 1px solid var(--border-mid);
         border-radius: var(--radius-md);
-        box-shadow: 0 16px 36px rgba(0, 0, 0, 0.6);
-        z-index: 100;
+        box-shadow: 0 14px 36px rgba(0, 0, 0, 0.65);
         max-height: 280px;
         overflow-y: auto;
-        display: none;
+        z-index: 100;
       }
 
       .search-item {
-        padding: 10px 14px;
-        border-bottom: 1px solid var(--border-subtle);
-        cursor: pointer;
         display: flex;
         justify-content: space-between;
         align-items: center;
+        padding: 10px 14px;
+        border-bottom: 1px solid var(--border-subtle);
+        cursor: pointer;
         transition: background 0.15s ease;
       }
-
       .search-item:last-child {
         border-bottom: none;
       }
-
-      .search-item:hover, .search-item.selected {
-        background: var(--bg-card-hover);
+      .search-item:hover {
+        background: rgba(0, 242, 254, 0.12);
       }
 
       .search-item-info {
@@ -488,38 +679,59 @@
 
       .search-item-name {
         font-weight: 700;
-        font-size: 0.92rem;
+        font-size: 0.88rem;
         color: var(--text-primary);
       }
 
       .search-item-class {
-        font-size: 0.75rem;
+        font-size: 0.72rem;
         color: var(--text-muted);
       }
 
       .search-item-add-btn {
-        font-size: 0.78rem;
+        font-size: 0.76rem;
         font-weight: 700;
         color: var(--accent-cyan);
-        background: rgba(56, 189, 248, 0.1);
-        border: 1px solid rgba(56, 189, 248, 0.2);
-        padding: 4px 10px;
-        border-radius: var(--radius-sm);
+        background: rgba(0, 242, 254, 0.12);
+        border: 1px solid rgba(0, 242, 254, 0.3);
+        padding: 3px 8px;
+        border-radius: var(--radius-xs);
       }
 
-      /* QUICK TAGS */
+      /* QUICK TAG CATEGORIES */
       .quick-tags-section {
-        margin-bottom: 20px;
+        margin-bottom: 18px;
       }
 
-      .quick-tags-label {
-        font-size: 0.75rem;
-        text-transform: uppercase;
-        letter-spacing: 0.05em;
-        color: var(--text-muted);
-        font-weight: 700;
+      .quick-tags-nav {
+        display: flex;
+        gap: 6px;
         margin-bottom: 8px;
-        display: block;
+        overflow-x: auto;
+        scrollbar-width: none;
+      }
+      .quick-tags-nav::-webkit-scrollbar { display: none; }
+
+      .quick-cat-btn {
+        background: rgba(255, 255, 255, 0.04);
+        border: 1px solid var(--border-subtle);
+        border-radius: 9999px;
+        padding: 3px 10px;
+        font-size: 0.72rem;
+        font-weight: 700;
+        color: var(--text-muted);
+        cursor: pointer;
+        white-space: nowrap;
+        transition: all 0.15s ease;
+      }
+      .quick-cat-btn:hover {
+        color: var(--text-primary);
+        background: rgba(255, 255, 255, 0.08);
+      }
+      .quick-cat-btn.active {
+        background: rgba(0, 242, 254, 0.15);
+        color: var(--accent-cyan);
+        border-color: rgba(0, 242, 254, 0.4);
       }
 
       .quick-tags-wrap {
@@ -529,32 +741,26 @@
       }
 
       .quick-tag {
-        background: var(--bg-card);
+        background: rgba(14, 28, 48, 0.6);
         border: 1px solid var(--border-subtle);
         color: var(--text-secondary);
         padding: 4px 10px;
         border-radius: 999px;
-        font-size: 0.78rem;
+        font-size: 0.76rem;
         font-weight: 600;
         cursor: pointer;
         transition: all 0.15s ease;
       }
-
       .quick-tag:hover {
-        background: var(--bg-card-hover);
+        background: rgba(0, 242, 254, 0.14);
         color: var(--text-primary);
-        border-color: var(--border);
-      }
-
-      .quick-tag.active {
-        background: rgba(56, 189, 248, 0.14);
-        color: var(--accent-cyan);
-        border-color: rgba(56, 189, 248, 0.35);
+        border-color: rgba(0, 242, 254, 0.4);
+        transform: translateY(-1px);
       }
 
       /* ACTIVE STACK LIST */
       .stack-list-section {
-        margin-bottom: 24px;
+        margin-bottom: 20px;
       }
 
       .stack-empty-card {
@@ -563,7 +769,8 @@
         border-radius: var(--radius-lg);
         text-align: center;
         color: var(--text-muted);
-        font-size: 0.88rem;
+        font-size: 0.86rem;
+        line-height: 1.4;
       }
 
       .stack-items-wrap {
@@ -573,18 +780,18 @@
       }
 
       .stack-item-card {
-        background: var(--bg-card);
+        background: rgba(10, 20, 36, 0.7);
         border: 1px solid var(--border-subtle);
         border-radius: var(--radius-md);
         padding: 12px 14px;
         display: flex;
         flex-direction: column;
         gap: 8px;
-        transition: border-color 0.2s ease;
+        transition: border-color 0.2s ease, transform 0.15s ease;
       }
-
       .stack-item-card:hover {
-        border-color: var(--border);
+        border-color: var(--border-mid);
+        transform: translateY(-1px);
       }
 
       .stack-item-top {
@@ -601,16 +808,34 @@
 
       .stack-item-name {
         font-weight: 700;
-        font-size: 0.94rem;
+        font-size: 0.92rem;
         color: var(--text-primary);
       }
 
       .stack-item-class {
-        font-size: 0.72rem;
+        font-size: 0.7rem;
         padding: 2px 6px;
         border-radius: 4px;
-        background: rgba(255, 255, 255, 0.05);
+        background: rgba(255, 255, 255, 0.06);
         color: var(--text-muted);
+      }
+
+      .stack-item-actions {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+      }
+
+      .stack-item-link-btn {
+        font-size: 0.74rem;
+        color: var(--text-muted);
+        padding: 2px 6px;
+        border-radius: var(--radius-xs);
+        transition: all 0.15s ease;
+      }
+      .stack-item-link-btn:hover {
+        color: var(--accent-cyan);
+        background: rgba(0, 242, 254, 0.1);
       }
 
       .stack-item-remove-btn {
@@ -623,55 +848,51 @@
         border-radius: 4px;
         transition: all 0.15s ease;
       }
-
       .stack-item-remove-btn:hover {
         color: var(--severity-high);
-        background: rgba(239, 68, 68, 0.1);
-      }
-
-      .stack-item-controls {
-        display: grid;
-        grid-template-columns: 1fr 1fr;
-        gap: 8px;
+        background: rgba(239, 68, 68, 0.12);
       }
 
       .control-select, .control-input {
-        background: #0d1b2a;
+        background: rgba(5, 12, 22, 0.85);
         border: 1px solid var(--border-subtle);
         border-radius: var(--radius-sm);
         color: var(--text-primary);
         font-size: 0.8rem;
+        font-family: inherit;
         padding: 6px 8px;
         outline: none;
+        transition: border-color 0.15s ease;
       }
-
       .control-select:focus, .control-input:focus {
         border-color: var(--border-focus);
       }
 
-      /* BIOMARKERS ACCORDION */
+      /* BIOMARKERS ACCORDION & DRAWER */
       .biomarker-card {
-        background: var(--bg-card);
+        background: rgba(10, 20, 36, 0.6);
         border: 1px solid var(--border-subtle);
         border-radius: var(--radius-lg);
-        padding: 16px;
+        padding: 14px 16px;
         margin-top: 16px;
       }
 
       .biomarker-header {
-        font-size: 0.88rem;
+        font-size: 0.86rem;
         font-weight: 700;
         color: var(--text-primary);
         display: flex;
         justify-content: space-between;
         align-items: center;
-        margin-bottom: 14px;
+        cursor: pointer;
+        user-select: none;
       }
 
       .biomarker-grid {
         display: grid;
         grid-template-columns: 1fr 1fr;
-        gap: 12px;
+        gap: 10px;
+        margin-top: 12px;
       }
 
       .biomarker-field {
@@ -681,100 +902,94 @@
       }
 
       .biomarker-label {
-        font-size: 0.74rem;
+        font-size: 0.72rem;
         color: var(--text-muted);
         font-weight: 600;
       }
 
       .biomarker-input {
-        background: #0d1b2a;
+        background: rgba(5, 12, 22, 0.85);
         border: 1px solid var(--border-subtle);
         border-radius: var(--radius-sm);
         color: var(--text-primary);
         padding: 6px 10px;
-        font-size: 0.85rem;
+        font-size: 0.82rem;
+        font-family: inherit;
         outline: none;
+        transition: border-color 0.15s ease;
       }
-
       .biomarker-input:focus {
         border-color: var(--border-focus);
       }
 
       .action-btn-row {
         display: flex;
-        gap: 10px;
+        gap: 8px;
         margin-top: 16px;
       }
 
       .btn-secondary {
         flex: 1;
-        padding: 10px 14px;
-        background: var(--bg-card);
-        border: 1px solid var(--border);
-        border-radius: var(--radius-md);
+        background: rgba(255, 255, 255, 0.05);
+        border: 1px solid var(--border-subtle);
         color: var(--text-secondary);
+        font-size: 0.8rem;
         font-weight: 700;
-        font-size: 0.84rem;
+        padding: 8px 12px;
+        border-radius: var(--radius-sm);
         cursor: pointer;
         transition: all 0.2s ease;
         text-align: center;
       }
-
       .btn-secondary:hover {
+        background: rgba(255, 255, 255, 0.1);
         color: var(--text-primary);
-        background: var(--bg-card-hover);
-        border-color: var(--accent-cyan);
+        border-color: var(--border);
       }
 
-      /* RIGHT PANEL TABS */
-      /* RIGHT PANEL TABS */
+      /* ==========================================================================
+         RIGHT PANEL: TABS & VISUALIZERS
+         ========================================================================== */
       .tabs-nav {
         display: flex;
         align-items: center;
-        gap: 10px;
+        gap: 8px;
         border-bottom: 1px solid var(--border-subtle);
-        margin-bottom: 20px;
-        padding-bottom: 6px;
-        flex-shrink: 0;
-      }
-
-      /* Tab panes */
-      #matrix-tab, #breakdown-tab {
-        width: 100%;
-        min-width: 0;
+        padding-bottom: 12px;
+        margin-bottom: 18px;
       }
 
       .tab-btn {
         background: none;
-        border: none;
-        color: var(--text-secondary);
+        border: 1px solid transparent;
+        padding: 8px 14px;
+        border-radius: var(--radius-sm);
+        font-size: 0.86rem;
         font-weight: 700;
-        font-size: 0.9rem;
-        padding: 8px 16px;
-        border-radius: var(--radius-md) var(--radius-md) 0 0;
+        color: var(--text-secondary);
         cursor: pointer;
-        position: relative;
         transition: all 0.2s ease;
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
       }
-
       .tab-btn:hover {
         color: var(--text-primary);
+        background: rgba(255, 255, 255, 0.04);
       }
-
       .tab-btn.active {
         color: var(--accent-cyan);
-        background: rgba(56, 189, 248, 0.08);
+        background: rgba(0, 242, 254, 0.12);
+        border-color: rgba(0, 242, 254, 0.35);
+        box-shadow: 0 0 12px rgba(0, 242, 254, 0.15);
       }
 
-      .tab-btn.active::after {
-        content: "";
-        position: absolute;
-        bottom: -7px;
-        left: 0;
-        right: 0;
-        height: 2px;
-        background: var(--accent-cyan);
-        border-radius: 2px;
+      .tab-badge {
+        font-size: 0.68rem;
+        font-weight: 800;
+        padding: 1px 6px;
+        border-radius: 9999px;
+        background: rgba(0, 0, 0, 0.4);
       }
 
       .tab-btn-link {
@@ -782,23 +997,47 @@
         display: inline-flex;
         align-items: center;
         gap: 6px;
-        background: linear-gradient(135deg, rgba(56, 189, 248, 0.15), rgba(45, 212, 191, 0.12));
-        color: var(--accent-cyan);
-        border: 1px solid rgba(56, 189, 248, 0.35);
-        font-weight: 700;
-        font-size: 0.84rem;
-        padding: 6px 14px;
+        background: linear-gradient(135deg, rgba(0, 242, 254, 0.15), rgba(59, 130, 246, 0.15));
+        border: 1px solid rgba(0, 242, 254, 0.35);
+        padding: 7px 12px;
         border-radius: var(--radius-sm);
-        text-decoration: none;
-        transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+        font-size: 0.8rem;
+        font-weight: 700;
+        color: var(--accent-cyan);
+        transition: all 0.2s ease;
+      }
+      .tab-btn-link:hover {
+        background: linear-gradient(135deg, rgba(0, 242, 254, 0.25), rgba(59, 130, 246, 0.25));
+        box-shadow: 0 0 14px rgba(0, 242, 254, 0.3);
+        transform: translateY(-1px);
       }
 
-      .tab-btn-link:hover {
-        background: linear-gradient(135deg, rgba(56, 189, 248, 0.28), rgba(45, 212, 191, 0.22));
-        border-color: var(--accent-cyan);
-        color: #ffffff;
-        box-shadow: 0 0 16px rgba(56, 189, 248, 0.35);
-        transform: translateY(-1px);
+      /* MATRIX LEGEND */
+      .matrix-legend-row {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        gap: 12px;
+        margin-bottom: 12px;
+        padding: 8px 12px;
+        background: rgba(0, 0, 0, 0.25);
+        border: 1px solid var(--border-subtle);
+        border-radius: var(--radius-sm);
+        font-size: 0.72rem;
+        color: var(--text-secondary);
+      }
+
+      .legend-item {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        font-weight: 600;
+      }
+
+      .legend-dot {
+        width: 10px;
+        height: 10px;
+        border-radius: 3px;
       }
 
       /* COLLISION MATRIX TABLE */
@@ -808,7 +1047,7 @@
         width: 100%;
         padding-bottom: 14px;
         scrollbar-width: thin;
-        scrollbar-color: rgba(56, 189, 248, 0.3) rgba(11, 22, 33, 0.5);
+        scrollbar-color: rgba(0, 242, 254, 0.3) rgba(11, 22, 33, 0.5);
       }
 
       .matrix-scroll-wrap::-webkit-scrollbar {
@@ -819,13 +1058,9 @@
         border-radius: 4px;
       }
       .matrix-scroll-wrap::-webkit-scrollbar-thumb {
-        background: rgba(56, 189, 248, 0.3);
+        background: rgba(0, 242, 254, 0.3);
         border-radius: 4px;
       }
-      .matrix-scroll-wrap::-webkit-scrollbar-thumb:hover {
-        background: rgba(56, 189, 248, 0.6);
-      }
-
 
       .matrix-table {
         width: 100%;
@@ -834,7 +1069,7 @@
       }
 
       .matrix-table th {
-        font-size: 0.78rem;
+        font-size: 0.76rem;
         font-weight: 700;
         text-transform: uppercase;
         letter-spacing: 0.04em;
@@ -848,8 +1083,8 @@
       }
 
       .matrix-cell {
-        min-width: 100px;
-        height: 68px;
+        min-width: 105px;
+        height: 70px;
         border-radius: var(--radius-md);
         padding: 6px 8px;
         cursor: pointer;
@@ -865,7 +1100,7 @@
 
       .matrix-cell:hover {
         transform: translateY(-2px) scale(1.02);
-        box-shadow: 0 6px 18px rgba(0, 0, 0, 0.4);
+        box-shadow: 0 8px 20px rgba(0, 0, 0, 0.45);
         z-index: 10;
       }
 
@@ -906,7 +1141,7 @@
         box-shadow: 0 0 12px rgba(16, 185, 129, 0.2);
       }
 
-      /* FULL STACK EQUILIBRIUM STYLES */
+      /* FULL STACK EQUILIBRIUM */
       .balance-dashboard-container {
         display: flex;
         flex-direction: column;
@@ -1027,14 +1262,12 @@
         background: rgba(239, 68, 68, 0.2);
         color: #f87171;
         border-color: rgba(239, 68, 68, 0.6);
-        box-shadow: 0 0 10px rgba(239, 68, 68, 0.2);
       }
 
       .axis-filter-btn.filter-mitigated.active {
         background: rgba(16, 185, 129, 0.2);
         color: #34d399;
         border-color: rgba(16, 185, 129, 0.6);
-        box-shadow: 0 0 10px rgba(16, 185, 129, 0.2);
       }
 
       .axis-sort-wrap {
@@ -1061,11 +1294,7 @@
         color: var(--text-primary);
         outline: none;
         cursor: pointer;
-        transition: border-color 0.2s ease;
-      }
-
-      .axis-sort-select:hover, .axis-sort-select:focus {
-        border-color: #00f2fe;
+        font-family: inherit;
       }
 
       .axes-cards-grid {
@@ -1086,7 +1315,6 @@
         position: relative;
         overflow: hidden;
       }
-
       .axis-card:hover {
         transform: translateY(-2px);
         border-color: rgba(0, 242, 254, 0.4);
@@ -1097,24 +1325,19 @@
         border-left: 4px solid #ef4444;
         background: linear-gradient(135deg, rgba(239, 68, 68, 0.07), rgba(20, 24, 33, 0.95));
       }
-
       .axis-card.card-tier-warning {
         border-left: 4px solid #f59e0b;
         background: linear-gradient(135deg, rgba(245, 158, 11, 0.07), rgba(20, 24, 33, 0.95));
       }
-
       .axis-card.card-tier-mitigated {
         border-left: 4px solid #10b981;
         background: linear-gradient(135deg, rgba(16, 185, 129, 0.07), rgba(20, 24, 33, 0.95));
       }
-
       .axis-card.card-tier-active {
         border-left: 4px solid #00f2fe;
-        background: linear-gradient(135deg, rgba(0, 242, 254, 0.04), rgba(20, 24, 33, 0.95));
       }
-
       .axis-card.card-tier-baseline {
-        border-left: 4px solid rgba(255, 255, 255, 0.15);
+        border-left: 4px solid #64748b;
       }
 
       .axis-card-top {
@@ -1124,168 +1347,98 @@
         gap: 8px;
       }
 
-      .axis-name-group {
-        display: flex;
-        flex-direction: column;
-        gap: 2px;
-      }
-
       .axis-name {
         font-size: 0.96rem;
         font-weight: 800;
         color: var(--text-primary);
-        display: flex;
-        align-items: center;
-        gap: 6px;
       }
-
-      .axis-tier-tag {
-        display: inline-flex;
-        align-items: center;
-        padding: 2px 7px;
-        border-radius: 4px;
-        font-size: 0.68rem;
-        font-weight: 800;
-        text-transform: uppercase;
-        letter-spacing: 0.03em;
-      }
-
-      .tier-critical { background: rgba(239, 68, 68, 0.2); color: #f87171; border: 1px solid rgba(239, 68, 68, 0.4); }
-      .tier-warning { background: rgba(245, 158, 11, 0.2); color: #fbbf24; border: 1px solid rgba(245, 158, 11, 0.4); }
-      .tier-mitigated { background: rgba(16, 185, 129, 0.2); color: #34d399; border: 1px solid rgba(16, 185, 129, 0.4); }
-      .tier-active { background: rgba(0, 242, 254, 0.15); color: #38bdf8; border: 1px solid rgba(0, 242, 254, 0.3); }
-      .tier-baseline { background: rgba(255, 255, 255, 0.06); color: var(--text-muted); border: 1px solid rgba(255, 255, 255, 0.1); }
 
       .axis-safe-range {
-        font-size: 0.75rem;
+        font-size: 0.74rem;
         color: var(--text-muted);
-        font-family: 'JetBrains Mono', monospace;
+        font-weight: 600;
       }
 
       .axis-values-row {
         display: flex;
-        align-items: baseline;
         justify-content: space-between;
-        padding: 10px 14px;
+        align-items: flex-end;
         background: rgba(0, 0, 0, 0.3);
+        padding: 10px 12px;
         border-radius: var(--radius-sm);
+        border: 1px solid var(--border-subtle);
       }
 
       .axis-val-primary {
-        font-size: 1.3rem;
-        font-weight: 800;
+        font-size: 1.25rem;
+        font-weight: 900;
         font-family: 'JetBrains Mono', monospace;
       }
 
       .axis-val-delta {
-        font-size: 0.84rem;
+        font-size: 0.8rem;
         font-weight: 700;
         font-family: 'JetBrains Mono', monospace;
       }
 
-      /* RANGE GAUGE VISUALIZER */
-      .axis-range-visualizer {
-        display: flex;
-        flex-direction: column;
-        gap: 4px;
-        padding: 6px 4px;
-      }
-
-      .range-track-container {
-        position: relative;
-        height: 8px;
-        background: rgba(255, 255, 255, 0.08);
+      .axis-tier-tag {
+        font-size: 0.7rem;
+        font-weight: 800;
+        padding: 2px 6px;
         border-radius: 4px;
-        overflow: visible;
+        text-transform: uppercase;
+        letter-spacing: 0.04em;
       }
-
-      .range-safe-window {
-        position: absolute;
-        top: 0;
-        height: 100%;
-        background: rgba(16, 185, 129, 0.28);
-        border-left: 1px solid rgba(16, 185, 129, 0.6);
-        border-right: 1px solid rgba(16, 185, 129, 0.6);
-        border-radius: 2px;
-      }
-
-      .range-marker-baseline {
-        position: absolute;
-        top: -3px;
-        width: 4px;
-        height: 14px;
-        background: #94a3b8;
-        border-radius: 2px;
-        transform: translateX(-50%);
-        z-index: 2;
-      }
-
-      .range-marker-current {
-        position: absolute;
-        top: -4px;
-        width: 10px;
-        height: 16px;
-        border-radius: 3px;
-        transform: translateX(-50%);
-        box-shadow: 0 0 8px currentColor;
-        z-index: 3;
-      }
-
-      .range-meta-labels {
-        display: flex;
-        justify-content: space-between;
-        font-size: 0.68rem;
-        color: var(--text-muted);
-        font-family: 'JetBrains Mono', monospace;
-      }
+      .tier-critical { background: rgba(239, 68, 68, 0.2); color: #f87171; }
+      .tier-warning { background: rgba(245, 158, 11, 0.2); color: #fbbf24; }
+      .tier-mitigated { background: rgba(16, 185, 129, 0.2); color: #34d399; }
+      .tier-active { background: rgba(0, 242, 254, 0.2); color: #00f2fe; }
+      .tier-baseline { background: rgba(100, 116, 139, 0.2); color: #94a3b8; }
 
       .axis-contrib-list {
         display: flex;
         flex-direction: column;
-        gap: 6px;
+        gap: 4px;
       }
 
       .axis-contrib-item {
         display: flex;
         justify-content: space-between;
         align-items: center;
-        font-size: 0.8rem;
         padding: 4px 8px;
         background: rgba(255, 255, 255, 0.03);
         border-radius: 4px;
+        font-size: 0.76rem;
       }
 
       .contrib-name {
-        font-weight: 600;
         color: var(--text-secondary);
+        font-weight: 600;
       }
 
       .contrib-delta {
         font-weight: 700;
         font-family: 'JetBrains Mono', monospace;
       }
-
       .contrib-delta.up { color: #f87171; }
       .contrib-delta.down { color: #34d399; }
-      .contrib-delta.target-up { color: #60a5fa; }
 
       .mitigations-section, .uncompensated-section {
         display: flex;
         flex-direction: column;
-        gap: 12px;
+        gap: 10px;
+        margin-bottom: 16px;
       }
 
       .section-heading-row {
         display: flex;
-        align-items: center;
         justify-content: space-between;
+        align-items: center;
       }
 
       .section-heading-title {
-        font-size: 0.92rem;
+        font-size: 0.96rem;
         font-weight: 800;
-        text-transform: uppercase;
-        letter-spacing: 0.05em;
         color: var(--text-primary);
         display: flex;
         align-items: center;
@@ -1293,14 +1446,13 @@
       }
 
       .mitigation-card {
-        background: linear-gradient(135deg, rgba(16, 185, 129, 0.1), rgba(6, 182, 212, 0.08));
-        border: 1px solid rgba(16, 185, 129, 0.35);
-        border-left: 4px solid #10b981;
+        background: rgba(16, 185, 129, 0.08);
+        border: 1px solid rgba(16, 185, 129, 0.3);
         border-radius: var(--radius-md);
-        padding: 16px;
+        padding: 12px 14px;
         display: flex;
         flex-direction: column;
-        gap: 8px;
+        gap: 6px;
       }
 
       .mitigation-card-header {
@@ -1311,43 +1463,21 @@
 
       .mitigation-title {
         font-weight: 800;
-        font-size: 0.96rem;
+        font-size: 0.92rem;
         color: #34d399;
       }
 
       .uncompensated-card {
-        background: linear-gradient(135deg, rgba(239, 68, 68, 0.12), rgba(245, 158, 11, 0.08));
-        border: 1px solid rgba(239, 68, 68, 0.4);
-        border-left: 4px solid #ef4444;
+        background: rgba(239, 68, 68, 0.08);
+        border: 1px solid rgba(239, 68, 68, 0.3);
         border-radius: var(--radius-md);
-        padding: 16px;
+        padding: 12px 14px;
         display: flex;
         flex-direction: column;
-        gap: 8px;
+        gap: 6px;
       }
 
-      .cell-icon {
-        font-size: 1rem;
-        line-height: 1;
-      }
-
-      .cell-label {
-        font-size: 0.72rem;
-        font-weight: 700;
-        letter-spacing: 0.02em;
-        text-transform: uppercase;
-        max-width: 90px;
-        overflow: hidden;
-        text-overflow: ellipsis;
-        white-space: nowrap;
-      }
-
-      .cell-sublabel {
-        font-size: 0.65rem;
-        color: var(--text-muted);
-      }
-
-      /* BREAKDOWNS & CARDS */
+      /* BREAKDOWNS TAB */
       .breakdown-grid {
         display: grid;
         grid-template-columns: 1fr;
@@ -1356,17 +1486,23 @@
 
       .conflict-card {
         background: var(--bg-card);
+        border: 1px solid var(--border-subtle);
         border-radius: var(--radius-md);
-        padding: 16px;
-        border-left: 4px solid var(--severity-neutral);
+        padding: 14px 16px;
         display: flex;
         flex-direction: column;
-        gap: 6px;
+        gap: 8px;
       }
 
-      .conflict-card.card-synergy { border-left-color: var(--severity-synergy); }
-      .conflict-card.card-moderate { border-left-color: var(--severity-moderate); }
-      .conflict-card.card-high { border-left-color: var(--severity-high); }
+      .conflict-card.card-high {
+        border-left: 4px solid var(--severity-high);
+      }
+      .conflict-card.card-moderate {
+        border-left: 4px solid var(--severity-moderate);
+      }
+      .conflict-card.card-synergy {
+        border-left: 4px solid var(--severity-synergy);
+      }
 
       .conflict-card-top {
         display: flex;
@@ -1375,8 +1511,8 @@
       }
 
       .conflict-card-title {
-        font-weight: 700;
-        font-size: 0.95rem;
+        font-weight: 800;
+        font-size: 0.94rem;
         color: var(--text-primary);
       }
 
@@ -1387,82 +1523,63 @@
       }
 
       .conflict-card-rec {
-        margin-top: 4px;
-        padding: 8px 12px;
-        background: rgba(0, 0, 0, 0.25);
+        font-size: 0.8rem;
+        padding: 8px 10px;
         border-radius: var(--radius-sm);
-        font-size: 0.82rem;
+        background: rgba(0, 0, 0, 0.3);
+        border: 1px solid var(--border-subtle);
         color: var(--accent-cyan);
-        font-weight: 500;
       }
 
-      #network-svg {
-        width: 100%;
-        height: 100%;
-      }
-
-      /* MODAL / DRAWER INSPECTOR */
+      /* ==========================================================================
+         MODALS & INSPECTOR
+         ========================================================================== */
       .modal-backdrop {
+        display: none;
         position: fixed;
         inset: 0;
-        background: rgba(4, 10, 18, 0.75);
-        backdrop-filter: blur(10px);
-        display: flex;
-        align-items: center;
+        background: rgba(2, 6, 16, 0.78);
+        backdrop-filter: blur(12px);
+        -webkit-backdrop-filter: blur(12px);
+        z-index: 200;
         justify-content: center;
-        padding: 20px;
-        z-index: 1000;
-        opacity: 0;
-        pointer-events: none;
-        transition: opacity 0.25s ease;
+        align-items: center;
       }
-
       .modal-backdrop.open {
-        opacity: 1;
-        pointer-events: auto;
+        display: flex;
+        animation: fadeIn 0.2s ease forwards;
       }
 
       .modal-dialog {
-        background: #0e2034;
-        border: 1px solid var(--border);
+        background: var(--bg-surface);
+        border: 1px solid var(--border-mid);
         border-radius: var(--radius-xl);
-        max-width: 620px;
-        width: 100%;
-        box-shadow: 0 25px 60px -12px rgba(0, 0, 0, 0.8);
-        transform: translateY(16px);
-        transition: transform 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+        width: min(580px, calc(100vw - 32px));
+        max-height: 85vh;
+        box-shadow: 0 20px 50px rgba(0, 0, 0, 0.8);
+        display: flex;
+        flex-direction: column;
         overflow: hidden;
       }
 
-      .modal-backdrop.open .modal-dialog {
-        transform: translateY(0);
-      }
-
       .modal-header {
-        padding: 20px 24px;
-        border-bottom: 1px solid var(--border-subtle);
         display: flex;
         justify-content: space-between;
         align-items: center;
-      }
-
-      .modal-title-group {
-        display: flex;
-        flex-direction: column;
-        gap: 4px;
+        padding: 16px 20px;
+        border-bottom: 1px solid var(--border-subtle);
+        background: rgba(14, 28, 48, 0.5);
       }
 
       .modal-title {
-        font-size: 1.15rem;
+        font-size: 1.05rem;
         font-weight: 800;
         color: var(--text-primary);
       }
-
       .modal-subtitle {
-        font-size: 0.78rem;
-        color: var(--text-muted);
-        text-transform: uppercase;
-        letter-spacing: 0.05em;
+        font-size: 0.76rem;
+        color: var(--accent-cyan);
+        font-weight: 600;
       }
 
       .modal-close-btn {
@@ -1471,30 +1588,30 @@
         color: var(--text-muted);
         font-size: 1.4rem;
         cursor: pointer;
-        padding: 4px;
+        padding: 2px 8px;
         border-radius: 4px;
+        transition: color 0.15s ease;
       }
-
       .modal-close-btn:hover {
         color: var(--text-primary);
       }
 
       .modal-body {
-        padding: 24px;
+        padding: 20px;
+        overflow-y: auto;
         display: flex;
         flex-direction: column;
-        gap: 18px;
-        max-height: 70vh;
-        overflow-y: auto;
+        gap: 16px;
       }
 
       .modal-section-title {
-        font-size: 0.76rem;
+        font-size: 0.75rem;
+        font-weight: 800;
         text-transform: uppercase;
-        letter-spacing: 0.06em;
+        letter-spacing: 0.05em;
         color: var(--text-muted);
-        font-weight: 700;
         margin-bottom: 6px;
+        display: block;
       }
 
       .modal-chip-wrap {
@@ -1508,17 +1625,54 @@
         border-radius: var(--radius-sm);
         background: var(--bg-card);
         border: 1px solid var(--border-subtle);
-        font-size: 0.8rem;
+        font-size: 0.78rem;
         font-weight: 600;
         color: var(--text-primary);
       }
 
+      /* TOAST NOTIFICATION */
+      .toast-container {
+        position: fixed;
+        bottom: 24px;
+        right: 24px;
+        z-index: 300;
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+        pointer-events: none;
+      }
+
+      .toast-message {
+        background: rgba(10, 24, 42, 0.95);
+        border: 1px solid var(--accent-cyan);
+        box-shadow: 0 8px 24px rgba(0, 0, 0, 0.6), 0 0 16px rgba(0, 242, 254, 0.25);
+        color: var(--text-primary);
+        padding: 10px 16px;
+        border-radius: var(--radius-md);
+        font-size: 0.82rem;
+        font-weight: 700;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        animation: toastSlide 0.3s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+      }
+
+      @keyframes toastSlide {
+        from { opacity: 0; transform: translateY(12px); }
+        to { opacity: 1; transform: translateY(0); }
+      }
+
+      @keyframes fadeIn {
+        from { opacity: 0; }
+        to { opacity: 1; }
+      }
+
       /* ==========================================================================
-         RESPONSIVE MOBILE BREAKPOINTS & TOUCH OPTIMIZATIONS
+         RESPONSIVE STYLES
          ========================================================================== */
-      @media (max-width: 1200px) {
+      @media (max-width: 1150px) {
         .workbench-layout {
-          grid-template-columns: 360px 1fr;
+          grid-template-columns: 370px 1fr;
           gap: 16px;
         }
       }
@@ -1528,40 +1682,28 @@
           padding: 14px 16px 40px;
         }
         .status-banner {
-          grid-template-columns: 240px 1fr;
+          grid-template-columns: 1fr;
           gap: 16px;
-          padding: 16px 18px;
-        }
-        .summary-stats-grid {
-          grid-template-columns: repeat(2, 1fr);
-          gap: 10px;
         }
         .workbench-layout {
           grid-template-columns: 1fr;
-          gap: 18px;
         }
       }
 
       @media (max-width: 768px) {
         .topbar {
-          padding: 12px 16px;
-          border-radius: var(--radius-md);
-          margin-bottom: 14px;
+          padding: 10px 14px;
         }
-
         .mobile-menu-toggle {
           display: flex;
         }
-
         .nav-links {
           display: none;
           position: absolute;
           top: calc(100% + 8px);
           left: 0;
           right: 0;
-          background: rgba(12, 24, 38, 0.96);
-          backdrop-filter: blur(20px);
-          -webkit-backdrop-filter: blur(20px);
+          background: rgba(10, 22, 38, 0.98);
           border: 1px solid var(--border);
           border-radius: var(--radius-md);
           box-shadow: 0 16px 36px rgba(0, 0, 0, 0.65);
@@ -1570,203 +1712,14 @@
           gap: 6px;
           z-index: 120;
         }
-
         .nav-links.open {
           display: flex;
-          animation: slideDownNav 0.2s cubic-bezier(0.16, 1, 0.3, 1) forwards;
         }
-
-        @keyframes slideDownNav {
-          from { opacity: 0; transform: translateY(-8px); }
-          to { opacity: 1; transform: translateY(0); }
-        }
-
         .nav-link {
           width: 100%;
-          padding: 10px 14px;
-          font-size: 0.92rem;
         }
-
-        .status-banner {
-          grid-template-columns: 1fr;
-          gap: 16px;
-          padding: 16px;
-          border-radius: var(--radius-lg);
-        }
-
-        .gauge-card {
-          padding: 14px;
-        }
-
-        .gauge-meter-wrap {
-          width: 120px;
-          height: 120px;
-          margin-bottom: 8px;
-        }
-
-        .gauge-svg {
-          width: 120px;
-          height: 120px;
-        }
-
-        .gauge-score-val {
-          font-size: 1.9rem;
-        }
-
-        .panel {
-          padding: 16px;
-          border-radius: var(--radius-lg);
-        }
-
-        .tabs-nav {
-          overflow-x: auto;
-          -webkit-overflow-scrolling: touch;
-          scrollbar-width: none;
-          flex-wrap: nowrap;
-          padding-bottom: 6px;
-          gap: 6px;
-          margin-bottom: 14px;
-        }
-
-        .tabs-nav::-webkit-scrollbar {
-          display: none;
-        }
-
-        .tab-btn {
-          white-space: nowrap;
-          flex-shrink: 0;
-          padding: 7px 12px;
-          font-size: 0.82rem;
-        }
-
-        .tab-btn-link {
-          margin-left: 0;
-          flex-shrink: 0;
-          white-space: nowrap;
-          font-size: 0.78rem;
-          padding: 5px 10px;
-        }
-
-        .balance-hero-banner {
-          flex-direction: column;
-          align-items: flex-start;
-          gap: 14px;
-          padding: 16px;
-        }
-
-        .balance-hero-badge-wrap {
-          width: 100%;
-          justify-content: space-between;
-        }
-
-        .axes-toolbar-row {
-          flex-direction: column;
-          align-items: flex-start;
-          gap: 10px;
-        }
-
-        .axes-filter-chips {
-          overflow-x: auto;
-          -webkit-overflow-scrolling: touch;
-          scrollbar-width: none;
-          width: 100%;
-          flex-wrap: nowrap;
-          padding-bottom: 4px;
-        }
-
-        .axes-filter-chips::-webkit-scrollbar {
-          display: none;
-        }
-
-        .axis-filter-btn {
-          white-space: nowrap;
-          flex-shrink: 0;
-        }
-
-        .matrix-table {
-          border-spacing: 4px;
-        }
-
-        .matrix-cell {
-          min-width: 84px;
-          height: 60px;
-          padding: 4px 6px;
-          font-size: 0.72rem;
-        }
-
-        .modal-dialog {
-          width: min(540px, calc(100vw - 20px));
-          margin: 10px;
-        }
-
-        .modal-header {
-          padding: 16px 18px;
-        }
-
-        .modal-body {
-          padding: 16px 18px;
-          max-height: calc(85vh - 70px);
-        }
-      }
-
-      @media (max-width: 480px) {
-        .app-wrapper {
-          padding: 10px 10px 30px;
-        }
-
-        .brand-icon {
-          width: 32px;
-          height: 32px;
-          font-size: 1rem;
-        }
-
         .summary-stats-grid {
           grid-template-columns: 1fr 1fr;
-          gap: 8px;
-        }
-
-        .stat-chip {
-          padding: 10px;
-        }
-
-        .stat-chip-val {
-          font-size: 1.1rem;
-        }
-
-        .biomarker-grid {
-          grid-template-columns: 1fr;
-          gap: 10px;
-        }
-
-        .quick-tag {
-          padding: 6px 10px;
-          font-size: 0.75rem;
-        }
-
-        .action-btn-row {
-          flex-direction: column;
-          gap: 8px;
-        }
-
-        .btn-secondary {
-          width: 100%;
-          padding: 10px;
-        }
-
-        .stack-item-controls {
-          grid-template-columns: 1fr;
-          gap: 6px;
-        }
-
-        .matrix-cell {
-          min-width: 72px;
-          height: 54px;
-        }
-
-        .matrix-table th {
-          max-width: 80px;
-          font-size: 0.7rem;
-          padding: 4px 6px;
         }
       }
     </style>
@@ -1782,15 +1735,92 @@
             <span class="brand-subtitle">Collision Matrix & Safety Engine</span>
           </div>
         </div>
-        <button class="mobile-menu-toggle" id="mobile-menu-toggle" aria-label="Toggle navigation menu">
-          <span>☰</span>
-        </button>
-        <nav class="nav-links" id="nav-links">
-          <a href="/" class="nav-link active">Safety Lab</a>
-          <a href="/graph" class="nav-link" id="nav-graph-link">Knowledge Graph</a>
-          <a href="/admin" class="nav-link">Catalog DB</a>
-          <a href="/docs" target="_blank" class="nav-link">API Docs</a>
-        </nav>
+
+        <div class="topbar-actions">
+          <!-- PRESET STACKS MENU -->
+          <div class="preset-dropdown-wrap">
+            <button class="btn-header-action" id="preset-menu-btn" title="Load real-world clinical & performance stacks">
+              <span>⚡ Example Stacks</span>
+              <span style="font-size: 0.68rem; opacity: 0.7;">▼</span>
+            </button>
+            <div class="preset-menu" id="preset-menu">
+              <div class="preset-menu-header">
+                <span>Scientifically Valid Protocols</span>
+                <span>6 Presets</span>
+              </div>
+              
+              <div class="preset-item" onclick="loadPreset('focus')">
+                <div class="preset-item-title">
+                  <span>🧠 Focus & Nootropic Surge</span>
+                  <span class="preset-badge">PK Synergy</span>
+                </div>
+                <div class="preset-item-desc">Caffeine + L-Theanine + Bacopa + L-Carnitine (Adenosine, GABA-A balance, calm clarity)</div>
+              </div>
+
+              <div class="preset-item" onclick="loadPreset('cardio_shield')">
+                <div class="preset-item-title">
+                  <span>🫀 Cardiometabolic & Endothelial Shield</span>
+                  <span class="preset-badge">Organ Protection</span>
+                </div>
+                <div class="preset-item-desc">Telmisartan + Citrus Bergamot + CoQ10 + Tadalafil (AT1 blockade, lipids, eNOS)</div>
+              </div>
+
+              <div class="preset-item" onclick="loadPreset('trt_balance')">
+                <div class="preset-item-title">
+                  <span>🛡️ Complete TRT & Endocrine Balance</span>
+                  <span class="preset-badge">Equilibrium Flagship</span>
+                </div>
+                <div class="preset-item-desc">Testosterone + Anastrozole + Telmisartan + TUDCA (E2 counterpoise & BP shield)</div>
+              </div>
+
+              <div class="preset-item" onclick="loadPreset('thermogenic_shield')">
+                <div class="preset-item-title">
+                  <span>🔥 Thermogenesis + Cardioselective Shield</span>
+                  <span class="preset-badge">&beta;1/&beta;2 Counterbalance</span>
+                </div>
+                <div class="preset-item-desc">Clenbuterol + Nebivolol + Taurine (Fat oxidation with cardioselective heart protection)</div>
+              </div>
+
+              <div class="preset-item" onclick="loadPreset('bioenhancement')">
+                <div class="preset-item-title">
+                  <span>⚡ Bioenhancer & Longevity Cascade</span>
+                  <span class="preset-badge">+2000% AUC Surge</span>
+                </div>
+                <div class="preset-item-desc">Curcumin + Piperine + NAC (Intestinal P-gp/UGT1A1 multiplier + cellular redox)</div>
+              </div>
+
+              <div class="preset-item" onclick="loadPreset('sleep_recovery')">
+                <div class="preset-item-title">
+                  <span>🌙 Neuro-Sleep & Cortisol Reset</span>
+                  <span class="preset-badge">GABA / Melatonin</span>
+                </div>
+                <div class="preset-item-desc">Magnesium + L-Theanine + Melatonin + Tart Cherry (NMDA calm & circadian sync)</div>
+              </div>
+            </div>
+          </div>
+
+          <!-- TOUR / HELP BUTTON -->
+          <button class="btn-header-action" id="how-it-works-btn" title="View interactive guide on how to use HealthAI">
+            <span>❔ Guide</span>
+          </button>
+
+          <!-- MODE TOGGLE -->
+          <div class="mode-toggle-group" title="Switch between Simplified Clinical view and Advanced Pharmacokinetics">
+            <button class="mode-btn active" id="mode-std-btn" onclick="setExperienceMode('standard')">Standard</button>
+            <button class="mode-btn" id="mode-power-btn" onclick="setExperienceMode('power')">Power User</button>
+          </div>
+
+          <button class="mobile-menu-toggle" id="mobile-menu-toggle" aria-label="Toggle navigation menu">
+            <span>☰</span>
+          </button>
+
+          <nav class="nav-links" id="nav-links">
+            <a href="/" class="nav-link active">Safety Lab</a>
+            <a href="/graph" class="nav-link" id="nav-graph-link">Knowledge Graph</a>
+            <a href="/compound?key=caffeine" class="nav-link">Compound DB</a>
+            <a href="/admin" class="nav-link">Catalog DB</a>
+          </nav>
+        </div>
       </header>
 
       <!-- GAUGE & SUMMARY BANNER -->
@@ -1818,7 +1848,7 @@
                 Pharmacological Stack Assessment
               </h2>
               <p id="summary-narrative" class="summary-text-box">
-                Add compounds from the search catalog to evaluate real-time pharmacodynamic collisions, CYP450 enzyme overlaps, and cumulative safety scores.
+                Add compounds from the search catalog or pick an example stack to evaluate real-time pharmacodynamic collisions, CYP450 enzyme overlaps, and cumulative safety scores.
               </p>
             </div>
           </div>
@@ -1855,6 +1885,17 @@
             </h3>
           </div>
 
+          <!-- 1-CLICK QUICK PRESETS STRIP -->
+          <div class="workbench-presets-bar">
+            <span style="font-size: 0.72rem; color: var(--text-muted); font-weight: 700; display: flex; align-items: center; gap: 4px; margin-right: 4px;">⚡ Quick Presets:</span>
+            <button class="preset-chip-btn" onclick="loadPreset('focus')">🧠 Focus</button>
+            <button class="preset-chip-btn" onclick="loadPreset('cardio_shield')">🫀 Cardio</button>
+            <button class="preset-chip-btn" onclick="loadPreset('trt_balance')">🛡️ TRT Balance</button>
+            <button class="preset-chip-btn" onclick="loadPreset('thermogenic_shield')">🔥 Thermo Shield</button>
+            <button class="preset-chip-btn" onclick="loadPreset('bioenhancement')">⚡ Bioenhancer</button>
+            <button class="preset-chip-btn" onclick="loadPreset('sleep_recovery')">🌙 Sleep</button>
+          </div>
+
           <!-- AUTOCOMPLETE SEARCH -->
           <div class="search-container">
             <div class="search-input-wrapper">
@@ -1863,28 +1904,48 @@
                 type="text"
                 id="compound-search-input"
                 class="search-input"
-                placeholder="Search catalog (e.g. Caffeine, Berberine, Theanine)..."
+                placeholder="Search catalog (e.g. Caffeine, Telmisartan, Curcumin)..."
                 autocomplete="off"
               />
             </div>
             <div id="search-dropdown" class="search-dropdown"></div>
           </div>
 
-          <!-- QUICK ADD TAGS -->
+          <!-- CATEGORIZED QUICK ADD TAGS -->
           <div class="quick-tags-section">
-            <span class="quick-tags-label">Quick Add Compounds</span>
+            <div class="quick-tags-nav">
+              <button class="quick-cat-btn active" onclick="switchQuickCat('all', this)">All</button>
+              <button class="quick-cat-btn" onclick="switchQuickCat('nootropic', this)">🧠 Focus</button>
+              <button class="quick-cat-btn" onclick="switchQuickCat('cardio', this)">🫀 Cardio</button>
+              <button class="quick-cat-btn" onclick="switchQuickCat('metabolic', this)">⚡ Metabolic</button>
+              <button class="quick-cat-btn" onclick="switchQuickCat('endocrine', this)">🛡️ Endocrine</button>
+              <button class="quick-cat-btn" onclick="switchQuickCat('recovery', this)">🌿 Recovery</button>
+            </div>
             <div id="quick-tags-wrap" class="quick-tags-wrap">
-              <button class="quick-tag" data-key="caffeine">+ Caffeine</button>
-              <button class="quick-tag" data-key="theanine">+ L-Theanine</button>
-              <button class="quick-tag" data-key="berberine">+ Berberine</button>
-              <button class="quick-tag" data-key="creatine">+ Creatine</button>
-              <button class="quick-tag" data-key="ashwagandha">+ Ashwagandha</button>
-              <button class="quick-tag" data-key="telmisartan">+ Telmisartan</button>
-              <button class="quick-tag" data-key="beta_alanine">+ Beta-Alanine</button>
-              <button class="quick-tag" data-key="alpha_gpc">+ Alpha-GPC</button>
-              <button class="quick-tag" data-key="nac">+ NAC</button>
-              <button class="quick-tag" data-key="tudca">+ TUDCA</button>
-              <button class="quick-tag" data-key="yohimbine">+ Yohimbine</button>
+              <button class="quick-tag" data-cat="nootropic" data-key="caffeine">+ Caffeine</button>
+              <button class="quick-tag" data-cat="nootropic" data-key="l_theanine">+ L-Theanine</button>
+              <button class="quick-tag" data-cat="nootropic" data-key="bacopa">+ Bacopa</button>
+              <button class="quick-tag" data-cat="nootropic" data-key="l_carnitine">+ L-Carnitine</button>
+              <button class="quick-tag" data-cat="cardio" data-key="telmisartan">+ Telmisartan</button>
+              <button class="quick-tag" data-cat="cardio" data-key="citrus_bergamot">+ Citrus Bergamot</button>
+              <button class="quick-tag" data-cat="cardio" data-key="coq10">+ CoQ10</button>
+              <button class="quick-tag" data-cat="cardio" data-key="tadalafil">+ Tadalafil</button>
+              <button class="quick-tag" data-cat="cardio" data-key="nebivolol">+ Nebivolol</button>
+              <button class="quick-tag" data-cat="metabolic" data-key="berberine">+ Berberine</button>
+              <button class="quick-tag" data-cat="metabolic" data-key="metformin">+ Metformin</button>
+              <button class="quick-tag" data-cat="metabolic" data-key="creatine">+ Creatine</button>
+              <button class="quick-tag" data-cat="metabolic" data-key="beta_alanine">+ Beta-Alanine</button>
+              <button class="quick-tag" data-cat="metabolic" data-key="clenbuterol">+ Clenbuterol</button>
+              <button class="quick-tag" data-cat="metabolic" data-key="taurine">+ Taurine</button>
+              <button class="quick-tag" data-cat="recovery" data-key="curcumin">+ Curcumin</button>
+              <button class="quick-tag" data-cat="recovery" data-key="piperine">+ Piperine</button>
+              <button class="quick-tag" data-cat="recovery" data-key="nac">+ NAC</button>
+              <button class="quick-tag" data-cat="recovery" data-key="tudca">+ TUDCA</button>
+              <button class="quick-tag" data-cat="recovery" data-key="magnesium">+ Magnesium</button>
+              <button class="quick-tag" data-cat="recovery" data-key="melatonin">+ Melatonin</button>
+              <button class="quick-tag" data-cat="endocrine" data-key="testosterone_enanthate">+ Testosterone</button>
+              <button class="quick-tag" data-cat="endocrine" data-key="anastrozole">+ Anastrozole</button>
+              <button class="quick-tag" data-cat="endocrine" data-key="finasteride">+ Finasteride</button>
             </div>
           </div>
 
@@ -1893,98 +1954,121 @@
             <div id="stack-items-wrap" class="stack-items-wrap">
               <div id="empty-stack-placeholder" class="stack-empty-card">
                 Your stack is currently empty.<br />
-                Search above or click a quick-add tag to begin.
+                Search above, click a quick-add tag, or choose a <strong>⚡ Quick Preset</strong> above.
               </div>
             </div>
           </div>
 
-          <!-- BIOMARKER ACCORDION -->
+          <!-- BIOMARKER ACCORDION / PATIENT PROFILE -->
           <div class="biomarker-card">
-            <div class="biomarker-header">
-              <span>Personal Biomarker & Biometric Modifiers</span>
+            <div class="biomarker-header" onclick="toggleBiomarkerDrawer()">
+              <div style="display: flex; align-items: center; gap: 6px;">
+                <span>👤 Patient Biomarkers & Modifiers</span>
+                <span id="biomarker-toggle-icon" style="font-size: 0.75rem; color: var(--accent-cyan);">▼</span>
+              </div>
               <span style="font-size: 0.72rem; color: var(--accent-cyan);" id="biometric-sync-badge">Live Sync</span>
             </div>
-            <div style="font-size: 0.72rem; color: var(--text-muted); margin-bottom: 12px; line-height: 1.35;">
-              Fields left blank are treated as unknown, widening population distribution uncertainty curves.
-            </div>
-            <div class="biomarker-grid">
-              <div class="biomarker-field">
-                <label class="biomarker-label" for="bio-sex">Sex</label>
-                <select id="bio-sex" class="biomarker-input">
-                  <option value="" selected>Unspecified (Unknown)</option>
-                  <option value="male">Male</option>
-                  <option value="female">Female</option>
-                </select>
+            <div id="biomarker-drawer" style="display: none;">
+              <div style="font-size: 0.72rem; color: var(--text-muted); margin: 8px 0 12px; line-height: 1.35;">
+                Biometrics calibrate clearance rates and individual organ vulnerability curves.
               </div>
-              <div class="biomarker-field">
-                <label class="biomarker-label" for="bio-age">Age (Years)</label>
-                <input type="number" id="bio-age" class="biomarker-input" placeholder="e.g. 30" min="1" max="120" />
-              </div>
-              <div class="biomarker-field">
-                <label class="biomarker-label" for="bio-weight">Weight (kg)</label>
-                <input type="number" id="bio-weight" class="biomarker-input" placeholder="e.g. 70" min="20" max="300" step="0.5" />
-              </div>
-              <div class="biomarker-field">
-                <label class="biomarker-label" for="bio-height">Height (cm)</label>
-                <input type="number" id="bio-height" class="biomarker-input" placeholder="e.g. 175" min="100" max="250" />
-              </div>
-              <div class="biomarker-field">
-                <label class="biomarker-label" for="bio-bodyfat">Body Fat (%)</label>
-                <input type="number" id="bio-bodyfat" class="biomarker-input" placeholder="e.g. 15" min="2" max="60" step="0.5" />
-              </div>
-              <div class="biomarker-field">
-                <label class="biomarker-label" for="bio-bp">Blood Pressure (mmHg)</label>
-                <input type="number" id="bio-bp" class="biomarker-input" value="120" min="80" max="220" />
-              </div>
-              <div class="biomarker-field">
-                <label class="biomarker-label" for="bio-sleep">Sleep (Hours/Night)</label>
-                <input type="number" id="bio-sleep" class="biomarker-input" value="7.5" step="0.5" min="3" max="12" />
-              </div>
-              <div class="biomarker-field">
-                <label class="biomarker-label" for="bio-alt">ALT Liver Enzyme (U/L)</label>
-                <input type="number" id="bio-alt" class="biomarker-input" value="25" min="10" max="300" />
-              </div>
-              <div class="biomarker-field">
-                <label class="biomarker-label" for="bio-hematocrit">Hematocrit (%)</label>
-                <input type="number" id="bio-hematocrit" class="biomarker-input" value="46" min="30" max="65" />
+              <div class="biomarker-grid">
+                <div class="biomarker-field">
+                  <label class="biomarker-label" for="bio-sex">Sex</label>
+                  <select id="bio-sex" class="biomarker-input">
+                    <option value="" selected>Unspecified (Unknown)</option>
+                    <option value="male">Male</option>
+                    <option value="female">Female</option>
+                  </select>
+                </div>
+                <div class="biomarker-field">
+                  <label class="biomarker-label" for="bio-age">Age (Years)</label>
+                  <input type="number" id="bio-age" class="biomarker-input" placeholder="e.g. 30" min="1" max="120" />
+                </div>
+                <div class="biomarker-field">
+                  <label class="biomarker-label" for="bio-weight">Weight (kg)</label>
+                  <input type="number" id="bio-weight" class="biomarker-input" placeholder="e.g. 70" min="20" max="300" step="0.5" />
+                </div>
+                <div class="biomarker-field">
+                  <label class="biomarker-label" for="bio-height">Height (cm)</label>
+                  <input type="number" id="bio-height" class="biomarker-input" placeholder="e.g. 175" min="100" max="250" />
+                </div>
+                <div class="biomarker-field">
+                  <label class="biomarker-label" for="bio-bodyfat">Body Fat (%)</label>
+                  <input type="number" id="bio-bodyfat" class="biomarker-input" placeholder="e.g. 15" min="2" max="60" step="0.5" />
+                </div>
+                <div class="biomarker-field">
+                  <label class="biomarker-label" for="bio-bp">Blood Pressure (mmHg)</label>
+                  <input type="number" id="bio-bp" class="biomarker-input" value="120" min="80" max="220" />
+                </div>
+                <div class="biomarker-field">
+                  <label class="biomarker-label" for="bio-sleep">Sleep (Hours/Night)</label>
+                  <input type="number" id="bio-sleep" class="biomarker-input" value="7.5" step="0.5" min="3" max="12" />
+                </div>
+                <div class="biomarker-field">
+                  <label class="biomarker-label" for="bio-alt">ALT Liver Enzyme (U/L)</label>
+                  <input type="number" id="bio-alt" class="biomarker-input" value="25" min="10" max="300" />
+                </div>
+                <div class="biomarker-field">
+                  <label class="biomarker-label" for="bio-hematocrit">Hematocrit (%)</label>
+                  <input type="number" id="bio-hematocrit" class="biomarker-input" value="46" min="30" max="65" />
+                </div>
               </div>
             </div>
           </div>
 
           <div class="action-btn-row">
             <button id="clear-stack-btn" class="btn-secondary">Clear Stack</button>
-            <button id="export-json-btn" class="btn-secondary">Export Audit JSON</button>
+            <button id="export-json-btn" class="btn-secondary">Export JSON</button>
           </div>
         </aside>
 
         <!-- RIGHT PANEL: COLLISION MATRIX & DEEP DIVE TABS -->
         <section class="panel">
           <div class="tabs-nav">
-            <button class="tab-btn active" data-tab="matrix-tab">Collision Matrix (N×N)</button>
-            <button class="tab-btn" data-tab="balance-tab">⚖️ Full Stack Equilibrium</button>
-            <button class="tab-btn" data-tab="breakdown-tab">Conflict Deep Dive</button>
-            <a href="/graph" target="_blank" class="tab-btn-link" title="Open full-screen interactive biological network in a dedicated tab">
-              <span>🧬 Interactive Knowledge Graph</span>
+            <button class="tab-btn active" data-tab="balance-tab">
+              <span>⚖️ Full Stack Equilibrium</span>
+            </button>
+            <button class="tab-btn" data-tab="matrix-tab">
+              <span>Collision Matrix (N×N)</span>
+              <span id="tab-matrix-badge" class="tab-badge" style="display:none;"></span>
+            </button>
+            <button class="tab-btn" data-tab="breakdown-tab">
+              <span>Conflict Deep Dive</span>
+              <span id="tab-conflicts-badge" class="tab-badge" style="display:none;"></span>
+            </button>
+            <a href="/graph" target="_blank" class="tab-btn-link" id="open-full-graph-btn" title="Open full-screen interactive biological network in a dedicated tab">
+              <span>🧬 Knowledge Graph</span>
               <span style="font-size: 0.75rem; opacity: 0.85;">↗</span>
             </a>
           </div>
 
-          <!-- TAB 1: COLLISION MATRIX -->
-          <div id="matrix-tab" class="tab-pane active">
+          <!-- TAB 1: FULL STACK EQUILIBRIUM & PHYSIOLOGICAL AXES -->
+          <div id="balance-tab" class="tab-pane active">
+            <div id="balance-dashboard-wrap" class="balance-dashboard-container">
+              <div class="stack-empty-card">
+                Add compounds to evaluate full-stack physiological axes, dose counterbalances, and net biological equilibrium.
+              </div>
+            </div>
+          </div>
+
+          <!-- TAB 2: COLLISION MATRIX -->
+          <div id="matrix-tab" class="tab-pane" style="display: none;">
+            <!-- MATRIX LEGEND -->
+            <div class="matrix-legend-row">
+              <span style="font-weight: 800; color: var(--text-primary); text-transform: uppercase;">Legend:</span>
+              <div class="legend-item"><span class="legend-dot" style="background: var(--severity-synergy);"></span> Synergistic Pair</div>
+              <div class="legend-item"><span class="legend-dot" style="background: #34d399;"></span> Stack Mitigated</div>
+              <div class="legend-item"><span class="legend-dot" style="background: var(--severity-neutral);"></span> Neutral / Compatible</div>
+              <div class="legend-item"><span class="legend-dot" style="background: var(--severity-moderate);"></span> Moderate Risk</div>
+              <div class="legend-item"><span class="legend-dot" style="background: var(--severity-high);"></span> High Conflict</div>
+            </div>
+
             <div class="matrix-scroll-wrap">
               <div id="matrix-table-container">
                 <div class="stack-empty-card" style="padding: 60px 20px;">
                   Add 2 or more compounds to populate the pairwise N×N collision matrix.
                 </div>
-              </div>
-            </div>
-          </div>
-
-          <!-- TAB 2: FULL STACK EQUILIBRIUM & PHYSIOLOGICAL AXES -->
-          <div id="balance-tab" class="tab-pane" style="display: none;">
-            <div id="balance-dashboard-wrap" class="balance-dashboard-container">
-              <div class="stack-empty-card">
-                Add compounds to evaluate full-stack physiological axes, dose counterbalances, and net biological equilibrium.
               </div>
             </div>
           </div>
@@ -2035,12 +2119,67 @@
           </div>
         </div>
       </div>
+
+      <!-- HOW IT WORKS / QUICK GUIDE MODAL -->
+      <div id="guide-modal" class="modal-backdrop">
+        <div class="modal-dialog" style="max-width: 640px;">
+          <div class="modal-header">
+            <div class="modal-title-group">
+              <span class="modal-title">Welcome to HealthAI Pharmacology Lab</span>
+              <span class="modal-subtitle">Interactive Quick-Start Guide</span>
+            </div>
+            <button id="guide-close-btn" class="modal-close-btn">&times;</button>
+          </div>
+          <div class="modal-body" style="gap: 14px;">
+            <div style="display: flex; gap: 12px; align-items: flex-start; background: rgba(0, 242, 254, 0.08); padding: 12px; border-radius: var(--radius-md); border: 1px solid rgba(0, 242, 254, 0.2);">
+              <span style="font-size: 1.5rem;">1️⃣</span>
+              <div>
+                <strong style="color: var(--accent-cyan); font-size: 0.92rem;">Build Your Stack</strong>
+                <p style="font-size: 0.84rem; color: var(--text-secondary); margin-top: 2px;">Search from over 90+ validated compounds or click <strong>⚡ Quick Presets</strong> to instantly load clinically effective protocols (Focus, Cardiometabolic Shield, TRT Balance, Thermogenic Shield).</p>
+              </div>
+            </div>
+
+            <div style="display: flex; gap: 12px; align-items: flex-start; background: rgba(255, 255, 255, 0.03); padding: 12px; border-radius: var(--radius-md); border: 1px solid var(--border-subtle);">
+              <span style="font-size: 1.5rem;">2️⃣</span>
+              <div>
+                <strong style="color: #f8fafc; font-size: 0.92rem;">Tune Dosing & Administration Route</strong>
+                <p style="font-size: 0.84rem; color: var(--text-secondary); margin-top: 2px;">Customize exact dosages, administration frequency (Daily, Weekly, BID, PRN), and route (Oral, Sublingual, SubQ, IM). The engine calculates continuous effective exposure automatically.</p>
+              </div>
+            </div>
+
+            <div style="display: flex; gap: 12px; align-items: flex-start; background: rgba(255, 255, 255, 0.03); padding: 12px; border-radius: var(--radius-md); border: 1px solid var(--border-subtle);">
+              <span style="font-size: 1.5rem;">3️⃣</span>
+              <div>
+                <strong style="color: #f8fafc; font-size: 0.92rem;">Explore Full Stack Equilibrium</strong>
+                <p style="font-size: 0.84rem; color: var(--text-secondary); margin-top: 2px;">The <strong>⚖️ Equilibrium Engine</strong> evaluates holistic network dynamics across physiological axes (blood pressure, lipid profile, sex hormones, transaminases) and demonstrates how co-administered agents counterbalance potential risks.</p>
+              </div>
+            </div>
+
+            <div style="display: flex; gap: 12px; align-items: flex-start; background: rgba(255, 255, 255, 0.03); padding: 12px; border-radius: var(--radius-md); border: 1px solid var(--border-subtle);">
+              <span style="font-size: 1.5rem;">4️⃣</span>
+              <div>
+                <strong style="color: #f8fafc; font-size: 0.92rem;">Standard vs. Power User Mode</strong>
+                <p style="font-size: 0.84rem; color: var(--text-secondary); margin-top: 2px;">Toggle between <strong>Standard Mode</strong> for straightforward safety summaries or <strong>Power User Mode</strong> to unlock raw AUC multipliers, $p_5–p_{95}$ variance distributions, and enzyme clearance curves.</p>
+              </div>
+            </div>
+
+            <div style="text-align: center; margin-top: 6px;">
+              <button class="btn-secondary" style="background: var(--accent-cyan); color: #04151b; font-weight: 800; padding: 10px 24px; border: none; border-radius: var(--radius-sm); cursor: pointer;" onclick="document.getElementById('guide-modal').classList.remove('open')">
+                Got It, Let's Explore!
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- TOAST NOTIFICATION CONTAINER -->
+      <div class="toast-container" id="toast-container"></div>
     </div>
 
     <!-- WORKBENCH JAVASCRIPT LOGIC -->
     <script>
       const state = {
-        stack: [], // array of compound objects
+        stack: [],
         biomarkers: {
           sex: null,
           age: null,
@@ -2053,11 +2192,131 @@
           hematocrit_pct: 46,
         },
         analysis: null,
-        activeTab: 'matrix-tab',
+        activeTab: 'balance-tab',
         timeline: 'steady_state',
         axesFilter: 'all',
         axesSort: 'priority',
+        experienceMode: 'standard',
       };
+
+      // 6 SCIENTIFICALLY GROUNDED & POWERFUL PRESET PROTOCOLS
+      const PRESET_STACKS = {
+        focus: [
+          { key: 'caffeine', dose: 150, unit: 'mg', frequency: 'daily', timing: 'morning', route: 'oral' },
+          { key: 'l_theanine', dose: 200, unit: 'mg', frequency: 'daily', timing: 'morning', route: 'oral' },
+          { key: 'bacopa', dose: 300, unit: 'mg', frequency: 'daily', timing: 'morning', route: 'oral' },
+          { key: 'l_carnitine', dose: 500, unit: 'mg', frequency: 'daily', timing: 'morning', route: 'oral' }
+        ],
+        cardio_shield: [
+          { key: 'telmisartan', dose: 40, unit: 'mg', frequency: 'daily', timing: 'morning', route: 'oral' },
+          { key: 'citrus_bergamot', dose: 500, unit: 'mg', frequency: 'daily', timing: 'morning', route: 'oral' },
+          { key: 'coq10', dose: 100, unit: 'mg', frequency: 'daily', timing: 'morning', route: 'oral' },
+          { key: 'tadalafil', dose: 5, unit: 'mg', frequency: 'daily', timing: 'morning', route: 'oral' }
+        ],
+        trt_balance: [
+          { key: 'testosterone_enanthate', dose: 100, unit: 'mg', frequency: 'weekly', timing: 'morning', route: 'intramuscular' },
+          { key: 'anastrozole', dose: 0.25, unit: 'mg', frequency: 'twice_weekly', timing: 'morning', route: 'oral' },
+          { key: 'telmisartan', dose: 40, unit: 'mg', frequency: 'daily', timing: 'morning', route: 'oral' },
+          { key: 'tudca', dose: 250, unit: 'mg', frequency: 'daily', timing: 'morning', route: 'oral' }
+        ],
+        thermogenic_shield: [
+          { key: 'clenbuterol', dose: 40, unit: 'μg', frequency: 'daily', timing: 'morning', route: 'oral' },
+          { key: 'nebivolol', dose: 5, unit: 'mg', frequency: 'daily', timing: 'morning', route: 'oral' },
+          { key: 'taurine', dose: 2, unit: 'g', frequency: 'daily', timing: 'morning', route: 'oral' }
+        ],
+        bioenhancement: [
+          { key: 'curcumin', dose: 500, unit: 'mg', frequency: 'daily', timing: 'morning', route: 'oral' },
+          { key: 'piperine', dose: 10, unit: 'mg', frequency: 'daily', timing: 'morning', route: 'oral' },
+          { key: 'nac', dose: 600, unit: 'mg', frequency: 'daily', timing: 'morning', route: 'oral' }
+        ],
+        sleep_recovery: [
+          { key: 'magnesium', dose: 400, unit: 'mg', frequency: 'daily', timing: 'before bed', route: 'oral' },
+          { key: 'l_theanine', dose: 200, unit: 'mg', frequency: 'daily', timing: 'before bed', route: 'oral' },
+          { key: 'melatonin', dose: 1, unit: 'mg', frequency: 'daily', timing: 'before bed', route: 'oral' },
+          { key: 'tart_cherry', dose: 500, unit: 'mg', frequency: 'daily', timing: 'before bed', route: 'oral' }
+        ]
+      };
+
+      function toggleBiomarkerDrawer() {
+        const drawer = document.getElementById('biomarker-drawer');
+        const icon = document.getElementById('biomarker-toggle-icon');
+        if (!drawer) return;
+        const isHidden = drawer.style.display === 'none';
+        drawer.style.display = isHidden ? 'block' : 'none';
+        if (icon) icon.textContent = isHidden ? '▲' : '▼';
+      }
+      window.toggleBiomarkerDrawer = toggleBiomarkerDrawer;
+
+      function showToast(message, icon = '✓') {
+        const container = document.getElementById('toast-container');
+        if (!container) return;
+        const toast = document.createElement('div');
+        toast.className = 'toast-message';
+        toast.innerHTML = `<span>${icon}</span> <span>${message}</span>`;
+        container.appendChild(toast);
+        setTimeout(() => {
+          toast.style.opacity = '0';
+          toast.style.transform = 'translateY(-10px)';
+          toast.style.transition = 'all 0.3s ease';
+          setTimeout(() => toast.remove(), 300);
+        }, 3000);
+      }
+
+      function setExperienceMode(mode) {
+        state.experienceMode = mode;
+        const stdBtn = document.getElementById('mode-std-btn');
+        const pwrBtn = document.getElementById('mode-power-btn');
+        if (mode === 'power') {
+          stdBtn.classList.remove('active');
+          pwrBtn.classList.add('active');
+          showToast('Power-User Mode: Pharmacokinetic constants & variance enabled', '🔬');
+        } else {
+          pwrBtn.classList.remove('active');
+          stdBtn.classList.add('active');
+          showToast('Standard Mode: Plain-English clinical explanations', '🩺');
+        }
+        if (state.analysis) {
+          renderFullStackBalance(state.analysis);
+          renderBreakdowns(state.analysis);
+        }
+      }
+      window.setExperienceMode = setExperienceMode;
+
+      function loadPreset(presetKey) {
+        const preset = PRESET_STACKS[presetKey];
+        if (!preset) return;
+        state.stack = [];
+        preset.forEach(item => {
+          state.stack.push({
+            key: item.key,
+            name: item.key.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase()),
+            drug_class: 'Compound',
+            dose: item.dose,
+            unit: item.unit,
+            frequency: item.frequency,
+            timing: item.timing,
+            route: item.route,
+          });
+        });
+        const menu = document.getElementById('preset-menu');
+        if (menu) menu.classList.remove('open');
+        showToast(`Loaded ${presetKey.replace(/_/g, ' ').toUpperCase()} Protocol`, '⚡');
+        syncAndEvaluateStack();
+      }
+      window.loadPreset = loadPreset;
+
+      function switchQuickCat(cat, btn) {
+        document.querySelectorAll('.quick-cat-btn').forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+        document.querySelectorAll('.quick-tag').forEach(tag => {
+          if (cat === 'all' || tag.dataset.cat === cat) {
+            tag.style.display = 'inline-block';
+          } else {
+            tag.style.display = 'none';
+          }
+        });
+      }
+      window.switchQuickCat = switchQuickCat;
 
       function getFrequencyMultiplierClient(freq) {
         const f = (freq || '').toLowerCase().replace(/[^a-z0-9]/g, '_');
@@ -2075,14 +2334,14 @@
 
       function getTimelineDescription(tl) {
         const map = {
-          '1_day': 'Immediate acute response: autonomic tone, heart rate, acute blood pressure reactivity, and immediate peak biophase saturation.',
-          '3_days': 'Early adaptation: autonomic steady state, renal electrolyte reabsorption shifts, and acute-phase inflammatory markers.',
-          '1_week': 'Sub-acute tone: initial receptor downregulation/upregulation, transaminase elevations, and early glycemic adaptations.',
-          '2_weeks': 'Endocrine equilibrium: HPTA axis feedback suppression, steady transaminase enzyme response, and initial lipid receptor modulation.',
-          '1_month': 'Hepatic lipid remodeling (4 weeks): LDL-C / HDL-C remodeling, SHBG adaptation, and standard 4-week clinical bloodwork milestone.',
-          '2_months': 'Reticulocyte maturation (8 weeks): Cumulative bone marrow erythropoietic stimulation and hematological adaptation.',
-          '3_months': 'Full ~120-day erythrocyte turnover (12 weeks): Full steady-state HbA1c, hematocrit, and long-term multi-organ equilibrium.',
-          'steady_state': 'Theoretical long-term asymptotic steady-state biological equilibrium (100% full saturation & turnover).',
+          '1_day': 'Immediate acute response: autonomic tone, heart rate, acute blood pressure reactivity, and peak biophase saturation.',
+          '3_days': 'Early adaptation: autonomic steady state, renal electrolyte reabsorption shifts, and acute-phase markers.',
+          '1_week': 'Sub-acute tone: initial receptor downregulation/upregulation, transaminase elevations, and early glycemic adjustments.',
+          '2_weeks': 'Endocrine equilibrium: HPTA axis feedback suppression, steady transaminase response, and lipid receptor modulation.',
+          '1_month': 'Hepatic lipid remodeling (4 weeks): LDL-C / HDL-C shifts, SHBG adaptation, and clinical bloodwork milestone.',
+          '2_months': 'Reticulocyte maturation (8 weeks): Cumulative bone marrow erythropoietic stimulation.',
+          '3_months': 'Full ~120-day erythrocyte turnover (12 weeks): Full steady-state HbA1c, hematocrit, and long-term equilibrium.',
+          'steady_state': 'Theoretical long-term asymptotic steady-state biological equilibrium (100% saturation & turnover).',
         };
         return map[tl] || map['steady_state'];
       }
@@ -2124,6 +2383,33 @@
       const inspectorModal = document.getElementById('inspector-modal');
       const modalCloseBtn = document.getElementById('modal-close-btn');
 
+      // PRESET DROPDOWN TOGGLE
+      const presetBtn = document.getElementById('preset-menu-btn');
+      const presetMenu = document.getElementById('preset-menu');
+      if (presetBtn && presetMenu) {
+        presetBtn.addEventListener('click', (e) => {
+          e.stopPropagation();
+          presetMenu.classList.toggle('open');
+        });
+        document.addEventListener('click', (e) => {
+          if (!presetMenu.contains(e.target) && !presetBtn.contains(e.target)) {
+            presetMenu.classList.remove('open');
+          }
+        });
+      }
+
+      // GUIDE MODAL
+      const guideBtn = document.getElementById('how-it-works-btn');
+      const guideModal = document.getElementById('guide-modal');
+      const guideCloseBtn = document.getElementById('guide-close-btn');
+      if (guideBtn && guideModal) {
+        guideBtn.addEventListener('click', () => guideModal.classList.add('open'));
+        if (guideCloseBtn) guideCloseBtn.addEventListener('click', () => guideModal.classList.remove('open'));
+        guideModal.addEventListener('click', (e) => {
+          if (e.target === guideModal) guideModal.classList.remove('open');
+        });
+      }
+
       // DEBOUNCED SEARCH
       let searchTimeout = null;
       searchInput.addEventListener('input', (e) => {
@@ -2138,7 +2424,7 @@
             .then(res => res.json())
             .then(data => renderSearchDropdown(data))
             .catch(err => console.error(err));
-        }, 200);
+        }, 180);
       });
 
       function renderSearchDropdown(items) {
@@ -2190,31 +2476,32 @@
         if (k.includes('clonidine')) return { dose: 100, unit: 'μg', route: 'oral' };
         if (k.includes('alprazolam')) return { dose: 0.5, unit: 'mg', route: 'oral' };
         if (k.includes('nebivolol')) return { dose: 5, unit: 'mg', route: 'oral' };
-        if (k.includes('caffeine')) return { dose: 200, unit: 'mg', route: 'oral' };
+        if (k.includes('caffeine')) return { dose: 150, unit: 'mg', route: 'oral' };
         if (k.includes('theanine')) return { dose: 200, unit: 'mg', route: 'oral' };
         if (k.includes('creatine')) return { dose: 5, unit: 'g', route: 'oral' };
         if (k.includes('citrulline')) return { dose: 6, unit: 'g', route: 'oral' };
         if (k.includes('betaalanine')) return { dose: 3.2, unit: 'g', route: 'oral' };
         if (k.includes('yohimbine')) return { dose: 5, unit: 'mg', route: 'oral' };
         if (k.includes('telmisartan')) return { dose: 40, unit: 'mg', route: 'oral' };
-        if (k.includes('losartan')) return { dose: 50, unit: 'mg', route: 'oral' };
-        if (k.includes('valsartan')) return { dose: 80, unit: 'mg', route: 'oral' };
-        if (k.includes('eplerenone')) return { dose: 50, unit: 'mg', route: 'oral' };
-        if (k.includes('spironolactone')) return { dose: 50, unit: 'mg', route: 'oral' };
+        if (k.includes('curcumin')) return { dose: 500, unit: 'mg', route: 'oral' };
+        if (k.includes('piperine')) return { dose: 10, unit: 'mg', route: 'oral' };
+        if (k.includes('bacopa')) return { dose: 300, unit: 'mg', route: 'oral' };
+        if (k.includes('lcarnitine') || k.includes('carnitine')) return { dose: 500, unit: 'mg', route: 'oral' };
+        if (k.includes('coq10')) return { dose: 100, unit: 'mg', route: 'oral' };
+        if (k.includes('citrusbergamot') || k.includes('bergamot')) return { dose: 500, unit: 'mg', route: 'oral' };
+        if (k.includes('anastrozole')) return { dose: 0.25, unit: 'mg', route: 'oral' };
+        if (k.includes('tudca')) return { dose: 250, unit: 'mg', route: 'oral' };
+        if (k.includes('taurine')) return { dose: 2, unit: 'g', route: 'oral' };
+        if (k.includes('magnesium')) return { dose: 400, unit: 'mg', route: 'oral' };
+        if (k.includes('melatonin')) return { dose: 1, unit: 'mg', route: 'oral' };
+        if (k.includes('tartcherry')) return { dose: 500, unit: 'mg', route: 'oral' };
         if (k.includes('metformin')) return { dose: 500, unit: 'mg', route: 'oral' };
-        if (k.includes('empagliflozin') || k.includes('dapagliflozin')) return { dose: 10, unit: 'mg', route: 'oral' };
-        if (k.includes('semaglutide') || k.includes('tirzepatide') || k.includes('liraglutide') || k.includes('bpc157')) return { dose: 0.25, unit: 'mg', route: 'subcutaneous' };
-        if (k.includes('testosterone') || k.includes('nandrolone') || k.includes('trenbolone') || k.includes('boldenone') || k.includes('drostanolone') || k.includes('primobolan') || k.includes('methenolone') || k.includes('deca') || k.includes('masteron')) return { dose: 20, unit: 'mg', route: 'intramuscular' };
-        if (k.includes('aspirin')) return { dose: 81, unit: 'mg', route: 'oral' };
-        if (k.includes('atorvastatin')) return { dose: 20, unit: 'mg', route: 'oral' };
-        if (k.includes('rosuvastatin')) return { dose: 10, unit: 'mg', route: 'oral' };
-        if (k.includes('simvastatin')) return { dose: 20, unit: 'mg', route: 'oral' };
-        if (k.includes('pitavastatin')) return { dose: 2, unit: 'mg', route: 'oral' };
-        if (k.includes('tadalafil')) return { dose: 10, unit: 'mg', route: 'oral' };
+        if (k.includes('empagliflozin')) return { dose: 10, unit: 'mg', route: 'oral' };
+        if (k.includes('semaglutide') || k.includes('bpc157')) return { dose: 0.25, unit: 'mg', route: 'subcutaneous' };
+        if (k.includes('testosterone') || k.includes('nandrolone') || k.includes('trenbolone') || k.includes('boldenone') || k.includes('drostanolone')) return { dose: 100, unit: 'mg', route: 'intramuscular' };
+        if (k.includes('tadalafil')) return { dose: 5, unit: 'mg', route: 'oral' };
         if (k.includes('sildenafil')) return { dose: 50, unit: 'mg', route: 'oral' };
         if (k.includes('finasteride')) return { dose: 1, unit: 'mg', route: 'oral' };
-        if (k.includes('dutasteride')) return { dose: 0.5, unit: 'mg', route: 'oral' };
-        if (k.includes('diazepam')) return { dose: 10, unit: 'mg', route: 'oral' };
         return { dose: 10, unit: 'mg', route: 'oral' };
       }
 
@@ -2245,6 +2532,7 @@
               timing: 'morning',
               route: routeVal,
             });
+            showToast(`Added ${compound.name || cleanKey}`, '✓');
             syncAndEvaluateStack();
           })
           .catch(() => {
@@ -2252,13 +2540,14 @@
             state.stack.push({
               key: cleanKey,
               name: cleanKey.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase()),
-              drug_class: 'custom compound',
+              drug_class: 'Custom Compound',
               dose: fallback.dose,
               unit: fallback.unit,
               frequency: 'daily',
               timing: 'morning',
               route: fallback.route || 'oral',
             });
+            showToast(`Added ${cleanKey}`, '✓');
             syncAndEvaluateStack();
           });
       }
@@ -2266,14 +2555,16 @@
       function removeCompoundKey(key) {
         if (!key) return;
         const cleanKey = String(key).trim().toLowerCase().split(':')[0];
+        const item = state.stack.find(c => String(c.key).toLowerCase() === cleanKey);
         state.stack = state.stack.filter(c => String(c.key).toLowerCase() !== cleanKey);
+        if (item) showToast(`Removed ${item.name}`, '✕');
         syncAndEvaluateStack();
       }
 
       let _evalDebounce = null;
       function debouncedEvaluate() {
         clearTimeout(_evalDebounce);
-        _evalDebounce = setTimeout(() => evaluateStack(), 300);
+        _evalDebounce = setTimeout(() => evaluateStack(), 220);
       }
 
       function syncAndEvaluateStack() {
@@ -2281,16 +2572,12 @@
         debouncedEvaluate();
       }
 
-      // For in-place value changes (dose, unit, route, timing, frequency),
-      // only persist to localStorage + re-evaluate; do NOT re-render the list
-      // because that destroys the DOM element the user is interacting with.
       function persistAndEvaluate() {
         try {
           localStorage.setItem('healthai_stack', JSON.stringify(state.stack));
           window.dispatchEvent(new CustomEvent('healthai:stack-updated'));
         } catch (e) { /* ignore */ }
 
-        // Update nav link URLs
         const keys = state.stack.map(c => {
           const u = (c.unit || 'mg').replace('μg', 'ug');
           const freq = c.frequency || 'daily';
@@ -2303,27 +2590,6 @@
         const openBtn = document.getElementById('open-full-graph-btn');
         if (openBtn) openBtn.href = targetUrl;
 
-        // Update effective daily display text per card
-        state.stack.forEach(c => {
-          const card = stackItemsWrap.querySelector(`.stack-item-card[data-key="${c.key}"]`);
-          if (!card) return;
-          const unit = c.unit || 'mg';
-          const freq = c.frequency || 'daily';
-          const mult = getFrequencyMultiplierClient(freq);
-          const effDaily = c.dose * mult;
-          const effSpan = card.querySelector('[title="Effective continuous daily load"]');
-          if (effSpan) {
-            if (mult !== 1.0) {
-              const displayVal = effDaily >= 1.0 ? effDaily.toFixed(effDaily >= 10 ? 1 : 2) : (effDaily * 1000).toFixed(1);
-              const displayUnit = effDaily >= 1.0 ? unit : (unit === 'mg' ? 'μg' : unit);
-              effSpan.textContent = `≈ ${displayVal} ${displayUnit}/day`;
-              effSpan.parentElement.style.display = '';
-            } else {
-              effSpan.parentElement.style.display = 'none';
-            }
-          }
-        });
-
         debouncedEvaluate();
       }
 
@@ -2331,7 +2597,6 @@
         stackCountBadge.textContent = `${state.stack.length} items`;
         statCompounds.textContent = state.stack.length;
 
-        // Sync with localStorage
         try {
           localStorage.setItem('healthai_stack', JSON.stringify(state.stack));
           window.dispatchEvent(new CustomEvent('healthai:stack-updated'));
@@ -2339,7 +2604,6 @@
           console.warn('localStorage error', e);
         }
 
-        // Update nav link and tab button URLs with compound + dose + frequency + route params
         const keys = state.stack.map(c => {
           const u = (c.unit || 'mg').replace('μg', 'ug');
           const freq = c.frequency || 'daily';
@@ -2377,24 +2641,27 @@
                   <span class="stack-item-name">${c.name}</span>
                   <span class="stack-item-class">${c.drug_class || 'Compound'}</span>
                 </div>
-                <button class="stack-item-remove-btn" onclick="removeCompoundKey('${c.key}')" title="Remove">&times;</button>
+                <div class="stack-item-actions">
+                  <a href="/compound?key=${encodeURIComponent(c.key)}" target="_blank" class="stack-item-link-btn" title="View Deep Pharmacology">↗</a>
+                  <button class="stack-item-remove-btn" onclick="removeCompoundKey('${c.key}')" title="Remove">&times;</button>
+                </div>
               </div>
-              <div class="stack-item-controls" style="display:flex; flex-direction:column; gap:6px;">
+              <div style="display:flex; flex-direction:column; gap:6px;">
                 <div style="display:flex; gap:6px; align-items:center;">
                   <div style="display:flex; align-items:center; gap:4px; flex:1;">
                     <input 
                       type="number" 
                       class="control-input" 
-                      style="width:72px; padding:4px 8px; font-weight:600;" 
+                      style="width:74px; padding:4px 8px; font-weight:700; font-family:'JetBrains Mono',monospace;" 
                       min="0" 
                       step="any" 
                       value="${c.dose}" 
                       onchange="updateDoseVal('${c.key}', this.value)" 
-                      title="Change administered dose"
+                      title="Administered dose amount"
                     />
                     <select 
                       class="control-select" 
-                      style="width:62px; padding:4px 6px; font-weight:600;" 
+                      style="width:62px; padding:4px 6px; font-weight:700;" 
                       onchange="updateDoseUnit('${c.key}', this.value)"
                       title="Select dose unit"
                     >
@@ -2416,22 +2683,21 @@
                     class="control-select" 
                     style="flex:1; font-size:0.75rem; font-weight:600;" 
                     onchange="updateRoute('${c.key}', this.value)" 
-                    title="Select Route of Administration (Oral, Sublingual, SubQ, IM, Transdermal, IV, Inhalation)"
+                    title="Route of administration"
                   >
-                    <option value="oral" ${route === 'oral' ? 'selected' : ''}>Oral (PO)</option>
-                    <option value="sublingual" ${route === 'sublingual' ? 'selected' : ''}>Sublingual / Buccal (SL)</option>
-                    <option value="subcutaneous" ${route === 'subcutaneous' ? 'selected' : ''}>Subcutaneous (SC)</option>
-                    <option value="intramuscular" ${route === 'intramuscular' ? 'selected' : ''}>Intramuscular (IM)</option>
-                    <option value="transdermal" ${route === 'transdermal' ? 'selected' : ''}>Transdermal / Gel (TD)</option>
-                    <option value="intravenous" ${route === 'intravenous' ? 'selected' : ''}>Intravenous (IV)</option>
-                    <option value="inhalation" ${route === 'inhalation' ? 'selected' : ''}>Inhalation / Nasal (IN)</option>
-                    <option value="rectal" ${route === 'rectal' ? 'selected' : ''}>Rectal (PR)</option>
+                    <option value="oral" ${route === 'oral' ? 'selected' : ''}>💊 Oral (PO)</option>
+                    <option value="sublingual" ${route === 'sublingual' ? 'selected' : ''}>💧 Sublingual (SL)</option>
+                    <option value="subcutaneous" ${route === 'subcutaneous' ? 'selected' : ''}>💉 Subcutaneous (SC)</option>
+                    <option value="intramuscular" ${route === 'intramuscular' ? 'selected' : ''}>💉 Intramuscular (IM)</option>
+                    <option value="transdermal" ${route === 'transdermal' ? 'selected' : ''}>🧴 Transdermal (TD)</option>
+                    <option value="intravenous" ${route === 'intravenous' ? 'selected' : ''}>🩸 Intravenous (IV)</option>
+                    <option value="inhalation" ${route === 'inhalation' ? 'selected' : ''}>💨 Inhalation (IN)</option>
                   </select>
                   <select 
                     class="control-select" 
                     style="flex:1; font-size:0.75rem; font-weight:600;" 
                     onchange="updateFrequency('${c.key}', this.value)" 
-                    title="Select dosing frequency / administration interval"
+                    title="Dosing frequency"
                   >
                     <option value="daily" ${freq === 'daily' ? 'selected' : ''}>Once Daily (QD)</option>
                     <option value="twice_daily" ${freq === 'twice_daily' ? 'selected' : ''}>Twice Daily (BID)</option>
@@ -2445,7 +2711,7 @@
                     <option value="as_needed" ${freq === 'as_needed' ? 'selected' : ''}>As Needed (PRN)</option>
                   </select>
                 </div>
-                ${effDisplay ? `<div style="text-align:right;"><span style="font-size:0.68rem; color:#38bdf8; font-family:'JetBrains Mono',monospace; white-space:nowrap; font-weight:700;" title="Effective continuous daily load">${effDisplay}</span></div>` : ''}
+                ${effDisplay ? `<div style="text-align:right;"><span style="font-size:0.68rem; color:#00f2fe; font-family:'JetBrains Mono',monospace; white-space:nowrap; font-weight:700;" title="Effective continuous 24h baseline load">${effDisplay}</span></div>` : ''}
               </div>
             </div>
           `;
@@ -2515,18 +2781,11 @@
         const el = document.getElementById(id);
         if (!el) return;
         const handler = () => {
-          const sexVal = document.getElementById('bio-sex').value;
-          const ageVal = document.getElementById('bio-age').value;
-          const weightVal = document.getElementById('bio-weight').value;
-          const heightVal = document.getElementById('bio-height').value;
-          const bodyfatVal = document.getElementById('bio-bodyfat').value;
-
-          state.biomarkers.sex = sexVal ? sexVal : null;
-          state.biomarkers.age = ageVal ? parseInt(ageVal) : null;
-          state.biomarkers.weight_kg = weightVal ? parseFloat(weightVal) : null;
-          state.biomarkers.height_cm = heightVal ? parseFloat(heightVal) : null;
-          state.biomarkers.body_fat_pct = bodyfatVal ? parseFloat(bodyfatVal) : null;
-
+          state.biomarkers.sex = document.getElementById('bio-sex').value || null;
+          state.biomarkers.age = parseInt(document.getElementById('bio-age').value) || null;
+          state.biomarkers.weight_kg = parseFloat(document.getElementById('bio-weight').value) || null;
+          state.biomarkers.height_cm = parseFloat(document.getElementById('bio-height').value) || null;
+          state.biomarkers.body_fat_pct = parseFloat(document.getElementById('bio-bodyfat').value) || null;
           state.biomarkers.blood_pressure = parseFloat(document.getElementById('bio-bp').value) || 120;
           state.biomarkers.sleep_hours = parseFloat(document.getElementById('bio-sleep').value) || 7.5;
           state.biomarkers.alt_u_l = parseFloat(document.getElementById('bio-alt').value) || 25;
@@ -2542,6 +2801,7 @@
         state.stack = [];
         renderStackList();
         evaluateStack();
+        showToast('Stack cleared', '🗑️');
       });
 
       document.getElementById('export-json-btn').addEventListener('click', () => {
@@ -2557,6 +2817,7 @@
         a.href = url;
         a.download = `healthai-pharmacology-audit-${Date.now()}.json`;
         a.click();
+        showToast('Audit JSON downloaded', '📥');
       });
 
       // EVALUATE STACK WITH BACKEND
@@ -2613,7 +2874,7 @@
         statConflicts.textContent = '0';
         statSynergies.textContent = '0';
         statOrganLoad.textContent = 'None';
-        summaryNarrative.textContent = 'Add compounds from the search catalog to evaluate real-time pharmacodynamic collisions, CYP450 enzyme overlaps, and cumulative safety scores.';
+        summaryNarrative.textContent = 'Add compounds from the search catalog or pick an example stack to evaluate real-time pharmacodynamic collisions, CYP450 enzyme overlaps, and cumulative safety scores.';
         matrixContainer.innerHTML = '<div class="stack-empty-card" style="padding: 60px 20px;">Add 2 or more compounds to populate the pairwise N×N collision matrix.</div>';
         breakdownsContainer.innerHTML = '<div class="stack-empty-card">No active conflicts or synergies recorded.</div>';
         
@@ -2627,11 +2888,9 @@
         const score = data.cumulative_risk_score || 0;
         riskScoreVal.textContent = score;
 
-        // Animate gauge ring (circumference is 2 * pi * 60 ~= 377)
         const offset = 377 - (377 * (score / 100));
         gaugeCircle.style.strokeDashoffset = offset;
 
-        // Set gauge & badge color
         const band = data.risk_band || 'MINIMAL';
         riskBandText.textContent = `${band} Risk`;
 
@@ -2653,6 +2912,26 @@
 
         summaryNarrative.textContent = data.summary;
 
+        // Update tab badges
+        const matrixBadge = document.getElementById('tab-matrix-badge');
+        const conflictsBadge = document.getElementById('tab-conflicts-badge');
+        if (matrixBadge) {
+          if (data.conflict_count > 0 || data.synergy_count > 0) {
+            matrixBadge.style.display = 'inline-block';
+            matrixBadge.textContent = `${data.conflict_count}⚡ ${data.synergy_count}✨`;
+          } else {
+            matrixBadge.style.display = 'none';
+          }
+        }
+        if (conflictsBadge) {
+          if (data.conflict_count > 0) {
+            conflictsBadge.style.display = 'inline-block';
+            conflictsBadge.textContent = data.conflict_count;
+          } else {
+            conflictsBadge.style.display = 'none';
+          }
+        }
+
         renderMatrixTable(data);
         renderFullStackBalance(data);
         renderBreakdowns(data);
@@ -2668,11 +2947,11 @@
           return;
         }
 
+        const isPower = state.experienceMode === 'power';
         const healthIndex = b.health_index || 85;
         const statusLabel = b.status_label || 'Normal Physiological Baseline';
         const mitigations = b.active_mitigations || [];
         const uncompensated = b.uncompensated_risks || [];
-        const doseRecs = b.dose_recommendations || [];
         const axes = b.axes || [];
 
         let heroBadgeColor = '#10b981';
@@ -2680,11 +2959,9 @@
         else if (b.status === 'MODERATE_DEVIATION') heroBadgeColor = '#f59e0b';
         else if (b.status === 'COUNTERBALANCED') heroBadgeColor = '#3b82f6';
 
-        // Filter and Sort State
         const currentFilter = state.axesFilter || 'all';
         const currentSort = state.axesSort || 'priority';
 
-        // Count metrics for quick filter chips
         const totalCount = axes.length;
         const criticalCount = axes.filter(a => a.priority_tier === 1).length;
         const warningCount = axes.filter(a => a.priority_tier === 2).length;
@@ -2693,16 +2970,14 @@
         const activeShiftCount = axes.filter(a => a.priority_tier === 4).length;
         const baselineCount = axes.filter(a => a.priority_tier === 5).length;
 
-        // Apply active filter
         let filteredAxes = axes.filter(a => {
           if (currentFilter === 'out-of-range') return a.priority_tier <= 2 || !a.in_safe_range;
           if (currentFilter === 'counterbalanced') return a.priority_tier === 3 || (a.status && a.status.includes('BALANCED'));
           if (currentFilter === 'active-shifts') return a.priority_tier <= 4 && ((a.compounds_breakdown && a.compounds_breakdown.length > 0) || Math.abs(a.estimated_value - a.baseline) > 0.001);
           if (currentFilter === 'baseline') return a.priority_tier === 5;
-          return true; // 'all'
+          return true;
         });
 
-        // Apply active sort
         filteredAxes.sort((a, b) => {
           if (currentSort === 'shift') {
             return (b.percent_shift || 0) - (a.percent_shift || 0) || a.name.localeCompare(b.name);
@@ -2713,7 +2988,6 @@
           if (currentSort === 'status') {
             return (a.priority_tier || 5) - (b.priority_tier || 5) || a.name.localeCompare(b.name);
           }
-          // Default: 'priority' (Clinical Priority: Critical -> Moderate -> Counterbalanced -> Active Shift -> Baseline)
           return (a.priority_tier || 5) - (b.priority_tier || 5) || (b.percent_shift || 0) - (a.percent_shift || 0) || a.name.localeCompare(b.name);
         });
 
@@ -2779,16 +3053,16 @@
           let beginnerSummaryText = '';
           let beginnerBadgeClass = 'safe';
           if (p95 <= sUpper && p5 >= sLower) {
-            beginnerSummaryText = `✓ High Safety Margin: 90% of projected outcomes (${p5}–${p95} ${unit}) fall strictly inside safe limits [${sLower}–${sUpper} ${unit}].`;
+            beginnerSummaryText = `✓ Safe Target Zone: 90% of projected outcomes (${p5}–${p95} ${unit}) remain within healthy limits [${sLower}–${sUpper} ${unit}].`;
             beginnerBadgeClass = 'safe';
           } else if (est > sUpper || p95 > sUpper * 1.15) {
-            beginnerSummaryText = `⚠️ High Risk Hazard: Upper 95th percentile (${p95} ${unit}) breaks above the maximum safe threshold (${sUpper} ${unit}).`;
+            beginnerSummaryText = `⚠️ Elevation Risk: Projected upper percentile (${p95} ${unit}) exceeds safety limit (${sUpper} ${unit}).`;
             beginnerBadgeClass = 'warning';
           } else if (est < sLower || p5 < sLower * 0.85) {
-            beginnerSummaryText = `⚠️ Suppression Alert: Lower 5th percentile (${p5} ${unit}) falls below the physiological lower bound (${sLower} ${unit}).`;
+            beginnerSummaryText = `⚠️ Suppression Risk: Lower percentile (${p5} ${unit}) drops below physiological floor (${sLower} ${unit}).`;
             beginnerBadgeClass = 'warning';
           } else {
-            beginnerSummaryText = `ℹ️ Active Shift: Expected median centered at ${est} ${unit} (90% distribution between ${p5} and ${p95} ${unit}).`;
+            beginnerSummaryText = `ℹ️ Dynamic Shift: Expected median at ${est} ${unit} (90% distribution between ${p5} and ${p95} ${unit}).`;
             beginnerBadgeClass = 'info';
           }
 
@@ -2806,7 +3080,7 @@
                   onclick="const el=document.getElementById('${chartId}-stats'); el.style.display=(el.style.display==='none'||!el.style.display)?'block':'none';"
                   style="background: rgba(0, 242, 254, 0.12); border: 1px solid rgba(0, 242, 254, 0.35); color: #00f2fe; font-size: 0.68rem; font-weight: 700; padding: 3px 9px; border-radius: 5px; cursor: pointer; transition: all 0.2s ease;"
                 >
-                  📊 Power User Stats
+                  ${isPower ? 'Hide Stats' : '📊 Power Stats'}
                 </button>
               </div>
 
@@ -2851,8 +3125,8 @@
                 </svg>
               </div>
 
-              <div id="${chartId}-stats" style="display: none; margin-top: 10px; padding-top: 10px; border-top: 1px solid rgba(255, 255, 255, 0.08);">
-                <div style="font-size: 0.7rem; font-weight: 800; text-transform: uppercase; color: #00f2fe; margin-bottom: 6px; letter-spacing: 0.04em;">📊 Power User Percentile Distribution & Variance Analysis</div>
+              <div id="${chartId}-stats" style="display: ${isPower ? 'block' : 'none'}; margin-top: 10px; padding-top: 10px; border-top: 1px solid rgba(255, 255, 255, 0.08);">
+                <div style="font-size: 0.7rem; font-weight: 800; text-transform: uppercase; color: #00f2fe; margin-bottom: 6px; letter-spacing: 0.04em;">📊 Power User Percentile Variance & Normal Distribution</div>
                 <div style="display: grid; grid-template-columns: repeat(5, 1fr); gap: 4px; text-align: center; background: rgba(0, 0, 0, 0.35); padding: 8px; border-radius: 6px; margin-bottom: 6px;">
                   <div>
                     <div style="font-size: 0.62rem; color: var(--text-muted);">p5 (Lower 5%)</div>
@@ -2877,9 +3151,9 @@
                 </div>
 
                 <div style="display: flex; justify-content: space-between; font-size: 0.7rem; color: var(--text-secondary); background: rgba(255,255,255,0.03); padding: 5px 8px; border-radius: 5px;">
-                  <span>Mean ($\mu$): <strong>${mean} ${unit}</strong></span>
-                  <span>Std Dev ($\sigma$): <strong>${stdDev.toFixed(2)} ${unit}</strong></span>
-                  <span>90% Confidence Width: <strong>${(p95 - p5).toFixed(1)} ${unit}</strong></span>
+                  <span>Mean (&mu;): <strong>${mean} ${unit}</strong></span>
+                  <span>Std Dev (&sigma;): <strong>${stdDev.toFixed(2)} ${unit}</strong></span>
+                  <span>90% Span: <strong>${(p95 - p5).toFixed(1)} ${unit}</strong></span>
                 </div>
               </div>
             </div>
@@ -2944,24 +3218,24 @@
 
                 <div class="axis-values-row">
                   <div>
-                    <span style="font-size: 0.72rem; color: var(--text-muted); text-transform: uppercase;">Baseline → Median Est.</span>
+                    <span style="font-size: 0.72rem; color: var(--text-muted); text-transform: uppercase;">Baseline → Projected</span>
                     <div class="axis-val-primary" style="color: ${statusColor};">
                       ${axis.baseline} → ${axis.estimated_value} <span style="font-size: 0.85rem; font-weight: 600;">${axis.unit}</span>
                     </div>
                   </div>
                   <div style="text-align: right;">
                     <span style="font-size: 0.68rem; color: #00f2fe; font-weight: 700; text-transform: uppercase; font-family: 'JetBrains Mono', monospace;" title="90% Population Percentile Distribution Curve (p5 to p95)">
-                      📊 p5–p95 Curve: ${p5p95Str}
+                      📊 p5–p95: ${p5p95Str}
                     </span>
                     <div class="axis-val-delta" style="color: ${axis.estimated_value >= axis.baseline ? '#f87171' : '#34d399'}; margin-top:2px;">
-                      Net Shift: ${axis.net_delta_str}
+                      Net: ${axis.net_delta_str}
                     </div>
                   </div>
                 </div>
 
                 ${axis.target_tissue || (axis.biometric_modifiers_applied && axis.biometric_modifiers_applied.length) ? `
                   <div style="display: flex; flex-wrap: wrap; gap: 6px; margin: 6px 0;">
-                    ${axis.target_tissue ? `<span style="font-size: 0.72rem; color: #a7f3d0; background: rgba(16, 185, 129, 0.12); padding: 2px 8px; border-radius: 4px; border: 1px solid rgba(16, 185, 129, 0.25);">🎯 Target Tissue: <strong>${axis.target_tissue}</strong></span>` : ''}
+                    ${axis.target_tissue ? `<span style="font-size: 0.72rem; color: #a7f3d0; background: rgba(16, 185, 129, 0.12); padding: 2px 8px; border-radius: 4px; border: 1px solid rgba(16, 185, 129, 0.25);">🎯 Target: <strong>${axis.target_tissue}</strong></span>` : ''}
                     ${(axis.biometric_modifiers_applied || []).map(m => `<span style="font-size: 0.7rem; color: #fde047; background: rgba(245, 158, 11, 0.15); padding: 2px 6px; border-radius: 4px; border: 1px solid rgba(245, 158, 11, 0.3);">⚙️ ${m}</span>`).join('')}
                   </div>
                 ` : ''}
@@ -3036,7 +3310,7 @@
                   </p>
                   ${u.clinical_recommendation ? `
                     <div class="conflict-card-rec" style="color: #fca5a5; background: rgba(0, 0, 0, 0.35);">
-                      <strong>Clinical Titration Guidance:</strong> ${u.clinical_recommendation}
+                      <strong>Clinical Guidance:</strong> ${u.clinical_recommendation}
                     </div>
                   ` : ''}
                 </div>
@@ -3055,7 +3329,7 @@
                 </span>
               </div>
               <p class="balance-hero-desc">
-                Evaluates your complete compound regimen as a unified interconnected network accounting for administered doses and dosing frequencies. Detects whether co-administered compounds neutralize monotherapy hazards (e.g. AI + Androgen balancing E2, ARB + Androgen stabilizing blood pressure).
+                Evaluates your complete compound regimen as an interconnected physiological network. Determines whether co-administered compounds neutralize monotherapy hazards (e.g. Aromatase Inhibitor + Androgen balancing Estrogen, ARB + Androgen protecting Blood Pressure).
               </p>
             </div>
             <div class="balance-hero-badge-wrap">
@@ -3069,11 +3343,11 @@
           <div class="timeline-controller-card" style="background: rgba(12, 24, 38, 0.85); border: 1px solid var(--border); border-radius: var(--radius-md); padding: 14px 18px; margin-bottom: 16px; display: flex; flex-direction: column; gap: 10px;">
             <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 8px;">
               <div style="display: flex; align-items: center; gap: 8px;">
-                <span style="font-size: 0.88rem; font-weight: 800; color: #38bdf8; display: flex; align-items: center; gap: 6px;">
+                <span style="font-size: 0.88rem; font-weight: 800; color: #00f2fe; display: flex; align-items: center; gap: 6px;">
                   ⏱️ Equilibrium Timeline Horizon
                 </span>
                 <span style="font-size: 0.72rem; color: var(--text-muted); font-family: 'JetBrains Mono', monospace;">
-                  Active Horizon: <strong style="color: #00f2fe;">${b.timeline_label || 'Steady State (Full Equilibrium)'}</strong>
+                  Horizon: <strong style="color: #00f2fe;">${b.timeline_label || 'Steady State (Full Equilibrium)'}</strong>
                 </span>
               </div>
               <span style="font-size: 0.72rem; color: var(--text-secondary); background: rgba(0,242,254,0.08); border: 1px solid rgba(0,242,254,0.25); padding: 3px 8px; border-radius: 9999px;">
@@ -3105,7 +3379,7 @@
               `).join('')}
             </div>
 
-            <div style="font-size: 0.75rem; color: var(--text-secondary); line-height: 1.45; padding: 7px 12px; background: rgba(0, 0, 0, 0.3); border-radius: var(--radius-sm); border-left: 3px solid #38bdf8;">
+            <div style="font-size: 0.75rem; color: var(--text-secondary); line-height: 1.45; padding: 7px 12px; background: rgba(0, 0, 0, 0.3); border-radius: var(--radius-sm); border-left: 3px solid #00f2fe;">
               ${getTimelineDescription(state.timeline)}
             </div>
           </div>
@@ -3218,7 +3492,7 @@
 
             html += `
               <td>
-                <div class="matrix-cell ${cellClass}" onclick="openCellInspector(${i}, ${j})">
+                <div class="matrix-cell ${cellClass}" onclick="openCellInspector(${i}, ${j})" title="Click to view biochemical details for ${cell.source_name} + ${cell.target_name}">
                   <span class="cell-icon">${icon}</span>
                   <span class="cell-label">${label}</span>
                 </div>
@@ -3234,6 +3508,7 @@
 
       function renderBreakdowns(data) {
         const b = data.breakdown || {};
+        const isPower = state.experienceMode === 'power';
         const allItems = [
           ...(b.cyp_conflicts || []).map(c => ({ ...c, cat: 'CYP450 Metabolism', cardClass: 'card-high' })),
           ...(b.receptor_conflicts || []).map(c => ({ ...c, cat: 'Pharmacodynamic / Receptor', cardClass: 'card-moderate' })),
@@ -3257,7 +3532,7 @@
             </div>
             <p class="conflict-card-desc">${item.description}</p>
             ${item.mitigation_summary ? `<div style="padding: 8px 12px; background: rgba(16, 185, 129, 0.12); border: 1px solid rgba(16, 185, 129, 0.3); border-radius: var(--radius-sm); font-size: 0.82rem; color: #34d399; margin-top: 4px;"><strong>Stack Mitigation:</strong> ${item.mitigation_summary}</div>` : ''}
-            ${item.ddi_auc_ratio ? `<div style="font-family:'JetBrains Mono',monospace; font-size:0.78rem; color:#00f2fe; margin-top:4px;">📊 Estimated DDI Exposure Multiplier: ${item.ddi_auc_ratio}x AUC (+${Math.round((item.ddi_auc_ratio - 1) * 100)}% surge)</div>` : ''}
+            ${item.ddi_auc_ratio && isPower ? `<div style="font-family:'JetBrains Mono',monospace; font-size:0.78rem; color:#00f2fe; margin-top:4px; background:rgba(0,0,0,0.3); padding:4px 8px; border-radius:4px;">📊 Power Metric • Estimated DDI Exposure Multiplier: ${item.ddi_auc_ratio}x AUC (+${Math.round((item.ddi_auc_ratio - 1) * 100)}% surge)</div>` : ''}
             ${item.clinical_recommendation ? `<div class="conflict-card-rec"><strong>Recommendation:</strong> ${item.clinical_recommendation}</div>` : ''}
           </div>
         `).join('');
@@ -3272,7 +3547,7 @@
         document.getElementById('modal-pair-title').textContent = `${cell.source_name} ⟷ ${cell.target_name}`;
         document.getElementById('modal-pair-subtitle').textContent = cell.title || 'Pharmacology Collision';
         document.getElementById('modal-description').textContent = cell.description || 'No specific conflict documented.';
-        document.getElementById('modal-recommendation').textContent = cell.clinical_recommendation || 'Standard monitoring recommended.';
+        document.getElementById('modal-recommendation').textContent = cell.clinical_recommendation || 'Standard clinical monitoring recommended.';
 
         const badge = document.getElementById('modal-severity-badge');
         let bandClass = 'band-minimal';
@@ -3311,7 +3586,11 @@
         if (e.target === inspectorModal) inspectorModal.classList.remove('open');
       });
       document.addEventListener('keydown', (e) => {
-        if (e.key === 'Escape') inspectorModal.classList.remove('open');
+        if (e.key === 'Escape') {
+          inspectorModal.classList.remove('open');
+          if (guideModal) guideModal.classList.remove('open');
+          if (presetMenu) presetMenu.classList.remove('open');
+        }
       });
 
       // TABS SWITCHING
@@ -3322,6 +3601,7 @@
 
           btn.classList.add('active');
           const tabId = btn.dataset.tab;
+          state.activeTab = tabId;
           const targetPane = document.getElementById(tabId);
           if (targetPane) {
             targetPane.style.display = 'block';
@@ -3354,12 +3634,8 @@
               if (unit === 'ug' || unit === 'mcg') unit = 'μg';
             }
           }
-          if (parts.length > 2) {
-            frequency = parts[2].trim();
-          }
-          if (parts.length > 3) {
-            route = parts[3].trim().toLowerCase();
-          }
+          if (parts.length > 2) frequency = parts[2].trim();
+          if (parts.length > 3) route = parts[3].trim().toLowerCase();
         } else if (typeof item === 'object') {
           let rawKey = strClean(item.key || item.name || '');
           if (rawKey.includes(':')) {

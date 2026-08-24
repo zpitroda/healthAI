@@ -54,9 +54,19 @@ Thumbs.db
 
 # Environment & Secrets
 .env
-
-*.db
 .env.local
 .env.*.local
 *.pem
 *.key
+
+# SQLite Databases & WAL/SHM Runtime Files
+*.db
+*.db-journal
+*.db-wal
+*.db-shm
+*.sqlite
+*.sqlite3
+*.sqlite3-journal
+*.sqlite3-wal
+*.sqlite3-shm
+

@@ -933,7 +933,14 @@ class PharmacologyEnricher:
             if cls._severity_rank(matched_organ_burdens["cns_stimulant"]) < cls._severity_rank("high"):
                 matched_organ_burdens["cns_stimulant"] = "high"
 
+        c_name_clean = str(compound.get("key") or compound.get("name") or "").lower()
+        if "caffeine" in c_name_clean or "xanthine" in c_name_clean or "theophylline" in c_name_clean:
+            matched_cyp_sub.add("CYP1A2")
+            if cls._severity_rank(matched_organ_burdens["cns_stimulant"]) < cls._severity_rank("high"):
+                matched_organ_burdens["cns_stimulant"] = "high"
+
         if "adenosine" in mechanism_text and any(act in mechanism_text for act in ["antagonist", "blocker"]):
+            matched_cyp_sub.add("CYP1A2")
             if cls._severity_rank(matched_organ_burdens["cardiovascular"]) < cls._severity_rank("moderate"):
                 matched_organ_burdens["cardiovascular"] = "moderate"
             if cls._severity_rank(matched_organ_burdens["cns_stimulant"]) < cls._severity_rank("high"):

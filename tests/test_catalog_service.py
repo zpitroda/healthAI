@@ -15,145 +15,161 @@ from scripts.populate_catalog import (
 
 def test_catalog_service_can_seed_and_read_compounds(tmp_path):
     db_path = tmp_path / "catalog.db"
+    old_env = os.environ.get("HEALTHAI_CATALOG_DB")
     os.environ["HEALTHAI_CATALOG_DB"] = str(db_path)
 
-    service = CatalogService()
-    service.reset_database()
-    service.upsert_compound({
-        "key": "testosterone",
-        "name": "Testosterone",
-        "drug_class": "androgen receptor agonist",
-        "mechanism": "Binds androgen receptor and modulates transcription.",
-        "receptor_targets": [{"target": "AR", "action": "agonist", "family": "androgen"}],
-        "categories": ["hormone", "performance"],
-        "indications": ["testosterone"],
-        "dosing": {"unit": "mg/week", "basis": "bodyweight", "mg_per_kg": {"threshold": 0.6, "common": 1.2, "heavy": 1.8}},
-        "reason": "Supports androgen receptor signaling.",
-        "citation": "Test citation",
-        "contraindications": ["Use with caution in cardiovascular disease."],
-        "side_effects": ["Acne"],
-        "interactions": ["Can potentiate aromatase-related effects."],
-        "evidence_level": "moderate",
-        "risk_band": "high",
-        "graph_tags": ["androgen", "AR"],
-    })
+    try:
+        from app.services.catalog_service import _CATALOG_MEMORY_CACHE
+        _CATALOG_MEMORY_CACHE.clear()
 
-    saved = service.get_compound("testosterone")
-    assert saved["name"] == "Testosterone"
-    assert saved["receptor_targets"][0]["target"] == "AR"
+        service = CatalogService(str(db_path))
+        service.reset_database()
+        service.upsert_compound({
+            "key": "testosterone",
+            "name": "Testosterone",
+            "drug_class": "androgen receptor agonist",
+            "mechanism": "Binds androgen receptor and modulates transcription.",
+            "receptor_targets": [{"target": "AR", "action": "agonist", "family": "androgen"}],
+            "categories": ["hormone", "performance"],
+            "indications": ["testosterone"],
+            "dosing": {"unit": "mg/week", "basis": "bodyweight", "mg_per_kg": {"threshold": 0.6, "common": 1.2, "heavy": 1.8}},
+            "reason": "Supports androgen receptor signaling.",
+            "citation": "Test citation",
+            "contraindications": ["Use with caution in cardiovascular disease."],
+            "side_effects": ["Acne"],
+            "interactions": ["Can potentiate aromatase-related effects."],
+            "evidence_level": "moderate",
+            "risk_band": "high",
+            "graph_tags": ["androgen", "AR"],
+        })
 
-    keys = [item["key"] for item in service.list_compounds()]
-    assert "testosterone" in keys
+        saved = service.get_compound("testosterone")
+        assert saved["name"] == "Testosterone"
+        assert saved["receptor_targets"][0]["target"] == "AR"
+
+        keys = [item["key"] for item in service.list_compounds()]
+        assert "testosterone" in keys
+    finally:
+        if old_env is None:
+            os.environ.pop("HEALTHAI_CATALOG_DB", None)
+        else:
+            os.environ["HEALTHAI_CATALOG_DB"] = old_env
+        from app.services.catalog_service import _CATALOG_MEMORY_CACHE
+        _CATALOG_MEMORY_CACHE.clear()
 
 
 def test_catalog_service_merges_duplicate_records_by_inchikey(tmp_path):
     db_path = tmp_path / "catalog.db"
+    old_env = os.environ.get("HEALTHAI_CATALOG_DB")
     os.environ["HEALTHAI_CATALOG_DB"] = str(db_path)
 
-    service = CatalogService()
-    service.reset_database()
+    try:
+        from app.services.catalog_service import _CATALOG_MEMORY_CACHE
+        _CATALOG_MEMORY_CACHE.clear()
 
-    service.upsert_compound({
-        "key": "caffeine",
-        "name": "Caffeine",
-        "canonical_name": "Caffeine",
-        "inchikey": "RUVINXRJKPEIMQ-UHFFFAOYSA-N",
-        "external_ids": {"pubchem_cid": "2519", "chembl_id": "CHEMBL579"},
-        "drug_class": "adenosine receptor antagonist",
-        "mechanism": "Blocks adenosine receptors.",
-        "receptor_targets": [{"target": "A1 receptor", "action": "antagonist", "family": "adenosine"}],
-        "categories": ["focus"],
-        "indications": ["focus"],
-        "dosing": {"unit": "mg/day"},
-        "reason": "Cognitive support.",
-        "citation": "Test citation",
-        "contraindications": [],
-        "side_effects": ["Jitters"],
-        "interactions": [],
-        "evidence_level": "strong",
-        "risk_band": "moderate",
-        "graph_tags": ["adenosine"],
-    })
+        service = CatalogService(str(db_path))
+        service.reset_database()
 
-    service.upsert_compound({
-        "key": "caffeine-duplicate",
-        "name": "cafFeine",
-        "canonical_name": "Caffeine",
-        "inchikey": "RUVINXRJKPEIMQ-UHFFFAOYSA-N",
-        "external_ids": {"pubchem_cid": "2519", "chembl_id": "CHEMBL579"},
-        "drug_class": "adenosine receptor antagonist",
-        "mechanism": "Blocks adenosine receptors.",
-        "receptor_targets": [{"target": "A1 receptor", "action": "antagonist", "family": "adenosine"}],
-        "categories": ["focus"],
-        "indications": ["focus"],
-        "dosing": {"unit": "mg/day"},
-        "reason": "Cognitive support.",
-        "citation": "Test citation",
-        "contraindications": [],
-        "side_effects": ["Jitters"],
-        "interactions": [],
-        "evidence_level": "strong",
-        "risk_band": "moderate",
-        "graph_tags": ["adenosine"],
-    })
+        service.upsert_compound({
+            "key": "caffeine",
+            "name": "Caffeine",
+            "canonical_name": "Caffeine",
+            "inchikey": "RUVINXRJKPEIMQ-UHFFFAOYSA-N",
+            "external_ids": {"pubchem_cid": "2519", "chembl_id": "CHEMBL579"},
+            "drug_class": "adenosine receptor antagonist",
+            "mechanism": "Blocks adenosine receptors.",
+            "receptor_targets": [{"target": "A1 receptor", "action": "antagonist", "family": "adenosine"}],
+            "categories": ["focus"],
+            "indications": ["focus"],
+            "dosing": {"unit": "mg/day"},
+            "reason": "Cognitive support.",
+            "citation": "Test citation",
+            "contraindications": [],
+            "side_effects": ["Jitters"],
+            "interactions": [],
+            "evidence_level": "strong",
+            "risk_band": "moderate",
+            "graph_tags": ["adenosine"],
+        })
 
-    compounds = service.list_compounds()
-    caffeine_entries = [item for item in compounds if item["inchikey"] == "RUVINXRJKPEIMQ-UHFFFAOYSA-N"]
-    assert len(caffeine_entries) == 1
-    assert caffeine_entries[0]["key"] == "caffeine"
-    assert caffeine_entries[0]["canonical_key"] == "RUVINXRJKPEIMQ-UHFFFAOYSA-N"
+        service.upsert_compound({
+            "key": "caffeine-duplicate",
+            "name": "cafFeine",
+            "canonical_name": "Caffeine",
+            "inchikey": "RUVINXRJKPEIMQ-UHFFFAOYSA-N",
+            "external_ids": {"pubchem_cid": "2519", "chembl_id": "CHEMBL579"},
+            "drug_class": "adenosine receptor antagonist",
+            "mechanism": "Blocks adenosine receptors.",
+            "receptor_targets": [{"target": "A1 receptor", "action": "antagonist", "family": "adenosine"}],
+            "categories": ["focus"],
+            "indications": ["focus"],
+            "dosing": {"unit": "mg/day"},
+            "reason": "Cognitive support.",
+            "citation": "Test citation",
+            "contraindications": [],
+            "side_effects": ["Jitters"],
+            "interactions": [],
+            "evidence_level": "strong",
+            "risk_band": "moderate",
+            "graph_tags": ["adenosine"],
+        })
+
+        compounds = service.list_compounds()
+        caffeine_entries = [item for item in compounds if item["inchikey"] == "RUVINXRJKPEIMQ-UHFFFAOYSA-N"]
+        assert len(caffeine_entries) == 1
+        assert caffeine_entries[0]["key"] == "caffeine"
+        assert caffeine_entries[0]["canonical_key"] == "RUVINXRJKPEIMQ-UHFFFAOYSA-N"
+    finally:
+        if old_env is None:
+            os.environ.pop("HEALTHAI_CATALOG_DB", None)
+        else:
+            os.environ["HEALTHAI_CATALOG_DB"] = old_env
+        from app.services.catalog_service import _CATALOG_MEMORY_CACHE
+        _CATALOG_MEMORY_CACHE.clear()
 
 
 def test_graph_data_uses_selected_compound_target_edges(tmp_path):
     db_path = tmp_path / "catalog.db"
+    old_env = os.environ.get("HEALTHAI_CATALOG_DB")
     os.environ["HEALTHAI_CATALOG_DB"] = str(db_path)
 
-    service = CatalogService()
-    service.reset_database()
-    service.upsert_compound({
-        "key": "CHEMBL38943",
-        "name": "Test Agonist",
-        "canonical_name": "Test Agonist",
-        "drug_class": "androgen receptor agonist",
-        "mechanism": "Binds androgen receptor.",
-        "receptor_targets": [{"target": "Androgen receptor", "action": "agonist", "family": "androgen"}],
-        "categories": ["hormone"],
-        "indications": ["performance"],
-        "dosing": {"unit": "mg/week"},
-        "reason": "Androgen signaling support.",
-        "citation": "Test citation",
-        "contraindications": [],
-        "side_effects": [],
-        "interactions": [],
-        "evidence_level": "moderate",
-        "risk_band": "high",
-        "graph_tags": ["androgen", "AR"],
-    })
+    try:
+        from app.services.catalog_service import _CATALOG_MEMORY_CACHE
+        _CATALOG_MEMORY_CACHE.clear()
 
-    from fastapi.testclient import TestClient
-    from app.main import app
-    from app.routers.graph import graph_data
+        service = CatalogService(str(db_path))
+        service.reset_database()
+        service.upsert_compound({
+            "key": "CHEMBL38943",
+            "name": "Test Agonist",
+            "canonical_name": "Test Agonist",
+            "drug_class": "androgen receptor agonist",
+            "mechanism": "Binds androgen receptor.",
+            "receptor_targets": [{"target": "Androgen receptor", "action": "agonist", "family": "androgen"}],
+            "categories": ["hormone"],
+            "indications": ["performance"],
+            "dosing": {"unit": "mg/week"},
+            "reason": "Androgen signaling support.",
+            "citation": "Test citation",
+            "contraindications": [],
+            "side_effects": [],
+            "interactions": [],
+            "evidence_level": "moderate",
+            "risk_band": "high",
+            "graph_tags": ["androgen", "AR"],
+        })
 
-    client = TestClient(app)
-    response = client.get("/graph-data", params={"stack": "CHEMBL38943", "depth": 2})
-    payload = response.json()
-    node_ids = {node["id"] for node in payload["nodes"]}
-    edges = payload["edges"]
+        from fastapi.testclient import TestClient
+        from app.main import app
+        from app.routers.graph import graph_data
 
-    assert response.status_code == 200
-    assert "CHEMBL38943" in node_ids
-    assert "Androgen Receptor (AR / NR3C4)" in node_ids
-    assert any(
-        edge["source"] == "CHEMBL38943" and edge["target"] == "Androgen Receptor (AR / NR3C4)" and str(edge["type"]).lower() in {"agonizes", "agonist"}
-        for edge in edges
-    )
-
-    for stack_value in (["CHEMBL38943"], "CHEMBL38943"):
-        response = graph_data(stack=stack_value, depth=2)
-        payload = json.loads(response.body.decode())
+        client = TestClient(app)
+        response = client.get("/graph-data", params={"stack": "CHEMBL38943", "depth": 2})
+        payload = response.json()
         node_ids = {node["id"] for node in payload["nodes"]}
         edges = payload["edges"]
 
+        assert response.status_code == 200
         assert "CHEMBL38943" in node_ids
         assert "Androgen Receptor (AR / NR3C4)" in node_ids
         assert any(
@@ -161,102 +177,146 @@ def test_graph_data_uses_selected_compound_target_edges(tmp_path):
             for edge in edges
         )
 
+        for stack_value in (["CHEMBL38943"], "CHEMBL38943"):
+            response = graph_data(stack=stack_value, depth=2)
+            payload = json.loads(response.body.decode())
+            node_ids = {node["id"] for node in payload["nodes"]}
+            edges = payload["edges"]
+
+            assert "CHEMBL38943" in node_ids
+            assert "Androgen Receptor (AR / NR3C4)" in node_ids
+            assert any(
+                edge["source"] == "CHEMBL38943" and edge["target"] == "Androgen Receptor (AR / NR3C4)" and str(edge["type"]).lower() in {"agonizes", "agonist"}
+                for edge in edges
+            )
+    finally:
+        if old_env is None:
+            os.environ.pop("HEALTHAI_CATALOG_DB", None)
+        else:
+            os.environ["HEALTHAI_CATALOG_DB"] = old_env
+        from app.services.catalog_service import _CATALOG_MEMORY_CACHE
+        _CATALOG_MEMORY_CACHE.clear()
+
 
 def test_graph_data_labels_antagonist_edges_correctly(tmp_path):
     db_path = tmp_path / "catalog.db"
+    old_env = os.environ.get("HEALTHAI_CATALOG_DB")
     os.environ["HEALTHAI_CATALOG_DB"] = str(db_path)
 
-    service = CatalogService()
-    service.reset_database()
-    service.upsert_compound({
-        "key": "CHEMBL1017",
-        "name": "TELMISARTAN",
-        "canonical_name": "TELMISARTAN",
-        "drug_class": "ARB",
-        "mechanism": "Type-1 angiotensin II receptor antagonist",
-        "receptor_targets": [{"target": "Type-1 angiotensin II receptor", "action": "antagonist", "family": "SINGLE PROTEIN"}],
-        "categories": ["cardio"],
-        "indications": ["hypertension"],
-        "dosing": {"unit": "mg/day"},
-        "reason": "Blocks angiotensin signaling.",
-        "citation": "Test citation",
-        "contraindications": [],
-        "side_effects": [],
-        "interactions": [],
-        "evidence_level": "strong",
-        "risk_band": "moderate",
-        "graph_tags": ["angiotensin"],
-    })
+    try:
+        from app.services.catalog_service import _CATALOG_MEMORY_CACHE
+        _CATALOG_MEMORY_CACHE.clear()
 
-    from fastapi.testclient import TestClient
-    from app.main import app
+        service = CatalogService(str(db_path))
+        service.reset_database()
+        service.upsert_compound({
+            "key": "CHEMBL1017",
+            "name": "TELMISARTAN",
+            "canonical_name": "TELMISARTAN",
+            "drug_class": "ARB",
+            "mechanism": "Type-1 angiotensin II receptor antagonist",
+            "receptor_targets": [{"target": "Type-1 angiotensin II receptor", "action": "antagonist", "family": "SINGLE PROTEIN"}],
+            "categories": ["cardio"],
+            "indications": ["hypertension"],
+            "dosing": {"unit": "mg/day"},
+            "reason": "Blocks angiotensin signaling.",
+            "citation": "Test citation",
+            "contraindications": [],
+            "side_effects": [],
+            "interactions": [],
+            "evidence_level": "strong",
+            "risk_band": "moderate",
+            "graph_tags": ["angiotensin"],
+        })
 
-    client = TestClient(app)
-    response = client.get("/graph-data", params={"stack": "CHEMBL1017", "depth": 2})
-    payload = response.json()
+        from fastapi.testclient import TestClient
+        from app.main import app
 
-    assert response.status_code == 200
-    assert any(
-        edge["source"] == "CHEMBL1017"
-        and ("angiotensin" in str(edge["target"]).lower() or "agtr1" in str(edge["target"]).lower() or "at1" in str(edge["target"]).lower())
-        and str(edge["type"]).upper() in ("ANTAGONIZES", "INHIBITOR", "ANTAGONIST")
-        for edge in payload["edges"]
-    )
+        client = TestClient(app)
+        response = client.get("/graph-data", params={"stack": "CHEMBL1017", "depth": 2})
+        payload = response.json()
+
+        assert response.status_code == 200
+        assert any(
+            edge["source"] == "CHEMBL1017"
+            and ("angiotensin" in str(edge["target"]).lower() or "agtr1" in str(edge["target"]).lower() or "at1" in str(edge["target"]).lower())
+            and str(edge["type"]).upper() in ("ANTAGONIZES", "INHIBITOR", "ANTAGONIST")
+            for edge in payload["edges"]
+        )
+    finally:
+        if old_env is None:
+            os.environ.pop("HEALTHAI_CATALOG_DB", None)
+        else:
+            os.environ["HEALTHAI_CATALOG_DB"] = old_env
+        from app.services.catalog_service import _CATALOG_MEMORY_CACHE
+        _CATALOG_MEMORY_CACHE.clear()
 
 
 def test_graph_data_preserves_labels_for_generic_target_actions(tmp_path):
     db_path = tmp_path / "catalog.db"
+    old_env = os.environ.get("HEALTHAI_CATALOG_DB")
     os.environ["HEALTHAI_CATALOG_DB"] = str(db_path)
 
-    service = CatalogService()
-    service.reset_database()
-    service.upsert_compound({
-        "key": "caffeine",
-        "name": "Caffeine",
-        "canonical_name": "Caffeine",
-        "mechanism": "Modulates alertness.",
-        "receptor_targets": [{"target": "dopamine signaling", "action": "modulator", "family": "neuromodulation"}],
-        "categories": ["focus"],
-        "indications": ["focus"],
-        "dosing": {"unit": "mg/day"},
-        "reason": "Alertness.",
-        "citation": "Test citation",
-        "contraindications": [],
-        "side_effects": [],
-        "interactions": [],
-        "evidence_level": "strong",
-        "risk_band": "moderate",
-        "graph_tags": ["CNS"],
-    })
-    service.upsert_compound({
-        "key": "creatine",
-        "name": "Creatine",
-        "canonical_name": "Creatine",
-        "mechanism": "Supports ATP regeneration.",
-        "receptor_targets": [{"target": "ATP-PCr system", "action": "supports energetics", "family": "metabolism"}],
-        "categories": ["strength"],
-        "indications": ["strength"],
-        "dosing": {"unit": "mg/day"},
-        "reason": "Energetics.",
-        "citation": "Test citation",
-        "contraindications": [],
-        "side_effects": [],
-        "interactions": [],
-        "evidence_level": "strong",
-        "risk_band": "low",
-        "graph_tags": ["metabolism"],
-    })
+    try:
+        from app.services.catalog_service import _CATALOG_MEMORY_CACHE
+        _CATALOG_MEMORY_CACHE.clear()
 
-    from fastapi.testclient import TestClient
-    from app.main import app
+        service = CatalogService(str(db_path))
+        service.reset_database()
+        service.upsert_compound({
+            "key": "caffeine",
+            "name": "Caffeine",
+            "canonical_name": "Caffeine",
+            "mechanism": "Modulates alertness.",
+            "receptor_targets": [{"target": "dopamine signaling", "action": "modulator", "family": "neuromodulation"}],
+            "categories": ["focus"],
+            "indications": ["focus"],
+            "dosing": {"unit": "mg/day"},
+            "reason": "Alertness.",
+            "citation": "Test citation",
+            "contraindications": [],
+            "side_effects": [],
+            "interactions": [],
+            "evidence_level": "strong",
+            "risk_band": "moderate",
+            "graph_tags": ["CNS"],
+        })
+        service.upsert_compound({
+            "key": "creatine",
+            "name": "Creatine",
+            "canonical_name": "Creatine",
+            "mechanism": "Supports ATP regeneration.",
+            "receptor_targets": [{"target": "ATP-PCr system", "action": "supports energetics", "family": "metabolism"}],
+            "categories": ["strength"],
+            "indications": ["strength"],
+            "dosing": {"unit": "mg/day"},
+            "reason": "Energetics.",
+            "citation": "Test citation",
+            "contraindications": [],
+            "side_effects": [],
+            "interactions": [],
+            "evidence_level": "strong",
+            "risk_band": "low",
+            "graph_tags": ["metabolism"],
+        })
 
-    client = TestClient(app)
-    response = client.get("/graph-data", params={"stack": ["caffeine", "creatine"], "depth": 2})
-    payload = response.json()
+        from fastapi.testclient import TestClient
+        from app.main import app
 
-    assert response.status_code == 200
-    assert any(edge["source"] == "caffeine" and "dopamine" in str(edge["target"]).lower() for edge in payload["edges"])
-    assert any(edge["source"] == "creatine" and ("atp" in str(edge["target"]).lower() or "pcr" in str(edge["target"]).lower()) for edge in payload["edges"])
+        client = TestClient(app)
+        response = client.get("/graph-data", params={"stack": ["caffeine", "creatine"], "depth": 2})
+        payload = response.json()
+
+        assert response.status_code == 200
+        assert any(edge["source"] == "caffeine" and "dopamine" in str(edge["target"]).lower() for edge in payload["edges"])
+        assert any(edge["source"] == "creatine" and ("atp" in str(edge["target"]).lower() or "pcr" in str(edge["target"]).lower()) for edge in payload["edges"])
+    finally:
+        if old_env is None:
+            os.environ.pop("HEALTHAI_CATALOG_DB", None)
+        else:
+            os.environ["HEALTHAI_CATALOG_DB"] = old_env
+        from app.services.catalog_service import _CATALOG_MEMORY_CACHE
+        _CATALOG_MEMORY_CACHE.clear()
 
 
 def test_chembl_sqlite_bulk_records_can_be_ingested(tmp_path):

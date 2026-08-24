@@ -870,17 +870,13 @@ class LiveEnrichmentService:
         # Enrich Receptor Targets & Live Binding Affinities
         from app.services.graph_service import _normalize_target_node_id
         existing_targets = list(enriched.get("receptor_targets", []))
-        existing_target_names = {_normalize_target_node_id(t.get("target", "")) for t in existing_targets if isinstance(t, dict)}
-        for ct in chembl_data.get("receptor_targets", []):
-            norm_name = _normalize_target_node_id(ct.get("target", ""))
-            matched = next((t for t in existing_targets if isinstance(t, dict) and _normalize_target_node_id(t.get("target", "")) == norm_name), None)
-            if matched:
-                for aff_k in ["affinity_ki", "inhibition_ic50", "ec50", "km_nm"]:
-                    if ct.get(aff_k) is not None and matched.get(aff_k) is None:
-                        matched[aff_k] = ct[aff_k]
-            elif norm_name not in existing_target_names:
-                existing_targets.append(ct)
-                existing_target_names.add(norm_name)
+        if not existing_targets:
+            existing_target_names = set()
+            for ct in chembl_data.get("receptor_targets", []):
+                norm_name = _normalize_target_node_id(ct.get("target", ""))
+                if norm_name not in existing_target_names:
+                    existing_targets.append(ct)
+                    existing_target_names.add(norm_name)
 
         # Connect specific MeSH / Nootropic / Anabolic heuristics if targets were not explicitly in ChEMBL mechanisms
         name_lower = name.lower()

@@ -23,7 +23,7 @@ def get_catalog_service() -> CatalogService:
 def search_compounds_api(
     q: str = Query(default=""),
     limit: int = Query(default=15, ge=1, le=100),
-    auto_enrich: bool = Query(default=True),
+    auto_enrich: bool = Query(default=False),
 ) -> JSONResponse:
     """Typeahead search across compound keys, names, drug classes, and indications with on-demand fallback."""
     service = get_catalog_service()

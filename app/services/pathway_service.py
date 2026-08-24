@@ -183,6 +183,7 @@ class PathwayService:
                 )
                 """
             )
+            conn.execute("DELETE FROM cached_target_cascades WHERE cascade_json LIKE '%-85.0%'")
             conn.commit()
 
             # Warm initial metadata cache if empty
@@ -258,9 +259,27 @@ class PathwayService:
                 _PATHWAY_METADATA_CACHE[cache_key] = meta
                 return copy.deepcopy(meta)
 
-        # 2. Check seed metadata fallback with whole-word token precision
+        # 2. Check seed metadata fallback with whole-word token precision & gene symbols in parentheses
         cleaned_words = set(cleaned.split())
         cleaned_tok = re.sub(r"[^a-z0-9]", "", cleaned)
+
+        parens_matches = re.findall(r"\(([^)]+)\)", target_str)
+        candidate_tokens = list(cleaned_words)
+        for pm in parens_matches:
+            for tok in re.split(r"[/,;\s]+", pm):
+                t_clean = tok.strip().lower()
+                if t_clean:
+                    candidate_tokens.insert(0, t_clean)
+
+        for cand in candidate_tokens:
+            cand_tok = re.sub(r"[^a-z0-9]", "", cand)
+            if cand in INITIAL_TARGET_SEED_METADATA or cand_tok in INITIAL_TARGET_SEED_METADATA:
+                v = INITIAL_TARGET_SEED_METADATA.get(cand) or INITIAL_TARGET_SEED_METADATA[cand_tok]
+                self._save_cached_metadata(cleaned, v["symbol"], v["uniprot"], v["ensembl"], v["name"])
+                meta = dict(v)
+                _PATHWAY_METADATA_CACHE[cache_key] = meta
+                return copy.deepcopy(meta)
+
         for k, v in INITIAL_TARGET_SEED_METADATA.items():
             k_tok = re.sub(r"[^a-z0-9]", "", k)
             if k == cleaned or k_tok == cleaned_tok or k in cleaned_words:
@@ -269,14 +288,21 @@ class PathwayService:
                 _PATHWAY_METADATA_CACHE[cache_key] = meta
                 return copy.deepcopy(meta)
 
-        # 3. Dynamic online lookup via UniProt REST API
+        # 3. Dynamic online lookup via UniProt REST API (only for concise gene symbols)
         sym = cleaned.upper().replace(" ", "")
+        if len(sym) > 10 or not re.match(r"^[A-Z0-9-]+$", sym):
+            display_sym = candidate_tokens[0].upper() if candidate_tokens else "TARGET"
+            meta = {"symbol": display_sym, "uniprot": "", "ensembl": "", "name": target_str}
+            self._save_cached_metadata(cleaned, display_sym, "", "", target_str)
+            _PATHWAY_METADATA_CACHE[cache_key] = meta
+            return copy.deepcopy(meta)
+
         uniprot_id = ""
         ensembl_id = ""
         canonical_name = target_str
 
         try:
-            with httpx.Client(timeout=4.0, follow_redirects=True) as client:
+            with httpx.Client(timeout=1.5, follow_redirects=True) as client:
                 # Query UniProt for Human protein
                 query_str = f"gene_exact:{sym} AND organism_id:9606"
                 resp = client.get(self.uniprot_search_url, params={"query": query_str, "format": "json", "size": 1})
@@ -762,7 +788,7 @@ class PathwayService:
             organ = "Cellular Bioenergetics"
             biomarkers.extend([
                 {"id": "bio_mda", "label": "Malondialdehyde (Lipid Peroxidation)", "unit": "μmol/L", "panel": "Redox Panel", "lower": 0.5, "upper": 2.0, "mag": 0.8},
-                {"id": "bio_gsh_redox_ratio", "label": "Glutathione Redox Ratio (GSH:GSSG)", "unit": "ratio", "panel": "Redox Panel", "lower": 100.0, "upper": 300.0, "mag": -85.0},
+                {"id": "bio_gsh_redox_ratio", "label": "Glutathione Redox Ratio (GSH:GSSG)", "unit": "ratio", "panel": "Redox Panel", "lower": 100.0, "upper": 300.0, "mag": -25.0},
                 {"id": "bio_ros_level", "label": "Cellular Reactive Oxygen Species Index", "unit": "index", "panel": "Redox Panel", "lower": 10, "upper": 50, "mag": 35.0},
                 {"id": "bio_crp", "label": "High-Sensitivity C-Reactive Protein (hs-CRP)", "unit": "mg/L", "panel": "Inflammatory Panel", "lower": 0.0, "upper": 1.0, "mag": 0.5},
             ])
@@ -775,7 +801,7 @@ class PathwayService:
             organ = "Systemic / Cytoprotective"
             biomarkers.extend([
                 {"id": "bio_mda", "label": "Malondialdehyde (Lipid Peroxidation)", "unit": "μmol/L", "panel": "Redox Panel", "lower": 0.5, "upper": 2.0, "mag": -0.8},
-                {"id": "bio_gsh_redox_ratio", "label": "Glutathione Redox Ratio (GSH:GSSG)", "unit": "ratio", "panel": "Redox Panel", "lower": 100.0, "upper": 300.0, "mag": 85.0},
+                {"id": "bio_gsh_redox_ratio", "label": "Glutathione Redox Ratio (GSH:GSSG)", "unit": "ratio", "panel": "Redox Panel", "lower": 100.0, "upper": 300.0, "mag": 25.0},
                 {"id": "bio_crp", "label": "High-Sensitivity C-Reactive Protein (hs-CRP)", "unit": "mg/L", "panel": "Inflammatory Panel", "lower": 0.0, "upper": 1.0, "mag": -0.70},
             ])
             pheno_nodes.extend([

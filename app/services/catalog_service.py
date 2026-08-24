@@ -300,6 +300,91 @@ CORE_SUPPLEMENT_LIBRARY: Dict[str, Dict[str, Any]] = {
             {"target": "NF-κB & Pro-Inflammatory Cytokines (NFKB1 / PTGS2)", "action": "inhibitor", "family": "Inflammatory Signaling", "gene_symbol": "NFKB1"}
         ],
     },
+    "nebivolol": {
+        "name": "Nebivolol",
+        "canonical_name": "Nebivolol (Bystolic)",
+        "synonyms": ["bystolic", "nebivololhcl"],
+        "drug_class": "Cardioselective Beta-1 Adrenergic Receptor Blocker / Nitric Oxide Vasodilator",
+        "categories": ["Cardiovascular Support", "Beta Blocker", "Antihypertensive"],
+        "molecular_weight": 405.44,
+        "logp": 3.2,
+        "oral_bioavailability": 0.12,
+        "volume_of_distribution": 2.5,
+        "protein_binding": 98.0,
+        "half_life": "10-12 hours",
+        "t_half_numeric": 12.0,
+        "mechanism": "Highly selective beta-1 adrenergic receptor antagonist with endothelium-derived nitric oxide (NO)-mediated vasodilatory properties.",
+        "receptor_targets": [
+            {"target": "Beta-1 Adrenergic Receptor (ADRB1)", "action": "antagonist", "family": "GPCR", "affinity_ki": 2.0, "gene_symbol": "ADRB1"},
+            {"target": "Beta-2 Adrenergic Receptor (ADRB2)", "action": "antagonist", "family": "GPCR", "affinity_ki": 30.0, "gene_symbol": "ADRB2"}
+        ],
+    },
+    "caffeine": {
+        "name": "Caffeine",
+        "canonical_name": "Caffeine (1,3,7-Trimethylxanthine)",
+        "synonyms": ["caffein", "137trimethylxanthine", "caffeineanhydrous"],
+        "drug_class": "Central Nervous System Stimulant / Adenosine Antagonist",
+        "categories": ["Dietary Supplement", "Nootropic", "Stimulant"],
+        "molecular_weight": 194.19,
+        "logp": -0.07,
+        "oral_bioavailability": 0.99,
+        "volume_of_distribution": 0.6,
+        "protein_binding": 36.0,
+        "half_life": "5 hours",
+        "t_half_numeric": 5.0,
+        "dosing": {
+            "basis": "bodyweight",
+            "unit": "mg/day",
+            "mg_per_kg": {"threshold": 1, "common": 3, "heavy": 6}
+        },
+        "mechanism": "Non-selective competitive antagonist of adenosine A1 and A2A receptors, preventing fatigue signaling and elevating intracellular cAMP via phosphodiesterase inhibition.",
+        "receptor_targets": [
+            {"target": "A1 receptor", "action": "antagonist", "family": "GPCR", "gene_symbol": "ADORA1"},
+            {"target": "Adenosine A2A Receptor (ADORA2A)", "action": "antagonist", "family": "GPCR", "gene_symbol": "ADORA2A"}
+        ],
+    },
+    "creatine": {
+        "name": "Creatine",
+        "canonical_name": "Creatine Monohydrate",
+        "synonyms": ["creatine", "creatinemonohydrate", "creapure"],
+        "drug_class": "Dietary Supplement / Bioenergetic Amino Acid Derivative",
+        "categories": ["Dietary Supplement", "Mitochondrial Support", "Ergogenic Aid"],
+        "molecular_weight": 131.13,
+        "logp": -1.5,
+        "oral_bioavailability": 0.99,
+        "volume_of_distribution": 0.8,
+        "protein_binding": 0.0,
+        "half_life": "3 hours",
+        "t_half_numeric": 3.0,
+        "dosing": {
+            "basis": "bodyweight",
+            "unit": "mg/day",
+            "mg_per_kg": {"threshold": 10, "common": 20, "heavy": 50}
+        },
+        "mechanism": "Serves as substrate for creatine kinase to rapidly regenerate ATP from ADP during high-intensity cellular energy demands.",
+        "receptor_targets": [
+            {"target": "Creatine Kinase (CKMT1A / CKM)", "action": "substrate", "family": "Bioenergetics", "gene_symbol": "CKM"}
+        ],
+    },
+    "methyldrostanolone": {
+        "name": "Methyldrostanolone",
+        "canonical_name": "Methyldrostanolone (Superdrol)",
+        "canonical_key": "methyldrostanolone",
+        "synonyms": ["superdrol", "methasterone", "17alphamethyldrostanolone"],
+        "drug_class": "17-Alpha Alkylated Anabolic Steroid",
+        "categories": ["Anabolic Steroid", "DHT Derivative", "Oral Anabolic"],
+        "molecular_weight": 318.49,
+        "logp": 3.9,
+        "oral_bioavailability": 0.90,
+        "volume_of_distribution": 1.2,
+        "protein_binding": 90.0,
+        "half_life": "8-12 hours",
+        "t_half_numeric": 10.0,
+        "mechanism": "Potent oral 17-alpha alkylated DHT derivative with powerful anabolic binding to the androgen receptor and minimal aromatization.",
+        "receptor_targets": [
+            {"target": "Androgen Receptor (AR / NR3C4)", "action": "agonist", "family": "Nuclear Receptor", "affinity_ki": 0.5, "gene_symbol": "AR"}
+        ],
+    },
 }
 
 
@@ -528,6 +613,18 @@ def _get_default_compounds() -> List[Dict[str, Any]]:
     return compounds
 
 
+_DEFAULT_COMPOUND_MAP: Dict[str, Dict[str, Any]] = {}
+
+def _get_default_compound_map() -> Dict[str, Dict[str, Any]]:
+    global _DEFAULT_COMPOUND_MAP
+    if not _DEFAULT_COMPOUND_MAP:
+        for c in _get_default_compounds():
+            k = str(c.get("key") or "").strip().lower()
+            if k:
+                _DEFAULT_COMPOUND_MAP[k] = c
+    return _DEFAULT_COMPOUND_MAP
+
+
 CANONICAL_SYNONYM_MAP: Dict[str, str] = {
     "testosterone": "testosterone",
     "testosteronebase": "testosterone",
@@ -741,15 +838,31 @@ def _normalize_compound_name(name: str | None) -> str:
 
 
 _CATALOG_MEMORY_CACHE: Dict[Tuple[str, str], Dict[str, Any]] = {}
+SEED_VERSION = "v2025_03_01_v13"
 
 
 class CatalogService:
     def __init__(self, database_path: str | None = None):
         self._custom_database_path = database_path
         self._ensure_database()
-        self.sync_seed_compounds()
+        with self._connect() as conn:
+            v = conn.execute("SELECT value FROM _db_metadata WHERE key = 'seed_version'").fetchone()
+            current_v = v[0] if v else None
+            count = conn.execute("SELECT COUNT(*) FROM compounds").fetchone()[0]
+        if current_v != SEED_VERSION or count < 10:
+            self.sync_seed_compounds()
+            with self._connect() as conn:
+                conn.execute("INSERT OR REPLACE INTO _db_metadata (key, value) VALUES ('seed_version', ?)", (SEED_VERSION,))
+                conn.commit()
 
     def sync_seed_compounds(self) -> None:
+        for compound in _get_default_compounds():
+            k = compound.get("key") or compound.get("name")
+            if k:
+                self.upsert_compound(compound)
+
+    def refresh_seed_compounds(self) -> None:
+        """Force re-sync seed compounds into database."""
         for compound in _get_default_compounds():
             k = compound.get("key") or compound.get("name")
             if k:
@@ -781,6 +894,7 @@ class CatalogService:
 
     def _ensure_database(self) -> None:
         with self._connect() as conn:
+            conn.execute("CREATE TABLE IF NOT EXISTS _db_metadata (key TEXT PRIMARY KEY, value TEXT)")
             conn.execute(
                 """
                 CREATE TABLE IF NOT EXISTS compounds (
@@ -1026,7 +1140,8 @@ class CatalogService:
         return merged_count
 
     def reset_database(self) -> None:
-        keys_to_del = [k for k in _CATALOG_MEMORY_CACHE if k[0] == self.database_path]
+        db_path = self.database_path
+        keys_to_del = [k for k in _CATALOG_MEMORY_CACHE if k[0] == db_path]
         for k in keys_to_del:
             _CATALOG_MEMORY_CACHE.pop(k, None)
         with self._connect() as conn:
@@ -1478,28 +1593,35 @@ class CatalogService:
     def _enrich_ester_variant_metadata(self, compounds: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
         if not compounds:
             return compounds
+        keys = [comp.get("key") for comp in compounds if comp.get("key")]
+        if not keys:
+            return compounds
+
+        placeholders = ",".join("?" for _ in keys)
         with self._connect() as conn:
+            variant_rows = conn.execute(
+                f"SELECT key, name, ester_name, molecular_weight, ester_weight_factor, t_half_numeric, half_life, parent_compound_id FROM compounds WHERE parent_compound_id IN ({placeholders})",
+                keys,
+            ).fetchall()
+
+            variants_by_parent: Dict[str, List[Dict[str, Any]]] = {}
+            for r in variant_rows:
+                parent_id = r["parent_compound_id"]
+                if parent_id:
+                    variants_by_parent.setdefault(parent_id, []).append({
+                        "key": r["key"],
+                        "name": r["name"],
+                        "ester_name": r["ester_name"],
+                        "molecular_weight": r["molecular_weight"],
+                        "ester_weight_factor": float(r["ester_weight_factor"]) if r["ester_weight_factor"] is not None else 1.0,
+                        "t_half_numeric": r["t_half_numeric"],
+                        "half_life": r["half_life"],
+                    })
+
             for comp in compounds:
                 comp_key = comp.get("key")
-                if not comp_key:
-                    continue
-                variant_rows = conn.execute(
-                    "SELECT key, name, ester_name, molecular_weight, ester_weight_factor, t_half_numeric, half_life FROM compounds WHERE parent_compound_id = ?",
-                    (comp_key,),
-                ).fetchall()
-                if variant_rows:
-                    comp["variants"] = [
-                        {
-                            "key": r["key"],
-                            "name": r["name"],
-                            "ester_name": r["ester_name"],
-                            "molecular_weight": r["molecular_weight"],
-                            "ester_weight_factor": float(r["ester_weight_factor"]) if r["ester_weight_factor"] is not None else 1.0,
-                            "t_half_numeric": r["t_half_numeric"],
-                            "half_life": r["half_life"],
-                        }
-                        for r in variant_rows
-                    ]
+                if comp_key and comp_key in variants_by_parent:
+                    comp["variants"] = variants_by_parent[comp_key]
         return compounds
 
     def search_compounds(self, query: str, limit: int = 20, auto_enrich: bool = True) -> List[Dict[str, Any]]:
@@ -1696,10 +1818,50 @@ class CatalogService:
             "ester_weight_factor": float(row.get("ester_weight_factor") if row.get("ester_weight_factor") is not None else 1.0),
         }
 
+        def_map = _get_default_compound_map()
+        comp_key = str(compound.get("key") or "").lower()
+        canon_k = str(compound.get("canonical_key") or "").lower()
+        name_k = str(compound.get("name") or "").lower()
+        seed = def_map.get(comp_key) or def_map.get(canon_k) or def_map.get(name_k)
+        if not seed:
+            for k, v in def_map.items():
+                if len(k) >= 4 and (k in name_k or k in comp_key or k in canon_k):
+                    seed = v
+                    break
+        if seed:
+            if seed.get("protein_binding") is not None:
+                compound["protein_binding"] = seed["protein_binding"]
+            if seed.get("oral_bioavailability") is not None:
+                compound["oral_bioavailability"] = seed["oral_bioavailability"]
+            if seed.get("volume_of_distribution") is not None:
+                compound["volume_of_distribution"] = seed["volume_of_distribution"]
+            if seed.get("receptor_targets") and (not compound.get("receptor_targets") or compound.get("receptor_targets") == []):
+                compound["receptor_targets"] = seed["receptor_targets"]
+            if seed.get("dosing") and (not compound.get("dosing") or compound.get("dosing") == {}):
+                compound["dosing"] = seed["dosing"]
+            if seed.get("cyp_enzymes") and (not compound.get("cyp_enzymes") or not any(compound["cyp_enzymes"].values())):
+                compound["cyp_enzymes"] = seed["cyp_enzymes"]
+            if seed.get("organ_burdens") and (not compound.get("organ_burdens") or compound.get("organ_burdens") == {}):
+                compound["organ_burdens"] = seed["organ_burdens"]
+            if seed.get("metadata"):
+                cur_m = compound.get("metadata") or {}
+                if isinstance(cur_m, dict):
+                    for mk, mv in seed["metadata"].items():
+                        cur_m[mk] = mv
+                    compound["metadata"] = cur_m
+
         burdens = compound.get("organ_burdens") or {}
         if not burdens or all(v == "none" for v in burdens.values()):
             from app.services.pharmacology_enricher import PharmacologyEnricher
             compound = PharmacologyEnricher.enrich_compound(compound)
+
+        if seed:
+            if seed.get("protein_binding") is not None:
+                compound["protein_binding"] = seed["protein_binding"]
+            if seed.get("oral_bioavailability") is not None:
+                compound["oral_bioavailability"] = seed["oral_bioavailability"]
+            if seed.get("volume_of_distribution") is not None:
+                compound["volume_of_distribution"] = seed["volume_of_distribution"]
 
         from app.services.dosing_service import get_default_compound_dose
         dose_info = get_default_compound_dose(compound)
@@ -1707,5 +1869,20 @@ class CatalogService:
         compound["dose"] = dose_info["dose_val"]
         compound["unit"] = dose_info["dose_unit"]
         compound["dose_display"] = dose_info["dose_display"]
+
+        meta = compound.get("metadata") or {}
+        if not isinstance(meta, dict):
+            meta = {}
+        if compound.get("is_approved") or compound.get("key") in {"semaglutide", "tirzepatide", "desmopressin", "octreotide", "leuprolide"}:
+            meta["evidence_tier"] = "FDA_APPROVED_CLINICAL_DATA"
+            meta["regulatory_status"] = "APPROVED_RX"
+            meta["human_clinical_trials"] = True
+        elif compound.get("key") == "retatrutide":
+            meta["human_clinical_trials"] = True
+        compound["metadata"] = meta
+
+        for alias in [compound.get("key"), compound.get("name"), compound.get("canonical_name"), compound.get("canonical_key"), compound.get("inchikey")] + list(compound.get("synonyms") or []):
+            if alias:
+                _CATALOG_MEMORY_CACHE[(self.database_path, _normalize_compound_name(alias))] = compound
 
         return compound

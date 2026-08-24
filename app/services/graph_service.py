@@ -884,14 +884,18 @@ def build_selected_compound_graph(stack: List[Any], catalog_service: CatalogServ
             dose_mg=dose_mg,
         )
 
-        if redox_eval.get("is_pro_oxidant") and not any("uncoupl" in str(t.get("target", "")).lower() or "ros generation" in str(t.get("target", "")).lower() or "oxidative" in str(t.get("target", "")).lower() for t in receptor_targets):
-            receptor_targets.append({
-                "target": redox_eval.get("primary_target_node", "Pathological Mitochondrial Uncoupling & ROS Generation"),
-                "action": redox_eval.get("action", "inducer"),
-                "family": redox_eval.get("family", "Mitochondrial Stress"),
-                "intrinsic_efficacy": redox_eval.get("net_redox_efficacy", 0.35),
-                "pre_computed_stress": True,
-            })
+        existing_redox_t = next((t for t in receptor_targets if "uncoupl" in str(t.get("target", "")).lower() or "ros generation" in str(t.get("target", "")).lower() or "oxidative" in str(t.get("target", "")).lower()), None)
+        if redox_eval.get("is_pro_oxidant"):
+            if existing_redox_t:
+                existing_redox_t["intrinsic_efficacy"] = redox_eval.get("net_redox_efficacy", 0.35)
+            else:
+                receptor_targets.append({
+                    "target": redox_eval.get("primary_target_node", "Pathological Mitochondrial Uncoupling & ROS Generation"),
+                    "action": redox_eval.get("action", "inducer"),
+                    "family": redox_eval.get("family", "Mitochondrial Stress"),
+                    "intrinsic_efficacy": redox_eval.get("net_redox_efficacy", 0.35),
+                    "pre_computed_stress": True,
+                })
         elif redox_eval.get("is_antioxidant") and not any("glutathione" in str(t.get("target", "")).lower() or "cystine" in str(t.get("target", "")).lower() or "antioxidant defense" in str(t.get("target", "")).lower() for t in receptor_targets):
             receptor_targets.append({
                 "target": redox_eval.get("primary_target_node", "Glutathione Biosynthesis & Cellular Antioxidant Defense (System xc- / Nrf2 / GCL)"),
@@ -907,6 +911,12 @@ def build_selected_compound_graph(stack: List[Any], catalog_service: CatalogServ
             target_raw = str(receptor.get("target") or receptor.get("name") or "unknown_target").strip()
             if not target_raw:
                 continue
+
+            # Remove high-micromolar (>3000 nM) ChEMBL off-target assay artifacts
+            if receptor.get("family") == "ChEMBL Bioactivity Assay":
+                aff_v = float(receptor.get("affinity_ki") or receptor.get("inhibition_ic50") or receptor.get("ec50") or 0.0)
+                if aff_v >= 3000.0:
+                    continue
 
             target_raw_lower = target_raw.lower()
             action_lower = str(receptor.get("action") or "").lower()
@@ -1683,7 +1693,9 @@ def compute_target_combined_effects(
 
             # Unbound free fraction in tissue biophases
             fu = max(0.002, min(1.0, 1.0 - (pb_pct / 100.0)))
-            c_free_nm = (eff_daily_mg * f_bio * fu * 1e6) / (vd_lkg * 70.0 * mw)
+            logp_val = _parse_num(pred_attrs.get("logp") or pred_attrs.get("logP"), 1.0)
+            biophase_mult = 1.0 + 1.8 * max(0.0, logp_val)
+            c_free_nm = ((eff_daily_mg * f_bio * fu * 1e6) / (vd_lkg * 70.0 * mw)) * biophase_mult
 
             # Calculate Biophysical Receptor Binding Drive W_i = [L_free] / K_i
             affinity_val = ki or ic50 or ec50

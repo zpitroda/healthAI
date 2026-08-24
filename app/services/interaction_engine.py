@@ -772,7 +772,7 @@ class InteractionEngine:
             else:
                 stack_specs.append({"key": k, "frequency": freq_val})
 
-        graph = build_selected_compound_graph(stack_specs)
+        graph = build_selected_compound_graph(stack_specs, catalog_service=cat_service)
         combined_effects = compute_target_combined_effects(graph, custom_doses=custom_doses)
         resolved_keys = resolve_stack_to_catalog_keys(stack_specs)
         cascade_results = graph.propagate_cascade(
@@ -936,7 +936,7 @@ class InteractionEngine:
             syndrome_alerts.append(syn)
 
         # Dynamic Biomarker Vector Convergence Evaluator
-        vector_alerts = self._evaluate_biomarker_vector_convergence(compounds, labs)
+        vector_alerts = self._evaluate_biomarker_vector_convergence(compounds, labs, graph=graph)
         for valert in vector_alerts:
             # Check if this alert was successfully counterbalanced by full stack balance
             is_mitigated = False
@@ -1816,6 +1816,9 @@ class InteractionEngine:
             processed_bio_ids.add("bio_ldl")
             processed_bio_ids.add("bio_apob")
 
+            if ldl_shift and ldl_shift.get("biomarker_id"):
+                processed_bio_ids.add(ldl_shift["biomarker_id"])
+
             hdl_val = float(labs.get("hdl_c_mg_dl") if labs.get("hdl_c_mg_dl") is not None else (labs.get("hdl") or (hdl_shift.get("estimated_value") if hdl_shift else 50.0)))
             ldl_val = float(labs.get("ldl_mg_dl") if labs.get("ldl_mg_dl") is not None else (labs.get("ldl_c_mg_dl") or labs.get("ldl") or (ldl_shift.get("estimated_value") if ldl_shift else 95.0)))
 
@@ -1895,6 +1898,26 @@ class InteractionEngine:
                 "compounds_breakdown": [],
                 "panel": "Lipid Panel",
             })
+
+            if ldl_shift and ldl_shift.get("biomarker_id") and ldl_shift.get("biomarker_id") != bio_id:
+                ldl_bio_id = ldl_shift["biomarker_id"]
+                axes.append({
+                    "name": "Serum LDL Cholesterol Axis",
+                    "biomarker_id": ldl_bio_id,
+                    "baseline": ldl_val,
+                    "estimated_value": float(ldl_shift.get("estimated_value", ldl_val)),
+                    "unit": "mg/dL",
+                    "safe_range": "LDL < 100 mg/dL",
+                    "safe_lower": 40.0,
+                    "safe_upper": 125.0,
+                    "in_safe_range": ldl_val <= 125.0,
+                    "status": status,
+                    "status_label": status_label,
+                    "status_color": status_color,
+                    "net_delta_str": f"LDL {ldl_val} mg/dL",
+                    "compounds_breakdown": [],
+                    "panel": "Lipid Panel",
+                })
 
         # 9. SERUM TOTAL TESTOSTERONE / ENDOCRINE AXIS
         testo_shift = shifts_by_id.get("bio_testosterone")
@@ -3135,6 +3158,7 @@ class InteractionEngine:
         self,
         compounds: List[Dict[str, Any]],
         labs: Dict[str, Any],
+        graph: Optional[Any] = None,
     ) -> List[Dict[str, Any]]:
         """
         Dynamically calculates multi-compound biomarker vector convergence across the biological cascade graph.
@@ -3145,10 +3169,10 @@ class InteractionEngine:
             return biomarker_alerts
 
         try:
-            from app.services.graph_service import build_selected_compound_graph
-
-            stack_keys = [str(c.get("key") or c.get("name") or "") for c in compounds if c]
-            graph = build_selected_compound_graph(stack_keys)
+            if graph is None:
+                from app.services.graph_service import build_selected_compound_graph
+                stack_keys = [str(c.get("key") or c.get("name") or "") for c in compounds if c]
+                graph = build_selected_compound_graph(stack_keys)
             start_nodes = [n for n in graph.graph.nodes() if graph.graph.nodes[n].get("node_type") == "compound"]
 
             if not start_nodes:

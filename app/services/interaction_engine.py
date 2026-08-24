@@ -974,11 +974,6 @@ class InteractionEngine:
                 "description": ur.get("description"),
                 "clinical_recommendation": ur.get("clinical_recommendation"),
             })
-            total_risk_points += (22.0 if ur.get("severity") == "HIGH_RISK" else 14.0)
-
-        # Apply active mitigation credit to cumulative score
-        total_mitigation_reduction = sum(float(m.get("risk_reduction_points", 0.0)) for m in active_mitigations)
-        total_risk_points = max(0.0, total_risk_points - total_mitigation_reduction)
 
         # Laboratory & Biomarker Interplay Triggers
         # 1. Hepatic Clearance Strain
@@ -992,7 +987,6 @@ class InteractionEngine:
                 "clinical_recommendation": "Dose reduce hepatic substrates, introduce liver support (NAC / TUDCA), and repeat hepatic panel in 4 weeks.",
             }
             biomarker_warnings.append(warning)
-            total_risk_points += 18.0
 
         # 2. Renal Impairment & Reduced GFR
         if egfr < 60 or creatinine_mg_dl > 1.3:
@@ -1006,7 +1000,6 @@ class InteractionEngine:
                 "clinical_recommendation": "Calculate CrCl and adjust dosing according to renal titration guidelines. Monitor serum creatinine and BUN.",
             }
             biomarker_warnings.append(warning)
-            total_risk_points += 22.0
 
         # 3. Potassium & Electrolyte Dysregulation
         if potassium_meq_l > 5.0 and any(c.get("drug_class") and any(dc in c.get("drug_class").lower() for dc in ["arb", "ace inhibitor", "angiotensin", "potassium"]) for c in compounds):
@@ -1019,7 +1012,6 @@ class InteractionEngine:
                 "clinical_recommendation": "Avoid potassium supplementation, restrict dietary potassium boluses, and monitor ECG and renal function.",
             }
             biomarker_warnings.append(warning)
-            total_risk_points += 20.0
 
         # 4. Sympathetic Hypertensive Strain (only if not mitigated by stack)
         bp_axis_check = next((a for a in full_stack_balance.get("axes", []) if a.get("biomarker_id") == "bio_blood_pressure"), None)
@@ -1033,7 +1025,6 @@ class InteractionEngine:
                 "clinical_recommendation": "Offset stimulant timing, introduce vasodilators / L-Theanine, and monitor twice-daily resting BP.",
             }
             biomarker_warnings.append(warning)
-            total_risk_points += 18.0
 
         # 5. Sleep Deprivation & Stimulant Resilience
         if sleep_hours < 6.0 and organ_scores["cns_stimulant"] > 10:
@@ -1046,7 +1037,6 @@ class InteractionEngine:
                 "clinical_recommendation": "Strict cutoff for stimulants 8-10 hours prior to bedtime. Prioritize sleep extension.",
             }
             biomarker_warnings.append(warning)
-            total_risk_points += 12.0
 
         # 6. Elevated Viscosity & Hematocrit
         if hematocrit_pct > 50.0:
@@ -1059,7 +1049,6 @@ class InteractionEngine:
                 "clinical_recommendation": "Maintain strict 3-4L daily fluid intake with balanced electrolytes.",
             }
             biomarker_warnings.append(warning)
-            total_risk_points += 8.0
 
         # 7. Atherogenic Lipid Disruption
         hdl_val = labs.get("hdl_c_mg_dl") if labs.get("hdl_c_mg_dl") is not None else labs.get("hdl")
@@ -1076,10 +1065,92 @@ class InteractionEngine:
                     "clinical_recommendation": "Incorporate lipid protection (Pitavastatin 2 mg daily or Ezetimibe) and optimize dietary fats.",
                 }
                 biomarker_warnings.append(warning)
-                total_risk_points += 15.0
 
-        # Cumulative Score (0-100 bounded)
-        cumulative_score = min(100, round(total_risk_points + (organ_scores["cardiovascular"] * 0.15) + (organ_scores["cns_stimulant"] * 0.15)))
+        # ---------------------------------------------------------
+        # FIRST-PRINCIPLES MULTI-DOMAIN DE-DUPLICATED RISK ENGINE
+        # ---------------------------------------------------------
+        # Domain mapping partitions distinct physiological systems to eliminate multi-counting
+        domain_items: Dict[str, List[float]] = {
+            "metabolic": [],
+            "cardiovascular": [],
+            "renal_electrolyte": [],
+            "hepatic": [],
+            "neuro_autonomic": [],
+            "endocrine_hemostatic": [],
+        }
+
+        for c in (cyp_conflicts + transporter_conflicts + phase2_conflicts):
+            if not c.get("is_mitigated_by_stack"):
+                domain_items["metabolic"].append(float(c.get("severity_score", 15.0)))
+
+        for c in receptor_conflicts:
+            if not c.get("is_mitigated_by_stack"):
+                ctypes = c.get("conflict_types", [])
+                score_val = float(c.get("severity_score", 20.0))
+                if any(t in ctypes for t in ["ELECTROLYTE_DISRUPTION", "RENAL"]):
+                    domain_items["renal_electrolyte"].append(score_val)
+                elif any(t in ctypes for t in ["CNS_STIMULANT", "SEDATION", "SEROTONIN"]):
+                    domain_items["neuro_autonomic"].append(score_val)
+                else:
+                    domain_items["cardiovascular"].append(score_val)
+
+        for s in syndrome_alerts:
+            if not s.get("is_mitigated"):
+                stitle = str(s.get("title", "")).lower()
+                s_score = float(s.get("severity_score", 25.0))
+                if "potassium" in stitle or "electrolyte" in stitle or "renal" in stitle:
+                    domain_items["renal_electrolyte"].append(s_score)
+                elif "serotonin" in stitle or "sedation" in stitle or "stimulant" in stitle:
+                    domain_items["neuro_autonomic"].append(s_score)
+                elif "hepatic" in stitle or "liver" in stitle:
+                    domain_items["hepatic"].append(s_score)
+                else:
+                    domain_items["cardiovascular"].append(s_score)
+
+        for bw in biomarker_warnings:
+            b_score = 22.0 if bw.get("severity") == "HIGH_RISK" else 14.0
+            btitle = str(bw.get("title", "")).lower()
+            if "hepatic" in btitle or "alt" in btitle or "transaminase" in btitle:
+                domain_items["hepatic"].append(b_score)
+            elif "renal" in btitle or "egfr" in btitle or "creatinine" in btitle or "potassium" in btitle:
+                domain_items["renal_electrolyte"].append(b_score)
+            elif "blood pressure" in btitle or "hypertensive" in btitle or "heart" in btitle:
+                domain_items["cardiovascular"].append(b_score)
+            elif "sleep" in btitle or "stimulant" in btitle or "adenosine" in btitle:
+                domain_items["neuro_autonomic"].append(b_score)
+            else:
+                domain_items["endocrine_hemostatic"].append(b_score)
+
+        # Intra-domain non-redundant score calculation: S_domain = S_max + 0.25 * sum(S_other)
+        domain_scores: Dict[str, float] = {}
+        for dname, scores in domain_items.items():
+            if not scores:
+                domain_scores[dname] = 0.0
+            else:
+                s_max = max(scores)
+                s_other = sum(s for s in scores if s != s_max)
+                domain_scores[dname] = s_max + (0.25 * s_other)
+
+        # Apply domain organ burden weighting
+        if organ_scores["cardiovascular"] > 25:
+            domain_scores["cardiovascular"] += (organ_scores["cardiovascular"] - 25) * 0.15
+        if organ_scores["cns_stimulant"] > 20:
+            domain_scores["neuro_autonomic"] += (organ_scores["cns_stimulant"] - 20) * 0.15
+        if organ_scores["hepatic"] > 25:
+            domain_scores["hepatic"] += (organ_scores["hepatic"] - 25) * 0.15
+        if organ_scores["renal"] > 25:
+            domain_scores["renal_electrolyte"] += (organ_scores["renal"] - 25) * 0.15
+
+        # Subtract active mitigation credits
+        total_mitigation_reduction = sum(float(m.get("risk_reduction_points", 0.0)) for m in active_mitigations)
+        raw_domain_sum = max(0.0, sum(domain_scores.values()) - total_mitigation_reduction)
+
+        # Multi-domain asymptotic hazard integration: R = 100 * (1 - exp(-raw_sum / 60.0))
+        if raw_domain_sum == 0.0 or (n <= 1 and not any(domain_scores.values())):
+            cumulative_score = 0
+        else:
+            asymptotic_val = 100.0 * (1.0 - math.exp(-raw_domain_sum / 60.0))
+            cumulative_score = min(100, round(asymptotic_val))
 
         # Filter unmitigated conflicts
         unmitigated_cyp = [c for c in cyp_conflicts if not c.get("is_mitigated_by_stack")]
@@ -1110,9 +1181,15 @@ class InteractionEngine:
         if len(active_mitigations) > 0 and len(uncompensated_risks) == 0 and conflict_count == 0:
             cumulative_score = min(cumulative_score, 18)
 
-        if has_severe_unmitigated or cumulative_score > 75:
+        if has_severe_unmitigated:
+            cumulative_score = max(76, cumulative_score)
             risk_band = "SEVERE"
-        elif cumulative_score > 45 or has_high_unmitigated:
+        elif cumulative_score > 75:
+            risk_band = "SEVERE"
+        elif has_high_unmitigated:
+            cumulative_score = max(46, cumulative_score)
+            risk_band = "ELEVATED"
+        elif cumulative_score > 45:
             risk_band = "ELEVATED"
         elif cumulative_score > 25:
             risk_band = "MODERATE"

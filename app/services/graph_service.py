@@ -741,6 +741,35 @@ def build_selected_compound_graph(stack: List[Any], catalog_service: CatalogServ
                     "pre_computed_stress": True,
                 })
 
+        # Beta-Alanine / Carnosine Synthesis (CARNS1 & MrgprD)
+        is_beta_alanine = any(w in c_name_lower for w in ["beta-alanine", "beta_alanine", "beta alanine", "3-aminopropanoic"])
+        if is_beta_alanine:
+            # 3.2g / day = ~0.85 intramuscular carnosine saturation
+            carns_eff = min(0.95, 0.45 + 0.40 * math.log10(max(1.0, dose_mg / 800.0)))
+            paresthesia_eff = min(0.90, 0.20 + 0.50 * math.log10(max(1.0, dose_mg / 1200.0))) if dose_mg >= 800.0 else 0.0
+            
+            # Remove any spurious in vitro micromolar assay hits that don't reflect human oral supplementation
+            receptor_targets = [
+                t for t in receptor_targets
+                if not any(w in str(t.get("target", "")).lower() for w in ["regulator of g-protein", "gaba transporter", "cyp2c9"])
+            ]
+            
+            receptor_targets.append({
+                "target": "Carnosine Synthase 1 (CARNS1 / Intramuscular Carnosine Pool)",
+                "action": "substrate",
+                "family": "Skeletal Muscle / Buffer",
+                "intrinsic_efficacy": carns_eff,
+                "pre_computed_stress": True,
+            })
+            if paresthesia_eff > 0:
+                receptor_targets.append({
+                    "target": "Mas-Related G-Protein Coupled Receptor Member D (MRGPRD / Cutaneous Paresthesia)",
+                    "action": "agonist",
+                    "family": "GPCR / Sensory",
+                    "intrinsic_efficacy": paresthesia_eff,
+                    "pre_computed_stress": True,
+                })
+
         is_androgen = (is_steroidal_androgen(compound) or ("androgen" in drug_class_lower and "antagonist" not in drug_class_lower and "inhibitor" not in drug_class_lower) or "sarm" in drug_class_lower) and not is_ai
         is_arom = is_aromatizable_androgen(compound) if is_androgen else True
         is_5ar = is_5alpha_reductase_substrate(compound) if is_androgen else True

@@ -84,6 +84,8 @@ INITIAL_TARGET_SEED_METADATA: Dict[str, Dict[str, str]] = {
     "tmsb4x": {"symbol": "TMSB4X", "uniprot": "P62328", "ensembl": "ENSG00000205542", "name": "Thymosin Beta-4 (TMSB4X / G-Actin Sequestration)"},
     "oxtr": {"symbol": "OXTR", "uniprot": "P30559", "ensembl": "ENSG00000180914", "name": "Oxytocin Receptor (OXTR)"},
     "avpr2": {"symbol": "AVPR2", "uniprot": "P30518", "ensembl": "ENSG00000126895", "name": "Vasopressin V2 Receptor (AVPR2)"},
+    "carns1": {"symbol": "CARNS1", "uniprot": "A5YM72", "ensembl": "ENSG00000172508", "name": "Carnosine Synthase 1 (CARNS1 / Intramuscular Proton Buffering)"},
+    "mrgprd": {"symbol": "MRGPRD", "uniprot": "Q8TDF5", "ensembl": "ENSG00000188987", "name": "Mas-Related G-Protein Coupled Receptor Member D (MRGPRD / Cutaneous Paresthesia)"},
 }
 
 # Backward compatibility alias
@@ -630,8 +632,8 @@ class PathwayService:
         elif "adrb1" in t_lower or "adrb2" in t_lower or "beta-1" in t_lower or "beta-2" in t_lower or sym in ("ADRB1", "ADRB2"):
             organ = "Cardiovascular / Pulmonary"
             biomarkers.extend([
-                {"id": "bio_heart_rate", "label": "Resting Heart Rate", "unit": "bpm", "panel": "Vitals", "lower": 50, "upper": 90, "mag": 0.8},
-                {"id": "bio_blood_pressure", "label": "Systolic Blood Pressure", "unit": "mmHg", "panel": "Vitals", "lower": 90, "upper": 120, "mag": 0.6},
+                {"id": "bio_heart_rate", "label": "Resting Heart Rate", "unit": "bpm", "panel": "Vitals", "lower": 50, "upper": 90, "mag": 0.35},
+                {"id": "bio_blood_pressure", "label": "Systolic Blood Pressure", "unit": "mmHg", "panel": "Vitals", "lower": 90, "upper": 120, "mag": 0.25},
             ])
             pheno_nodes.extend([
                 {"id": "pheno_inotropic", "label": "Myocardial Inotropy & Chronotropic Acceleration", "cat": "therapeutic_benefit", "sev": "high", "mag": 0.85},
@@ -643,8 +645,8 @@ class PathwayService:
         elif "adra2" in t_lower or "alpha-2" in t_lower or sym == "ADRA2A":
             organ = "Autonomic / Cardiovascular"
             biomarkers.extend([
-                {"id": "bio_heart_rate", "label": "Resting Heart Rate", "unit": "bpm", "panel": "Vitals", "lower": 50, "upper": 90, "mag": -0.7},
-                {"id": "bio_blood_pressure", "label": "Systolic Blood Pressure", "unit": "mmHg", "panel": "Vitals", "lower": 90, "upper": 120, "mag": -0.6},
+                {"id": "bio_heart_rate", "label": "Resting Heart Rate", "unit": "bpm", "panel": "Vitals", "lower": 50, "upper": 90, "mag": -0.25},
+                {"id": "bio_blood_pressure", "label": "Systolic Blood Pressure", "unit": "mmHg", "panel": "Vitals", "lower": 90, "upper": 120, "mag": -0.20},
             ])
             pheno_nodes.extend([
                 {"id": "pheno_sympathetic_activation", "label": "Sympathoadrenal Arousal, Lipolysis & Chronotropic Stimulation", "cat": "therapeutic_benefit", "sev": "moderate", "mag": -0.85},
@@ -655,8 +657,8 @@ class PathwayService:
         elif "adenosine" in t_lower or "adora" in t_lower or "a1 receptor" in t_lower or "a2a receptor" in t_lower or t_lower.startswith("a1") or t_lower.startswith("a2a") or sym in ("ADORA1", "ADORA2A"):
             organ = "Central Nervous System"
             biomarkers.extend([
-                {"id": "bio_heart_rate", "label": "Resting Heart Rate", "unit": "bpm", "panel": "Vitals", "lower": 50, "upper": 90, "mag": -0.6},
-                {"id": "bio_blood_pressure", "label": "Systolic Blood Pressure", "unit": "mmHg", "panel": "Vitals", "lower": 90, "upper": 120, "mag": -0.5},
+                {"id": "bio_heart_rate", "label": "Resting Heart Rate", "unit": "bpm", "panel": "Vitals", "lower": 50, "upper": 90, "mag": -0.18},
+                {"id": "bio_blood_pressure", "label": "Systolic Blood Pressure", "unit": "mmHg", "panel": "Vitals", "lower": 90, "upper": 120, "mag": -0.15},
             ])
             pheno_nodes.extend([
                 {"id": "pheno_vigilance", "label": "Heightened Cognitive Vigilance & Reaction Time", "cat": "therapeutic_benefit", "sev": "moderate", "mag": -0.8},
@@ -674,8 +676,8 @@ class PathwayService:
         elif ("gaba" in t_lower or "theanine" in t_lower or sym in ("GABRA1", "GABRA2")) and "glutamat" not in t_lower and "nmda" not in t_lower:
             organ = "Central Nervous System"
             biomarkers.extend([
-                {"id": "bio_heart_rate", "label": "Resting Heart Rate", "unit": "bpm", "panel": "Vitals", "lower": 50, "upper": 90, "mag": -0.5},
-                {"id": "bio_cortisol", "label": "Serum Cortisol Concentration", "unit": "μg/dL", "panel": "Endocrine Panel", "lower": 6.0, "upper": 18.0, "mag": -0.6},
+                {"id": "bio_heart_rate", "label": "Resting Heart Rate", "unit": "bpm", "panel": "Vitals", "lower": 50, "upper": 90, "mag": -0.15},
+                {"id": "bio_cortisol", "label": "Serum Cortisol Concentration", "unit": "μg/dL", "panel": "Endocrine Panel", "lower": 6.0, "upper": 18.0, "mag": -0.25},
             ])
             pheno_nodes.extend([
                 {"id": "pheno_anxiolysis", "label": "Rapid Anxiolysis & Somatic Stress Reduction", "cat": "therapeutic_benefit", "sev": "high", "mag": 0.85},
@@ -686,14 +688,14 @@ class PathwayService:
         elif "glutamat" in t_lower or "nmda" in t_lower or sym in ("GRIN1", "GRIN2A"):
             organ = "Central Nervous System"
             biomarkers.extend([
-                {"id": "bio_heart_rate", "label": "Resting Heart Rate", "unit": "bpm", "panel": "Vitals", "lower": 50, "upper": 90, "mag": 0.5},
-                {"id": "bio_cortisol", "label": "Serum Cortisol Concentration", "unit": "μg/dL", "panel": "Endocrine Panel", "lower": 6.0, "upper": 18.0, "mag": 0.6},
+                {"id": "bio_heart_rate", "label": "Resting Heart Rate", "unit": "bpm", "panel": "Vitals", "lower": 50, "upper": 90, "mag": 0.15},
+                {"id": "bio_cortisol", "label": "Serum Cortisol Concentration", "unit": "μg/dL", "panel": "Endocrine Panel", "lower": 6.0, "upper": 18.0, "mag": 0.20},
             ])
             pheno_nodes.extend([
                 {"id": "pheno_neuroexcitation", "label": "Glutamatergic Excitotoxicity & Central Nervous System Arousal", "cat": "adverse_effect", "sev": "moderate", "mag": 0.75},
             ])
 
-        # 7c. Skeletal Muscle ATP-PCr Phosphagen System (Creatine)
+        # 7d. Skeletal Muscle ATP-PCr Phosphagen System (Creatine)
         elif "creatine" in t_lower or "phosphagen" in t_lower or "atp-pcr" in t_lower or sym in ("CKM", "CKMT2", "SLC6A8"):
             organ = "Skeletal Muscle"
             biomarkers.extend([
@@ -703,6 +705,17 @@ class PathwayService:
             pheno_nodes.extend([
                 {"id": "pheno_power_output", "label": "Enhanced Anaerobic Peak Power & Repeated Sprint Capacity", "cat": "therapeutic_benefit", "sev": "high", "mag": 0.9},
                 {"id": "pheno_lean_mass", "label": "Accelerated Resistance Training Lean Mass Adaptation", "cat": "therapeutic_benefit", "sev": "high", "mag": 0.8},
+            ])
+
+        # 7e. Skeletal Muscle Carnosine Synthesis & Intracellular Proton Buffering (CARNS1 / Beta-Alanine)
+        elif "carnosine" in t_lower or "carns1" in t_lower or "beta-alanine" in t_lower or "beta alanine" in t_lower or sym in ("CARNS1", "MRGPRD"):
+            organ = "Skeletal Muscle / Performance"
+            biomarkers.extend([
+                {"id": "bio_carnosine_stores", "label": "Intramuscular Carnosine Pool", "unit": "mmol/kg dw", "panel": "Muscle Panel", "lower": 15, "upper": 60, "mag": 0.85},
+            ])
+            pheno_nodes.extend([
+                {"id": "pheno_anaerobic_endurance", "label": "Intramuscular Proton Buffering & Delayed Fatigue in High-Intensity Exercise", "cat": "therapeutic_benefit", "sev": "high", "mag": 0.90},
+                {"id": "pheno_paresthesia", "label": "Transient Sensory Paresthesia (Benign Cutaneous MrgprD Stimulation)", "cat": "therapeutic_benefit", "sev": "moderate", "mag": 0.65},
             ])
 
         # 8. Growth Hormone Axis (GHSR / GHRHR)

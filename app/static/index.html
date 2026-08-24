@@ -2282,24 +2282,48 @@
       }
       window.setExperienceMode = setExperienceMode;
 
-      function loadPreset(presetKey) {
+      async function loadPreset(presetKey) {
         const preset = PRESET_STACKS[presetKey];
         if (!preset) return;
-        state.stack = [];
-        preset.forEach(item => {
-          state.stack.push({
-            key: item.key,
-            name: item.key.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase()),
-            drug_class: 'Compound',
-            dose: item.dose,
-            unit: item.unit,
-            frequency: item.frequency,
-            timing: item.timing,
-            route: item.route,
-          });
-        });
         const menu = document.getElementById('preset-menu');
         if (menu) menu.classList.remove('open');
+        showToast(`Loading ${presetKey.replace(/_/g, ' ').toUpperCase()} Protocol...`, '⚡');
+
+        const fetchedItems = await Promise.all(
+          preset.map(async (item) => {
+            try {
+              const res = await fetch(`/catalog/${encodeURIComponent(item.key)}`);
+              if (res.ok) {
+                const comp = await res.json();
+                return {
+                  key: comp.key || item.key,
+                  name: comp.name || item.key.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase()),
+                  drug_class: comp.drug_class || 'Compound',
+                  mechanism: comp.mechanism || '',
+                  dose: item.dose,
+                  unit: item.unit,
+                  frequency: item.frequency,
+                  timing: item.timing,
+                  route: item.route || comp.route || 'oral',
+                };
+              }
+            } catch (e) {
+              console.warn('Failed to fetch preset compound details for', item.key, e);
+            }
+            return {
+              key: item.key,
+              name: item.key.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase()),
+              drug_class: 'Compound',
+              dose: item.dose,
+              unit: item.unit,
+              frequency: item.frequency,
+              timing: item.timing,
+              route: item.route || 'oral',
+            };
+          })
+        );
+
+        state.stack = fetchedItems;
         showToast(`Loaded ${presetKey.replace(/_/g, ' ').toUpperCase()} Protocol`, '⚡');
         syncAndEvaluateStack();
       }
@@ -2860,6 +2884,25 @@
           .then(res => res.json())
           .then(data => {
             state.analysis = data;
+            if (data.compounds && Array.isArray(data.compounds)) {
+              let updatedStack = false;
+              data.compounds.forEach(c => {
+                const item = state.stack.find(s => String(s.key).toLowerCase() === String(c.key || c.canonical_name || '').toLowerCase());
+                if (item) {
+                  if (c.name && (!item.name || item.name === item.key)) {
+                    item.name = c.name;
+                    updatedStack = true;
+                  }
+                  if (c.drug_class && (item.drug_class === 'Compound' || !item.drug_class)) {
+                    item.drug_class = c.drug_class;
+                    updatedStack = true;
+                  }
+                }
+              });
+              if (updatedStack) {
+                renderStackList();
+              }
+            }
             renderDashboard(data);
           })
           .catch(err => console.error(err));

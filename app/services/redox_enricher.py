@@ -93,7 +93,7 @@ class RedoxEnricher:
         organ_burdens = organ_burdens or {}
 
         c_name_lower = str(compound_name or "").lower()
-        drug_class_lower = f"{drug_class} {mechanism_text}".lower()
+        drug_class_lower = f"{drug_class} {mechanism_text} {compound_name}".lower()
         mech_lower = mechanism_text.lower()
 
         # Check if explicitly an antioxidant (Nrf2 activator, thiol donor, lipophilic radical scavenger)
@@ -106,21 +106,32 @@ class RedoxEnricher:
                 "nrf2",
                 "thiol donor",
                 "ascorbic",
+                "vitamin c",
                 "tocopherol",
+                "vitamin e",
                 "coq10",
                 "ubiquinone",
                 "ubiquinol",
                 "lipoic acid",
                 "astaxanthin",
                 "acetylcysteine",
+                "nac",
+                "taurine",
+                "curcumin",
+                "resveratrol",
+                "quercetin",
+                "apigenin",
+                "melatonin",
+                "sulforaphane",
+                "selenium",
             ]
         ) or any(
-            "antioxidant" in str(t.get("family", "")).lower() or "nrf2" in str(t.get("target", "")).lower()
+            any(w in str(t.get("family", "")).lower() or w in str(t.get("target", "")).lower() for w in ["antioxidant", "nrf2", "redox", "glutathione", "system xc", "slc7a11", "gclc"])
             for t in targets
         )
 
         if is_antioxidant:
-            antiox_efficacy = min(0.85, 0.35 + 0.15 * math.log10(max(1.0, dose_mg)))
+            antiox_efficacy = min(0.95, 0.60 + 0.15 * math.log10(max(1.0, dose_mg)))
             return {
                 "is_pro_oxidant": False,
                 "is_antioxidant": True,
@@ -153,19 +164,43 @@ class RedoxEnricher:
         class_stress = 0.0
         
         is_17aa_structural = any(
-            w in drug_class_lower or w in mech_lower
+            w in drug_class_lower or w in mech_lower or w in c_name_lower
             for w in [
                 "17alpha",
                 "17a-alkylated",
                 "c17-alkylated",
                 "17-alkylated",
                 "17-hydroxy-17-methyl",
+                "17a-methyl",
+                "17-methyl",
                 "alkylated steroid",
+                "methyldrostanolone",
+                "methasteron",
+                "superdrol",
+                "methandrostenolone",
+                "methandienone",
+                "dianabol",
+                "oxymetholone",
+                "anadrol",
+                "stanozolol",
+                "winstrol",
+                "oxandrolone",
+                "anavar",
+                "methyltestosterone",
+                "fluoxymesterone",
+                "halotestin",
+                "turinabol",
+                "epistane",
+                "mibolerone",
             ]
+        )
+        is_conjugated_19nor = any(
+            w in drug_class_lower or w in mech_lower or w in c_name_lower
+            for w in ["trenbolone", "trienolone", "methyltrienolone", "parabolan"]
         )
         is_synthetic_androgen = (
             any(
-                w in drug_class_lower or w in mech_lower
+                w in drug_class_lower or w in mech_lower or w in c_name_lower
                 for w in [
                     "anabolic steroid",
                     "synthetic androgen",
@@ -176,32 +211,47 @@ class RedoxEnricher:
                     "androstane derivative",
                     "gonane derivative",
                     "anabolic-androgenic",
+                    "drostanolone",
+                    "nandrolone",
+                    "boldenone",
+                    "methenolone",
+                    "rad140",
+                    "lgd4033",
+                    "ostarine",
+                    "andarine",
                 ]
             )
-            and not ("testosterone" in c_name_lower and not any(w in c_name_lower for w in ["synthetic", "derivative", "17alpha"]))
-        )
+            or any("androgen receptor" in str(t.get("target", "")).lower() and str(t.get("action", "")).lower() in ["agonist", "substrate"] for t in targets)
+        ) and not ("testosterone" in c_name_lower and not any(w in c_name_lower for w in ["synthetic", "derivative", "17alpha", "methyl", "alkylated"]))
+
         is_direct_uncoupler = any(
             w in drug_class_lower or w in mech_lower or w in c_name_lower
             for w in [
                 "mitochondrial uncoupler",
                 "uncoupling protein",
+                "dnp",
+                "dinitrophenol",
                 "quinone",
                 "dili",
                 "hepatotoxin",
                 "sympathomimetic",
-                "beta-2 agonist",
+"beta-2 agonist",
                 "beta 2 agonist",
                 "beta-adrenergic agonist",
                 "adrenergic agonist",
                 "bronchodilator",
                 "clenbuterol",
+                "albuterol",
+                "ephedrine",
             ]
         )
 
         if is_17aa_structural:
             class_stress += 0.45
-        if is_synthetic_androgen:
-            class_stress += 0.35
+        if is_conjugated_19nor:
+            class_stress += 0.22
+        elif is_synthetic_androgen:
+            class_stress += 0.06
         if is_direct_uncoupler:
             class_stress += 0.40
 
@@ -209,6 +259,8 @@ class RedoxEnricher:
         hep_burden = organ_burdens.get("hepatic", "none").lower()
         if hep_burden in ["high", "severe"]:
             class_stress += 0.20
+        elif hep_burden in ["moderate"]:
+            class_stress += 0.10
 
         # 3. CYP Microsomal Oxidation Strain (Uncoupled P450 catalytic cycle generating H2O2)
         cyp_strain = 0.05 * (len(cyp_substrates) + len(cyp_inducers))

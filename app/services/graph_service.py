@@ -483,18 +483,60 @@ def build_selected_compound_graph(stack: List[Any], catalog_service: CatalogServ
         compound_label = str(compound.get("name") or compound_id)
 
         # 1. Add Compound Node
+        def _parse_numeric(val: Any) -> Optional[float]:
+            if val is None:
+                return None
+            if isinstance(val, (int, float)):
+                return float(val)
+            s = str(val).strip().rstrip("%").strip()
+            if not s:
+                return None
+            if "-" in s:
+                nums = [float(p.strip()) for p in s.split("-") if re.match(r"^\d+(?:\.\d+)?$", p.strip())]
+                if nums:
+                    return sum(nums) / len(nums)
+            m = re.search(r"(\d+(?:\.\d+)?)", s)
+            if m:
+                return float(m.group(1))
+            return None
+
+        raw_bioavail = compound.get("oral_bioavailability") or compound.get("bioavailability_f") or compound.get("bioavailability_pct")
+        parsed_bio = _parse_numeric(raw_bioavail)
+        bioavail_pct = (parsed_bio * 100.0) if (parsed_bio is not None and parsed_bio <= 1.0) else parsed_bio
+        v_dist = _parse_numeric(compound.get("volume_of_distribution") or compound.get("volume_of_distribution_l_kg"))
+        prot_bind = _parse_numeric(compound.get("protein_binding") or compound.get("protein_binding_pct"))
+        fe_val = _parse_numeric(compound.get("renal_clearance_fraction") or compound.get("fe"))
+        fh_val = _parse_numeric(compound.get("hepatic_clearance_fraction") or compound.get("fh"))
+
+        cyp_enz = compound.get("cyp_enzymes") if isinstance(compound.get("cyp_enzymes"), dict) else {}
+        cyp_subs = list(compound.get("cyp_substrates") or cyp_enz.get("substrates", []))
+        cyp_inhibs = list(compound.get("cyp_inhibitors") or cyp_enz.get("inhibitors", []))
+        cyp_inducs = list(compound.get("cyp_inducers") or cyp_enz.get("inducers", []))
+
         graph.add_node(
             CompoundNode(
                 node_id=compound_id,
                 label=compound_label,
+                canonical_name=compound.get("canonical_name") or compound_label,
                 smiles=compound.get("smiles"),
                 inchikey=compound.get("inchikey"),
-                logP=compound.get("logp"),
-                tpsa=compound.get("tpsa"),
-                molecular_weight=compound.get("molecular_weight"),
-                base_half_life=float(re.search(r"(\d+)", str(compound.get("half_life") or "")).group(1)) if re.search(r"(\d+)", str(compound.get("half_life") or "")) else None,
+                pubchem_cid=str(compound.get("pubchem_cid") or "") if compound.get("pubchem_cid") else None,
+                chembl_id=str(compound.get("chembl_id") or "") if compound.get("chembl_id") else None,
+                logP=_parse_numeric(compound.get("logp")),
+                tpsa=_parse_numeric(compound.get("tpsa")),
+                molecular_weight=_parse_numeric(compound.get("molecular_weight")),
+                base_half_life=_parse_numeric(compound.get("half_life")),
+                bioavailability_pct=bioavail_pct,
+                volume_of_distribution=v_dist,
+                protein_binding_pct=prot_bind,
+                renal_clearance_fraction=fe_val,
+                hepatic_clearance_fraction=fh_val,
                 drug_class=compound.get("drug_class"),
                 is_narrow_therapeutic_index=bool(compound.get("is_narrow_therapeutic_index")),
+                cyp_substrates=cyp_subs,
+                cyp_inhibitors=cyp_inhibs,
+                cyp_inducers=cyp_inducs,
+                metabolites=list(compound.get("metabolites") or []),
             ),
             dose_mg=dose_mg,
             dose_str=dose_str,
@@ -503,9 +545,9 @@ def build_selected_compound_graph(stack: List[Any], catalog_service: CatalogServ
             effective_daily_dose_mg=eff_daily_mg,
             effective_daily_display=eff_daily_display,
             molecular_weight=compound.get("molecular_weight"),
-            oral_bioavailability=compound.get("oral_bioavailability") or compound.get("bioavailability_f"),
-            volume_of_distribution=compound.get("volume_of_distribution") or compound.get("volume_of_distribution_l_kg"),
-            protein_binding=compound.get("protein_binding") or compound.get("protein_binding_pct"),
+            oral_bioavailability=bioavail_pct,
+            volume_of_distribution=v_dist,
+            protein_binding=prot_bind,
             faers_surveillance=compound.get("faers_surveillance"),
         )
 

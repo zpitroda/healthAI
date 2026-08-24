@@ -359,6 +359,18 @@ class GraphRAGContextRequest(BaseModel):
         le=5,
         description="Maximum multi-hop depth for GraphRAG context expansion",
     )
+    include_pkpd: bool = Field(
+        default=True,
+        description="Whether to include structured pharmacokinetic & clearance profiles in context",
+    )
+    include_kinetics: bool = Field(
+        default=True,
+        description="Whether to include downstream biomarker kinetic parameters in context",
+    )
+    include_causal_chains: bool = Field(
+        default=True,
+        description="Whether to extract multi-tier causal reasoning pathways",
+    )
 
 
 @router.post("/api/graph/cypher")
@@ -380,7 +392,7 @@ def execute_cypher_query(request: CypherQueryRequest) -> JSONResponse:
 
 @router.post("/api/graph/graphrag-context")
 def get_graphrag_context_api(request: GraphRAGContextRequest) -> JSONResponse:
-    """Extract structured GraphRAG subgraph context, triples, and text summary for future LLM integration."""
+    """Extract structured GraphRAG subgraph context, triples, causal chains, PK/PD matrix, and formatted prompt context for LLM integration."""
     if not request.entity_ids:
         raise HTTPException(status_code=400, detail="At least one entity ID is required.")
 
@@ -392,7 +404,13 @@ def get_graphrag_context_api(request: GraphRAGContextRequest) -> JSONResponse:
 
     try:
         db = get_graph_database()
-        context = db.get_graphrag_context(request.entity_ids, max_hops=request.max_hops)
+        context = db.get_graphrag_context(
+            request.entity_ids,
+            max_hops=request.max_hops,
+            include_pkpd=request.include_pkpd,
+            include_kinetics=request.include_kinetics,
+            include_causal_chains=request.include_causal_chains,
+        )
         return JSONResponse(context, headers=NO_CACHE_HEADERS)
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"GraphRAG context extraction error: {str(e)}")

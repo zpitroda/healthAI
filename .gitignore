@@ -6,7 +6,7 @@ ENV/
 env.bak/
 venv.bak/
 
-# Python Cache, Bytecode & Testing
+# Python Bytecode, Cache & Testing
 __pycache__/
 *.py[cod]
 *$py.class
@@ -18,13 +18,32 @@ htmlcov/
 .ruff_cache/
 .hypothesis/
 
-# Python Build & Distribution
+# Python Build & Packaging
 build/
 dist/
 *.egg-info/
 .eggs/
 *.egg
 
+# Compiled Binaries, Native Libraries & Executables
+*.exe
+*.dll
+*.so
+*.dylib
+*.pyd
+*.lib
+*.obj
+*.exp
+LICENSE-LLVM-OpenMP
+
+# Model Weights & Quantized GGUF Artifacts
+*.gguf
+*.bin
+*.pt
+*.pth
+*.onnx
+*.safetensors
+models/
 
 # Archives & Compressed Files
 *.tar.gz
@@ -34,7 +53,7 @@ dist/
 *.rar
 *.7z
 
-# Logs & Temporary Files
+# Logs, Progress & Temporary Files
 *.log
 logs/
 *.tmp
@@ -42,8 +61,9 @@ logs/
 *.bak
 *.swp
 *.swo
+*.progress
 
-# Operating System & IDEs
+# Operating System & IDE Files
 .DS_Store
 Thumbs.db
 .vscode/
@@ -52,7 +72,7 @@ Thumbs.db
 *.sublime-workspace
 *.sublime-project
 
-# Environment & Secrets
+# Environment Variables & Secrets
 .env
 .env.local
 .env.*.local
@@ -60,13 +80,16 @@ Thumbs.db
 *.key
 
 # SQLite Databases & WAL/SHM Runtime Files
-*.db
 *.db-journal
 *.db-wal
 *.db-shm
-*.sqlite
-*.sqlite3
-*.sqlite3-journal
 *.sqlite3-wal
 *.sqlite3-shm
+app/data/*.db
+
+# Neo4j Server Runtime, Data & Logs
+neo4j/
+
+# llama.cpp Inference Binaries & Runtimes
+llama.cpp/
 

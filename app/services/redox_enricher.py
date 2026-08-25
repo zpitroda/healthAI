@@ -15,6 +15,8 @@ from typing import Any, Dict, List, Optional, Tuple
 
 logger = logging.getLogger(__name__)
 
+import httpx
+
 # Cache for online API responses to prevent redundant network calls
 _ONLINE_EVIDENCE_CACHE: Dict[str, Dict[str, Any]] = {}
 
@@ -26,6 +28,7 @@ class RedoxEnricher:
         """
         Dynamically query Europe PMC REST API to detect published empirical literature
         evidence of oxidative stress, ROS generation, or lipid peroxidation for ANY compound.
+        Uses fast non-blocking connect timeouts and caching.
         """
         if not compound_name or len(compound_name) < 3:
             return {"hit_count": 0, "has_online_evidence": False, "evidence_score": 0.0}
@@ -41,14 +44,15 @@ class RedoxEnricher:
         hit_count = 0
         sample_titles: List[str] = []
         try:
-            req = urllib.request.Request(url, headers={"User-Agent": "HealthAI-Pharmacology/1.0", "Accept": "application/json"})
-            with urllib.request.urlopen(req, timeout=3) as response:
-                data = json.loads(response.read().decode())
-                hit_count = data.get("hitCount", 0)
-                result_list = data.get("resultList", {}).get("result", [])
-                sample_titles = [r.get("title", "") for r in result_list[:3] if r.get("title")]
+            with httpx.Client(timeout=httpx.Timeout(0.4, connect=0.25), follow_redirects=True) as client:
+                resp = client.get(url, headers={"User-Agent": "HealthAI-Pharmacology/1.0", "Accept": "application/json"})
+                if resp.status_code == 200:
+                    data = resp.json()
+                    hit_count = data.get("hitCount", 0)
+                    result_list = data.get("resultList", {}).get("result", [])
+                    sample_titles = [r.get("title", "") for r in result_list[:3] if r.get("title")]
         except Exception as err:
-            logger.debug(f"Europe PMC dynamic query notice for {compound_name}: {err}")
+            logger.debug("Europe PMC dynamic query notice for %s: %s", compound_name, err)
 
         has_evidence = hit_count > 0
         res = {
@@ -70,6 +74,7 @@ class RedoxEnricher:
         cyp_inducers: Optional[List[str]] = None,
         organ_burdens: Optional[Dict[str, str]] = None,
         dose_mg: float = 100.0,
+        allow_online: bool = False,
     ) -> Dict[str, Any]:
         """
         Fundamental Algorithmic Redox Stress Evaluator.
@@ -174,20 +179,29 @@ class RedoxEnricher:
                 "anadrol",
                 "stanozolol",
                 "winstrol",
-                "oxandrolone",
-                "anavar",
                 "methyltestosterone",
                 "fluoxymesterone",
                 "halotestin",
                 "turinabol",
                 "epistane",
-                "mibolerone",
             ]
         )
-        is_conjugated_19nor = any(
-            w in drug_class_lower or w in mech_lower or w in c_name_lower
-            for w in ["trenbolone", "trienolone", "methyltrienolone", "parabolan"]
+
+        is_conjugated_19nor = (
+            any(
+                w in drug_class_lower or w in mech_lower or w in c_name_lower
+                for w in [
+                    "trenbolone",
+                    "trienolone",
+                    "finajet",
+                    "parabolan",
+                    "trienone",
+                    "19-nor-delta9",
+                ]
+            )
+            or any("trenbolone" in str(t.get("target", "")).lower() for t in targets)
         )
+
         is_synthetic_androgen = (
             any(
                 w in drug_class_lower or w in mech_lower or w in c_name_lower
@@ -257,8 +271,8 @@ class RedoxEnricher:
         online_res = {"hit_count": 0, "has_online_evidence": False}
 
         if is_pro_oxidant:
-            # Query online literature to enrich rationale
-            online_res = self.query_online_redox_evidence(compound_name)
+            if allow_online:
+                online_res = self.query_online_redox_evidence(compound_name)
             dose_factor = 0.10 * math.log10(max(1.0, dose_mg))
             net_redox_efficacy = min(0.80, round(raw_net_stress + dose_factor, 3))
             return {
@@ -269,7 +283,7 @@ class RedoxEnricher:
                 "action": "inducer",
                 "family": "Mitochondrial Stress",
                 "online_evidence": online_res,
-                "rationale": f"Mechanistic metabolic/microsomal strain (stress score: {raw_net_stress:.2f}) verified with {online_res.get('hit_count', 0)} published literature hits.",
+                "rationale": f"Mechanistic metabolic/microsomal strain (stress score: {raw_net_stress:.2f}).",
             }
 
         return {

@@ -1,4 +1,11 @@
 #!/usr/bin/env python3
+"""
+ChEMBL Drug Subset Ingestion Script
+-----------------------------------
+Parses exported ChEMBL approved and investigational drug dataset CSV exports,
+extracts ATC classifications, administration routes, SMILES, InChIKeys, and clinical phases,
+and writes them directly into the HealthAI SQLite catalog database.
+"""
 from __future__ import annotations
 
 import argparse

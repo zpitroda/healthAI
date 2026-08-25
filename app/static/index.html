@@ -1668,6 +1668,730 @@
       }
 
       /* ==========================================================================
+         FLAGSHIP AI COPILOT DRAWER & CHAT UI
+         ========================================================================== */
+      .floating-copilot-pill {
+        position: fixed;
+        bottom: 24px;
+        right: 24px;
+        z-index: 220;
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        padding: 10px 18px;
+        background: linear-gradient(135deg, rgba(8, 20, 36, 0.92), rgba(13, 30, 54, 0.95));
+        border: 1px solid rgba(0, 242, 254, 0.4);
+        border-radius: 9999px;
+        box-shadow: 0 10px 30px rgba(0, 0, 0, 0.6), 0 0 20px rgba(0, 242, 254, 0.3);
+        cursor: pointer;
+        backdrop-filter: blur(16px);
+        -webkit-backdrop-filter: blur(16px);
+        transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+      }
+      .floating-copilot-pill:hover {
+        transform: translateY(-2px) scale(1.03);
+        border-color: var(--accent-cyan);
+        box-shadow: 0 14px 36px rgba(0, 0, 0, 0.7), 0 0 28px rgba(0, 242, 254, 0.45);
+      }
+      .copilot-pulse-dot {
+        width: 10px;
+        height: 10px;
+        border-radius: 50%;
+        background: var(--accent-teal);
+        box-shadow: 0 0 10px var(--accent-teal);
+        animation: pulseGlow 2s infinite;
+      }
+      @keyframes pulseGlow {
+        0%, 100% { transform: scale(1); opacity: 1; }
+        50% { transform: scale(1.3); opacity: 0.65; }
+      }
+
+      .copilot-drawer-backdrop {
+        position: fixed;
+        inset: 0;
+        background: rgba(3, 7, 18, 0.6);
+        backdrop-filter: blur(4px);
+        -webkit-backdrop-filter: blur(4px);
+        z-index: 240;
+        opacity: 0;
+        visibility: hidden;
+        transition: all 0.3s ease;
+      }
+      .copilot-drawer-backdrop.open {
+        opacity: 1;
+        visibility: visible;
+      }
+
+      .copilot-resize-handle {
+        position: absolute;
+        top: 0;
+        left: 0;
+        width: 6px;
+        height: 100%;
+        cursor: ew-resize;
+        background: transparent;
+        z-index: 260;
+        transition: background 0.15s ease;
+      }
+      .copilot-resize-handle:hover,
+      .copilot-resize-handle.active {
+        background: var(--accent-cyan);
+        box-shadow: 0 0 10px var(--accent-cyan);
+      }
+
+      .copilot-drawer {
+        position: fixed;
+        top: 0;
+        right: -100vw;
+        width: var(--copilot-width, 620px);
+        max-width: 96vw;
+        min-width: 380px;
+        height: 100vh;
+        background: linear-gradient(180deg, #070f1e 0%, #050a14 100%);
+        border-left: 1px solid var(--border);
+        box-shadow: -16px 0 50px rgba(0, 0, 0, 0.85);
+        z-index: 250;
+        display: flex;
+        flex-direction: column;
+        transition: right 0.35s cubic-bezier(0.16, 1, 0.3, 1), width 0.22s ease;
+        overflow: hidden;
+      }
+      .copilot-drawer.open {
+        right: 0;
+      }
+      .copilot-drawer.resizing {
+        transition: none !important;
+        user-select: none;
+      }
+      .copilot-drawer.expanded {
+        width: min(940px, 95vw) !important;
+      }
+      @media (max-width: 768px) {
+        .copilot-drawer {
+          width: 100vw !important;
+          max-width: 100vw !important;
+          min-width: 100vw !important;
+          border-left: none;
+        }
+        .copilot-resize-handle {
+          display: none;
+        }
+      }
+
+      .copilot-header {
+        padding: 14px 18px;
+        background: rgba(10, 22, 38, 0.95);
+        border-bottom: 1px solid var(--border-subtle);
+        display: flex;
+        flex-direction: column;
+        gap: 10px;
+        flex-shrink: 0;
+      }
+
+      .copilot-header-top {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+      }
+
+      .copilot-title-wrap {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+      }
+
+      .copilot-title-icon {
+        width: 30px;
+        height: 30px;
+        border-radius: var(--radius-sm);
+        background: linear-gradient(135deg, var(--accent-teal), var(--accent-cyan));
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 1.05rem;
+        box-shadow: 0 0 14px rgba(0, 242, 254, 0.35);
+      }
+
+      .copilot-mode-bar {
+        display: grid;
+        grid-template-columns: repeat(4, 1fr);
+        gap: 6px;
+        background: rgba(0, 0, 0, 0.35);
+        padding: 4px;
+        border-radius: var(--radius-md);
+        border: 1px solid var(--border-subtle);
+      }
+
+      .copilot-mode-btn {
+        background: transparent;
+        border: 1px solid transparent;
+        border-radius: var(--radius-sm);
+        padding: 6px 4px;
+        color: var(--text-muted);
+        font-size: 0.74rem;
+        font-weight: 700;
+        cursor: pointer;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 2px;
+        transition: all 0.15s ease;
+      }
+      .copilot-mode-btn:hover {
+        color: var(--text-primary);
+        background: rgba(255, 255, 255, 0.04);
+      }
+      .copilot-mode-btn.active {
+        background: rgba(0, 242, 254, 0.12);
+        border-color: rgba(0, 242, 254, 0.35);
+        color: var(--accent-cyan);
+        box-shadow: 0 0 10px rgba(0, 242, 254, 0.2);
+      }
+
+      .copilot-context-bar {
+        padding: 6px 16px;
+        background: rgba(0, 0, 0, 0.25);
+        border-bottom: 1px solid var(--border-subtle);
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        font-size: 0.76rem;
+        flex-shrink: 0;
+      }
+
+      .copilot-stack-tags {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 4px;
+        max-height: 48px;
+        overflow-y: auto;
+      }
+
+      .copilot-quick-prompts {
+        padding: 8px 16px;
+        display: flex;
+        gap: 6px;
+        overflow-x: auto;
+        border-bottom: 1px solid var(--border-subtle);
+        background: rgba(255, 255, 255, 0.01);
+        flex-shrink: 0;
+        scrollbar-width: thin;
+      }
+
+      .quick-prompt-chip {
+        white-space: nowrap;
+        background: rgba(255, 255, 255, 0.04);
+        border: 1px solid var(--border-subtle);
+        border-radius: 9999px;
+        padding: 4px 12px;
+        font-size: 0.74rem;
+        color: var(--text-secondary);
+        cursor: pointer;
+        transition: all 0.15s ease;
+      }
+      .quick-prompt-chip:hover {
+        background: rgba(0, 242, 254, 0.1);
+        border-color: var(--accent-cyan);
+        color: var(--accent-cyan);
+      }
+
+      .copilot-chat-container {
+        flex: 1;
+        overflow-y: auto;
+        padding: 16px 18px;
+        display: flex;
+        flex-direction: column;
+        gap: 14px;
+        scroll-behavior: smooth;
+      }
+
+      .chat-msg {
+        display: flex;
+        flex-direction: column;
+        gap: 5px;
+        max-width: 92%;
+        animation: fadeIn 0.25s ease forwards;
+      }
+      .chat-msg.user {
+        align-self: flex-end;
+      }
+      .chat-msg.assistant {
+        align-self: flex-start;
+        max-width: 98%;
+      }
+
+      .chat-msg-header {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        font-size: 0.72rem;
+        color: var(--text-muted);
+        font-weight: 700;
+        text-transform: uppercase;
+        letter-spacing: 0.04em;
+      }
+
+      .chat-msg-bubble {
+        padding: 12px 16px;
+        border-radius: var(--radius-md);
+        font-size: 0.88rem;
+        line-height: 1.6;
+        word-break: break-word;
+      }
+      .chat-msg.user .chat-msg-bubble {
+        background: linear-gradient(135deg, rgba(0, 242, 254, 0.18), rgba(59, 130, 246, 0.22));
+        border: 1px solid rgba(0, 242, 254, 0.35);
+        color: #f8fafc;
+        border-bottom-right-radius: 2px;
+      }
+      .chat-msg.assistant .chat-msg-bubble {
+        background: var(--bg-card);
+        border: 1px solid var(--border-subtle);
+        color: var(--text-primary);
+        border-bottom-left-radius: 2px;
+        box-shadow: 0 4px 20px rgba(0,0,0,0.25);
+      }
+
+      .chat-msg.assistant .chat-msg-bubble p {
+        margin-bottom: 8px;
+      }
+      .chat-msg.assistant .chat-msg-bubble p:last-child {
+        margin-bottom: 0;
+      }
+      .chat-msg.assistant .chat-msg-bubble strong {
+        color: var(--accent-cyan);
+      }
+      .chat-msg.assistant .chat-msg-bubble h2,
+      .chat-msg.assistant .chat-msg-bubble h3,
+      .chat-msg.assistant .chat-msg-bubble h4 {
+        line-height: 1.3;
+        margin-top: 14px;
+        margin-bottom: 6px;
+      }
+      .chat-msg.assistant .chat-msg-bubble h2:first-child,
+      .chat-msg.assistant .chat-msg-bubble h3:first-child,
+      .chat-msg.assistant .chat-msg-bubble h4:first-child {
+        margin-top: 0;
+      }
+      .chat-msg.assistant .chat-msg-bubble table {
+        width: 100%;
+        border-collapse: collapse;
+        font-size: 0.78rem;
+        margin: 10px 0;
+        background: rgba(0, 0, 0, 0.25);
+        border: 1px solid var(--border-subtle);
+        border-radius: var(--radius-sm);
+        overflow: hidden;
+      }
+      .chat-msg.assistant .chat-msg-bubble th {
+        background: rgba(0, 242, 254, 0.08);
+        padding: 6px 10px;
+        font-weight: 700;
+        color: var(--text-primary);
+        border-bottom: 1px solid var(--border-subtle);
+        border-right: 1px solid rgba(255, 255, 255, 0.05);
+        text-align: left;
+      }
+      .chat-msg.assistant .chat-msg-bubble td {
+        padding: 6px 10px;
+        color: var(--text-secondary);
+        border-bottom: 1px solid rgba(255, 255, 255, 0.04);
+        border-right: 1px solid rgba(255, 255, 255, 0.04);
+      }
+      .chat-msg.assistant .chat-msg-bubble tr:last-child td {
+        border-bottom: none;
+      }
+      .chat-msg.assistant .chat-msg-bubble blockquote {
+        margin: 8px 0;
+        padding: 6px 12px;
+        background: rgba(0, 242, 254, 0.05);
+        border-left: 3px solid var(--accent-cyan);
+        border-radius: 0 var(--radius-sm) var(--radius-sm) 0;
+        font-size: 0.82rem;
+        color: var(--text-secondary);
+      }
+      .chat-msg.assistant .chat-msg-bubble hr {
+        border: none;
+        border-top: 1px solid rgba(255, 255, 255, 0.08);
+        margin: 12px 0;
+      }
+      .chat-msg.assistant .chat-msg-bubble ul, .chat-msg.assistant .chat-msg-bubble ol {
+        margin-left: 18px;
+        margin-bottom: 8px;
+      }
+      .chat-msg.assistant .chat-msg-bubble li {
+        margin-bottom: 4px;
+      }
+
+      /* REASONING & THOUGHT BOX IN COPILOT */
+      .copilot-thought-box {
+        background: rgba(6, 15, 28, 0.85);
+        border: 1px solid rgba(0, 242, 254, 0.22);
+        border-radius: var(--radius-sm);
+        margin-bottom: 10px;
+        overflow: hidden;
+        transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+        box-shadow: 0 4px 16px rgba(0, 0, 0, 0.35);
+      }
+      .copilot-thought-header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        padding: 8px 12px;
+        cursor: pointer;
+        user-select: none;
+        background: rgba(0, 242, 254, 0.06);
+        border-bottom: 1px solid rgba(0, 242, 254, 0.12);
+        transition: background 0.2s ease;
+      }
+      .copilot-thought-header:hover {
+        background: rgba(0, 242, 254, 0.12);
+      }
+      .copilot-thought-box.collapsed .copilot-thought-header {
+        border-bottom: none;
+      }
+      .copilot-thought-header-left {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        font-size: 0.78rem;
+        font-weight: 700;
+        color: var(--accent-cyan);
+      }
+      .copilot-thought-badge {
+        font-size: 0.68rem;
+        padding: 2px 7px;
+        border-radius: 9999px;
+        background: rgba(0, 242, 254, 0.12);
+        border: 1px solid rgba(0, 242, 254, 0.25);
+        color: var(--text-secondary);
+        display: inline-flex;
+        align-items: center;
+        gap: 4px;
+        font-weight: 600;
+      }
+      .copilot-thought-badge.live {
+        background: rgba(0, 242, 254, 0.18);
+        color: var(--accent-cyan);
+      }
+      .copilot-thought-header-right {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        font-size: 0.74rem;
+        color: var(--text-muted);
+      }
+      .copilot-thought-toggle {
+        font-size: 0.8rem;
+        transition: transform 0.2s ease;
+        display: inline-block;
+      }
+      .copilot-thought-box.collapsed .copilot-thought-toggle {
+        transform: rotate(-90deg);
+      }
+      .copilot-thought-body {
+        padding: 10px 14px;
+        max-height: 240px;
+        overflow-y: auto;
+        font-family: 'JetBrains Mono', 'Fira Code', 'Courier New', monospace;
+        font-size: 0.76rem;
+        line-height: 1.55;
+        color: #94a3b8;
+        background: rgba(0, 0, 0, 0.4);
+        white-space: pre-wrap;
+        word-break: break-word;
+        scroll-behavior: smooth;
+      }
+      .copilot-thought-box.collapsed .copilot-thought-body {
+        display: none;
+      }
+
+      /* ACTION CARDS IN CHAT */
+      .action-card-diff {
+        background: rgba(5, 15, 28, 0.9);
+        border: 1px solid var(--border);
+        border-radius: var(--radius-md);
+        padding: 12px 14px;
+        margin-top: 10px;
+        display: flex;
+        flex-direction: column;
+        gap: 10px;
+      }
+      .action-card-title {
+        font-size: 0.78rem;
+        font-weight: 800;
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
+        color: var(--accent-cyan);
+        display: flex;
+        align-items: center;
+        gap: 6px;
+      }
+      .diff-row {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 5px 8px;
+        border-radius: 4px;
+        font-size: 0.8rem;
+      }
+      .diff-row.add { background: rgba(16, 185, 129, 0.12); border-left: 3px solid var(--accent-teal); }
+      .diff-row.modify { background: rgba(245, 158, 11, 0.12); border-left: 3px solid #fbbf24; }
+      .diff-row.remove { background: rgba(239, 68, 68, 0.12); border-left: 3px solid #f87171; }
+
+      .copilot-citation-badge {
+        display: inline-flex;
+        align-items: center;
+        gap: 4px;
+        padding: 2px 8px;
+        border-radius: 9999px;
+        font-size: 0.72rem;
+        font-weight: 700;
+        text-decoration: none;
+        margin: 0 3px;
+        transition: all 0.15s ease;
+        vertical-align: middle;
+      }
+      .copilot-citation-badge.pmid-badge {
+        background: rgba(59, 130, 246, 0.15);
+        border: 1px solid rgba(59, 130, 246, 0.4);
+        color: #93c5fd;
+      }
+      .copilot-citation-badge.pmid-badge:hover {
+        background: rgba(59, 130, 246, 0.3);
+        color: #ffffff;
+        transform: translateY(-1px);
+      }
+      .copilot-citation-badge.chembl-badge {
+        background: rgba(168, 85, 247, 0.15);
+        border: 1px solid rgba(168, 85, 247, 0.4);
+        color: #d8b4fe;
+      }
+      .copilot-citation-badge.chembl-badge:hover {
+        background: rgba(168, 85, 247, 0.3);
+        color: #ffffff;
+        transform: translateY(-1px);
+      }
+      .copilot-citation-badge.fda-badge {
+        background: rgba(16, 185, 129, 0.15);
+        border: 1px solid rgba(16, 185, 129, 0.4);
+        color: #6ee7b7;
+      }
+      .copilot-citation-badge.trial-badge {
+        background: rgba(245, 158, 11, 0.15);
+        border: 1px solid rgba(245, 158, 11, 0.4);
+        color: #fcd34d;
+      }
+      .copilot-citation-badge.trial-badge:hover {
+        background: rgba(245, 158, 11, 0.3);
+        color: #ffffff;
+        transform: translateY(-1px);
+      }
+
+      .btn-apply-diff {
+        background: linear-gradient(135deg, var(--accent-teal), #059669);
+        color: #04151b;
+        border: none;
+        border-radius: var(--radius-sm);
+        padding: 8px 14px;
+        font-size: 0.8rem;
+        font-weight: 800;
+        cursor: pointer;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 6px;
+        transition: transform 0.15s ease;
+      }
+      .btn-apply-diff:hover {
+        transform: scale(1.02);
+      }
+
+      .copilot-goal-bar {
+        background: rgba(6, 16, 30, 0.95);
+        border: 1px solid rgba(0, 242, 254, 0.2);
+        border-radius: var(--radius-sm);
+        padding: 8px 12px;
+        margin: 6px 14px 0;
+        display: flex;
+        flex-direction: column;
+        gap: 6px;
+        flex-shrink: 0;
+      }
+      .copilot-goal-top {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        gap: 8px;
+      }
+      .copilot-goal-select-wrap {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        flex: 1;
+      }
+      .copilot-goal-select {
+        background: rgba(10, 22, 38, 0.9);
+        border: 1px solid var(--border-subtle);
+        border-radius: 4px;
+        color: var(--accent-cyan);
+        font-size: 0.76rem;
+        font-weight: 700;
+        padding: 3px 6px;
+        outline: none;
+        cursor: pointer;
+        flex: 1;
+      }
+      .copilot-goal-select:focus {
+        border-color: var(--border-focus);
+      }
+      .copilot-goal-badge {
+        font-size: 0.68rem;
+        font-weight: 800;
+        text-transform: uppercase;
+        border-radius: 3px;
+        padding: 2px 6px;
+      }
+      .copilot-goal-badge.auto {
+        background: rgba(0, 242, 254, 0.15);
+        color: var(--accent-cyan);
+        border: 1px solid rgba(0, 242, 254, 0.3);
+      }
+      .copilot-goal-badge.user {
+        background: rgba(16, 185, 129, 0.15);
+        color: var(--accent-teal);
+        border: 1px solid rgba(16, 185, 129, 0.3);
+      }
+      .btn-toggle-notes {
+        background: transparent;
+        border: 1px solid var(--border-subtle);
+        color: var(--text-muted);
+        font-size: 0.72rem;
+        padding: 2px 6px;
+        border-radius: 4px;
+        cursor: pointer;
+        transition: all 0.15s ease;
+      }
+      .btn-toggle-notes:hover {
+        color: var(--text-primary);
+        border-color: var(--border);
+      }
+      .copilot-custom-notes-input {
+        width: 100%;
+        background: rgba(5, 12, 22, 0.85);
+        border: 1px solid var(--border-subtle);
+        border-radius: 4px;
+        padding: 6px 8px;
+        font-size: 0.76rem;
+        color: var(--text-primary);
+        font-family: inherit;
+        resize: none;
+        outline: none;
+      }
+      .copilot-custom-notes-input:focus {
+        border-color: var(--border-focus);
+      }
+
+      .copilot-input-area {
+        padding: 14px 18px;
+        background: rgba(10, 22, 38, 0.98);
+        border-top: 1px solid var(--border-subtle);
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+        flex-shrink: 0;
+      }
+
+      .copilot-input-wrap {
+        display: flex;
+        align-items: flex-end;
+        gap: 8px;
+        background: rgba(5, 12, 22, 0.9);
+        border: 1px solid var(--border-subtle);
+        border-radius: var(--radius-md);
+        padding: 8px 12px;
+        transition: border-color 0.2s ease;
+      }
+      .copilot-input-wrap:focus-within {
+        border-color: var(--border-focus);
+      }
+
+      .copilot-textarea {
+        flex: 1;
+        background: transparent;
+        border: none;
+        outline: none;
+        color: var(--text-primary);
+        font-family: inherit;
+        font-size: 0.88rem;
+        line-height: 1.4;
+        resize: none;
+        max-height: 120px;
+        min-height: 24px;
+      }
+
+      .copilot-send-btn {
+        width: 34px;
+        height: 34px;
+        border-radius: var(--radius-sm);
+        background: var(--accent-cyan);
+        color: #04151b;
+        border: none;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        cursor: pointer;
+        font-weight: 900;
+        font-size: 0.95rem;
+        transition: all 0.15s ease;
+        flex-shrink: 0;
+      }
+      .copilot-send-btn:hover {
+        transform: scale(1.05);
+        box-shadow: 0 0 12px rgba(0, 242, 254, 0.4);
+      }
+      .copilot-send-btn:disabled {
+        opacity: 0.5;
+        cursor: not-allowed;
+        transform: none;
+      }
+
+      /* AI STACK BUILDER MODAL & CARDS */
+      .builder-goal-card {
+        background: rgba(10, 22, 38, 0.7);
+        border: 1px solid var(--border-subtle);
+        border-radius: var(--radius-sm);
+        padding: 10px 8px;
+        text-align: center;
+        cursor: pointer;
+        transition: all 0.15s ease;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 3px;
+        user-select: none;
+      }
+      .builder-goal-card:hover {
+        border-color: var(--accent-cyan);
+        background: rgba(0, 242, 254, 0.08);
+        transform: translateY(-2px);
+      }
+      .builder-goal-card.active {
+        border-color: var(--accent-cyan);
+        background: rgba(0, 242, 254, 0.15);
+        box-shadow: 0 0 12px rgba(0, 242, 254, 0.25);
+      }
+      .builder-goal-name {
+        font-size: 0.78rem;
+        font-weight: 800;
+        color: #f8fafc;
+      }
+      .builder-goal-sub {
+        font-size: 0.68rem;
+        color: var(--text-muted);
+      }
+
+      /* ==========================================================================
          RESPONSIVE STYLES
          ========================================================================== */
       @media (max-width: 1150px) {
@@ -1737,6 +2461,10 @@
         </div>
 
         <div class="topbar-actions">
+          <!-- PROTOCOL COPILOT BTN -->
+          <button class="btn-header-action" id="protocol-copilot-btn" title="AI-powered dose adjustments and risk mitigation" style="border-color: rgba(16, 185, 129, 0.4); background: rgba(16, 185, 129, 0.1);">
+            <span style="color: var(--accent-teal);">✨ Protocol Copilot</span>
+          </button>
           <!-- PRESET STACKS MENU -->
           <div class="preset-dropdown-wrap">
             <button class="btn-header-action" id="preset-menu-btn" title="Load real-world clinical & performance stacks">
@@ -1887,7 +2615,8 @@
 
           <!-- 1-CLICK QUICK PRESETS STRIP -->
           <div class="workbench-presets-bar">
-            <span style="font-size: 0.72rem; color: var(--text-muted); font-weight: 700; display: flex; align-items: center; gap: 4px; margin-right: 4px;">⚡ Quick Presets:</span>
+            <button class="preset-chip-btn" id="open-ai-stack-builder-btn" style="background: linear-gradient(135deg, rgba(0,242,254,0.25), rgba(79,70,229,0.35)); border-color: var(--accent-cyan); color: #fff; font-weight: 800; box-shadow: 0 0 10px rgba(0,242,254,0.25);">✨ Build with AI</button>
+            <span style="font-size: 0.72rem; color: var(--text-muted); font-weight: 700; display: flex; align-items: center; gap: 4px; margin: 0 2px;">⚡ Presets:</span>
             <button class="preset-chip-btn" onclick="loadPreset('focus')">🧠 Focus</button>
             <button class="preset-chip-btn" onclick="loadPreset('cardio_shield')">🫀 Cardio</button>
             <button class="preset-chip-btn" onclick="loadPreset('trt_balance')">🛡️ TRT Balance</button>
@@ -1952,9 +2681,25 @@
           <!-- ACTIVE STACK ITEMS -->
           <div class="stack-list-section">
             <div id="stack-items-wrap" class="stack-items-wrap">
-              <div id="empty-stack-placeholder" class="stack-empty-card">
-                Your stack is currently empty.<br />
-                Search above, click a quick-add tag, or choose a <strong>⚡ Quick Preset</strong> above.
+              <div id="empty-stack-placeholder" class="stack-empty-card ai-builder-empty-card" style="padding: 16px 12px; text-align: center; border: 1px dashed rgba(0, 242, 254, 0.35); background: linear-gradient(180deg, rgba(0, 242, 254, 0.05) 0%, rgba(5, 12, 22, 0.6) 100%);">
+                <div style="font-size: 1.5rem; margin-bottom: 4px;">✨</div>
+                <div style="font-size: 0.92rem; font-weight: 800; color: #f8fafc; margin-bottom: 4px;">Build Stack with AI Copilot</div>
+                <div style="font-size: 0.76rem; color: var(--text-secondary); line-height: 1.35; margin-bottom: 10px;">
+                  Let the AI Copilot design a synergistic protocol tailored to your biomarkers and clinical goals.
+                </div>
+                <button type="button" class="btn-primary" id="empty-state-ai-builder-btn" style="width: 100%; margin-bottom: 10px; padding: 8px 12px; font-size: 0.82rem; display: flex; align-items: center; justify-content: center; gap: 6px; background: linear-gradient(135deg, #00f2fe 0%, #4f46e5 100%); border: none; font-weight: 800; box-shadow: 0 0 15px rgba(0,242,254,0.3); cursor: pointer;">
+                  <span>✨ Open AI Stack Builder</span>
+                </button>
+                <div style="font-size: 0.68rem; color: var(--text-muted); font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 6px;">Or 1-Click Goal Protocols:</div>
+                <div style="display: flex; flex-wrap: wrap; gap: 4px; justify-content: center;">
+                  <button type="button" class="preset-chip-btn" onclick="quickBuildStackFromScratch('cognitive_focus')" style="font-size: 0.7rem; padding: 2px 7px;">🧠 Focus</button>
+                  <button type="button" class="preset-chip-btn" onclick="quickBuildStackFromScratch('longevity_autophagy')" style="font-size: 0.7rem; padding: 2px 7px;">🧬 Longevity</button>
+                  <button type="button" class="preset-chip-btn" onclick="quickBuildStackFromScratch('cardiovascular_lipid')" style="font-size: 0.7rem; padding: 2px 7px;">🫀 Cardio</button>
+                  <button type="button" class="preset-chip-btn" onclick="quickBuildStackFromScratch('anabolic_physique')" style="font-size: 0.7rem; padding: 2px 7px;">🏋️ Muscle</button>
+                  <button type="button" class="preset-chip-btn" onclick="quickBuildStackFromScratch('sleep_stress_recovery')" style="font-size: 0.7rem; padding: 2px 7px;">🌙 Sleep</button>
+                  <button type="button" class="preset-chip-btn" onclick="quickBuildStackFromScratch('fat_loss_metabolic')" style="font-size: 0.7rem; padding: 2px 7px;">🔥 Fat Loss</button>
+                  <button type="button" class="preset-chip-btn" onclick="quickBuildStackFromScratch('post_therapy_reset')" style="font-size: 0.7rem; padding: 2px 7px;">🔄 Reset</button>
+                </div>
               </div>
             </div>
           </div>
@@ -2172,6 +2917,298 @@
         </div>
       </div>
 
+      <!-- AI STACK BUILDER MODAL (BUILD PROTOCOL FROM SCRATCH) -->
+      <div id="ai-stack-builder-modal" class="modal-backdrop">
+        <div class="modal-dialog" style="max-width: 680px; max-height: 90vh; display: flex; flex-direction: column;">
+          <div class="modal-header" style="border-bottom: 1px solid rgba(0, 242, 254, 0.2); padding-bottom: 12px;">
+            <div class="modal-title-group">
+              <div style="display: flex; align-items: center; gap: 8px;">
+                <span style="font-size: 1.3rem;">✨</span>
+                <span class="modal-title" style="color: #fff; font-size: 1.15rem;">AI Stack Builder: Protocol from Scratch</span>
+              </div>
+              <span class="modal-subtitle" style="color: var(--accent-cyan); margin-top: 2px;">Zero Bro-Science • Pharmacokinetic & Circadian Grounding</span>
+            </div>
+            <button id="ai-builder-close-btn" class="modal-close-btn">&times;</button>
+          </div>
+          <div class="modal-body" style="gap: 16px; overflow-y: auto; padding-right: 4px;">
+            
+            <!-- GOAL SELECTION GRID -->
+            <div>
+              <span class="modal-section-title" style="margin-bottom: 8px; display: flex; align-items: center; gap: 6px;">
+                <span>🎯 Select Primary Protocol Goal</span>
+                <span style="font-size: 0.72rem; color: var(--text-muted); font-weight: 500;">(Choose or customize)</span>
+              </span>
+              <div id="builder-goals-grid" style="display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 8px;">
+                <div class="builder-goal-card active" data-goal="cognitive_focus">
+                  <div style="font-size: 1.4rem;">🧠</div>
+                  <div class="builder-goal-name">Cognitive Focus</div>
+                  <div class="builder-goal-sub">Focus & Memory</div>
+                </div>
+                <div class="builder-goal-card" data-goal="longevity_autophagy">
+                  <div style="font-size: 1.4rem;">🧬</div>
+                  <div class="builder-goal-name">Longevity & Autophagy</div>
+                  <div class="builder-goal-sub">AMPK / Sirtuins</div>
+                </div>
+                <div class="builder-goal-card" data-goal="cardiovascular_lipid">
+                  <div style="font-size: 1.4rem;">🫀</div>
+                  <div class="builder-goal-name">Cardio & Lipids</div>
+                  <div class="builder-goal-sub">BP & ApoB Shield</div>
+                </div>
+                <div class="builder-goal-card" data-goal="anabolic_physique">
+                  <div style="font-size: 1.4rem;">🏋️</div>
+                  <div class="builder-goal-name">Muscle & Physique</div>
+                  <div class="builder-goal-sub">Hypertrophy / Energy</div>
+                </div>
+                <div class="builder-goal-card" data-goal="sleep_stress_recovery">
+                  <div style="font-size: 1.4rem;">🌙</div>
+                  <div class="builder-goal-name">Sleep & Recovery</div>
+                  <div class="builder-goal-sub">GABA / Deep Sleep</div>
+                </div>
+                <div class="builder-goal-card" data-goal="fat_loss_metabolic">
+                  <div style="font-size: 1.4rem;">🔥</div>
+                  <div class="builder-goal-name">Fat Loss & Output</div>
+                  <div class="builder-goal-sub">Metabolic & Lipolysis</div>
+                </div>
+                <div class="builder-goal-card" data-goal="post_therapy_reset">
+                  <div style="font-size: 1.4rem;">🔄</div>
+                  <div class="builder-goal-name">Post-Therapy Reset</div>
+                  <div class="builder-goal-sub">PCT / Liver / Lipids</div>
+                </div>
+                <div class="builder-goal-card" data-goal="custom">
+                  <div style="font-size: 1.4rem;">✍️</div>
+                  <div class="builder-goal-name">Custom Goal</div>
+                  <div class="builder-goal-sub">User Defined</div>
+                </div>
+              </div>
+            </div>
+
+            <!-- PREFERENCES & CLINICAL CONSTRAINTS -->
+            <div>
+              <span class="modal-section-title" style="margin-bottom: 8px; display: flex; align-items: center; gap: 6px;">
+                <span>⚙️ Protocol Customization & Safety Profile</span>
+              </span>
+              <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 10px; background: rgba(0, 0, 0, 0.25); padding: 12px; border-radius: var(--radius-sm); border: 1px solid var(--border-subtle);">
+                <div>
+                  <label style="display: block; font-size: 0.74rem; font-weight: 700; color: var(--text-secondary); margin-bottom: 4px;">🛡️ Risk Tolerance</label>
+                  <select id="builder-risk-pref" class="biomarker-input" style="width: 100%; font-size: 0.8rem; padding: 6px 8px;">
+                    <option value="conservative">Conservative (Max Safety & Low Doses)</option>
+                    <option value="balanced" selected>Balanced (Standard Clinical Efficacy)</option>
+                    <option value="aggressive">Aggressive (Max Potency & High Range)</option>
+                  </select>
+                </div>
+                <div>
+                  <label style="display: block; font-size: 0.74rem; font-weight: 700; color: var(--text-secondary); margin-bottom: 4px;">⚡ Stimulant Profile</label>
+                  <select id="builder-stim-pref" class="biomarker-input" style="width: 100%; font-size: 0.8rem; padding: 6px 8px;">
+                    <option value="standard" selected>Standard (Balanced 100–150mg)</option>
+                    <option value="mild">Mild (Low Dose &lt; 50mg)</option>
+                    <option value="free">Stimulant-Free (Zero Caffeine)</option>
+                  </select>
+                </div>
+                <div>
+                  <label style="display: block; font-size: 0.74rem; font-weight: 700; color: var(--text-secondary); margin-bottom: 4px;">📦 Complexity & Stack Size</label>
+                  <select id="builder-complexity-pref" class="biomarker-input" style="width: 100%; font-size: 0.8rem; padding: 6px 8px;">
+                    <option value="standard" selected>Comprehensive (3–5 Compounds + Co-factors)</option>
+                    <option value="minimalist">Minimalist Essential (2–3 Core Compounds)</option>
+                    <option value="maximum">Full Stack (5+ Synergistic Multi-Agents)</option>
+                  </select>
+                </div>
+                <div>
+                  <label style="display: block; font-size: 0.74rem; font-weight: 700; color: var(--text-secondary); margin-bottom: 4px;">🌿 Substance Style</label>
+                  <select id="builder-style-pref" class="biomarker-input" style="width: 100%; font-size: 0.8rem; padding: 6px 8px;">
+                    <option value="hybrid" selected>Hybrid (Rx & Supplements)</option>
+                    <option value="natural">Natural Only (Botanicals & Nutrients)</option>
+                  </select>
+                </div>
+                <div>
+                  <label style="display: block; font-size: 0.74rem; font-weight: 700; color: var(--text-secondary); margin-bottom: 4px;">💊 Route & Delivery</label>
+                  <select id="builder-route-pref" class="biomarker-input" style="width: 100%; font-size: 0.8rem; padding: 6px 8px;">
+                    <option value="all" selected>Any Modality (Oral, Sublingual, Injectable)</option>
+                    <option value="oral_only">Oral Only (Capsules & Powders)</option>
+                    <option value="capsules_only">Capsules / Tablets Only (Zero Powders)</option>
+                  </select>
+                </div>
+                <div>
+                  <label style="display: block; font-size: 0.74rem; font-weight: 700; color: var(--text-secondary); margin-bottom: 4px;">⏰ Dosing Schedule</label>
+                  <select id="builder-schedule-pref" class="biomarker-input" style="width: 100%; font-size: 0.8rem; padding: 6px 8px;">
+                    <option value="circadian" selected>Circadian Split (Morning + Bedtime)</option>
+                    <option value="morning_only">Morning Only (Single-Dose Adherence)</option>
+                  </select>
+                </div>
+                <div>
+                  <label style="display: block; font-size: 0.74rem; font-weight: 700; color: var(--text-secondary); margin-bottom: 4px;">🛡️ Organ Shield Priority</label>
+                  <select id="builder-organ-pref" class="biomarker-input" style="width: 100%; font-size: 0.8rem; padding: 6px 8px;">
+                    <option value="auto" selected>Auto-Detect from Biometrics</option>
+                    <option value="cardiovascular">Cardio & Lipid Shield (BP / ApoB)</option>
+                    <option value="hepatic">Hepatic & Phase II Detox (Liver / ALT)</option>
+                    <option value="neuro_recovery">Neuro & Adrenal Recovery (HPA / GABA)</option>
+                  </select>
+                </div>
+                <div>
+                  <label style="display: block; font-size: 0.74rem; font-weight: 700; color: var(--text-secondary); margin-bottom: 4px;">💰 Sourcing & Bioavailability</label>
+                  <select id="builder-budget-pref" class="biomarker-input" style="width: 100%; font-size: 0.8rem; padding: 6px 8px;">
+                    <option value="standard" selected>Premium Bioavailability (Ubiquinol, KSM-66)</option>
+                    <option value="essential">Cost-Conscious High-ROI Essentials</option>
+                  </select>
+                </div>
+              </div>
+            </div>
+
+            <!-- BIOMETRIC CALIBRATION SUMMARY -->
+            <div style="background: rgba(0, 242, 254, 0.05); border: 1px solid rgba(0, 242, 254, 0.2); border-radius: var(--radius-sm); padding: 10px 12px;">
+              <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px;">
+                <span style="font-size: 0.76rem; font-weight: 800; color: var(--accent-cyan);">👤 Live Biometric Calibration</span>
+                <span style="font-size: 0.7rem; color: var(--text-muted);">Scaled automatically</span>
+              </div>
+              <div id="builder-bio-summary" style="font-size: 0.76rem; color: var(--text-secondary); line-height: 1.4;">
+                Weight: 75 kg | Age: 30 | Resting BP: 120 mmHg | eGFR: 95 mL/min | ALT: 25 U/L
+              </div>
+            </div>
+
+            <!-- CUSTOM NOTES / CONSTRAINTS -->
+            <div>
+              <label for="builder-custom-notes" style="display: block; font-size: 0.76rem; font-weight: 700; color: var(--text-secondary); margin-bottom: 4px;">📝 Custom Instructions or Personal Constraints (Optional)</label>
+              <textarea id="builder-custom-notes" class="copilot-custom-notes-input" placeholder="e.g. Sensitive to stomach upset, prefer bedtime relaxing herbs, avoid high stimulants, take with morning meal..." style="width: 100%; height: 55px; resize: none; font-size: 0.8rem;"></textarea>
+            </div>
+
+            <!-- BUTTONS -->
+            <div style="display: flex; gap: 10px; justify-content: flex-end; margin-top: 4px;">
+              <button type="button" class="btn-secondary" id="builder-cancel-btn" style="padding: 8px 16px; font-size: 0.84rem;">Cancel</button>
+              <button type="button" class="btn-primary" id="builder-generate-btn" style="padding: 8px 20px; font-size: 0.84rem; display: flex; align-items: center; gap: 6px; background: linear-gradient(135deg, #00f2fe 0%, #4f46e5 100%); border: none; font-weight: 800; box-shadow: 0 0 15px rgba(0,242,254,0.3); cursor: pointer;">
+                <span>🚀 Generate Protocol with AI Copilot</span>
+              </button>
+            </div>
+
+          </div>
+        </div>
+      </div>
+
+      <!-- FLOATING COPILOT TRIGGER PILL -->
+      <div class="floating-copilot-pill" id="floating-copilot-trigger" title="Open AI Clinical Copilot (Ctrl+K)">
+        <div class="copilot-pulse-dot"></div>
+        <span style="font-weight: 800; font-size: 0.84rem; color: #fff;">🤖 AI Copilot</span>
+        <span style="font-size: 0.72rem; color: var(--accent-cyan); font-family: 'JetBrains Mono', monospace; font-weight: 700; background: rgba(0, 242, 254, 0.15); padding: 2px 6px; border-radius: 4px;">Ctrl+K</span>
+      </div>
+
+      <!-- COPILOT DRAWER BACKDROP -->
+      <div class="copilot-drawer-backdrop" id="copilot-drawer-backdrop"></div>
+
+      <!-- DOCKABLE COPILOT DRAWER -->
+      <div class="copilot-drawer" id="copilot-drawer">
+        <!-- DRAGGABLE RESIZE HANDLE -->
+        <div class="copilot-resize-handle" id="copilot-resize-handle" title="Drag left border to resize copilot width"></div>
+
+        <!-- HEADER -->
+        <div class="copilot-header">
+          <div class="copilot-header-top">
+            <div class="copilot-title-wrap">
+              <div class="copilot-title-icon">✨</div>
+              <div>
+                <div style="font-weight: 800; font-size: 0.96rem; color: var(--text-primary); display:flex; align-items:center; gap:8px;">
+                  <span>HealthAI Copilot</span>
+                  <span style="font-size: 0.68rem; background: rgba(16, 185, 129, 0.18); color: var(--accent-teal); padding: 2px 6px; border-radius: 4px; font-weight: 800; text-transform: uppercase;">GraphRAG</span>
+                </div>
+                <div style="font-size: 0.72rem; color: var(--text-muted); margin-top: 1px;">Precision Multi-Turn Pharmacology & Protocol Architect</div>
+              </div>
+            </div>
+            <div style="display: flex; align-items: center; gap: 6px;">
+              <button class="btn-secondary" id="copilot-drawer-expand" title="Toggle Expanded / Standard Width (⤢)" style="padding: 4px 8px; font-size: 0.72rem; background: rgba(255,255,255,0.04); border: 1px solid var(--border-subtle); color: var(--text-secondary); border-radius: 4px; cursor: pointer; display: flex; align-items: center; gap: 4px;">
+                <span id="copilot-expand-icon">⤢</span> <span id="copilot-expand-text">Wide</span>
+              </button>
+              <button class="btn-secondary" id="copilot-clear-chat" title="Clear conversation history" style="padding: 4px 8px; font-size: 0.72rem; background: transparent;">
+                🗑️ Clear
+              </button>
+              <button class="modal-close-btn" id="copilot-drawer-close" title="Close Drawer (Esc)" style="font-size: 1.25rem; width: 28px; height: 28px; display: flex; align-items: center; justify-content: center;">&times;</button>
+            </div>
+          </div>
+
+          <!-- PERSONA MODE SELECTOR TABS -->
+          <div class="copilot-mode-bar" id="copilot-mode-bar">
+            <button class="copilot-mode-btn active" data-mode="architect" title="Circadian Chronobiology & Synergy">
+              <span>🏛️ Architect</span>
+            </button>
+            <button class="copilot-mode-btn" data-mode="auditor" title="CYP450 & Toxicology Auditor">
+              <span>🛡️ Auditor</span>
+            </button>
+            <button class="copilot-mode-btn" data-mode="tutor" title="Receptor Affinities & Mechanisms">
+              <span>🔬 Tutor</span>
+            </button>
+            <button class="copilot-mode-btn" data-mode="labs" title="Bloodwork & Biomarker Panels">
+              <span>🩸 Labs</span>
+            </button>
+          </div>
+        </div>
+
+        <!-- STACK CONTEXT BAR -->
+        <div class="copilot-context-bar">
+          <div style="display: flex; align-items: center; gap: 6px; overflow: hidden; flex: 1;">
+            <span style="color: var(--accent-cyan); font-weight: 800; flex-shrink: 0;">Stack:</span>
+            <div class="copilot-stack-tags" id="copilot-drawer-stack-tags">
+              <span style="color: var(--text-muted);">No compounds loaded</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- PROTOCOL PURPOSE & INTENT SELECTOR -->
+        <div class="copilot-goal-bar" id="copilot-goal-bar">
+          <div class="copilot-goal-top">
+            <div class="copilot-goal-select-wrap">
+              <span style="font-size: 0.82rem;">🎯</span>
+              <select class="copilot-goal-select" id="copilot-goal-select">
+                <option value="auto">🤖 Auto-Infer Protocol Purpose</option>
+                <option value="anabolic_physique">🏋️ Physique & Anabolic Hypertrophy</option>
+                <option value="cognitive_focus">🧠 Cognitive Focus & Neuroprotection</option>
+                <option value="cardiovascular_lipid">❤️ Cardiovascular & Lipid Health</option>
+                <option value="longevity_autophagy">🧬 Longevity & Cellular Autophagy</option>
+                <option value="sleep_stress_recovery">🌙 Sleep Architecture & Stress Recovery</option>
+                <option value="fat_loss_metabolic">🔥 Metabolic Output & Fat Loss</option>
+                <option value="post_therapy_reset">🔄 Post-Therapy Restoration (PCT / Reset)</option>
+                <option value="custom">✍️ Custom User Objective...</option>
+              </select>
+            </div>
+            <span class="copilot-goal-badge auto" id="copilot-goal-status-badge">Auto</span>
+            <button class="btn-toggle-notes" id="copilot-toggle-notes-btn" title="Add specific custom constraints or notes">📝 Notes</button>
+          </div>
+          <div id="copilot-custom-notes-wrap" style="display: none;">
+            <textarea class="copilot-custom-notes-input" id="copilot-custom-notes" placeholder="Enter custom constraints (e.g. keep resting BP < 125/80, preserve eGFR > 90, avoid prolactin issues)..." rows="2"></textarea>
+          </div>
+          <div id="copilot-inferred-summary" style="font-size: 0.72rem; color: var(--text-muted); line-height: 1.35; display: flex; align-items: center; gap: 4px;">
+            <span style="color: var(--accent-cyan); font-weight: 700;">⚡ Purpose:</span> <span id="copilot-inferred-text">Building stack profile...</span>
+          </div>
+        </div>
+
+        <!-- QUICK PROMPT CHIPS (HORIZONTALLY SCROLLABLE) -->
+        <div class="copilot-quick-prompts" id="copilot-quick-prompts">
+          <!-- Populated dynamically via JS based on active mode -->
+        </div>
+
+        <!-- CHAT MESSAGE THREAD -->
+        <div class="copilot-chat-container" id="copilot-chat-container">
+          <!-- Initial Welcome Card -->
+          <div class="chat-msg assistant">
+            <div class="chat-msg-header">
+              <span>🤖 HealthAI Copilot</span>
+              <span style="color: var(--accent-teal);">• Ready</span>
+            </div>
+            <div class="chat-msg-bubble">
+              <p>Welcome to the <strong>HealthAI Clinical Copilot</strong>. Grounded in continuous PK/PD modeling, CYP450 interaction matrices, and 3-hop biological causal networks.</p>
+              <p style="margin-top: 6px; font-size: 0.84rem; color: var(--text-secondary);">Select an expert persona above or click any quick prompt below. I can optimize circadian schedules, red-team hepatic/renal bottlenecks, explain receptor binding mechanics, or correlate blood panels.</p>
+            </div>
+          </div>
+        </div>
+
+        <!-- INPUT BAR -->
+        <div class="copilot-input-area">
+          <div class="copilot-input-wrap">
+            <textarea class="copilot-textarea" id="copilot-chat-input" placeholder="Ask anything about your stack, CYP interactions, or titration..." rows="1"></textarea>
+            <button class="copilot-send-btn" id="copilot-chat-send-btn" title="Send (Enter)">➤</button>
+          </div>
+          <div style="display: flex; justify-content: space-between; align-items: center; font-size: 0.7rem; color: var(--text-muted); padding: 0 4px;">
+            <span>Press <kbd style="font-family: 'JetBrains Mono', monospace; background: rgba(255,255,255,0.06); padding: 1px 4px; border-radius: 3px;">Enter</kbd> to send, <kbd style="font-family: 'JetBrains Mono', monospace; background: rgba(255,255,255,0.06); padding: 1px 4px; border-radius: 3px;">Shift+Enter</kbd> for newline</span>
+            <span id="copilot-status-indicator" style="color: var(--accent-teal);">● Local Engine Online</span>
+          </div>
+        </div>
+      </div>
+
       <!-- TOAST NOTIFICATION CONTAINER -->
       <div class="toast-container" id="toast-container"></div>
     </div>
@@ -2202,40 +3239,43 @@
       // 6 SCIENTIFICALLY GROUNDED & POWERFUL PRESET PROTOCOLS
       const PRESET_STACKS = {
         focus: [
-          { key: 'caffeine', dose: 150, unit: 'mg', frequency: 'daily', timing: 'morning', route: 'oral' },
-          { key: 'l_theanine', dose: 200, unit: 'mg', frequency: 'daily', timing: 'morning', route: 'oral' },
-          { key: 'bacopa', dose: 300, unit: 'mg', frequency: 'daily', timing: 'morning', route: 'oral' },
-          { key: 'l_carnitine', dose: 500, unit: 'mg', frequency: 'daily', timing: 'morning', route: 'oral' }
+          { key: 'caffeine', name: 'Caffeine', drug_class: 'Adenosine Receptor Antagonist', dose: 150, unit: 'mg', frequency: 'daily', timing: 'morning', route: 'oral' },
+          { key: 'l_theanine', name: 'L-Theanine', drug_class: 'Dietary Supplement / Amino Acid', dose: 200, unit: 'mg', frequency: 'daily', timing: 'morning', route: 'oral' },
+          { key: 'bacopa', name: 'Bacopa Monnieri', drug_class: 'Herbal Adaptogen / Nootropic', dose: 300, unit: 'mg', frequency: 'daily', timing: 'morning', route: 'oral' },
+          { key: 'l_carnitine', name: 'L-Carnitine (ALCAR)', drug_class: 'Mitochondrial Biomolecule', dose: 500, unit: 'mg', frequency: 'daily', timing: 'morning', route: 'oral' }
         ],
         cardio_shield: [
-          { key: 'telmisartan', dose: 40, unit: 'mg', frequency: 'daily', timing: 'morning', route: 'oral' },
-          { key: 'citrus_bergamot', dose: 500, unit: 'mg', frequency: 'daily', timing: 'morning', route: 'oral' },
-          { key: 'coq10', dose: 100, unit: 'mg', frequency: 'daily', timing: 'morning', route: 'oral' },
-          { key: 'tadalafil', dose: 5, unit: 'mg', frequency: 'daily', timing: 'morning', route: 'oral' }
+          { key: 'telmisartan', name: 'Telmisartan', drug_class: 'Angiotensin II Receptor Blocker (ARB)', dose: 40, unit: 'mg', frequency: 'daily', timing: 'morning', route: 'oral' },
+          { key: 'citrus_bergamot', name: 'Citrus Bergamot', drug_class: 'Cardiometabolic Flavonoid', dose: 500, unit: 'mg', frequency: 'daily', timing: 'morning', route: 'oral' },
+          { key: 'coq10', name: 'Coenzyme Q10', drug_class: 'Mitochondrial Antioxidant', dose: 100, unit: 'mg', frequency: 'daily', timing: 'morning', route: 'oral' },
+          { key: 'tadalafil', name: 'Tadalafil', drug_class: 'PDE5 Inhibitor', dose: 5, unit: 'mg', frequency: 'daily', timing: 'morning', route: 'oral' }
         ],
         trt_balance: [
-          { key: 'testosterone_enanthate', dose: 100, unit: 'mg', frequency: 'weekly', timing: 'morning', route: 'intramuscular' },
-          { key: 'anastrozole', dose: 0.25, unit: 'mg', frequency: 'twice_weekly', timing: 'morning', route: 'oral' },
-          { key: 'telmisartan', dose: 40, unit: 'mg', frequency: 'daily', timing: 'morning', route: 'oral' },
-          { key: 'tudca', dose: 250, unit: 'mg', frequency: 'daily', timing: 'morning', route: 'oral' }
+          { key: 'testosterone_enanthate', name: 'Testosterone Enanthate', drug_class: 'Anabolic-Androgenic Steroid', dose: 100, unit: 'mg', frequency: 'weekly', timing: 'morning', route: 'intramuscular' },
+          { key: 'anastrozole', name: 'Anastrozole', drug_class: 'Aromatase Inhibitor', dose: 0.25, unit: 'mg', frequency: 'twice_weekly', timing: 'morning', route: 'oral' },
+          { key: 'telmisartan', name: 'Telmisartan', drug_class: 'Angiotensin II Receptor Blocker (ARB)', dose: 40, unit: 'mg', frequency: 'daily', timing: 'morning', route: 'oral' },
+          { key: 'tudca', name: 'TUDCA', drug_class: 'Hydrophilic Bile Acid', dose: 250, unit: 'mg', frequency: 'daily', timing: 'morning', route: 'oral' }
         ],
         thermogenic_shield: [
-          { key: 'clenbuterol', dose: 40, unit: 'μg', frequency: 'daily', timing: 'morning', route: 'oral' },
-          { key: 'nebivolol', dose: 5, unit: 'mg', frequency: 'daily', timing: 'morning', route: 'oral' },
-          { key: 'taurine', dose: 2, unit: 'g', frequency: 'daily', timing: 'morning', route: 'oral' }
+          { key: 'clenbuterol', name: 'Clenbuterol', drug_class: 'Beta-2 Adrenergic Agonist', dose: 40, unit: 'μg', frequency: 'daily', timing: 'morning', route: 'oral' },
+          { key: 'nebivolol', name: 'Nebivolol', drug_class: 'Cardioselective Beta-1 Blocker & NO Donor', dose: 5, unit: 'mg', frequency: 'daily', timing: 'morning', route: 'oral' },
+          { key: 'taurine', name: 'Taurine', drug_class: 'Osmolytic Amino Acid', dose: 2, unit: 'g', frequency: 'daily', timing: 'morning', route: 'oral' }
         ],
         bioenhancement: [
-          { key: 'curcumin', dose: 500, unit: 'mg', frequency: 'daily', timing: 'morning', route: 'oral' },
-          { key: 'piperine', dose: 10, unit: 'mg', frequency: 'daily', timing: 'morning', route: 'oral' },
-          { key: 'nac', dose: 600, unit: 'mg', frequency: 'daily', timing: 'morning', route: 'oral' }
+          { key: 'curcumin', name: 'Curcumin', drug_class: 'Polyphenolic Anti-inflammatory', dose: 500, unit: 'mg', frequency: 'daily', timing: 'morning', route: 'oral' },
+          { key: 'piperine', name: 'Piperine', drug_class: 'Bioavailability Enhancer', dose: 10, unit: 'mg', frequency: 'daily', timing: 'morning', route: 'oral' },
+          { key: 'nac', name: 'N-Acetyl Cysteine', drug_class: 'Glutathione Precursor', dose: 600, unit: 'mg', frequency: 'daily', timing: 'morning', route: 'oral' }
         ],
         sleep_recovery: [
-          { key: 'magnesium', dose: 400, unit: 'mg', frequency: 'daily', timing: 'before bed', route: 'oral' },
-          { key: 'l_theanine', dose: 200, unit: 'mg', frequency: 'daily', timing: 'before bed', route: 'oral' },
-          { key: 'melatonin', dose: 1, unit: 'mg', frequency: 'daily', timing: 'before bed', route: 'oral' },
-          { key: 'tart_cherry', dose: 500, unit: 'mg', frequency: 'daily', timing: 'before bed', route: 'oral' }
+          { key: 'magnesium', name: 'Magnesium Glycinate', drug_class: 'Mineral / NMDA Modulator', dose: 400, unit: 'mg', frequency: 'daily', timing: 'before bed', route: 'oral' },
+          { key: 'l_theanine', name: 'L-Theanine', drug_class: 'Dietary Supplement / Amino Acid', dose: 200, unit: 'mg', frequency: 'daily', timing: 'before bed', route: 'oral' },
+          { key: 'melatonin', name: 'Melatonin', drug_class: 'Pineal Neurohormone', dose: 1, unit: 'mg', frequency: 'daily', timing: 'before bed', route: 'oral' },
+          { key: 'tart_cherry', name: 'Tart Cherry Extract', drug_class: 'Phytochemical Antioxidant', dose: 500, unit: 'mg', frequency: 'daily', timing: 'before bed', route: 'oral' }
         ]
       };
+
+      const _clientCatalogCache = {};
+      const _searchQueryCache = {};
 
       function toggleBiomarkerDrawer() {
         const drawer = document.getElementById('biomarker-drawer');
@@ -2287,45 +3327,52 @@
         if (!preset) return;
         const menu = document.getElementById('preset-menu');
         if (menu) menu.classList.remove('open');
-        showToast(`Loading ${presetKey.replace(/_/g, ' ').toUpperCase()} Protocol...`, '⚡');
 
-        const fetchedItems = await Promise.all(
-          preset.map(async (item) => {
-            try {
-              const res = await fetch(`/catalog/${encodeURIComponent(item.key)}`);
-              if (res.ok) {
-                const comp = await res.json();
-                return {
-                  key: comp.key || item.key,
-                  name: comp.name || item.key.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase()),
-                  drug_class: comp.drug_class || 'Compound',
-                  mechanism: comp.mechanism || '',
-                  dose: item.dose,
-                  unit: item.unit,
-                  frequency: item.frequency,
-                  timing: item.timing,
-                  route: item.route || comp.route || 'oral',
-                };
-              }
-            } catch (e) {
-              console.warn('Failed to fetch preset compound details for', item.key, e);
-            }
-            return {
-              key: item.key,
-              name: item.key.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase()),
-              drug_class: 'Compound',
-              dose: item.dose,
-              unit: item.unit,
-              frequency: item.frequency,
-              timing: item.timing,
-              route: item.route || 'oral',
-            };
-          })
-        );
+        // Immediately render cards into DOM with 0ms delay!
+        state.stack = preset.map(item => ({
+          key: item.key,
+          name: item.name || item.key.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase()),
+          drug_class: item.drug_class || 'Compound',
+          mechanism: item.mechanism || '',
+          dose: item.dose,
+          unit: item.unit,
+          frequency: item.frequency,
+          timing: item.timing,
+          route: item.route || 'oral',
+        }));
 
-        state.stack = fetchedItems;
+        state.stack.forEach(c => {
+          _clientCatalogCache[c.key] = c;
+          if (c.key.includes('_')) _clientCatalogCache[c.key.replace(/_/g, '-')] = c;
+        });
+
         showToast(`Loaded ${presetKey.replace(/_/g, ' ').toUpperCase()} Protocol`, '⚡');
         syncAndEvaluateStack();
+
+        // Background hydration for full pharmacology metadata
+        const missingKeys = preset.filter(p => !_clientCatalogCache[p.key]?.mechanism).map(p => p.key);
+        if (missingKeys.length) {
+          try {
+            const batchRes = await fetch('/api/compounds/batch', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ keys: missingKeys })
+            });
+            if (batchRes.ok) {
+              const data = await batchRes.json();
+              Object.entries(data).forEach(([k, comp]) => {
+                _clientCatalogCache[k] = comp;
+                const match = matchCompoundItem(state.stack, k);
+                if (match && comp.name) {
+                  match.name = comp.name;
+                  if (comp.drug_class) match.drug_class = comp.drug_class;
+                  if (comp.mechanism) match.mechanism = comp.mechanism;
+                }
+              });
+              renderStackList();
+            }
+          } catch (e) { /* ignore background fetch */ }
+        }
       }
       window.loadPreset = loadPreset;
 
@@ -2434,7 +3481,7 @@
         });
       }
 
-      // DEBOUNCED SEARCH
+      // DEBOUNCED SEARCH (Instant cache + 100ms fast typeahead)
       let searchTimeout = null;
       searchInput.addEventListener('input', (e) => {
         const query = e.target.value.trim();
@@ -2443,12 +3490,32 @@
           searchDropdown.style.display = 'none';
           return;
         }
+
+        const normQ = query.toLowerCase();
+        if (_searchQueryCache[normQ]) {
+          renderSearchDropdown(_searchQueryCache[normQ]);
+          return;
+        }
+
         searchTimeout = setTimeout(() => {
           fetch(`/api/compounds/search?q=${encodeURIComponent(query)}`)
             .then(res => res.json())
-            .then(data => renderSearchDropdown(data))
+            .then(data => {
+              _searchQueryCache[normQ] = data;
+              if (Array.isArray(data)) {
+                data.forEach(item => {
+                  if (item && item.key) {
+                    _clientCatalogCache[item.key] = item;
+                    if (item.key.includes('_')) _clientCatalogCache[item.key.replace(/_/g, '-')] = item;
+                  }
+                });
+              }
+              if (searchInput.value.trim().toLowerCase() === normQ) {
+                renderSearchDropdown(data);
+              }
+            })
             .catch(err => console.error(err));
-        }, 180);
+        }, 100);
       });
 
       function renderSearchDropdown(items) {
@@ -2529,16 +3596,54 @@
         return { dose: 10, unit: 'mg', route: 'oral' };
       }
 
+      function matchCompoundItem(stack, targetKey) {
+        if (!stack || !stack.length || !targetKey) return null;
+        const normTarget = String(targetKey).trim().toLowerCase().split(':')[0].replace(/[^a-z0-9]/g, '');
+        return stack.find(c => {
+          const normKey = String(c.key || '').trim().toLowerCase().split(':')[0].replace(/[^a-z0-9]/g, '');
+          const normName = String(c.name || '').trim().toLowerCase().replace(/[^a-z0-9]/g, '');
+          return normKey === normTarget || normName === normTarget || (normKey && normTarget && (normKey.includes(normTarget) || normTarget.includes(normKey)));
+        }) || null;
+      }
+
       function addCompoundKey(key) {
         if (!key) return;
         const cleanKey = String(key).trim().toLowerCase().split(':')[0];
-        if (!cleanKey || state.stack.some(c => String(c.key).toLowerCase() === cleanKey)) return;
+        if (!cleanKey || matchCompoundItem(state.stack, cleanKey)) return;
+
+        // Fast path: cached client record
+        const cached = _clientCatalogCache[cleanKey] || _clientCatalogCache[cleanKey.replace(/-/g, '_')];
+        if (cached) {
+          const fallback = getDefaultDoseFallback(cached.key || cleanKey);
+          const defDose = cached.default_dose || {};
+          const doseVal = defDose.dose_val !== undefined ? defDose.dose_val : (cached.dose !== undefined ? cached.dose : fallback.dose);
+          const doseUnit = defDose.dose_unit || cached.unit || fallback.unit;
+          const routeVal = cached.route || cached.default_route || fallback.route || 'oral';
+
+          state.stack.push({
+            key: cached.key || cleanKey,
+            name: cached.name || cleanKey.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase()),
+            drug_class: cached.drug_class || 'Compound',
+            mechanism: cached.mechanism || '',
+            dose: doseVal,
+            unit: doseUnit,
+            frequency: 'daily',
+            timing: 'morning',
+            route: routeVal,
+          });
+          showToast(`Added ${cached.name || cleanKey}`, '✓');
+          syncAndEvaluateStack();
+          return;
+        }
+
         fetch(`/catalog/${encodeURIComponent(cleanKey)}`)
           .then(res => {
             if (!res.ok) throw new Error('Compound not found');
             return res.json();
           })
           .then(compound => {
+            _clientCatalogCache[cleanKey] = compound;
+            if (compound.key) _clientCatalogCache[compound.key] = compound;
             const fallback = getDefaultDoseFallback(compound.key || cleanKey);
             const defDose = compound.default_dose || {};
             const doseVal = defDose.dose_val !== undefined ? defDose.dose_val : (compound.dose !== undefined ? compound.dose : fallback.dose);
@@ -2578,17 +3683,18 @@
 
       function removeCompoundKey(key) {
         if (!key) return;
-        const cleanKey = String(key).trim().toLowerCase().split(':')[0];
-        const item = state.stack.find(c => String(c.key).toLowerCase() === cleanKey);
-        state.stack = state.stack.filter(c => String(c.key).toLowerCase() !== cleanKey);
-        if (item) showToast(`Removed ${item.name}`, '✕');
-        syncAndEvaluateStack();
+        const item = matchCompoundItem(state.stack, key);
+        if (item) {
+          state.stack = state.stack.filter(c => c !== item);
+          showToast(`Removed ${item.name}`, '✕');
+          syncAndEvaluateStack();
+        }
       }
 
       let _evalDebounce = null;
       function debouncedEvaluate() {
         clearTimeout(_evalDebounce);
-        _evalDebounce = setTimeout(() => evaluateStack(), 220);
+        _evalDebounce = setTimeout(() => evaluateStack(), 180);
       }
 
       function syncAndEvaluateStack() {
@@ -2618,8 +3724,8 @@
       }
 
       function renderStackList() {
-        stackCountBadge.textContent = `${state.stack.length} items`;
-        statCompounds.textContent = state.stack.length;
+        if (stackCountBadge) stackCountBadge.textContent = `${state.stack.length} items`;
+        if (statCompounds) statCompounds.textContent = state.stack.length;
 
         try {
           localStorage.setItem('healthai_stack', JSON.stringify(state.stack));
@@ -2641,13 +3747,17 @@
         if (openBtn) openBtn.href = targetUrl;
 
         if (!state.stack.length) {
-          emptyPlaceholder.style.display = 'block';
-          stackItemsWrap.innerHTML = '';
-          stackItemsWrap.appendChild(emptyPlaceholder);
+          if (emptyPlaceholder) emptyPlaceholder.style.display = 'block';
+          if (stackItemsWrap) {
+            stackItemsWrap.innerHTML = '';
+            stackItemsWrap.appendChild(emptyPlaceholder);
+          }
           return;
         }
 
-        emptyPlaceholder.style.display = 'none';
+        if (emptyPlaceholder) emptyPlaceholder.style.display = 'none';
+        if (!stackItemsWrap) return;
+
         stackItemsWrap.innerHTML = state.stack.map(c => {
           const unit = c.unit || 'mg';
           const freq = c.frequency || 'daily';
@@ -2659,15 +3769,15 @@
             : '';
 
           return `
-            <div class="stack-item-card" data-key="${c.key}">
+            <div class="stack-item-card" data-key="${escapeHtml(c.key)}">
               <div class="stack-item-top">
                 <div class="stack-item-name-group">
-                  <span class="stack-item-name">${c.name}</span>
-                  <span class="stack-item-class">${c.drug_class || 'Compound'}</span>
+                  <span class="stack-item-name">${escapeHtml(c.name)}</span>
+                  <span class="stack-item-class">${escapeHtml(c.drug_class || 'Compound')}</span>
                 </div>
                 <div class="stack-item-actions">
                   <a href="/compound?key=${encodeURIComponent(c.key)}" target="_blank" class="stack-item-link-btn" title="View Deep Pharmacology">↗</a>
-                  <button class="stack-item-remove-btn" onclick="removeCompoundKey('${c.key}')" title="Remove">&times;</button>
+                  <button class="stack-item-remove-btn" onclick="removeCompoundKey('${escapeHtml(c.key)}')" title="Remove">&times;</button>
                 </div>
               </div>
               <div style="display:flex; flex-direction:column; gap:6px;">
@@ -2680,13 +3790,14 @@
                       min="0" 
                       step="any" 
                       value="${c.dose}" 
-                      onchange="updateDoseVal('${c.key}', this.value)" 
+                      oninput="updateDoseVal('${escapeHtml(c.key)}', this.value)"
+                      onchange="updateDoseVal('${escapeHtml(c.key)}', this.value)" 
                       title="Administered dose amount"
                     />
                     <select 
                       class="control-select" 
                       style="width:62px; padding:4px 6px; font-weight:700;" 
-                      onchange="updateDoseUnit('${c.key}', this.value)"
+                      onchange="updateDoseUnit('${escapeHtml(c.key)}', this.value)"
                       title="Select dose unit"
                     >
                       <option value="mg" ${unit === 'mg' ? 'selected' : ''}>mg</option>
@@ -2695,7 +3806,7 @@
                       <option value="IU" ${unit === 'IU' ? 'selected' : ''}>IU</option>
                     </select>
                   </div>
-                  <select class="control-select" style="flex:1;" onchange="updateTiming('${c.key}', this.value)" title="Dosing timing">
+                  <select class="control-select" style="flex:1;" onchange="updateTiming('${escapeHtml(c.key)}', this.value)" title="Dosing timing">
                     <option value="morning" ${c.timing === 'morning' ? 'selected' : ''}>Morning</option>
                     <option value="pre-workout" ${c.timing === 'pre-workout' ? 'selected' : ''}>Pre-Workout</option>
                     <option value="evening" ${c.timing === 'evening' ? 'selected' : ''}>Evening</option>
@@ -2706,7 +3817,7 @@
                   <select 
                     class="control-select" 
                     style="flex:1; font-size:0.75rem; font-weight:600;" 
-                    onchange="updateRoute('${c.key}', this.value)" 
+                    onchange="updateRoute('${escapeHtml(c.key)}', this.value)" 
                     title="Route of administration"
                   >
                     <option value="oral" ${route === 'oral' ? 'selected' : ''}>💊 Oral (PO)</option>
@@ -2720,7 +3831,7 @@
                   <select 
                     class="control-select" 
                     style="flex:1; font-size:0.75rem; font-weight:600;" 
-                    onchange="updateFrequency('${c.key}', this.value)" 
+                    onchange="updateFrequency('${escapeHtml(c.key)}', this.value)" 
                     title="Dosing frequency"
                   >
                     <option value="daily" ${freq === 'daily' ? 'selected' : ''}>Once Daily (QD)</option>
@@ -2735,7 +3846,7 @@
                     <option value="as_needed" ${freq === 'as_needed' ? 'selected' : ''}>As Needed (PRN)</option>
                   </select>
                 </div>
-                ${effDisplay ? `<div style="text-align:right;"><span style="font-size:0.68rem; color:#00f2fe; font-family:'JetBrains Mono',monospace; white-space:nowrap; font-weight:700;" title="Effective continuous 24h baseline load">${effDisplay}</span></div>` : ''}
+                ${effDisplay ? `<div style="text-align:right;"><span class="eff-daily-badge" style="font-size:0.68rem; color:#00f2fe; font-family:'JetBrains Mono',monospace; white-space:nowrap; font-weight:700;" title="Effective continuous 24h baseline load">${effDisplay}</span></div>` : ''}
               </div>
             </div>
           `;
@@ -2745,17 +3856,26 @@
       window.updateDoseVal = (key, val) => {
         const parsed = parseFloat(val);
         if (isNaN(parsed) || parsed <= 0) return;
-        const cleanKey = String(key || '').trim().toLowerCase().split(':')[0];
-        const item = state.stack.find(c => String(c.key).toLowerCase() === cleanKey);
+        const item = matchCompoundItem(state.stack, key);
         if (item) {
           item.dose = parsed;
           persistAndEvaluate();
+          // Update the card's effective daily badge immediately without recreating DOM
+          const card = document.querySelector(`.stack-item-card[data-key="${CSS.escape(item.key)}"]`);
+          if (card) {
+            const mult = getFrequencyMultiplierClient(item.frequency);
+            const effDaily = item.dose * mult;
+            const effSpan = card.querySelector('.eff-daily-badge');
+            if (effSpan && mult !== 1.0) {
+              const u = item.unit || 'mg';
+              effSpan.textContent = `≈ ${effDaily >= 1.0 ? effDaily.toFixed(effDaily >= 10 ? 1 : 2) : (effDaily * 1000).toFixed(1)} ${effDaily >= 1.0 ? u : (u === 'mg' ? 'μg' : u)}/day`;
+            }
+          }
         }
       };
 
       window.updateDoseUnit = (key, unit) => {
-        const cleanKey = String(key || '').trim().toLowerCase().split(':')[0];
-        const item = state.stack.find(c => String(c.key).toLowerCase() === cleanKey);
+        const item = matchCompoundItem(state.stack, key);
         if (item) {
           item.unit = unit || 'mg';
           persistAndEvaluate();
@@ -2763,17 +3883,15 @@
       };
 
       window.updateTiming = (key, val) => {
-        const cleanKey = String(key || '').trim().toLowerCase().split(':')[0];
-        const item = state.stack.find(c => String(c.key).toLowerCase() === cleanKey);
+        const item = matchCompoundItem(state.stack, key);
         if (item) {
-          item.timing = val;
+          item.timing = val || 'morning';
           persistAndEvaluate();
         }
       };
 
       window.updateRoute = (key, val) => {
-        const cleanKey = String(key || '').trim().toLowerCase().split(':')[0];
-        const item = state.stack.find(c => String(c.key).toLowerCase() === cleanKey);
+        const item = matchCompoundItem(state.stack, key);
         if (item) {
           item.route = val || 'oral';
           persistAndEvaluate();
@@ -2781,11 +3899,11 @@
       };
 
       window.updateFrequency = (key, val) => {
-        const cleanKey = String(key || '').trim().toLowerCase().split(':')[0];
-        const item = state.stack.find(c => String(c.key).toLowerCase() === cleanKey);
+        const item = matchCompoundItem(state.stack, key);
         if (item) {
-          item.frequency = val;
+          item.frequency = val || 'daily';
           persistAndEvaluate();
+          renderStackList();
         }
       };
 
@@ -2805,17 +3923,17 @@
         const el = document.getElementById(id);
         if (!el) return;
         const handler = () => {
-          state.biomarkers.sex = document.getElementById('bio-sex').value || null;
-          state.biomarkers.age = parseInt(document.getElementById('bio-age').value) || null;
-          state.biomarkers.weight_kg = parseFloat(document.getElementById('bio-weight').value) || null;
-          state.biomarkers.height_cm = parseFloat(document.getElementById('bio-height').value) || null;
-          state.biomarkers.body_fat_pct = parseFloat(document.getElementById('bio-bodyfat').value) || null;
-          state.biomarkers.blood_pressure = parseFloat(document.getElementById('bio-bp').value) || 120;
-          state.biomarkers.sleep_hours = parseFloat(document.getElementById('bio-sleep').value) || 7.5;
-          state.biomarkers.alt_u_l = parseFloat(document.getElementById('bio-alt').value) || 25;
-          state.biomarkers.hematocrit_pct = parseFloat(document.getElementById('bio-hematocrit').value) || 46;
+          state.biomarkers.sex = document.getElementById('bio-sex')?.value || null;
+          state.biomarkers.age = parseInt(document.getElementById('bio-age')?.value) || null;
+          state.biomarkers.weight_kg = parseFloat(document.getElementById('bio-weight')?.value) || null;
+          state.biomarkers.height_cm = parseFloat(document.getElementById('bio-height')?.value) || null;
+          state.biomarkers.body_fat_pct = parseFloat(document.getElementById('bio-bodyfat')?.value) || null;
+          state.biomarkers.blood_pressure = parseFloat(document.getElementById('bio-bp')?.value) || 120;
+          state.biomarkers.sleep_hours = parseFloat(document.getElementById('bio-sleep')?.value) || 7.5;
+          state.biomarkers.alt_u_l = parseFloat(document.getElementById('bio-alt')?.value) || 25;
+          state.biomarkers.hematocrit_pct = parseFloat(document.getElementById('bio-hematocrit')?.value) || 46;
 
-          evaluateStack();
+          debouncedEvaluate();
         };
         el.addEventListener('input', handler);
         el.addEventListener('change', handler);
@@ -2845,7 +3963,7 @@
       });
 
       // EVALUATE STACK WITH BACKEND
-      function evaluateStack() {
+      async function evaluateStack() {
         if (!state.stack.length) {
           updateDashboardEmpty();
           return;
@@ -2857,7 +3975,7 @@
             name: c.name,
             dose: c.dose,
             unit: c.unit || 'mg',
-            timing: c.timing,
+            timing: c.timing || 'morning',
             frequency: c.frequency || 'daily',
             route: c.route || 'oral',
           })),
@@ -2876,50 +3994,61 @@
           },
         };
 
-        fetch('/api/interactions/matrix', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(payload),
-        })
-          .then(res => res.json())
-          .then(data => {
-            state.analysis = data;
-            if (data.compounds && Array.isArray(data.compounds)) {
-              let updatedStack = false;
-              data.compounds.forEach(c => {
-                const item = state.stack.find(s => String(s.key).toLowerCase() === String(c.key || c.canonical_name || '').toLowerCase());
-                if (item) {
-                  if (c.name && (!item.name || item.name === item.key)) {
-                    item.name = c.name;
-                    updatedStack = true;
-                  }
-                  if (c.drug_class && (item.drug_class === 'Compound' || !item.drug_class)) {
-                    item.drug_class = c.drug_class;
-                    updatedStack = true;
-                  }
+        try {
+          const res = await fetch('/api/interactions/matrix', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload),
+          });
+          if (!res.ok) {
+            const errData = await res.json().catch(() => ({}));
+            throw new Error(errData.detail || `Server returned ${res.status}`);
+          }
+          const data = await res.json();
+          state.analysis = data;
+
+          if (data.compounds && Array.isArray(data.compounds)) {
+            let updatedStack = false;
+            data.compounds.forEach(c => {
+              const item = matchCompoundItem(state.stack, c.key || c.canonical_name || c.name);
+              if (item) {
+                if (c.name && (!item.name || item.name === item.key)) {
+                  item.name = c.name;
+                  updatedStack = true;
                 }
-              });
-              if (updatedStack) {
-                renderStackList();
+                if (c.drug_class && (item.drug_class === 'Compound' || !item.drug_class)) {
+                  item.drug_class = c.drug_class;
+                  updatedStack = true;
+                }
               }
+            });
+            if (updatedStack) {
+              if (stackCountBadge) stackCountBadge.textContent = `${state.stack.length} items`;
+              if (statCompounds) statCompounds.textContent = state.stack.length;
             }
-            renderDashboard(data);
-          })
-          .catch(err => console.error(err));
+          }
+          renderDashboard(data);
+          syncCopilotStackTags();
+        } catch (err) {
+          console.error('Evaluation error:', err);
+          showToast(`Evaluation error: ${err.message || 'Check inputs'}`, '⚠️');
+        }
       }
 
       function updateDashboardEmpty() {
-        riskScoreVal.textContent = '0';
-        gaugeCircle.style.strokeDashoffset = 377;
-        gaugeCircle.style.stroke = 'var(--severity-synergy)';
-        riskBandBadge.className = 'risk-band-pill band-minimal';
-        riskBandText.textContent = 'Minimal Risk';
-        statConflicts.textContent = '0';
-        statSynergies.textContent = '0';
-        statOrganLoad.textContent = 'None';
-        summaryNarrative.textContent = 'Add compounds from the search catalog or pick an example stack to evaluate real-time pharmacodynamic collisions, CYP450 enzyme overlaps, and cumulative safety scores.';
-        matrixContainer.innerHTML = '<div class="stack-empty-card" style="padding: 60px 20px;">Add 2 or more compounds to populate the pairwise N×N collision matrix.</div>';
-        breakdownsContainer.innerHTML = '<div class="stack-empty-card">No active conflicts or synergies recorded.</div>';
+        if (riskScoreVal) riskScoreVal.textContent = '0';
+        if (gaugeCircle) {
+          gaugeCircle.style.strokeDashoffset = 377;
+          gaugeCircle.style.stroke = 'var(--severity-synergy)';
+        }
+        if (riskBandBadge) riskBandBadge.className = 'risk-band-pill band-minimal';
+        if (riskBandText) riskBandText.textContent = 'Minimal Risk';
+        if (statConflicts) statConflicts.textContent = '0';
+        if (statSynergies) statSynergies.textContent = '0';
+        if (statOrganLoad) statOrganLoad.textContent = 'None';
+        if (summaryNarrative) summaryNarrative.textContent = 'Add compounds from the search catalog or pick an example stack to evaluate real-time pharmacodynamic collisions, CYP450 enzyme overlaps, and cumulative safety scores.';
+        if (matrixContainer) matrixContainer.innerHTML = '<div class="stack-empty-card" style="padding: 60px 20px;">Add 2 or more compounds to populate the pairwise N×N collision matrix.</div>';
+        if (breakdownsContainer) breakdownsContainer.innerHTML = '<div class="stack-empty-card">No active conflicts or synergies recorded.</div>';
         
         const balanceWrap = document.getElementById('balance-dashboard-wrap');
         if (balanceWrap) {
@@ -2928,14 +4057,15 @@
       }
 
       function renderDashboard(data) {
+        if (!data) return;
         const score = data.cumulative_risk_score || 0;
-        riskScoreVal.textContent = score;
+        if (riskScoreVal) riskScoreVal.textContent = score;
 
         const offset = 377 - (377 * (score / 100));
-        gaugeCircle.style.strokeDashoffset = offset;
+        if (gaugeCircle) gaugeCircle.style.strokeDashoffset = offset;
 
         const band = data.risk_band || 'MINIMAL';
-        riskBandText.textContent = `${band} Risk`;
+        if (riskBandText) riskBandText.textContent = `${band} Risk`;
 
         let bandClass = 'band-minimal';
         let strokeColor = 'var(--severity-synergy)';
@@ -2944,30 +4074,30 @@
         else if (band === 'ELEVATED') { bandClass = 'band-elevated'; strokeColor = '#f87171'; }
         else if (band === 'SEVERE') { bandClass = 'band-severe'; strokeColor = 'var(--severity-high)'; }
 
-        riskBandBadge.className = `risk-band-pill ${bandClass}`;
-        gaugeCircle.style.stroke = strokeColor;
+        if (riskBandBadge) riskBandBadge.className = `risk-band-pill ${bandClass}`;
+        if (gaugeCircle) gaugeCircle.style.stroke = strokeColor;
 
-        statConflicts.textContent = data.conflict_count || 0;
-        statSynergies.textContent = data.synergy_count || 0;
+        if (statConflicts) statConflicts.textContent = data.conflict_count || 0;
+        if (statSynergies) statSynergies.textContent = data.synergy_count || 0;
 
         const hep = data.breakdown?.organ_burdens?.hepatic?.level || 'None';
-        statOrganLoad.textContent = hep !== 'None' ? `${hep} Hepatic` : 'Normal';
+        if (statOrganLoad) statOrganLoad.textContent = hep !== 'None' ? `${hep} Hepatic` : 'Normal';
 
-        summaryNarrative.textContent = data.summary;
+        if (summaryNarrative) summaryNarrative.textContent = data.summary || 'Pharmacological evaluation complete.';
 
         // Update tab badges
         const matrixBadge = document.getElementById('tab-matrix-badge');
         const conflictsBadge = document.getElementById('tab-conflicts-badge');
         if (matrixBadge) {
-          if (data.conflict_count > 0 || data.synergy_count > 0) {
+          if ((data.conflict_count || 0) > 0 || (data.synergy_count || 0) > 0) {
             matrixBadge.style.display = 'inline-block';
-            matrixBadge.textContent = `${data.conflict_count}⚡ ${data.synergy_count}✨`;
+            matrixBadge.textContent = `${data.conflict_count || 0}⚡ ${data.synergy_count || 0}✨`;
           } else {
             matrixBadge.style.display = 'none';
           }
         }
         if (conflictsBadge) {
-          if (data.conflict_count > 0) {
+          if ((data.conflict_count || 0) > 0) {
             conflictsBadge.style.display = 'inline-block';
             conflictsBadge.textContent = data.conflict_count;
           } else {
@@ -3015,45 +4145,61 @@
 
         let filteredAxes = axes.filter(a => {
           if (currentFilter === 'out-of-range') return a.priority_tier <= 2 || !a.in_safe_range;
-          if (currentFilter === 'counterbalanced') return a.priority_tier === 3 || (a.status && a.status.includes('BALANCED'));
-          if (currentFilter === 'active-shifts') return a.priority_tier <= 4 && ((a.compounds_breakdown && a.compounds_breakdown.length > 0) || Math.abs(a.estimated_value - a.baseline) > 0.001);
+          if (currentFilter === 'counterbalanced') return a.priority_tier === 3 || (a.status && String(a.status).includes('BALANCED'));
+          if (currentFilter === 'active-shifts') return a.priority_tier <= 4 && ((a.compounds_breakdown && a.compounds_breakdown.length > 0) || Math.abs((a.estimated_value || 0) - (a.baseline || 0)) > 0.001);
           if (currentFilter === 'baseline') return a.priority_tier === 5;
           return true;
         });
 
         filteredAxes.sort((a, b) => {
+          const nameA = String(a.name || '');
+          const nameB = String(b.name || '');
           if (currentSort === 'shift') {
-            return (b.percent_shift || 0) - (a.percent_shift || 0) || a.name.localeCompare(b.name);
+            return (b.percent_shift || 0) - (a.percent_shift || 0) || nameA.localeCompare(nameB);
           }
           if (currentSort === 'name') {
-            return a.name.localeCompare(b.name);
+            return nameA.localeCompare(nameB);
           }
           if (currentSort === 'status') {
-            return (a.priority_tier || 5) - (b.priority_tier || 5) || a.name.localeCompare(b.name);
+            return (a.priority_tier || 5) - (b.priority_tier || 5) || nameA.localeCompare(nameB);
           }
-          return (a.priority_tier || 5) - (b.priority_tier || 5) || (b.percent_shift || 0) - (a.percent_shift || 0) || a.name.localeCompare(b.name);
+          return (a.priority_tier || 5) - (b.priority_tier || 5) || (b.percent_shift || 0) - (a.percent_shift || 0) || nameA.localeCompare(nameB);
         });
 
         function renderDistributionGraphSVG(axis, cardIdx) {
-          const base = parseFloat(axis.baseline || 0);
-          const est = parseFloat(axis.estimated_value || base);
+          const rawBase = parseFloat(axis.baseline);
+          const safeBase = isNaN(rawBase) ? 0 : rawBase;
+          const rawEst = parseFloat(axis.estimated_value);
+          const safeEst = isNaN(rawEst) ? safeBase : rawEst;
+          
           const dist = axis.distribution || {};
-          const p5 = parseFloat(dist.p5 !== undefined ? dist.p5 : est);
-          const p25 = parseFloat(dist.p25 !== undefined ? dist.p25 : est);
-          const p50 = parseFloat(dist.p50 !== undefined ? dist.p50 : est);
-          const p75 = parseFloat(dist.p75 !== undefined ? dist.p75 : est);
-          const p95 = parseFloat(dist.p95 !== undefined ? dist.p95 : est);
-          const mean = parseFloat(dist.mean !== undefined ? dist.mean : est);
+          const p5 = parseFloat(dist.p5 !== undefined ? dist.p5 : safeEst * 0.85);
+          const p25 = parseFloat(dist.p25 !== undefined ? dist.p25 : safeEst * 0.93);
+          const p50 = parseFloat(dist.p50 !== undefined ? dist.p50 : safeEst);
+          const p75 = parseFloat(dist.p75 !== undefined ? dist.p75 : safeEst * 1.07);
+          const p95 = parseFloat(dist.p95 !== undefined ? dist.p95 : safeEst * 1.15);
+          const mean = parseFloat(dist.mean !== undefined ? dist.mean : safeEst);
           const stdDev = parseFloat(dist.std_dev !== undefined ? dist.std_dev : Math.max(0.1, (p95 - p5) / 3.29));
 
-          const sLower = axis.safe_lower !== undefined ? parseFloat(axis.safe_lower) : (base * 0.8);
-          const sUpper = axis.safe_upper !== undefined ? parseFloat(axis.safe_upper) : (base * 1.2);
-          const unit = axis.unit || '';
+          const safeP5 = isNaN(p5) ? safeEst * 0.85 : p5;
+          const safeP25 = isNaN(p25) ? (safeP5 + safeEst) / 2 : p25;
+          const safeP50 = isNaN(p50) ? safeEst : p50;
+          const safeP75 = isNaN(p75) ? (safeEst + safeEst * 1.15) / 2 : p75;
+          const safeP95 = isNaN(p95) ? safeEst * 1.15 : p95;
+          const safeMean = isNaN(mean) ? safeEst : mean;
+          const safeStdDev = isNaN(stdDev) ? Math.max(0.1, Math.abs(safeP95 - safeP5) / 3.29) : stdDev;
+
+          const rawSLower = axis.safe_lower !== undefined ? parseFloat(axis.safe_lower) : (safeBase * 0.8);
+          const safeLower = isNaN(rawSLower) ? safeBase * 0.8 : rawSLower;
+          const rawSUpper = axis.safe_upper !== undefined ? parseFloat(axis.safe_upper) : (safeBase * 1.2);
+          const safeUpper = isNaN(rawSUpper) ? safeBase * 1.2 : rawSUpper;
+
+          const unit = escapeHtml(axis.unit || '');
           const statusColor = axis.status_color || '#34d399';
 
-          const minVal = Math.min(sLower, base, est, p5);
-          const maxVal = Math.max(sUpper, base, est, p95);
-          const padding = Math.max((maxVal - minVal) * 0.18, Math.max(est, base) * 0.1, 1.0);
+          const minVal = Math.min(safeLower, safeBase, safeEst, safeP5);
+          const maxVal = Math.max(safeUpper, safeBase, safeEst, safeP95);
+          const padding = Math.max((maxVal - minVal) * 0.18, Math.max(safeEst, safeBase) * 0.1, 1.0);
           const xMin = Math.max(0, minVal - padding);
           const xMax = maxVal + padding;
           const rangeX = (xMax - xMin) || 1.0;
@@ -3066,9 +4212,9 @@
 
           const toX = (v) => Math.max(6, Math.min(width - 6, ((v - xMin) / rangeX) * width));
 
-          const mu = p50;
-          const sigma = Math.max(0.001, (p95 - p5) / 3.29);
-          const stepCount = 80;
+          const mu = safeP50;
+          const sigma = Math.max(0.001, (safeP95 - safeP5) / 3.29);
+          const stepCount = 60;
           const points = [];
 
           for (let i = 0; i <= stepCount; i++) {
@@ -3082,30 +4228,30 @@
 
           const pathD = points.map((p, i) => `${i === 0 ? 'M' : 'L'} ${p.x.toFixed(1)} ${p.y.toFixed(1)}`).join(' ');
 
-          const safeLeftX = toX(sLower);
-          const safeRightX = toX(sUpper);
+          const safeLeftX = toX(safeLower);
+          const safeRightX = toX(safeUpper);
           const safeWidthX = Math.max(2, safeRightX - safeLeftX);
 
-          const p5X = toX(p5);
-          const p95X = toX(p95);
-          const p50X = toX(p50);
-          const basePointX = toX(base);
+          const p5X = toX(safeP5);
+          const p95X = toX(safeP95);
+          const p50X = toX(safeP50);
+          const basePointX = toX(safeBase);
 
           const curveAreaD = pathD + ` L ${points[points.length - 1].x.toFixed(1)} ${baselineY} L ${points[0].x.toFixed(1)} ${baselineY} Z`;
 
           let beginnerSummaryText = '';
           let beginnerBadgeClass = 'safe';
-          if (p95 <= sUpper && p5 >= sLower) {
-            beginnerSummaryText = `✓ Safe Target Zone: 90% of projected outcomes (${p5}–${p95} ${unit}) remain within healthy limits [${sLower}–${sUpper} ${unit}].`;
+          if (safeP95 <= safeUpper && safeP5 >= safeLower) {
+            beginnerSummaryText = `✓ Safe Target Zone: 90% of projected outcomes (${safeP5}–${safeP95} ${unit}) remain within healthy limits [${safeLower}–${safeUpper} ${unit}].`;
             beginnerBadgeClass = 'safe';
-          } else if (est > sUpper || p95 > sUpper * 1.15) {
-            beginnerSummaryText = `⚠️ Elevation Risk: Projected upper percentile (${p95} ${unit}) exceeds safety limit (${sUpper} ${unit}).`;
+          } else if (safeEst > safeUpper || safeP95 > safeUpper * 1.15) {
+            beginnerSummaryText = `⚠️ Elevation Risk: Projected upper percentile (${safeP95} ${unit}) exceeds safety limit (${safeUpper} ${unit}).`;
             beginnerBadgeClass = 'warning';
-          } else if (est < sLower || p5 < sLower * 0.85) {
-            beginnerSummaryText = `⚠️ Suppression Risk: Lower percentile (${p5} ${unit}) drops below physiological floor (${sLower} ${unit}).`;
+          } else if (safeEst < safeLower || safeP5 < safeLower * 0.85) {
+            beginnerSummaryText = `⚠️ Suppression Risk: Lower percentile (${safeP5} ${unit}) drops below physiological floor (${safeLower} ${unit}).`;
             beginnerBadgeClass = 'warning';
           } else {
-            beginnerSummaryText = `ℹ️ Dynamic Shift: Expected median at ${est} ${unit} (90% distribution between ${p5} and ${p95} ${unit}).`;
+            beginnerSummaryText = `ℹ️ Dynamic Shift: Expected median at ${safeEst} ${unit} (90% distribution between ${safeP5} and ${safeP95} ${unit}).`;
             beginnerBadgeClass = 'info';
           }
 
@@ -3118,7 +4264,7 @@
                   <span>📈 Projected Outcome Probability Distribution</span>
                 </span>
                 <button 
-                  type="button"
+                  type="button" 
                   class="power-user-toggle-btn"
                   onclick="const el=document.getElementById('${chartId}-stats'); el.style.display=(el.style.display==='none'||!el.style.display)?'block':'none';"
                   style="background: rgba(0, 242, 254, 0.12); border: 1px solid rgba(0, 242, 254, 0.35); color: #00f2fe; font-size: 0.68rem; font-weight: 700; padding: 3px 9px; border-radius: 5px; cursor: pointer; transition: all 0.2s ease;"
@@ -3154,17 +4300,17 @@
 
                   <line x1="${basePointX.toFixed(1)}" y1="${peakY + 4}" x2="${basePointX.toFixed(1)}" y2="${baselineY}" stroke="#94a3b8" stroke-dasharray="2,2" stroke-width="1.2" />
                   <circle cx="${basePointX.toFixed(1)}" cy="${baselineY}" r="2.8" fill="#94a3b8" />
-                  <text x="${basePointX.toFixed(1)}" y="${baselineY + 12}" fill="#94a3b8" font-size="7.5" font-weight="600" text-anchor="middle">Base: ${base}</text>
+                  <text x="${basePointX.toFixed(1)}" y="${baselineY + 12}" fill="#94a3b8" font-size="7.5" font-weight="600" text-anchor="middle">Base: ${safeBase}</text>
 
                   <line x1="${p50X.toFixed(1)}" y1="${peakY}" x2="${p50X.toFixed(1)}" y2="${baselineY}" stroke="${statusColor}" stroke-width="2" />
                   <circle cx="${p50X.toFixed(1)}" cy="${peakY + 3}" r="4" fill="${statusColor}" stroke="#0b1324" stroke-width="1.5" />
-                  <text x="${p50X.toFixed(1)}" y="${peakY - 3}" fill="${statusColor}" font-size="8.5" font-weight="800" text-anchor="middle">Est: ${est} ${unit}</text>
+                  <text x="${p50X.toFixed(1)}" y="${peakY - 3}" fill="${statusColor}" font-size="8.5" font-weight="800" text-anchor="middle">Est: ${safeEst} ${unit}</text>
 
                   <line x1="${p5X.toFixed(1)}" y1="${baselineY - 8}" x2="${p5X.toFixed(1)}" y2="${baselineY}" stroke="#00f2fe" stroke-width="1.5" />
-                  <text x="${p5X.toFixed(1)}" y="${baselineY + 12}" fill="#00f2fe" font-size="7.5" font-weight="700" text-anchor="middle">p5: ${p5}</text>
+                  <text x="${p5X.toFixed(1)}" y="${baselineY + 12}" fill="#00f2fe" font-size="7.5" font-weight="700" text-anchor="middle">p5: ${safeP5}</text>
 
                   <line x1="${p95X.toFixed(1)}" y1="${baselineY - 8}" x2="${p95X.toFixed(1)}" y2="${baselineY}" stroke="#00f2fe" stroke-width="1.5" />
-                  <text x="${p95X.toFixed(1)}" y="${baselineY + 12}" fill="#00f2fe" font-size="7.5" font-weight="700" text-anchor="middle">p95: ${p95}</text>
+                  <text x="${p95X.toFixed(1)}" y="${baselineY + 12}" fill="#00f2fe" font-size="7.5" font-weight="700" text-anchor="middle">p95: ${safeP95}</text>
                 </svg>
               </div>
 
@@ -3173,30 +4319,30 @@
                 <div style="display: grid; grid-template-columns: repeat(5, 1fr); gap: 4px; text-align: center; background: rgba(0, 0, 0, 0.35); padding: 8px; border-radius: 6px; margin-bottom: 6px;">
                   <div>
                     <div style="font-size: 0.62rem; color: var(--text-muted);">p5 (Lower 5%)</div>
-                    <div style="font-size: 0.78rem; font-weight: 700; color: #00f2fe; font-family: 'JetBrains Mono', monospace;">${p5}</div>
+                    <div style="font-size: 0.78rem; font-weight: 700; color: #00f2fe; font-family: 'JetBrains Mono', monospace;">${safeP5}</div>
                   </div>
                   <div>
                     <div style="font-size: 0.62rem; color: var(--text-muted);">p25 (25th %)</div>
-                    <div style="font-size: 0.78rem; font-weight: 700; color: #94a3b8; font-family: 'JetBrains Mono', monospace;">${p25}</div>
+                    <div style="font-size: 0.78rem; font-weight: 700; color: #94a3b8; font-family: 'JetBrains Mono', monospace;">${safeP25}</div>
                   </div>
                   <div>
                     <div style="font-size: 0.62rem; color: var(--text-muted);">p50 (Median)</div>
-                    <div style="font-size: 0.82rem; font-weight: 800; color: ${statusColor}; font-family: 'JetBrains Mono', monospace;">${p50}</div>
+                    <div style="font-size: 0.82rem; font-weight: 800; color: ${statusColor}; font-family: 'JetBrains Mono', monospace;">${safeP50}</div>
                   </div>
                   <div>
                     <div style="font-size: 0.62rem; color: var(--text-muted);">p75 (75th %)</div>
-                    <div style="font-size: 0.78rem; font-weight: 700; color: #94a3b8; font-family: 'JetBrains Mono', monospace;">${p75}</div>
+                    <div style="font-size: 0.78rem; font-weight: 700; color: #94a3b8; font-family: 'JetBrains Mono', monospace;">${safeP75}</div>
                   </div>
                   <div>
                     <div style="font-size: 0.62rem; color: var(--text-muted);">p95 (Upper 95%)</div>
-                    <div style="font-size: 0.78rem; font-weight: 700; color: #00f2fe; font-family: 'JetBrains Mono', monospace;">${p95}</div>
+                    <div style="font-size: 0.78rem; font-weight: 700; color: #00f2fe; font-family: 'JetBrains Mono', monospace;">${safeP95}</div>
                   </div>
                 </div>
 
                 <div style="display: flex; justify-content: space-between; font-size: 0.7rem; color: var(--text-secondary); background: rgba(255,255,255,0.03); padding: 5px 8px; border-radius: 5px;">
-                  <span>Mean (&mu;): <strong>${mean} ${unit}</strong></span>
-                  <span>Std Dev (&sigma;): <strong>${stdDev.toFixed(2)} ${unit}</strong></span>
-                  <span>90% Span: <strong>${(p95 - p5).toFixed(1)} ${unit}</strong></span>
+                  <span>Mean (&mu;): <strong>${safeMean} ${unit}</strong></span>
+                  <span>Std Dev (&sigma;): <strong>${safeStdDev.toFixed(2)} ${unit}</strong></span>
+                  <span>90% Span: <strong>${Math.abs(safeP95 - safeP5).toFixed(1)} ${unit}</strong></span>
                 </div>
               </div>
             </div>
@@ -3231,8 +4377,8 @@
               const deltaClass = c.direction === 'UP' ? 'up' : 'down';
               return `
                 <div class="axis-contrib-item">
-                  <span class="contrib-name">${c.compound_label || c.compound_id}</span>
-                  <span class="contrib-delta ${deltaClass}">${c.formatted_delta}</span>
+                  <span class="contrib-name">${escapeHtml(c.compound_label || c.compound_id)}</span>
+                  <span class="contrib-delta ${deltaClass}">${escapeHtml(c.formatted_delta || '')}</span>
                 </div>
               `;
             }).join('');
@@ -3240,21 +4386,21 @@
             const dist = axis.distribution || {};
             const p5 = dist.p5 !== undefined ? dist.p5 : axis.estimated_value;
             const p95 = dist.p95 !== undefined ? dist.p95 : axis.estimated_value;
-            const p5p95Str = axis.p5_p95_range_str || `${p5} - ${p95} ${axis.unit}`;
+            const p5p95Str = axis.p5_p95_range_str || `${p5} - ${p95} ${axis.unit || ''}`;
 
             return `
               <div class="axis-card ${cardTierClass}">
                 <div class="axis-card-top">
                   <div class="axis-name-group">
                     <div class="axis-name">
-                      <span>${axis.name}</span>
+                      <span>${escapeHtml(axis.name || 'Biomarker Axis')}</span>
                     </div>
-                    <span class="axis-safe-range">Target Safe Range: ${axis.safe_range}</span>
+                    <span class="axis-safe-range">Target Safe Range: ${escapeHtml(axis.safe_range || '')}</span>
                   </div>
                   <div style="display: flex; flex-direction: column; align-items: flex-end; gap: 4px;">
                     ${tierTagHtml}
                     <span class="panel-title-badge" style="background: ${statusColor}22; color: ${statusColor}; border-color: ${statusColor}55;">
-                      ${axis.status_label}
+                      ${escapeHtml(axis.status_label || '')}
                     </span>
                   </div>
                 </div>
@@ -3263,23 +4409,23 @@
                   <div>
                     <span style="font-size: 0.72rem; color: var(--text-muted); text-transform: uppercase;">Baseline → Projected</span>
                     <div class="axis-val-primary" style="color: ${statusColor};">
-                      ${axis.baseline} → ${axis.estimated_value} <span style="font-size: 0.85rem; font-weight: 600;">${axis.unit}</span>
+                      ${axis.baseline} → ${axis.estimated_value} <span style="font-size: 0.85rem; font-weight: 600;">${escapeHtml(axis.unit || '')}</span>
                     </div>
                   </div>
                   <div style="text-align: right;">
                     <span style="font-size: 0.68rem; color: #00f2fe; font-weight: 700; text-transform: uppercase; font-family: 'JetBrains Mono', monospace;" title="90% Population Percentile Distribution Curve (p5 to p95)">
-                      📊 p5–p95: ${p5p95Str}
+                      📊 p5–p95: ${escapeHtml(p5p95Str)}
                     </span>
-                    <div class="axis-val-delta" style="color: ${axis.estimated_value >= axis.baseline ? '#f87171' : '#34d399'}; margin-top:2px;">
-                      Net: ${axis.net_delta_str}
+                    <div class="axis-val-delta" style="color: ${(axis.estimated_value || 0) >= (axis.baseline || 0) ? '#f87171' : '#34d399'}; margin-top:2px;">
+                      Net: ${escapeHtml(axis.net_delta_str || '')}
                     </div>
                   </div>
                 </div>
 
                 ${axis.target_tissue || (axis.biometric_modifiers_applied && axis.biometric_modifiers_applied.length) ? `
                   <div style="display: flex; flex-wrap: wrap; gap: 6px; margin: 6px 0;">
-                    ${axis.target_tissue ? `<span style="font-size: 0.72rem; color: #a7f3d0; background: rgba(16, 185, 129, 0.12); padding: 2px 8px; border-radius: 4px; border: 1px solid rgba(16, 185, 129, 0.25);">🎯 Target: <strong>${axis.target_tissue}</strong></span>` : ''}
-                    ${(axis.biometric_modifiers_applied || []).map(m => `<span style="font-size: 0.7rem; color: #fde047; background: rgba(245, 158, 11, 0.15); padding: 2px 6px; border-radius: 4px; border: 1px solid rgba(245, 158, 11, 0.3);">⚙️ ${m}</span>`).join('')}
+                    ${axis.target_tissue ? `<span style="font-size: 0.72rem; color: #a7f3d0; background: rgba(16, 185, 129, 0.12); padding: 2px 8px; border-radius: 4px; border: 1px solid rgba(16, 185, 129, 0.25);">🎯 Target: <strong>${escapeHtml(axis.target_tissue)}</strong></span>` : ''}
+                    ${(axis.biometric_modifiers_applied || []).map(m => `<span style="font-size: 0.7rem; color: #fde047; background: rgba(245, 158, 11, 0.15); padding: 2px 6px; border-radius: 4px; border: 1px solid rgba(245, 158, 11, 0.3);">⚙️ ${escapeHtml(m)}</span>`).join('')}
                   </div>
                 ` : ''}
 
@@ -3314,17 +4460,17 @@
               ${mitigations.map(m => `
                 <div class="mitigation-card">
                   <div class="mitigation-card-header">
-                    <span class="mitigation-title">✓ ${m.title}</span>
+                    <span class="mitigation-title">✓ ${escapeHtml(m.title)}</span>
                     <span style="font-size: 0.75rem; font-weight: 700; color: #00f2fe; font-family: 'JetBrains Mono', monospace;">
                       -${m.risk_reduction_points || 20} Risk Points
                     </span>
                   </div>
                   <p style="font-size: 0.86rem; color: var(--text-secondary); line-height: 1.45; margin: 0;">
-                    ${m.description}
+                    ${escapeHtml(m.description)}
                   </p>
                   <div style="display: flex; gap: 6px; align-items: center; margin-top: 2px;">
                     <span style="font-size: 0.72rem; color: var(--text-muted); text-transform: uppercase; font-weight: 700;">Participating:</span>
-                    ${(m.participating_compounds || []).map(p => `<span class="modal-chip" style="font-size: 0.72rem; padding: 2px 8px;">${p}</span>`).join('')}
+                    ${(m.participating_compounds || []).map(p => `<span class="modal-chip" style="font-size: 0.72rem; padding: 2px 8px;">${escapeHtml(p)}</span>`).join('')}
                   </div>
                 </div>
               `).join('')}
@@ -3345,15 +4491,15 @@
               ${uncompensated.map(u => `
                 <div class="uncompensated-card">
                   <div style="display: flex; justify-content: space-between; align-items: center;">
-                    <span style="font-weight: 800; font-size: 0.96rem; color: #f87171;">⚠️ ${u.title}</span>
-                    <span class="panel-title-badge" style="background: rgba(239, 68, 68, 0.2); color: #f87171;">${u.axis || 'Axis Hazard'}</span>
+                    <span style="font-weight: 800; font-size: 0.96rem; color: #f87171;">⚠️ ${escapeHtml(u.title)}</span>
+                    <span class="panel-title-badge" style="background: rgba(239, 68, 68, 0.2); color: #f87171;">${escapeHtml(u.axis || 'Axis Hazard')}</span>
                   </div>
                   <p style="font-size: 0.86rem; color: var(--text-secondary); line-height: 1.45; margin: 0;">
-                    ${u.description}
+                    ${escapeHtml(u.description)}
                   </p>
                   ${u.clinical_recommendation ? `
                     <div class="conflict-card-rec" style="color: #fca5a5; background: rgba(0, 0, 0, 0.35);">
-                      <strong>Clinical Guidance:</strong> ${u.clinical_recommendation}
+                      <strong>Clinical Guidance:</strong> ${escapeHtml(u.clinical_recommendation)}
                     </div>
                   ` : ''}
                 </div>
@@ -3368,7 +4514,7 @@
               <div class="balance-hero-title">
                 <span>Holistic Stack Equilibrium</span>
                 <span class="panel-title-badge" style="background: ${heroBadgeColor}22; color: ${heroBadgeColor}; border-color: ${heroBadgeColor}55;">
-                  ${statusLabel}
+                  ${escapeHtml(statusLabel)}
                 </span>
               </div>
               <p class="balance-hero-desc">
@@ -3390,7 +4536,7 @@
                   ⏱️ Equilibrium Timeline Horizon
                 </span>
                 <span style="font-size: 0.72rem; color: var(--text-muted); font-family: 'JetBrains Mono', monospace;">
-                  Horizon: <strong style="color: #00f2fe;">${b.timeline_label || 'Steady State (Full Equilibrium)'}</strong>
+                  Horizon: <strong style="color: #00f2fe;">${escapeHtml(b.timeline_label || 'Steady State (Full Equilibrium)')}</strong>
                 </span>
               </div>
               <span style="font-size: 0.72rem; color: var(--text-secondary); background: rgba(0,242,254,0.08); border: 1px solid rgba(0,242,254,0.25); padding: 3px 8px; border-radius: 9999px;">
@@ -3489,7 +4635,8 @@
       };
 
       function renderMatrixTable(data) {
-        if (!data.matrix || !data.matrix.length) {
+        if (!matrixContainer) return;
+        if (!data || !data.matrix || !data.matrix.length) {
           matrixContainer.innerHTML = '<div class="stack-empty-card" style="padding: 60px 20px;">Add 2 or more compounds to populate the pairwise N×N collision matrix.</div>';
           return;
         }
@@ -3498,14 +4645,14 @@
         let html = '<table class="matrix-table"><thead><tr><th></th>';
         compounds.forEach(c => {
           const doseStr = c.dose ? ` (${c.dose}${c.unit || 'mg'})` : '';
-          html += `<th>${c.name}${doseStr}</th>`;
+          html += `<th>${escapeHtml(c.name || c.key || '')}${escapeHtml(doseStr)}</th>`;
         });
         html += '</tr></thead><tbody>';
 
         data.matrix.forEach((row, i) => {
           const cRow = compounds[i];
           const doseStr = cRow?.dose ? ` (${cRow.dose}${cRow.unit || 'mg'})` : '';
-          html += `<tr><th>${cRow?.name || ''}${doseStr}</th>`;
+          html += `<tr><th>${escapeHtml(cRow?.name || '')}${escapeHtml(doseStr)}</th>`;
           row.forEach((cell, j) => {
             let cellClass = 'cell-neutral';
             let icon = '✓';
@@ -3533,11 +4680,14 @@
               label = cell.ddi_auc_ratio ? `+${Math.round((cell.ddi_auc_ratio - 1) * 100)}% AUC` : 'Moderate';
             }
 
+            const srcName = escapeHtml(cell.source_name || compounds[i]?.name || 'Compound A');
+            const tgtName = escapeHtml(cell.target_name || compounds[j]?.name || 'Compound B');
+
             html += `
               <td>
-                <div class="matrix-cell ${cellClass}" onclick="openCellInspector(${i}, ${j})" title="Click to view biochemical details for ${cell.source_name} + ${cell.target_name}">
+                <div class="matrix-cell ${cellClass}" onclick="openCellInspector(${i}, ${j})" title="Click to view biochemical details for ${srcName} + ${tgtName}">
                   <span class="cell-icon">${icon}</span>
-                  <span class="cell-label">${label}</span>
+                  <span class="cell-label">${escapeHtml(label)}</span>
                 </div>
               </td>
             `;
@@ -3550,6 +4700,7 @@
       }
 
       function renderBreakdowns(data) {
+        if (!breakdownsContainer) return;
         const b = data.breakdown || {};
         const isPower = state.experienceMode === 'power';
         const allItems = [
@@ -3567,16 +4718,16 @@
         breakdownsContainer.innerHTML = allItems.map(item => `
           <div class="conflict-card ${item.cardClass}">
             <div class="conflict-card-top">
-              <span class="conflict-card-title">${item.title}</span>
+              <span class="conflict-card-title">${escapeHtml(item.title)}</span>
               <div style="display: flex; gap: 6px; align-items: center;">
                 ${item.is_mitigated_by_stack ? '<span class="panel-title-badge" style="background: rgba(16, 185, 129, 0.2); color: #34d399;">🛡️ Mitigated by Stack</span>' : ''}
-                <span class="panel-title-badge">${item.cat}</span>
+                <span class="panel-title-badge">${escapeHtml(item.cat)}</span>
               </div>
             </div>
-            <p class="conflict-card-desc">${item.description}</p>
-            ${item.mitigation_summary ? `<div style="padding: 8px 12px; background: rgba(16, 185, 129, 0.12); border: 1px solid rgba(16, 185, 129, 0.3); border-radius: var(--radius-sm); font-size: 0.82rem; color: #34d399; margin-top: 4px;"><strong>Stack Mitigation:</strong> ${item.mitigation_summary}</div>` : ''}
+            <p class="conflict-card-desc">${escapeHtml(item.description)}</p>
+            ${item.mitigation_summary ? `<div style="padding: 8px 12px; background: rgba(16, 185, 129, 0.12); border: 1px solid rgba(16, 185, 129, 0.3); border-radius: var(--radius-sm); font-size: 0.82rem; color: #34d399; margin-top: 4px;"><strong>Stack Mitigation:</strong> ${escapeHtml(item.mitigation_summary)}</div>` : ''}
             ${item.ddi_auc_ratio && isPower ? `<div style="font-family:'JetBrains Mono',monospace; font-size:0.78rem; color:#00f2fe; margin-top:4px; background:rgba(0,0,0,0.3); padding:4px 8px; border-radius:4px;">📊 Power Metric • Estimated DDI Exposure Multiplier: ${item.ddi_auc_ratio}x AUC (+${Math.round((item.ddi_auc_ratio - 1) * 100)}% surge)</div>` : ''}
-            ${item.clinical_recommendation ? `<div class="conflict-card-rec"><strong>Recommendation:</strong> ${item.clinical_recommendation}</div>` : ''}
+            ${item.clinical_recommendation ? `<div class="conflict-card-rec"><strong>Recommendation:</strong> ${escapeHtml(item.clinical_recommendation)}</div>` : ''}
           </div>
         `).join('');
       }
@@ -3587,7 +4738,10 @@
         const cell = state.analysis.matrix[i]?.[j];
         if (!cell) return;
 
-        document.getElementById('modal-pair-title').textContent = `${cell.source_name} ⟷ ${cell.target_name}`;
+        const srcName = cell.source_name || (state.analysis.compounds?.[i]?.name) || 'Compound A';
+        const tgtName = cell.target_name || (state.analysis.compounds?.[j]?.name) || 'Compound B';
+
+        document.getElementById('modal-pair-title').textContent = `${srcName} ⟷ ${tgtName}`;
         document.getElementById('modal-pair-subtitle').textContent = cell.title || 'Pharmacology Collision';
         document.getElementById('modal-description').textContent = cell.description || 'No specific conflict documented.';
         document.getElementById('modal-recommendation').textContent = cell.clinical_recommendation || 'Standard clinical monitoring recommended.';
@@ -3616,7 +4770,7 @@
         const targetsSection = document.getElementById('modal-targets-section');
         if (cell.affected_targets && cell.affected_targets.length) {
           targetsSection.style.display = 'block';
-          targetsWrap.innerHTML = cell.affected_targets.map(t => `<span class="modal-chip">${t}</span>`).join('');
+          targetsWrap.innerHTML = cell.affected_targets.map(t => `<span class="modal-chip">${escapeHtml(t)}</span>`).join('');
         } else {
           targetsSection.style.display = 'none';
         }
@@ -3731,17 +4885,34 @@
         };
       }
 
-      // Initial state render with localStorage restore
+      // Initial state render with URL params & localStorage restore
       try {
-        const saved = localStorage.getItem('healthai_stack');
-        if (saved) {
-          const parsed = JSON.parse(saved);
-          if (Array.isArray(parsed) && parsed.length) {
-            state.stack = parsed.map(normalizeStackItem).filter(Boolean);
+        const urlParams = new URLSearchParams(window.location.search);
+        const presetParam = urlParams.get('preset');
+        const stackParam = urlParams.get('stack');
+        const timelineParam = urlParams.get('timeline');
+        if (timelineParam) {
+          state.timeline = timelineParam;
+        }
+
+        if (presetParam && PRESET_STACKS[presetParam]) {
+          loadPreset(presetParam);
+        } else if (stackParam) {
+          const rawItems = stackParam.split(',').map(s => s.trim()).filter(Boolean);
+          if (rawItems.length) {
+            state.stack = rawItems.map(normalizeStackItem).filter(Boolean);
+          }
+        } else {
+          const saved = localStorage.getItem('healthai_stack');
+          if (saved) {
+            const parsed = JSON.parse(saved);
+            if (Array.isArray(parsed) && parsed.length) {
+              state.stack = parsed.map(normalizeStackItem).filter(Boolean);
+            }
           }
         }
       } catch (e) {
-        console.warn('Failed to parse saved stack on startup', e);
+        console.warn('Failed to parse saved stack or URL params on startup', e);
       }
 
       // Real-time synchronization with Knowledge Graph across tabs & windows
@@ -3774,6 +4945,995 @@
           if (!navLinksMenu.contains(e.target) && !mobileMenuBtn.contains(e.target)) {
             navLinksMenu.classList.remove('open');
           }
+        });
+      }
+
+      // ==========================================================================
+      // FLAGSHIP AI COPILOT CLIENT ENGINE (MULTI-TURN SSE STREAMING & ACTION CARDS)
+      // ==========================================================================
+      function escapeHtml(str) {
+        if (!str && str !== 0) return '';
+        return String(str)
+          .replace(/&/g, '&amp;')
+          .replace(/</g, '&lt;')
+          .replace(/>/g, '&gt;')
+          .replace(/"/g, '&quot;')
+          .replace(/'/g, '&#039;');
+      }
+
+      function renderInlineMarkdown(str) {
+        if (!str) return '';
+        return str
+          .replace(/\*\*(.*?)\*\*/g, '<strong style="color: var(--accent-cyan);">$1</strong>')
+          .replace(/\*(.*?)\*/g, '<em>$1</em>')
+          .replace(/`([^`]+)`/g, '<code style="background: rgba(0,0,0,0.35); border-radius: 3px; padding: 1px 5px; font-size: 0.76rem; color: var(--accent-cyan);">$1</code>');
+      }
+
+      function renderMarkdownLite(rawText) {
+        if (!rawText) return '';
+
+        // 1. Strip raw action_card tags completely from text bubble
+        let text = rawText.replace(/<action_card[\s\S]*?(<\/action_card>|$)/gi, '').trim();
+        if (!text) return '';
+
+        // 2. Extract and protect code blocks
+        const codeBlocks = [];
+        text = text.replace(/```([a-zA-Z0-9_-]*)\r?\n([\s\S]*?)```/g, (match, lang, code) => {
+          const idx = codeBlocks.length;
+          codeBlocks.push(`<pre style="background: rgba(0,0,0,0.5); border: 1px solid var(--border-subtle); border-radius: var(--radius-sm); padding: 10px 14px; overflow-x: auto; font-family: monospace; font-size: 0.8rem; margin: 8px 0;"><code>${escapeHtml(code.trim())}</code></pre>`);
+          return `__CODE_BLOCK_${idx}__`;
+        });
+
+        // Extract inline code
+        const inlineCodes = [];
+        text = text.replace(/`([^`]+)`/g, (match, code) => {
+          const idx = inlineCodes.length;
+          inlineCodes.push(`<code style="background: rgba(0,0,0,0.35); border: 1px solid rgba(255,255,255,0.08); border-radius: 4px; padding: 2px 6px; font-family: monospace; font-size: 0.82rem; color: var(--accent-cyan);">${escapeHtml(code)}</code>`);
+          return `__INLINE_CODE_${idx}__`;
+        });
+
+        // 3. Convert markdown tables (support any spacing and line breaks)
+        text = text.replace(/(?:^|\n)((?:[ \t]*\|[^\n]+\|[ \t]*\r?\n)+)/g, (fullMatch, tableBlock) => {
+          const rawLines = tableBlock.trim().split('\n').map(l => l.trim()).filter(Boolean);
+          if (rawLines.length < 2) return fullMatch;
+          if (!/^[|:\-\s]+$/.test(rawLines[1])) return fullMatch;
+
+          const headers = rawLines[0].split('|').slice(1, -1).map(h => h.trim());
+          const rowLines = rawLines.slice(2);
+
+          let tableHtml = '<div style="overflow-x: auto; margin: 10px 0;"><table class="copilot-table" style="width: 100%; border-collapse: collapse; font-size: 0.78rem; border: 1px solid var(--border-subtle); border-radius: var(--radius-sm); overflow: hidden; background: rgba(0,0,0,0.2);">';
+          tableHtml += '<thead style="background: rgba(0, 242, 254, 0.08); border-bottom: 1px solid var(--border-subtle);"><tr style="text-align: left;">';
+          headers.forEach(h => {
+            tableHtml += `<th style="padding: 6px 10px; font-weight: 700; color: var(--text-primary); border-right: 1px solid var(--border-subtle);">${escapeHtml(h)}</th>`;
+          });
+          tableHtml += '</tr></thead><tbody>';
+
+          rowLines.forEach((r, idx) => {
+            const cols = r.split('|').slice(1, -1).map(c => c.trim());
+            const bg = idx % 2 === 0 ? 'transparent' : 'rgba(255,255,255,0.02)';
+            tableHtml += `<tr style="background: ${bg}; border-bottom: 1px solid rgba(255,255,255,0.04);">`;
+            cols.forEach(c => {
+              tableHtml += `<td style="padding: 6px 10px; color: var(--text-secondary); border-right: 1px solid rgba(255,255,255,0.04);">${renderInlineMarkdown(escapeHtml(c))}</td>`;
+            });
+            tableHtml += '</tr>';
+          });
+
+          tableHtml += '</tbody></table></div>';
+          return tableHtml;
+        });
+
+        // 4. Headings
+        text = text.replace(/^### (.*$)/gim, '<h4 style="margin: 12px 0 6px 0; color: #f8fafc; font-size: 0.92rem; font-weight: 800; display: flex; align-items: center; gap: 6px;">$1</h4>');
+        text = text.replace(/^## (.*$)/gim, '<h3 style="margin: 14px 0 8px 0; color: var(--accent-cyan); font-size: 1.0rem; font-weight: 800; border-bottom: 1px solid rgba(0,242,254,0.15); padding-bottom: 4px;">$1</h3>');
+        text = text.replace(/^# (.*$)/gim, '<h2 style="margin: 16px 0 8px 0; color: #ffffff; font-size: 1.1rem; font-weight: 800;">$1</h2>');
+
+        // 5. Blockquotes / Alerts
+        text = text.replace(/^> (.*$)/gim, '<blockquote style="background: rgba(0, 242, 254, 0.05); border-left: 3px solid var(--accent-cyan); border-radius: 0 var(--radius-sm) var(--radius-sm) 0; padding: 6px 12px; margin: 8px 0; font-size: 0.82rem; color: var(--text-secondary);">$1</blockquote>');
+
+        // 6. Dividers
+        text = text.replace(/^---$/gim, '<hr style="border: none; border-top: 1px solid rgba(255,255,255,0.08); margin: 12px 0;">');
+
+        // 7. Bold & Italic
+        text = text.replace(/\*\*(.*?)\*\*/g, '<strong style="color: var(--accent-cyan); font-weight: 700;">$1</strong>');
+        text = text.replace(/\*(.*?)\*/g, '<em style="color: var(--text-primary);">$1</em>');
+
+        // 8. Medical & Literature Citation Badging
+        text = text.replace(/\[PMID:\s*(\d+)\]/gi, '<a href="https://pubmed.ncbi.nlm.nih.gov/$1/" target="_blank" rel="noopener noreferrer" class="copilot-citation-badge pmid-badge" title="View study on PubMed (PMID: $1)">📄 PMID: $1</a>');
+        text = text.replace(/\[ChEMBL:\s*([A-Za-z0-9_]+)\]/gi, '<a href="https://www.ebi.ac.uk/chembl/target_report_card/$1/" target="_blank" rel="noopener noreferrer" class="copilot-citation-badge chembl-badge" title="View target in ChEMBL database">🔬 ChEMBL: $1</a>');
+        text = text.replace(/\[FDA Label:\s*([^\]]+)\]/gi, '<span class="copilot-citation-badge fda-badge" title="FDA Structured Product Labeling Standard">🏛️ FDA: $1</span>');
+        text = text.replace(/\[NCT:\s*([A-Za-z0-9_]+)\]/gi, '<a href="https://clinicaltrials.gov/study/$1" target="_blank" rel="noopener noreferrer" class="copilot-citation-badge trial-badge" title="View Clinical Trial on ClinicalTrials.gov">🧪 NCT: $1</a>');
+
+        // 9. Bullet lists
+        text = text.replace(/^[ \t]*[-*][ \t]+(.*$)/gim, '<li style="margin-bottom: 4px;">$1</li>');
+        text = text.replace(/((?:<li style="margin-bottom: 4px;">.*?<\/li>\s*)+)/g, '<ul style="margin: 6px 0 8px 18px; padding: 0; list-style-type: disc;">$1</ul>');
+
+        // 9. Paragraphs
+        const blocks = text.split(/\n{2,}/).map(p => {
+          p = p.trim();
+          if (!p) return '';
+          if (p.startsWith('<h') || p.startsWith('<div') || p.startsWith('<table') || p.startsWith('<ul') || p.startsWith('<ol') || p.startsWith('<pre') || p.startsWith('<hr') || p.startsWith('<blockquote')) {
+            return p;
+          }
+          return `<p style="margin-bottom: 8px;">${p.replace(/\n/g, '<br>')}</p>`;
+        }).filter(Boolean);
+
+        let html = blocks.join('');
+
+        // Restore code blocks and inline code
+        inlineCodes.forEach((code, idx) => {
+          html = html.replace(`__INLINE_CODE_${idx}__`, code);
+        });
+        codeBlocks.forEach((block, idx) => {
+          html = html.replace(`__CODE_BLOCK_${idx}__`, block);
+        });
+
+        return html;
+      }
+
+      const copilotState = {
+        open: false,
+        persona: 'architect',
+        protocolGoal: 'auto',
+        protocolObjective: '',
+        inferredAnalysis: null,
+        messages: [],
+        isStreaming: false,
+        abortController: null,
+      };
+
+      const COPILOT_MODE_PROMPTS = {
+        architect: [
+          'Optimize my circadian dosing schedule for this stack',
+          'What synergistic co-factors can enhance this protocol?',
+          'How should I adjust dosing based on my body weight and eGFR?',
+          'Propose a balanced daily protocol with morning and bedtime allocations'
+        ],
+        auditor: [
+          'Audit my stack for CYP450 enzyme bottlenecks and DDI surges',
+          'Are there any renal or hepatic clearance concerns with my biomarkers?',
+          'What protective countermeasures should I add to mitigate risks?',
+          'Check for receptor overlap or target competition clashes'
+        ],
+        tutor: [
+          'Explain the exact molecular mechanism of action for my stack',
+          'How do these compounds interact at the receptor and enzyme level?',
+          'Explain the downstream AMPK and mitochondrial signaling pathways',
+          'What is the binding affinity and receptor occupancy kinetics here?'
+        ],
+        labs: [
+          'How will this stack impact my lipid profile (ApoB/Triglycerides) and ALT?',
+          'My ALT is 45 U/L and eGFR is 85; what adjustments are recommended?',
+          'Analyze hormone balance (Testosterone/Estradiol/SHBG) for this protocol',
+          'What lab biomarkers should I monitor while on this stack?'
+        ]
+      };
+
+      const copilotDrawer = document.getElementById('copilot-drawer');
+      const copilotBackdrop = document.getElementById('copilot-drawer-backdrop');
+      const copilotFloatingTrigger = document.getElementById('floating-copilot-trigger');
+      const copilotHeaderBtn = document.getElementById('protocol-copilot-btn');
+      const copilotCloseBtn = document.getElementById('copilot-drawer-close');
+      const copilotClearBtn = document.getElementById('copilot-clear-chat');
+      const copilotChatContainer = document.getElementById('copilot-chat-container');
+      const copilotInput = document.getElementById('copilot-chat-input');
+      const copilotSendBtn = document.getElementById('copilot-chat-send-btn');
+      const copilotModeBar = document.getElementById('copilot-mode-bar');
+      const copilotQuickPrompts = document.getElementById('copilot-quick-prompts');
+      const copilotStackTags = document.getElementById('copilot-drawer-stack-tags');
+      const copilotGoalSelect = document.getElementById('copilot-goal-select');
+      const copilotGoalStatusBadge = document.getElementById('copilot-goal-status-badge');
+      const copilotToggleNotesBtn = document.getElementById('copilot-toggle-notes-btn');
+      const copilotCustomNotesWrap = document.getElementById('copilot-custom-notes-wrap');
+      const copilotCustomNotes = document.getElementById('copilot-custom-notes');
+      const copilotInferredText = document.getElementById('copilot-inferred-text');
+
+      let _inferTimeout = null;
+      async function syncStackPurposeAndGaps() {
+        clearTimeout(_inferTimeout);
+        _inferTimeout = setTimeout(async () => {
+          const compoundKeys = (state.stack || []).map(s => s.key || s.name || s.id).filter(Boolean);
+          if (!compoundKeys.length) {
+            if (copilotInferredText) copilotInferredText.textContent = 'Add compounds to infer stack purpose';
+            return;
+          }
+          try {
+            const biometrics = {
+              age: Number(document.getElementById('bio-age')?.value) || 30,
+              weight_kg: Number(document.getElementById('bio-weight')?.value) || 75,
+              egfr: Number(document.getElementById('bio-egfr')?.value) || 95,
+              alt_u_l: Number(document.getElementById('bio-alt')?.value) || 25,
+              blood_pressure: Number(document.getElementById('bio-bp')?.value) || 120,
+              body_fat_pct: Number(document.getElementById('bio-bodyfat')?.value) || 15
+            };
+            const res = await fetch('/api/ai/infer-purpose', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                stack: compoundKeys,
+                biometrics: biometrics,
+                user_goal: copilotState.protocolGoal,
+                user_objective: copilotState.protocolObjective
+              })
+            });
+            if (res.ok) {
+              const data = await res.json();
+              copilotState.inferredAnalysis = data;
+              if (copilotInferredText) {
+                const gaps = data.therapeutic_gaps || [];
+                const gapText = gaps.length ? ` • ⚠️ ${gaps.length} gaps flagged` : ' • ✓ Balanced';
+                copilotInferredText.innerHTML = `<strong>${escapeHtml(data.goal_title)}</strong>${gapText}`;
+              }
+              if (copilotGoalStatusBadge) {
+                copilotGoalStatusBadge.className = `copilot-goal-badge ${data.is_user_selected ? 'user' : 'auto'}`;
+                copilotGoalStatusBadge.textContent = data.is_user_selected ? 'User' : 'Auto';
+              }
+            }
+          } catch (e) {
+            console.debug('Purpose inference notice', e);
+          }
+        }, 150);
+      }
+
+      if (copilotGoalSelect) {
+        copilotGoalSelect.addEventListener('change', (e) => {
+          copilotState.protocolGoal = e.target.value;
+          if (copilotGoalStatusBadge) {
+            const isUser = e.target.value !== 'auto';
+            copilotGoalStatusBadge.className = `copilot-goal-badge ${isUser ? 'user' : 'auto'}`;
+            copilotGoalStatusBadge.textContent = isUser ? 'User' : 'Auto';
+          }
+          if (e.target.value === 'custom' && copilotCustomNotesWrap) {
+            copilotCustomNotesWrap.style.display = 'block';
+            if (copilotCustomNotes) copilotCustomNotes.focus();
+          }
+          syncStackPurposeAndGaps();
+        });
+      }
+
+      if (copilotToggleNotesBtn && copilotCustomNotesWrap) {
+        copilotToggleNotesBtn.addEventListener('click', () => {
+          const isHidden = copilotCustomNotesWrap.style.display === 'none';
+          copilotCustomNotesWrap.style.display = isHidden ? 'block' : 'none';
+          copilotToggleNotesBtn.style.color = isHidden ? 'var(--accent-cyan)' : 'var(--text-muted)';
+          if (isHidden && copilotCustomNotes) copilotCustomNotes.focus();
+        });
+      }
+
+      if (copilotCustomNotes) {
+        copilotCustomNotes.addEventListener('input', (e) => {
+          copilotState.protocolObjective = e.target.value;
+        });
+      }
+
+      function syncCopilotStackTags() {
+        if (!copilotStackTags) return;
+        const stackList = state.stack || [];
+        if (!stackList.length) {
+          copilotStackTags.innerHTML = '<span style="color: var(--text-muted); font-size: 0.74rem;">No compounds in stack</span>';
+          if (copilotInferredText) copilotInferredText.textContent = 'Add compounds to infer stack purpose';
+          return;
+        }
+        copilotStackTags.innerHTML = stackList.map(c => `
+          <span style="display: inline-flex; align-items: center; gap: 4px; background: rgba(0, 242, 254, 0.1); border: 1px solid rgba(0, 242, 254, 0.25); border-radius: 4px; padding: 2px 6px; font-size: 0.72rem; color: var(--accent-cyan); font-weight: 700;">
+            ${c.name || c.key} <span style="color: var(--text-muted); font-size: 0.68rem;">${c.dose}${c.unit || 'mg'}</span>
+          </span>
+        `).join('');
+        syncStackPurposeAndGaps();
+      }
+
+      function renderQuickPrompts() {
+        if (!copilotQuickPrompts) return;
+        const prompts = COPILOT_MODE_PROMPTS[copilotState.persona] || COPILOT_MODE_PROMPTS.architect;
+        copilotQuickPrompts.innerHTML = prompts.map(p => `
+          <button class="quick-prompt-chip" data-prompt="${p.replace(/"/g, '&quot;')}">${p}</button>
+        `).join('');
+
+        copilotQuickPrompts.querySelectorAll('.quick-prompt-chip').forEach(chip => {
+          chip.addEventListener('click', () => {
+            const promptText = chip.getAttribute('data-prompt');
+            if (promptText && !copilotState.isStreaming) {
+              sendCopilotMessage(promptText, promptText);
+            }
+          });
+        });
+      }
+
+      // Drag-to-resize & Expand Mode setup
+      const copilotResizeHandle = document.getElementById('copilot-resize-handle');
+      const copilotExpandBtn = document.getElementById('copilot-drawer-expand');
+      const copilotExpandIcon = document.getElementById('copilot-expand-icon');
+      const copilotExpandText = document.getElementById('copilot-expand-text');
+
+      let isResizingCopilot = false;
+
+      // Restore saved custom width if present
+      try {
+        const savedWidth = localStorage.getItem('healthai_copilot_width');
+        if (savedWidth && Number(savedWidth) >= 380) {
+          document.documentElement.style.setProperty('--copilot-width', `${Number(savedWidth)}px`);
+        }
+      } catch (e) {}
+
+      if (copilotResizeHandle && copilotDrawer) {
+        const onResizeStart = (e) => {
+          isResizingCopilot = true;
+          copilotDrawer.classList.add('resizing');
+          copilotResizeHandle.classList.add('active');
+          document.body.style.cursor = 'ew-resize';
+          document.body.style.userSelect = 'none';
+        };
+
+        const onResizeMove = (e) => {
+          if (!isResizingCopilot) return;
+          const clientX = e.clientX !== undefined ? e.clientX : (e.touches && e.touches[0] ? e.touches[0].clientX : null);
+          if (clientX === null) return;
+          const targetWidth = Math.max(380, Math.min(Math.round(window.innerWidth - clientX), Math.round(window.innerWidth * 0.94)));
+          document.documentElement.style.setProperty('--copilot-width', `${targetWidth}px`);
+        };
+
+        const onResizeEnd = () => {
+          if (!isResizingCopilot) return;
+          isResizingCopilot = false;
+          copilotDrawer.classList.remove('resizing');
+          copilotResizeHandle.classList.remove('active');
+          document.body.style.cursor = '';
+          document.body.style.userSelect = '';
+          try {
+            const currentWidth = copilotDrawer.getBoundingClientRect().width;
+            if (currentWidth >= 380) {
+              localStorage.setItem('healthai_copilot_width', Math.round(currentWidth));
+            }
+          } catch (e) {}
+        };
+
+        copilotResizeHandle.addEventListener('mousedown', onResizeStart);
+        window.addEventListener('mousemove', onResizeMove);
+        window.addEventListener('mouseup', onResizeEnd);
+
+        copilotResizeHandle.addEventListener('touchstart', onResizeStart, { passive: true });
+        window.addEventListener('touchmove', onResizeMove, { passive: true });
+        window.addEventListener('touchend', onResizeEnd);
+      }
+
+      if (copilotExpandBtn && copilotDrawer) {
+        copilotExpandBtn.addEventListener('click', () => {
+          const isExpanded = copilotDrawer.classList.toggle('expanded');
+          if (copilotExpandIcon) copilotExpandIcon.textContent = isExpanded ? '⤡' : '⤢';
+          if (copilotExpandText) copilotExpandText.textContent = isExpanded ? 'Standard' : 'Wide';
+          copilotExpandBtn.title = isExpanded ? 'Switch to Standard Width (⤡)' : 'Switch to Wide Width (⤢)';
+        });
+      }
+
+      function toggleCopilotDrawer(forceOpen) {
+        const nextState = typeof forceOpen === 'boolean' ? forceOpen : !copilotState.open;
+        copilotState.open = nextState;
+        if (copilotDrawer) copilotDrawer.classList.toggle('open', nextState);
+        if (copilotBackdrop) copilotBackdrop.classList.toggle('open', nextState);
+        if (nextState) {
+          syncCopilotStackTags();
+          renderQuickPrompts();
+          if (copilotInput) copilotInput.focus();
+        }
+      }
+
+      if (copilotFloatingTrigger) copilotFloatingTrigger.addEventListener('click', () => toggleCopilotDrawer(true));
+      if (copilotHeaderBtn) copilotHeaderBtn.addEventListener('click', () => toggleCopilotDrawer(true));
+      if (copilotCloseBtn) copilotCloseBtn.addEventListener('click', () => toggleCopilotDrawer(false));
+      if (copilotBackdrop) copilotBackdrop.addEventListener('click', () => toggleCopilotDrawer(false));
+
+      // Global keyboard shortcut: Ctrl+K or Cmd+K
+      document.addEventListener('keydown', (e) => {
+        if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'k') {
+          e.preventDefault();
+          toggleCopilotDrawer();
+        } else if (e.key === 'Escape' && copilotState.open) {
+          toggleCopilotDrawer(false);
+        }
+      });
+
+      // Persona Tab Switching
+      if (copilotModeBar) {
+        copilotModeBar.querySelectorAll('.copilot-mode-btn').forEach(btn => {
+          btn.addEventListener('click', () => {
+            copilotModeBar.querySelectorAll('.copilot-mode-btn').forEach(b => b.classList.remove('active'));
+            btn.classList.add('active');
+            copilotState.persona = btn.getAttribute('data-mode') || 'architect';
+            renderQuickPrompts();
+            showToast(`Switched Copilot Persona to ${btn.textContent.trim()}`, '🤖');
+          });
+        });
+      }
+
+      // Clear chat
+      if (copilotClearBtn) {
+        copilotClearBtn.addEventListener('click', () => {
+          if (copilotState.abortController) {
+            copilotState.abortController.abort();
+            copilotState.abortController = null;
+          }
+          copilotState.isStreaming = false;
+          if (copilotSendBtn) copilotSendBtn.disabled = false;
+          copilotState.messages = [];
+          if (copilotChatContainer) {
+            copilotChatContainer.innerHTML = `
+              <div class="chat-msg assistant">
+                <div class="chat-msg-header">
+                  <span>🤖 HealthAI Copilot</span>
+                  <span style="color: var(--accent-teal);">• Reset</span>
+                </div>
+                <div class="chat-msg-bubble">
+                  <p>Conversation history reset. Choose an expert persona or ask any question to begin.</p>
+                </div>
+              </div>
+            `;
+          }
+          showToast('Copilot conversation cleared', '🗑️');
+        });
+      }
+
+      function applyCopilotStackDiff(diff) {
+        if (!diff) return;
+        let modifiedCount = 0;
+
+        // 1. Removals
+        if (Array.isArray(diff.removals || diff.remove)) {
+          const toRemove = (diff.removals || diff.remove).map(k => String(k).toLowerCase().trim());
+          const initialLen = state.stack.length;
+          state.stack = state.stack.filter(s => !toRemove.includes(String(s.key || s.name).toLowerCase().trim()));
+          if (state.stack.length < initialLen) modifiedCount++;
+        }
+
+        // 2. Modifications
+        if (Array.isArray(diff.modifications || diff.modify)) {
+          (diff.modifications || diff.modify).forEach(m => {
+            const key = String(m.key || m.name || '').toLowerCase().trim();
+            const existing = state.stack.find(s => String(s.key || s.name).toLowerCase().trim() === key);
+            if (existing) {
+              if (m.dose !== undefined) existing.dose = m.dose;
+              if (m.unit !== undefined) existing.unit = m.unit;
+              if (m.timing !== undefined) existing.timing = m.timing;
+              modifiedCount++;
+            }
+          });
+        }
+
+        // 3. Additions
+        if (Array.isArray(diff.additions || diff.add)) {
+          (diff.additions || diff.add).forEach(a => {
+            const key = String(a.key || a.name || '').toLowerCase().trim().replace(/ /g, '_');
+            const exists = state.stack.some(s => String(s.key || s.name).toLowerCase().trim() === key);
+            if (!exists && key) {
+              state.stack.push({
+                key: key,
+                name: a.name || a.key || key,
+                dose: a.dose || 100,
+                unit: a.unit || 'mg',
+                frequency: a.frequency || 'daily',
+                timing: a.timing || 'morning',
+                route: a.route || 'oral'
+              });
+              modifiedCount++;
+            }
+          });
+        }
+
+        renderStackList();
+        if (state.stack.length) evaluateStack();
+        else updateDashboardEmpty();
+        syncCopilotStackTags();
+
+        showToast(`✓ Copilot protocol applied: ${modifiedCount} updates made to workbench stack!`, '⚡');
+      }
+      window.applyCopilotStackDiff = applyCopilotStackDiff;
+
+      async function sendCopilotMessage(userPromptText, userDisplayHtml) {
+        const text = (userPromptText || (copilotInput ? copilotInput.value : '')).trim();
+        if (!text) return;
+
+        // If a previous stream is still active, abort it cleanly first
+        if (copilotState.isStreaming && copilotState.abortController) {
+          copilotState.abortController.abort();
+          copilotState.abortController = null;
+          copilotState.isStreaming = false;
+        }
+
+        if (copilotInput) {
+          copilotInput.value = '';
+          copilotInput.style.height = 'auto';
+        }
+
+        // Add user message to conversation history
+        copilotState.messages.push({ role: 'user', content: text });
+
+        // Add user message bubble (displaying clean label rather than internal generation prompt)
+        const userMsgEl = document.createElement('div');
+        userMsgEl.className = 'chat-msg user';
+        userMsgEl.innerHTML = `
+          <div class="chat-msg-header">
+            <span>You</span>
+          </div>
+          <div class="chat-msg-bubble">
+            ${userDisplayHtml || escapeHtml(text)}
+          </div>
+        `;
+        copilotChatContainer.appendChild(userMsgEl);
+
+        // Add assistant placeholder bubble with expandable thought box
+        const assistantMsgEl = document.createElement('div');
+        assistantMsgEl.className = 'chat-msg assistant';
+        assistantMsgEl.innerHTML = `
+          <div class="chat-msg-header">
+            <span>🤖 HealthAI ${copilotState.persona.toUpperCase()}</span>
+            <span class="copilot-stream-status" style="color: var(--accent-cyan); display: inline-flex; align-items: center; gap: 4px;">
+              <span class="copilot-pulse-dot" style="width: 6px; height: 6px;"></span> Initializing...
+            </span>
+          </div>
+          <div class="copilot-thought-box" style="display: none;">
+            <div class="copilot-thought-header" onclick="this.parentElement.classList.toggle('collapsed')">
+              <div class="copilot-thought-header-left">
+                <span class="copilot-thought-icon">🧠</span>
+                <span class="copilot-thought-title">Clinical Reasoning & Grounding</span>
+                <span class="copilot-thought-badge live"><span class="copilot-pulse-dot" style="width: 5px; height: 5px;"></span> Thinking</span>
+              </div>
+              <div class="copilot-thought-header-right">
+                <span class="copilot-thought-meta">0.0s</span>
+                <span class="copilot-thought-toggle">▾</span>
+              </div>
+            </div>
+            <div class="copilot-thought-body">
+              <div class="copilot-thought-content"></div>
+            </div>
+          </div>
+          <div class="chat-msg-bubble">
+            <span style="color: var(--text-muted); font-style: italic;">
+              <span class="copilot-pulse-dot" style="width: 6px; height: 6px; display: inline-block; margin-right: 6px;"></span>Grounding against Pharmacokinetics & Biological Network...
+            </span>
+          </div>
+          <div class="action-cards-wrap" style="display: flex; flex-direction: column; gap: 8px;"></div>
+        `;
+        copilotChatContainer.appendChild(assistantMsgEl);
+        copilotChatContainer.scrollTop = copilotChatContainer.scrollHeight;
+
+        const bubble = assistantMsgEl.querySelector('.chat-msg-bubble');
+        const actionCardsWrap = assistantMsgEl.querySelector('.action-cards-wrap');
+        const headerStatus = assistantMsgEl.querySelector('.copilot-stream-status');
+        const thoughtBox = assistantMsgEl.querySelector('.copilot-thought-box');
+        const thoughtContent = assistantMsgEl.querySelector('.copilot-thought-content');
+        const thoughtBody = assistantMsgEl.querySelector('.copilot-thought-body');
+        const thoughtBadge = assistantMsgEl.querySelector('.copilot-thought-badge');
+        const thoughtMeta = assistantMsgEl.querySelector('.copilot-thought-meta');
+
+        copilotState.isStreaming = true;
+        if (copilotSendBtn) copilotSendBtn.disabled = true;
+
+        const compoundKeys = (state.stack || []).map(s => s.key || s.name || s.id).filter(Boolean);
+        const biometrics = {
+          age: Number(document.getElementById('bio-age')?.value) || state.biomarkers?.age || 30,
+          weight_kg: Number(document.getElementById('bio-weight')?.value) || state.biomarkers?.weight_kg || 75,
+          egfr: Number(document.getElementById('bio-egfr')?.value) || 95,
+          alt_u_l: Number(document.getElementById('bio-alt')?.value) || state.biomarkers?.alt_u_l || 25,
+          blood_pressure: Number(document.getElementById('bio-bp')?.value) || state.biomarkers?.blood_pressure || 120,
+          body_fat_pct: Number(document.getElementById('bio-bodyfat')?.value) || state.biomarkers?.body_fat_pct || 15
+        };
+
+        copilotState.abortController = new AbortController();
+        let accumulatedContent = '';
+        let accumulatedReasoning = '';
+        let reasoningStartTime = Date.now();
+        let reasoningCount = 0;
+        let reasoningCompleted = false;
+        let currentEvent = 'delta';
+
+        try {
+          const response = await fetch('/api/ai/chat/stream', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              messages: copilotState.messages,
+              persona: copilotState.persona,
+              stack: compoundKeys,
+              biometrics: biometrics,
+              protocol_goal: copilotState.protocolGoal,
+              protocol_objective: copilotState.protocolObjective
+            }),
+            signal: copilotState.abortController.signal
+          });
+
+          if (!response.ok) {
+            const errData = await response.json().catch(() => ({}));
+            throw new Error(errData.detail || `Server returned ${response.status}`);
+          }
+
+          const reader = response.body.getReader();
+          const decoder = new TextDecoder();
+          let buffer = '';
+
+          let streamFinished = false;
+
+          while (!streamFinished) {
+            const { done, value } = await reader.read();
+            if (done) break;
+
+            buffer += decoder.decode(value, { stream: true });
+            const lines = buffer.split('\n');
+            buffer = lines.pop(); // Keep partial line in buffer
+
+            for (const line of lines) {
+              const trimmedLine = line.trim();
+              if (trimmedLine === '') {
+                currentEvent = 'delta';
+                continue;
+              }
+
+              if (trimmedLine.startsWith('event:')) {
+                currentEvent = trimmedLine.slice(6).trim();
+              } else if (trimmedLine.startsWith('data:')) {
+                const rawStr = trimmedLine.startsWith('data: ') ? trimmedLine.slice(6) : trimmedLine.slice(5);
+                let dataVal;
+                try {
+                  dataVal = JSON.parse(rawStr);
+                } catch (e) {
+                  dataVal = rawStr;
+                }
+                if (dataVal === '[DONE]') {
+                  streamFinished = true;
+                  break;
+                }
+
+                if (currentEvent === 'delta') {
+                  if (!reasoningCompleted && accumulatedReasoning) {
+                    reasoningCompleted = true;
+                    if (thoughtBadge) {
+                      const finalElapsed = ((Date.now() - reasoningStartTime) / 1000).toFixed(1);
+                      thoughtBadge.className = 'copilot-thought-badge';
+                      thoughtBadge.innerHTML = `✓ Reasoned in ${finalElapsed}s`;
+                    }
+                    if (thoughtBox && !thoughtBox.classList.contains('collapsed')) {
+                      thoughtBox.classList.add('collapsed');
+                    }
+                  }
+
+                  accumulatedContent += (typeof dataVal === 'string' ? dataVal : JSON.stringify(dataVal));
+                  if (bubble) bubble.innerHTML = renderMarkdownLite(accumulatedContent);
+                  if (headerStatus) {
+                    headerStatus.innerHTML = '<span class="copilot-pulse-dot" style="width: 6px; height: 6px;"></span> Formulating protocol...';
+                    headerStatus.style.color = 'var(--accent-cyan)';
+                  }
+                  copilotChatContainer.scrollTop = copilotChatContainer.scrollHeight;
+                } else if (currentEvent === 'reasoning') {
+                  const reasoningText = typeof dataVal === 'string' ? dataVal : JSON.stringify(dataVal);
+                  accumulatedReasoning += reasoningText;
+                  reasoningCount++;
+
+                  if (thoughtBox) {
+                    thoughtBox.style.display = 'block';
+                    if (thoughtContent) {
+                      thoughtContent.textContent = accumulatedReasoning;
+                      if (thoughtBody) thoughtBody.scrollTop = thoughtBody.scrollHeight;
+                    }
+                    if (thoughtMeta) {
+                      const elapsed = ((Date.now() - reasoningStartTime) / 1000).toFixed(1);
+                      thoughtMeta.textContent = `${elapsed}s`;
+                    }
+                  }
+
+                  if (!accumulatedContent && headerStatus) {
+                    headerStatus.innerHTML = '<span class="copilot-pulse-dot" style="width: 6px; height: 6px;"></span> Deep Graph & PK/PD Reasoning...';
+                    headerStatus.style.color = 'var(--accent-cyan)';
+                  }
+                  copilotChatContainer.scrollTop = copilotChatContainer.scrollHeight;
+                } else if (currentEvent === 'action_card') {
+                  try {
+                    const cardObj = typeof dataVal === 'string' ? JSON.parse(dataVal) : dataVal;
+                    renderActionCardInChat(actionCardsWrap, cardObj);
+                    copilotChatContainer.scrollTop = copilotChatContainer.scrollHeight;
+                  } catch (e) {
+                    console.debug('Card parse notice', e);
+                  }
+                } else if (currentEvent === 'error') {
+                  accumulatedContent += `\n\n> ⚠️ **Error:** ${typeof dataVal === 'string' ? dataVal : JSON.stringify(dataVal)}`;
+                  if (bubble) bubble.innerHTML = renderMarkdownLite(accumulatedContent);
+                }
+              }
+            }
+          }
+
+          try { reader.cancel(); } catch (e) {}
+
+          if (!reasoningCompleted && accumulatedReasoning) {
+            reasoningCompleted = true;
+            if (thoughtBadge) {
+              const finalElapsed = ((Date.now() - reasoningStartTime) / 1000).toFixed(1);
+              thoughtBadge.className = 'copilot-thought-badge';
+              thoughtBadge.innerHTML = `✓ Reasoned in ${finalElapsed}s`;
+            }
+          }
+
+          // Fallback if no content was yielded
+          if (!accumulatedContent) {
+            const hasActionCards = actionCardsWrap && actionCardsWrap.children.length > 0;
+            if (hasActionCards) {
+              accumulatedContent = "### ⚡ Protocol Architecture Formulated\n\nClinical protocol calibrated against patient biometrics and pharmacokinetic clearance. Review the proposed adjustments in the action card below and click to apply them directly to your active workbench stack:";
+            } else {
+              accumulatedContent = "Clinical protocol analysis completed.";
+            }
+            if (bubble) bubble.innerHTML = renderMarkdownLite(accumulatedContent);
+          }
+
+          // Save completed assistant message to history
+          copilotState.messages.push({ role: 'assistant', content: accumulatedContent });
+
+          // Update header status
+          if (headerStatus) {
+            headerStatus.innerHTML = '• Ready';
+            headerStatus.style.color = 'var(--accent-teal)';
+          }
+
+        } catch (err) {
+          if (err.name !== 'AbortError') {
+            console.error('Copilot Stream Error:', err);
+            if (bubble) {
+              bubble.innerHTML = `
+                <div style="background: rgba(239, 68, 68, 0.08); border: 1px solid rgba(239, 68, 68, 0.3); border-radius: var(--radius-sm); padding: 12px;">
+                  <strong style="color: #f87171;">⚠️ Copilot Notice:</strong>
+                  <p style="margin-top: 4px; font-size: 0.84rem; color: var(--text-secondary);">${err.message || 'Connection lost'}</p>
+                  <p style="margin-top: 6px; font-size: 0.76rem; color: var(--text-muted);">Ensure local AI engine (llama-server on port 8080 or Ollama on port 11434) is running.</p>
+                </div>
+              `;
+            }
+            if (headerStatus) {
+              headerStatus.innerHTML = '• Notice';
+              headerStatus.style.color = '#f87171';
+            }
+          }
+        } finally {
+          copilotState.isStreaming = false;
+          if (copilotSendBtn) copilotSendBtn.disabled = false;
+          copilotState.abortController = null;
+        }
+      }
+
+      function renderActionCardInChat(container, cardObj) {
+        if (!container || !cardObj) return;
+        const payload = cardObj.payload || cardObj;
+        const cardType = cardObj.type || payload.action_card;
+
+        if (cardType === 'stack_diff' || payload.add || payload.modify || payload.remove || payload.additions || payload.modifications || payload.removals) {
+          const additions = payload.additions || payload.add || [];
+          const modifications = payload.modifications || payload.modify || [];
+          const removals = payload.removals || payload.remove || [];
+
+          if (!additions.length && !modifications.length && !removals.length) return;
+
+          let rowsHtml = '';
+          additions.forEach(a => {
+            rowsHtml += `
+              <div class="diff-row add">
+                <span style="color: var(--accent-teal); font-weight: 800;">+ ADD: ${escapeHtml(a.name || a.key)}</span>
+                <span style="color: var(--text-muted); font-size: 0.74rem;">${escapeHtml(a.dose)}${escapeHtml(a.unit || 'mg')} • ${escapeHtml(a.timing || 'morning')}</span>
+              </div>
+            `;
+          });
+          modifications.forEach(m => {
+            rowsHtml += `
+              <div class="diff-row modify">
+                <span style="color: #fbbf24; font-weight: 800;">~ TITRATE: ${escapeHtml(m.name || m.key)}</span>
+                <span style="color: var(--text-muted); font-size: 0.74rem;">➔ ${escapeHtml(m.dose)}${escapeHtml(m.unit || 'mg')} • ${escapeHtml(m.timing || 'morning')}</span>
+              </div>
+            `;
+          });
+          removals.forEach(r => {
+            rowsHtml += `
+              <div class="diff-row remove">
+                <span style="color: #f87171; font-weight: 800;">- REMOVE: ${escapeHtml(r)}</span>
+                <span style="color: var(--text-muted); font-size: 0.74rem;">Eliminate conflict</span>
+              </div>
+            `;
+          });
+
+          const diffJsonEscaped = JSON.stringify(payload).replace(/"/g, '&quot;');
+          
+          // Clear any intermediate partial card so only one consolidated card is displayed
+          container.innerHTML = '';
+
+          const cardEl = document.createElement('div');
+          cardEl.className = 'action-card-diff';
+          cardEl.innerHTML = `
+            <div class="action-card-title">
+              <span>⚡ AI Proposed Protocol Modifications</span>
+            </div>
+            <div style="display: flex; flex-direction: column; gap: 4px;">
+              ${rowsHtml}
+            </div>
+            <button class="btn-apply-diff" onclick="applyCopilotStackDiff(${diffJsonEscaped})">
+              <span>⚡ Apply Changes to Workbench Stack</span>
+            </button>
+          `;
+          container.appendChild(cardEl);
+        }
+      }
+
+      // Input event listeners
+      if (copilotSendBtn) {
+        copilotSendBtn.addEventListener('click', () => sendCopilotMessage());
+      }
+      if (copilotInput) {
+        copilotInput.addEventListener('keydown', (e) => {
+          if (e.key === 'Enter' && !e.shiftKey) {
+            e.preventDefault();
+            sendCopilotMessage();
+          }
+        });
+        copilotInput.addEventListener('input', () => {
+          copilotInput.style.height = 'auto';
+          copilotInput.style.height = `${Math.min(copilotInput.scrollHeight, 120)}px`;
+        });
+      }
+
+      // ==========================================================================
+      // AI STACK BUILDER & SCRATCH PROTOCOL GENERATOR
+      // ==========================================================================
+      const aiBuilderModal = document.getElementById('ai-stack-builder-modal');
+      const openAiBuilderBtn = document.getElementById('open-ai-stack-builder-btn');
+      const emptyStateAiBuilderBtn = document.getElementById('empty-state-ai-builder-btn');
+      const aiBuilderCloseBtn = document.getElementById('ai-builder-close-btn');
+      const builderCancelBtn = document.getElementById('builder-cancel-btn');
+      const builderGenerateBtn = document.getElementById('builder-generate-btn');
+      const builderGoalsGrid = document.getElementById('builder-goals-grid');
+      const builderBioSummary = document.getElementById('builder-bio-summary');
+      const builderRiskPref = document.getElementById('builder-risk-pref');
+      const builderStimPref = document.getElementById('builder-stim-pref');
+      const builderComplexityPref = document.getElementById('builder-complexity-pref');
+      const builderStylePref = document.getElementById('builder-style-pref');
+      const builderRoutePref = document.getElementById('builder-route-pref');
+      const builderSchedulePref = document.getElementById('builder-schedule-pref');
+      const builderOrganPref = document.getElementById('builder-organ-pref');
+      const builderBudgetPref = document.getElementById('builder-budget-pref');
+      const builderCustomNotes = document.getElementById('builder-custom-notes');
+
+      let selectedBuilderGoal = 'cognitive_focus';
+
+      function syncBuilderBiometricsPreview() {
+        if (!builderBioSummary) return;
+        const weight = Number(document.getElementById('bio-weight')?.value) || state.biomarkers?.weight_kg || 75;
+        const age = Number(document.getElementById('bio-age')?.value) || state.biomarkers?.age || 30;
+        const bp = Number(document.getElementById('bio-bp')?.value) || state.biomarkers?.blood_pressure || 120;
+        const egfr = Number(document.getElementById('bio-egfr')?.value) || 95;
+        const alt = Number(document.getElementById('bio-alt')?.value) || state.biomarkers?.alt_u_l || 25;
+        builderBioSummary.innerHTML = `
+          <strong>Weight:</strong> ${weight} kg &bull; <strong>Age:</strong> ${age} &bull; <strong>Resting BP:</strong> ${bp} mmHg &bull; <strong>eGFR:</strong> ${egfr} mL/min &bull; <strong>ALT:</strong> ${alt} U/L
+        `;
+      }
+
+      function openAiStackBuilderModal() {
+        if (!aiBuilderModal) return;
+        syncBuilderBiometricsPreview();
+        aiBuilderModal.classList.add('open');
+      }
+
+      function closeAiStackBuilderModal() {
+        if (!aiBuilderModal) return;
+        aiBuilderModal.classList.remove('open');
+      }
+
+      if (openAiBuilderBtn) openAiBuilderBtn.addEventListener('click', openAiStackBuilderModal);
+      if (emptyStateAiBuilderBtn) emptyStateAiBuilderBtn.addEventListener('click', openAiStackBuilderModal);
+      if (aiBuilderCloseBtn) aiBuilderCloseBtn.addEventListener('click', closeAiStackBuilderModal);
+      if (builderCancelBtn) builderCancelBtn.addEventListener('click', closeAiStackBuilderModal);
+      if (aiBuilderModal) {
+        aiBuilderModal.addEventListener('click', (e) => {
+          if (e.target === aiBuilderModal) closeAiStackBuilderModal();
+        });
+      }
+
+      if (builderGoalsGrid) {
+        builderGoalsGrid.querySelectorAll('.builder-goal-card').forEach(card => {
+          card.addEventListener('click', () => {
+            builderGoalsGrid.querySelectorAll('.builder-goal-card').forEach(c => c.classList.remove('active'));
+            card.classList.add('active');
+            selectedBuilderGoal = card.getAttribute('data-goal') || 'cognitive_focus';
+          });
+        });
+      }
+
+      const GOAL_TITLES = {
+        cognitive_focus: 'Cognitive Focus & Neuroprotection',
+        longevity_autophagy: 'Longevity & Cellular Autophagy',
+        cardiovascular_lipid: 'Cardiovascular & Lipid Optimization',
+        anabolic_physique: 'Physique & Anabolic Hypertrophy',
+        sleep_stress_recovery: 'Sleep Architecture & Stress Recovery',
+        fat_loss_metabolic: 'Metabolic Output & Fat Loss',
+        post_therapy_reset: 'Post-Therapy Restoration (PCT / Reset)',
+        custom: 'Custom Clinical Protocol'
+      };
+
+      function quickBuildStackFromScratch(goalId) {
+        const goal = goalId || 'cognitive_focus';
+        const title = GOAL_TITLES[goal] || goal.replace(/_/g, ' ').toUpperCase();
+        
+        // Open copilot drawer and switch to Architect
+        toggleCopilotDrawer(true);
+        copilotState.persona = 'architect';
+        if (copilotModeBar) {
+          copilotModeBar.querySelectorAll('.copilot-mode-btn').forEach(b => {
+            b.classList.toggle('active', b.getAttribute('data-mode') === 'architect');
+          });
+        }
+        copilotState.protocolGoal = goal;
+        if (copilotGoalSelect) copilotGoalSelect.value = goal;
+
+        const promptText = `🏗️ Build a comprehensive, synergistic ${title} protocol from scratch. Include exact circadian timing allocations, pharmacokinetic rationales, organ protection co-factors, and provide the action card to apply the entire stack.`;
+        const displayHtml = `<span>🏗️ <strong>Build ${escapeHtml(title)}</strong> from scratch</span>`;
+        sendCopilotMessage(promptText, displayHtml);
+        showToast(`AI Architect: Designing ${title} from scratch...`, '✨');
+      }
+      window.quickBuildStackFromScratch = quickBuildStackFromScratch;
+
+      if (builderGenerateBtn) {
+        builderGenerateBtn.addEventListener('click', () => {
+          const goal = selectedBuilderGoal || 'cognitive_focus';
+          const title = GOAL_TITLES[goal] || 'Clinical Protocol';
+          const risk = builderRiskPref ? builderRiskPref.value : 'balanced';
+          const stim = builderStimPref ? builderStimPref.value : 'standard';
+          const complexity = builderComplexityPref ? builderComplexityPref.value : 'standard';
+          const style = builderStylePref ? builderStylePref.value : 'hybrid';
+          const route = builderRoutePref ? builderRoutePref.value : 'all';
+          const schedule = builderSchedulePref ? builderSchedulePref.value : 'circadian';
+          const organ = builderOrganPref ? builderOrganPref.value : 'auto';
+          const budget = builderBudgetPref ? builderBudgetPref.value : 'standard';
+          const notes = (builderCustomNotes ? builderCustomNotes.value : '').trim();
+
+          closeAiStackBuilderModal();
+          toggleCopilotDrawer(true);
+
+          copilotState.persona = 'architect';
+          if (copilotModeBar) {
+            copilotModeBar.querySelectorAll('.copilot-mode-btn').forEach(b => {
+              b.classList.toggle('active', b.getAttribute('data-mode') === 'architect');
+            });
+          }
+          copilotState.protocolGoal = goal;
+          if (copilotGoalSelect) copilotGoalSelect.value = goal;
+          if (notes) {
+            copilotState.protocolObjective = notes;
+            if (copilotCustomNotes) copilotCustomNotes.value = notes;
+            if (copilotCustomNotesWrap) copilotCustomNotesWrap.style.display = 'block';
+          }
+
+          let promptParts = [`🏗️ Please build a personalized ${title} protocol from scratch.`];
+          promptParts.push(`Preferences: Risk tolerance = ${risk}, Stimulant level = ${stim}, Complexity = ${complexity}, Substance style = ${style}, Route preference = ${route}, Dosing schedule = ${schedule}, Organ shield priority = ${organ}, Sourcing/Budget tier = ${budget}.`);
+          if (notes) {
+            promptParts.push(`Patient specific notes/constraints: "${notes}".`);
+          }
+          promptParts.push('Provide a structured circadian schedule, molecular pharmacodynamic rationale, and the action card to apply the complete protocol to my workbench stack.');
+
+          let tagPills = [];
+          if (risk === 'conservative') {
+            tagPills.push(`<span style="background: rgba(16,185,129,0.15); border: 1px solid rgba(16,185,129,0.3); border-radius: 4px; padding: 1px 5px; color: var(--accent-teal);">🛡️ Conservative Risk</span>`);
+          } else if (risk === 'aggressive') {
+            tagPills.push(`<span style="background: rgba(245,158,11,0.15); border: 1px solid rgba(245,158,11,0.3); border-radius: 4px; padding: 1px 5px; color: #f59e0b;">⚡ Aggressive Potency</span>`);
+          } else {
+            tagPills.push(`<span style="background: rgba(0,242,254,0.1); border: 1px solid rgba(0,242,254,0.25); border-radius: 4px; padding: 1px 5px; color: var(--accent-cyan);">🛡️ Balanced Risk</span>`);
+          }
+
+          if (stim && stim !== 'standard') tagPills.push(`<span style="background: rgba(255,255,255,0.06); border-radius: 4px; padding: 1px 5px;">Stim: ${escapeHtml(stim)}</span>`);
+          if (complexity && complexity !== 'standard') tagPills.push(`<span style="background: rgba(255,255,255,0.06); border-radius: 4px; padding: 1px 5px;">${escapeHtml(complexity)}</span>`);
+          if (style && style !== 'hybrid') tagPills.push(`<span style="background: rgba(255,255,255,0.06); border-radius: 4px; padding: 1px 5px;">${escapeHtml(style)}</span>`);
+          if (route && route !== 'all') tagPills.push(`<span style="background: rgba(255,255,255,0.06); border-radius: 4px; padding: 1px 5px;">Route: ${escapeHtml(route)}</span>`);
+          if (schedule && schedule !== 'circadian') tagPills.push(`<span style="background: rgba(255,255,255,0.06); border-radius: 4px; padding: 1px 5px;">Schedule: ${escapeHtml(schedule)}</span>`);
+          if (organ && organ !== 'auto') tagPills.push(`<span style="background: rgba(236,72,153,0.12); border: 1px solid rgba(236,72,153,0.25); border-radius: 4px; padding: 1px 5px; color: #f472b6;">Shield: ${escapeHtml(organ)}</span>`);
+          if (budget && budget !== 'standard') tagPills.push(`<span style="background: rgba(255,255,255,0.06); border-radius: 4px; padding: 1px 5px;">Budget: ${escapeHtml(budget)}</span>`);
+          if (notes) tagPills.push(`<span style="background: rgba(16,185,129,0.1); border: 1px solid rgba(16,185,129,0.25); border-radius: 4px; padding: 1px 5px; color: var(--accent-teal);">Note: ${escapeHtml(notes)}</span>`);
+
+          const displayHtml = `
+            <div style="display: flex; flex-direction: column; gap: 4px;">
+              <span>🏗️ <strong>Build ${escapeHtml(title)} Protocol</strong></span>
+              ${tagPills.length ? `<div style="display: flex; flex-wrap: wrap; gap: 4px; font-size: 0.72rem; color: var(--text-muted);">${tagPills.join('')}</div>` : ''}
+            </div>
+          `;
+
+          sendCopilotMessage(promptParts.join(' '), displayHtml);
+          showToast(`AI Architect: Generating ${title} protocol...`, '🚀');
         });
       }
 

@@ -36,7 +36,7 @@ def test_catalog_endpoints():
     assert response.json()["key"] == "caffeine"
 
     # Get non-existent item
-    response = client.get("/catalog/non_existent_compound_123")
+    response = client.get("/catalog/non_existent_compound_123", params={"auto_enrich": False})
     assert response.status_code == 404
 
     # Upsert custom item

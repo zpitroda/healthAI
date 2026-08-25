@@ -14,6 +14,10 @@ from app.schemas.pkpd import (
     MetricDistribution,
     RoutePKParameters,
     MetaboliteProfile,
+    TissuePartitionCoefficients,
+    LysosomalTrappingInfo,
+    CompoundDataLimitations,
+    AllometricExtrapolation,
 )
 
 
@@ -140,6 +144,18 @@ class PKPDEngine:
         alt = max(5.0, float(request.alt_u_l or 25.0))
         hepatic_factor = (0.6 if alt > 80 else (0.8 if alt > 45 else 1.0)) * age_decline_factor
 
+        # Pharmacogenomics (PGx) intrinsic clearance scaling
+        from app.services.pgx_engine import PGXEngine
+        pgx_profile = {
+            "cyp2d6_phenotype": request.cyp2d6_phenotype,
+            "cyp2c19_phenotype": request.cyp2c19_phenotype,
+            "cyp3a4_phenotype": request.cyp3a4_phenotype,
+            "slco1b1_genotype": request.slco1b1_genotype,
+            "comt_phenotype": request.comt_phenotype,
+        }
+        pgx_mult = PGXEngine.get_clearance_multiplier(compound, pgx_profile)
+        hepatic_factor *= pgx_mult
+
         # Female CYP3A4 metabolic scaling adjustment (+15% intrinsic activity for female hepatic clearance)
         cyp_info = compound.get("cyp_enzymes") or {}
         cyp3a4_sub = any("CYP3A4" in str(s).upper() for s in (cyp_info.get("substrates") or [])) if isinstance(cyp_info, dict) else False
@@ -237,6 +253,29 @@ class PKPDEngine:
                         "ki": inh_ki,
                     })
 
+        # PBPK Tissue Partitioning & Lysosomal Ion-Trapping Calculations
+        kp_pbpk = cls.calculate_pbpk_tissue_partitions(compound, fu_adjusted, weight_kg)
+        lyso_info = cls.calculate_lysosomal_trapping(compound)
+        circadian_dose_time = float(request.circadian_dosing_time_h if request.circadian_dosing_time_h is not None else 8.0)
+        enable_tolerance = bool(request.enable_receptor_tolerance)
+        enable_pbpk = bool(request.enable_pbpk_tissues)
+
+        # Pharmacodynamic parameters (Binding affinity, Hill coefficient, EC50)
+        mw = float(compound.get("molecular_weight") or 350.0)
+        primary_aff_nm = cls._get_primary_affinity_nm(pd_params)
+        kd_ng_ml = (primary_aff_nm * mw) / 1000.0 if primary_aff_nm else 50.0
+        ec50_ng_ml = (pd_params.ec50_nm * mw / 1000.0) if pd_params.ec50_nm else kd_ng_ml
+        hill_gamma = max(0.5, pd_params.hill_coefficient)
+        emax = max(10.0, pd_params.e_max)
+        ec50_pow = math.pow(max(0.001, ec50_ng_ml), hill_gamma)
+
+        mec = pd_params.mec_ng_ml or 10.0
+        mtc = pd_params.mtc_ng_ml or 500.0
+        if mtc <= mec:
+            mtc = mec * 3.0
+
+        ti = mtc / mec if mec > 0 else 3.0
+
         def get_inhibitor_conc(t: float) -> float:
             """Calculates instantaneous plasma concentration I(t) for co-administered inhibitors."""
             if not inhibitor_profiles:
@@ -267,24 +306,42 @@ class PKPDEngine:
             cl_t = cl_adjusted_l_h * (0.25 + 0.75 * mod_factor)
             return max(0.005, cl_t)
 
-        # 2. ODE System for Continuous Simulation (RK4 Integrator)
-        # State vector: y = [A_abs (mg), A_1 (mg), A_2 (mg), A_met (mg)]
+        # 2. Coupled Biophysical ODE System for Continuous Simulation (RK4 Integrator)
+        # State vector: y = [A_abs (mg), A_1 (mg), A_2 (mg), A_met (mg), E_rel (fraction 0-1), R_surf (fraction 0-1)]
+        # y[0] = A_abs (depot absorption amount)
+        # y[1] = A_1 (central compartment amount)
+        # y[2] = A_2 (peripheral compartment amount)
+        # y[3] = A_met (active metabolite amount)
+        # y[4] = E_rel (active functional enzyme fraction E(t)/E0)
+        # y[5] = R_surf (functional surface receptor density R_surf(t)/R0 reflecting tolerance)
+        k_deg_enz = math.log(2.0) / 36.0  # 36 h enzyme de novo synthesis turnover half-life
+        k_inact = 0.25
+        k_i_app = 500.0
+        k_recycle = 0.15
+        k_internalize = 0.30
+
         def ode_derivatives(t: float, y: List[float]) -> List[float]:
             a_abs = max(0.0, y[0])
             a1 = max(0.0, y[1])
             a2 = max(0.0, y[2])
             a_met = max(0.0, y[3])
+            e_rel = max(0.01, min(1.0, y[4]))
+            r_surf = max(0.05, min(1.0, y[5]))
 
             c1_ng_ml = (a1 * 1000.0) / v1_total_l
+            c_free_inst = c1_ng_ml * fu_adjusted
 
-            # Elimination Rate (mg/h)
+            # Circadian diurnal clearance variation (diurnal peak at 14:00 / 2 PM, trough at 02:00 / 2 AM)
+            t_circ = (t + circadian_dose_time) % 24.0
+            circ_mult = 1.0 + 0.15 * math.cos((2.0 * math.pi * (t_circ - 14.0)) / 24.0)
+
+            # Elimination Rate (mg/h) modulated by active enzyme fraction and circadian rhythm
+            cl_inst = get_instantaneous_clearance(t) * e_rel * circ_mult
             if is_saturable:
                 # Michaelis-Menten: dC/dt = - Vmax * C / (Km + C)
-                cl_inst = get_instantaneous_clearance(t)
                 inhibition_mult = cl_inst / cl_adjusted_l_h
                 elim_rate_mg_h = (vmax_total_mg_h * c1_ng_ml / (km_ng_ml + c1_ng_ml)) * inhibition_mult
             else:
-                cl_inst = get_instantaneous_clearance(t)
                 k10 = cl_inst / v1_total_l
                 elim_rate_mg_h = k10 * a1
 
@@ -293,20 +350,32 @@ class PKPDEngine:
             da2_dt = (k12 * a1) - (k21 * a2) if n_compartments == 2 else 0.0
             da_met_dt = (0.45 * elim_rate_mg_h) - (k_el_met * a_met)
 
-            return [da_abs_dt, da1_dt, da2_dt, da_met_dt]
+            # Enzyme Turnover & Mechanism-Based Inactivation (MBI) ODE
+            # dE/dt = k_deg * (1 - E) - [k_inact * I(t) / (K_I + I(t))] * E
+            i_t = get_inhibitor_conc(t)
+            inact_term = (k_inact * i_t / (k_i_app + i_t)) if i_t > 0 else 0.0
+            de_dt = (k_deg_enz * (1.0 - e_rel)) - (inact_term * e_rel)
+
+            # Receptor Desensitization, Internalization & Tachyphylaxis ODE
+            # dR_surf/dt = k_recycle * (1 - R_surf) - k_internalize * [C_free^gamma / (EC50^gamma + C_free^gamma)] * R_surf
+            c_pow_inst = math.pow(max(0.0, c_free_inst), hill_gamma)
+            occupancy_stimulus = c_pow_inst / (ec50_pow + c_pow_inst) if (ec50_pow + c_pow_inst) > 0 else 0.0
+            dr_dt = (k_recycle * (1.0 - r_surf)) - (k_internalize * occupancy_stimulus * r_surf) if enable_tolerance else 0.0
+
+            return [da_abs_dt, da1_dt, da2_dt, da_met_dt, de_dt, dr_dt]
 
         def rk4_step(t: float, y: List[float], dt: float) -> List[float]:
             k1 = ode_derivatives(t, y)
-            y_k2 = [y[i] + 0.5 * dt * k1[i] for i in range(4)]
+            y_k2 = [y[i] + 0.5 * dt * k1[i] for i in range(6)]
             k2 = ode_derivatives(t + 0.5 * dt, y_k2)
-            y_k3 = [y[i] + 0.5 * dt * k2[i] for i in range(4)]
+            y_k3 = [y[i] + 0.5 * dt * k2[i] for i in range(6)]
             k3 = ode_derivatives(t + 0.5 * dt, y_k3)
-            y_k4 = [y[i] + dt * k3[i] for i in range(4)]
+            y_k4 = [y[i] + dt * k3[i] for i in range(6)]
             k4 = ode_derivatives(t + dt, y_k4)
 
             return [
                 max(0.0, y[i] + (dt / 6.0) * (k1[i] + 2.0 * k2[i] + 2.0 * k3[i] + k4[i]))
-                for i in range(4)
+                for i in range(6)
             ]
 
         # Multi-Dose / Steady-State Initialization
@@ -330,9 +399,9 @@ class PKPDEngine:
             }
 
         if route_calc["route_name"] == "intravenous":
-            y_state = [0.0, init_dose_mg, 0.0, 0.0]
+            y_state = [0.0, init_dose_mg, 0.0, 0.0, 1.0, 1.0]
         else:
-            y_state = [init_dose_mg, 0.0, 0.0, first_pass_initial_met_mg]
+            y_state = [init_dose_mg, 0.0, 0.0, first_pass_initial_met_mg, 1.0, 1.0]
 
         if is_steady_state:
             # Run 12 dosing cycles to establish exact numerical steady-state
@@ -362,21 +431,6 @@ class PKPDEngine:
         steps = 120
         out_dt = duration / (steps - 1)
         time_series: List[TimePoint] = []
-
-        mw = float(compound.get("molecular_weight") or 350.0)
-        primary_aff_nm = cls._get_primary_affinity_nm(pd_params)
-        kd_ng_ml = (primary_aff_nm * mw) / 1000.0 if primary_aff_nm else 50.0
-        ec50_ng_ml = (pd_params.ec50_nm * mw / 1000.0) if pd_params.ec50_nm else kd_ng_ml
-        hill_gamma = max(0.5, pd_params.hill_coefficient)
-        emax = max(10.0, pd_params.e_max)
-
-        mec = pd_params.mec_ng_ml or 10.0
-        mtc = pd_params.mtc_ng_ml or 500.0
-        if mtc <= mec:
-            mtc = mec * 3.0
-
-        ti = mtc / mec if mec > 0 else 3.0
-
         time_in_window_count = 0
         time_in_toxic_count = 0
         time_subtherapeutic_count = 0
@@ -395,6 +449,8 @@ class PKPDEngine:
             c_p = (cur_y[1] * 1000.0) / v1_total_l
             c_tissue = (cur_y[2] * 1000.0) / v2_total_l if n_compartments == 2 else 0.0
             c_met = (cur_y[3] * 1000.0) / v_met_total_l
+            e_act_pct = round(cur_y[4] * 100.0, 1)
+            r_surf_pct = round(cur_y[5] * 100.0, 1)
             c_free = c_p * fu_adjusted
 
             cl_inst = get_instantaneous_clearance(target_t)
@@ -403,7 +459,8 @@ class PKPDEngine:
             ro = (c_free / (c_free + kd_ng_ml)) * 100.0 if (c_free + kd_ng_ml) > 0 else 0.0
             c_pow = math.pow(max(0.0, c_free), hill_gamma)
             ec50_pow = math.pow(max(0.001, ec50_ng_ml), hill_gamma)
-            effect = (emax * c_pow) / (ec50_pow + c_pow) if (ec50_pow + c_pow) > 0 else 0.0
+            effect_raw = (emax * c_pow) / (ec50_pow + c_pow) if (ec50_pow + c_pow) > 0 else 0.0
+            effect = effect_raw * cur_y[5] if enable_tolerance else effect_raw
 
             if c_p > mtc:
                 time_in_toxic_count += 1
@@ -416,6 +473,13 @@ class PKPDEngine:
             c_dist = cls._calculate_distribution_percentiles(c_p, cv=cv_pk_scale)
             eff_dist = cls._calculate_distribution_percentiles(effect, cv=cv_pd_scale, max_bound=100.0)
 
+            # PBPK Tissue Concentrations
+            c_brain = round(c_p * kp_pbpk.kp_brain, 2) if enable_pbpk else None
+            c_liver = round(c_p * kp_pbpk.kp_liver, 2) if enable_pbpk else None
+            c_kidney = round(c_p * kp_pbpk.kp_kidney, 2) if enable_pbpk else None
+            c_muscle = round(c_p * kp_pbpk.kp_muscle, 2) if enable_pbpk else None
+            c_adipose = round(c_p * kp_pbpk.kp_adipose, 2) if enable_pbpk else None
+
             time_series.append(
                 TimePoint(
                     time_h=round(target_t, 2),
@@ -427,6 +491,13 @@ class PKPDEngine:
                     c_tissue_ng_ml=round(c_tissue, 2) if n_compartments == 2 else None,
                     cl_instantaneous_l_h=round(cl_inst, 2),
                     inhibitor_conc_ng_ml=round(i_conc, 2) if inhibitor_profiles else None,
+                    c_brain_ng_ml=c_brain,
+                    c_liver_ng_ml=c_liver,
+                    c_kidney_ng_ml=c_kidney,
+                    c_muscle_ng_ml=c_muscle,
+                    c_adipose_ng_ml=c_adipose,
+                    active_enzyme_fraction_pct=e_act_pct,
+                    surface_receptor_density_pct=r_surf_pct,
                     c_plasma_distribution=c_dist.percentiles,
                     effect_distribution=eff_dist.percentiles,
                 )
@@ -478,6 +549,30 @@ class PKPDEngine:
 
         parsed_mets = [MetaboliteProfile(**m) if isinstance(m, dict) else m for m in metabolites_list]
 
+        from app.services.dosing_service import PreclinicalAllometricEngine
+        limitations_dict = PreclinicalAllometricEngine.evaluate_compound_limitations(compound)
+        data_limitations_obj = CompoundDataLimitations(
+            has_human_trials=limitations_dict["has_human_trials"],
+            has_human_pk=limitations_dict["has_human_pk"],
+            has_chronic_toxicity_studies=limitations_dict["has_chronic_toxicity_studies"],
+            has_cyp_metabolite_mapping=limitations_dict["has_cyp_metabolite_mapping"],
+            known_limitations=limitations_dict["known_limitations"],
+        )
+        evidence_tier_val = str(limitations_dict.get("evidence_tier") or "regulatory_human_clinical").lower()
+        human_data_present = limitations_dict["has_human_trials"]
+
+        meta_dict = compound.get("metadata") or {}
+        allometric_extrapolation_obj = None
+        if not human_data_present:
+            animal_dose = meta_dict.get("rodent_ed50_mg_kg") or meta_dict.get("preclinical_dose_mg_kg")
+            if animal_dose is not None:
+                allo_dict = PreclinicalAllometricEngine.calculate_hed(
+                    animal_dose_mg_kg=float(animal_dose),
+                    species=meta_dict.get("animal_species", "rat"),
+                    human_weight_kg=weight_kg,
+                )
+                allometric_extrapolation_obj = AllometricExtrapolation(**allo_dict)
+
         return PKPDSimulationResponse(
             compound_key=request.compound_key,
             compound_name=comp_name,
@@ -508,6 +603,10 @@ class PKPDEngine:
             fluctuation_pct=round(ptf, 1),
             elimination_half_life_effective_h=round(t_half_effective_h, 2),
             total_clearance_l_h=round(cl_effective_avg, 2),
+            tissue_partition_coefficients=kp_pbpk,
+            lysosomal_trapping=lyso_info,
+            tachyphylaxis_tolerance_active=enable_tolerance,
+            circadian_rhythm_active=True,
             c_max_distribution=c_max_dist,
             c_avg_distribution=c_avg_dist,
             auc_distribution=auc_dist,
@@ -528,6 +627,120 @@ class PKPDEngine:
             time_series=time_series,
             pd_curve_concentrations=pd_conc_points,
             pd_curve_effects=pd_effect_points,
+            evidence_tier=evidence_tier_val,
+            human_data_present=human_data_present,
+            data_limitations=data_limitations_obj,
+            allometric_extrapolation=allometric_extrapolation_obj,
+        )
+
+    @classmethod
+    def calculate_pbpk_tissue_partitions(
+        cls,
+        compound: Dict[str, Any],
+        fu_adjusted: float,
+        weight_kg: float = 70.0,
+    ) -> TissuePartitionCoefficients:
+        """
+        Rodgers-Rowland & Poulin-Theil biophysical tissue partition coefficient (Kp) model.
+        Calculates equilibrium tissue:plasma concentration ratios based on:
+        - Lipophilicity (LogP / octanol:water partition Po:w)
+        - Ionization (pKa, acid/base fraction)
+        - Plasma protein binding (unbound fraction fu)
+        - Physiological lipid (neutral & phospholipids) and water composition of major tissues.
+        """
+        logp = float(compound.get("logp") if compound.get("logp") is not None else 2.0)
+        pka = float(compound.get("pka") if compound.get("pka") is not None else 7.4)
+        mw = float(compound.get("molecular_weight") if compound.get("molecular_weight") is not None else 350.0)
+        fu = max(0.001, min(1.0, float(fu_adjusted)))
+
+        p_ow = math.pow(10.0, max(-2.0, min(5.5, logp)))
+
+        # Tissue physiological water and lipid volume fractions (Rodgers & Rowland 2006)
+        tissue_comps = {
+            "brain": {"w": 0.77, "nl": 0.051, "np": 0.040, "ap": 0.004},
+            "liver": {"w": 0.70, "nl": 0.035, "np": 0.025, "ap": 0.003},
+            "kidney": {"w": 0.76, "nl": 0.021, "np": 0.020, "ap": 0.003},
+            "muscle": {"w": 0.76, "nl": 0.015, "np": 0.010, "ap": 0.001},
+            "adipose": {"w": 0.15, "nl": 0.790, "np": 0.002, "ap": 0.0002},
+        }
+        w_plasma = 0.93
+
+        kp_dict = {}
+        for t_name, comp_data in tissue_comps.items():
+            w_t = comp_data["w"]
+            nl_t = comp_data["nl"]
+            np_t = comp_data["np"]
+            ap_t = comp_data["ap"]
+
+            if t_name == "adipose":
+                kp = fu * ((w_t / w_plasma) + (p_ow * nl_t / w_plasma) + ((0.3 * p_ow + 0.7) * np_t / w_plasma))
+            else:
+                base_part = (w_t / w_plasma) + (p_ow * nl_t / w_plasma) + ((0.3 * p_ow + 0.7) * np_t / w_plasma)
+                if pka > 7.0:
+                    ion_pair_factor = min(20.0, 1.0 + (pka - 7.0) * 1.5) * (ap_t / 0.003)
+                    base_part += ion_pair_factor
+                kp = fu * base_part
+
+            # Brain Blood-Brain Barrier (BBB) permeability & P-gp / BCRP efflux transport correction
+            if t_name == "brain":
+                trans_info = compound.get("transporters") or {}
+                trans_subs = [str(t).upper() for t in (trans_info.get("substrates") or [])] if isinstance(trans_info, dict) else []
+                is_pgp_sub = any("P-GP" in s or "ABCB1" in s or "BCRP" in s or "ABCG2" in s for s in trans_subs)
+                efflux_ratio = 3.5 if is_pgp_sub else (1.2 if mw > 450 else 1.0)
+                tpsa = float(compound.get("tpsa") or 60.0)
+                psa_factor = max(0.2, min(1.0, 1.2 - (tpsa / 140.0)))
+                kp = (kp * psa_factor) / efflux_ratio
+
+            kp_dict[t_name] = max(0.05, min(50.0, round(kp, 3)))
+
+        return TissuePartitionCoefficients(
+            kp_brain=kp_dict["brain"],
+            kp_liver=kp_dict["liver"],
+            kp_kidney=kp_dict["kidney"],
+            kp_muscle=kp_dict["muscle"],
+            kp_adipose=kp_dict["adipose"],
+            method="Rodgers-Rowland / Poulin-Theil Biophysical Equation",
+        )
+
+    @classmethod
+    def calculate_lysosomal_trapping(
+        cls,
+        compound: Dict[str, Any],
+    ) -> LysosomalTrappingInfo:
+        """
+        Henderson-Hasselbalch biophysical calculation of lysosomal ion-trapping for basic xenobiotics.
+        Lysosomal lumen pH ~ 4.8 vs Cytosolic pH ~ 7.2.
+        R_lyso = (1 + 10^(pKa - 4.8)) / (1 + 10^(pKa - 7.2))
+        """
+        pka_val = compound.get("pka")
+        logp = float(compound.get("logp") if compound.get("logp") is not None else 2.0)
+        drug_class = str(compound.get("drug_class") or "").lower()
+
+        if pka_val is not None:
+            pka = float(pka_val)
+        elif any(w in drug_class for w in ["amine", "antidepressant", "ssri", "snri", "tca", "opioid", "beta blocker", "amphetamine", "alkaloid"]):
+            pka = 8.8
+        else:
+            pka = None
+
+        if pka is not None and pka >= 6.5 and logp >= 1.0:
+            ratio = (1.0 + math.pow(10.0, min(6.0, pka - 4.8))) / (1.0 + math.pow(10.0, min(6.0, pka - 7.2)))
+            ratio_rounded = round(ratio, 2)
+            is_lyso = ratio > 15.0
+            v_lyso_fraction = 0.01
+            f_cyto = 100.0 / (1.0 + v_lyso_fraction * (ratio - 1.0))
+            f_cyto_pct = round(max(2.0, min(100.0, f_cyto)), 1)
+        else:
+            pka_clean = pka if pka is not None else None
+            ratio_rounded = 1.0
+            is_lyso = False
+            f_cyto_pct = 100.0
+
+        return LysosomalTrappingInfo(
+            pka=pka,
+            is_lysosomotropic=is_lyso,
+            lysosomal_accumulation_ratio=ratio_rounded,
+            cytosolic_free_fraction_pct=f_cyto_pct,
         )
 
     @classmethod
@@ -933,3 +1146,101 @@ class PKPDEngine:
             return max(0.05, num)
         except ValueError:
             return default
+
+    @classmethod
+    def calculate_circadian_receptor_occupancy(
+        cls,
+        compound: Dict[str, Any],
+        dose_mg: float = 100.0,
+        route: str = "oral",
+        dosing_interval_h: float = 24.0,
+        biometrics: Optional[Dict[str, Any]] = None,
+    ) -> Dict[str, Any]:
+        """
+        Calculates continuous circadian receptor occupancy RO(t) = Cu(t) / (Cu(t) + Kd) * 100%
+        across 24-hour circadian windows:
+        - T+2h: Morning Peak / Absorption (Cmax)
+        - T+6h: Midday Sustained Plateau
+        - T+10h: Afternoon Window
+        - T+14h: Evening Window
+        - T+18h: Bedtime Trough
+        - T+24h: Pre-Dose Baseline
+        """
+        biometrics = biometrics or {}
+        req = PKPDSimulationRequest(
+            compound_key=compound.get("key", "compound"),
+            dose_mg=dose_mg,
+            dosing_interval_h=dosing_interval_h,
+            simulation_duration_h=max(24.0, dosing_interval_h),
+            route=route,
+            steady_state=True,
+            age=biometrics.get("age", 30),
+            weight_kg=biometrics.get("weight_kg", 75.0),
+            egfr=biometrics.get("egfr", 95.0),
+            alt_u_l=biometrics.get("alt_u_l", 25.0),
+            cyp2d6_phenotype=biometrics.get("cyp2d6_phenotype"),
+            cyp2c19_phenotype=biometrics.get("cyp2c19_phenotype"),
+            cyp3a4_phenotype=biometrics.get("cyp3a4_phenotype"),
+            slco1b1_genotype=biometrics.get("slco1b1_genotype"),
+            comt_phenotype=biometrics.get("comt_phenotype"),
+        )
+        sim = cls.simulate(compound, req)
+
+        pd_params = cls.extract_pd_parameters(compound)
+        pk_params = cls.extract_pk_parameters(compound)
+        mw = float(compound.get("molecular_weight") or 300.0)
+        fu = pk_params.fraction_unbound
+
+        targets = pd_params.target_affinities
+        if not targets:
+            kd_nm = pd_params.ec50_nm or 25.0
+            targets = [QuantitativeTargetAffinity(target_name="Primary Target", affinity_type="Kd", affinity_value_nm=kd_nm)]
+
+        circadian_windows = [
+            {"label": "Morning (T+2h Peak)", "time_h": 2.0},
+            {"label": "Midday (T+6h Plateau)", "time_h": 6.0},
+            {"label": "Afternoon (T+10h)", "time_h": 10.0},
+            {"label": "Evening (T+14h)", "time_h": 14.0},
+            {"label": "Bedtime (T+18h Trough)", "time_h": 18.0},
+            {"label": "Next-Day (T+24h Pre-Dose)", "time_h": 24.0},
+        ]
+
+        target_results = []
+        for tgt in targets[:4]:
+            t_name = tgt.target_name
+            kd_nm = max(0.01, float(tgt.affinity_value_nm))
+            # Kd in ng/mL = (Kd_nM * MW) / 1000
+            kd_ng_ml = (kd_nm * mw) / 1000.0
+
+            window_occupancies = []
+            for win in circadian_windows:
+                t_h = win["time_h"]
+                closest_pt = min(sim.time_series, key=lambda p: abs(p.time_h - t_h))
+                c_free = closest_pt.c_free_ng_ml
+                ro = (c_free / (c_free + kd_ng_ml) * 100.0) if (c_free + kd_ng_ml) > 0 else 0.0
+                window_occupancies.append({
+                    "window": win["label"],
+                    "time_h": t_h,
+                    "c_plasma_ng_ml": closest_pt.c_plasma_ng_ml,
+                    "c_unbound_ng_ml": round(c_free, 2),
+                    "receptor_occupancy_pct": round(min(100.0, max(0.0, ro)), 1),
+                })
+
+            target_results.append({
+                "target_name": t_name,
+                "affinity_nm": round(kd_nm, 2),
+                "affinity_type": tgt.affinity_type,
+                "action_type": tgt.action_type,
+                "windows": window_occupancies,
+                "peak_occupancy_pct": max(w["receptor_occupancy_pct"] for w in window_occupancies),
+                "trough_occupancy_pct": min(w["receptor_occupancy_pct"] for w in window_occupancies),
+            })
+
+        return {
+            "compound": sim.compound_name,
+            "dose": f"{dose_mg} mg ({route})",
+            "cmax_ng_ml": round(sim.c_max_ng_ml, 1),
+            "effective_half_life_h": round(sim.elimination_half_life_effective_h, 1),
+            "fraction_unbound_pct": round(fu * 100.0, 1),
+            "targets": target_results,
+        }

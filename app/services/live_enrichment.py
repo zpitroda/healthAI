@@ -1,6 +1,7 @@
 import itertools
-from datetime import datetime, timezone
 import logging
+import re
+from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional
 import httpx
 
@@ -773,6 +774,18 @@ class LiveEnrichmentService:
         _GLOBAL_LIVE_CACHE[cache_key] = result
         return result
 
+    def fetch_pubmed(self, query_name: str, max_results: int = 4) -> List[Dict[str, Any]]:
+        """Fetch peer-reviewed biomedical literature citations from PubMed / NCBI E-Utilities."""
+        from app.services.pubmed_service import PubMedService
+        pubmed_svc = PubMedService(timeout_seconds=self.timeout)
+        return pubmed_svc.search_literature(query_name, max_results=max_results)
+
+    def fetch_clinical_trials(self, query_name: str, max_results: int = 3) -> List[Dict[str, Any]]:
+        """Fetch active/completed clinical trials from ClinicalTrials.gov API v2."""
+        from app.services.pubmed_service import PubMedService
+        pubmed_svc = PubMedService(timeout_seconds=self.timeout)
+        return pubmed_svc.search_clinical_trials(query_name, max_results=max_results)
+
     def fetch_rxnorm_atc(self, query_name: str) -> List[str]:
         """Fetch WHO ATC hierarchy classifications from NLM RxNorm / Med-RT API."""
         cleaned_name = query_name.strip().lower()
@@ -885,16 +898,20 @@ class LiveEnrichmentService:
 
         # Connect specific MeSH / Nootropic / Anabolic heuristics if targets were not explicitly in ChEMBL mechanisms
         name_lower = name.lower()
-        if any("anabolic" in c.lower() for c in enriched["categories"]) or "androgen" in name_lower or any(w in name_lower for w in ["trenbolone", "nandrolone", "drostanolone", "oxandrolone", "stanozolol", "rad140", "rad_140", "lgd4033", "ostarine", "sarm"]):
+        key_lower = str(enriched.get("key") or "").lower()
+        name_norm = name_lower.replace(" ", "_").replace("-", "_")
+        ident_blob = f"{name_lower} {key_lower} {name_norm} {re.sub(r'[^a-z0-9]', '', name_lower)}"
+
+        if any("anabolic" in c.lower() for c in enriched["categories"]) or "androgen" in ident_blob or any(w in ident_blob for w in ["trenbolone", "nandrolone", "drostanolone", "oxandrolone", "stanozolol", "rad140", "rad_140", "lgd4033", "ostarine", "sarm"]):
             if not any("androgen" in t.get("target", "").lower() for t in existing_targets):
                 existing_targets.insert(0, {
                     "target": "Androgen Receptor (AR)",
                     "action": "agonist",
                     "family": "Steroid Receptor",
-                    "affinity_ki": 0.7 if "trenbolone" in name_lower else 1.0,
+                    "affinity_ki": 0.7 if "trenbolone" in ident_blob else 1.0,
                     "intrinsic_efficacy": 1.0,
                 })
-            if "trenbolone" in name_lower and not any("progesterone" in t.get("target", "").lower() for t in existing_targets):
+            if "trenbolone" in ident_blob and not any("progesterone" in t.get("target", "").lower() for t in existing_targets):
                 existing_targets.append({
                     "target": "Progesterone Receptor (PGR)",
                     "action": "agonist",
@@ -902,7 +919,7 @@ class LiveEnrichmentService:
                     "affinity_ki": 1.2,
                     "intrinsic_efficacy": 0.9,
                 })
-        if any(w in name_lower for w in ["bromantane", "ladasten"]) or "dopamine" in " ".join(enriched["categories"]).lower():
+        if any(w in ident_blob for w in ["bromantane", "ladasten"]) or "dopamine" in " ".join(enriched["categories"]).lower():
             if not any("dopamine" in t.get("target", "").lower() for t in existing_targets):
                 existing_targets.insert(0, {
                     "target": "Dopamine Transporter (DAT / SLC6A3)",
@@ -918,7 +935,73 @@ class LiveEnrichmentService:
                     "family": "Dopamine Synthesis Enzyme",
                     "intrinsic_efficacy": 0.7,
                 })
-        if "yohimbine" in name_lower or "rauwolscine" in name_lower or any("alpha-2" in c.lower() for c in enriched["categories"]):
+        # Ampakines & AMPA Positive Allosteric Modulators
+        if any(w in ident_blob for w in ["tak_653", "tak653", "tak 653", "idra_21", "idra21", "idra 21", "sunifiram", "unifiram", "aniracetam", "ampakine"]):
+            if not any("ampa" in t.get("target", "").lower() or "gria" in t.get("target", "").lower() for t in existing_targets):
+                existing_targets.insert(0, {
+                    "target": "Glutamate Ionotropic Receptor AMPA Type Subunit 1 (GRIA1 / AMPA)",
+                    "action": "pam",
+                    "family": "Ligand-Gated Ion Channel",
+                    "gene_symbol": "GRIA1",
+                    "uniprot_id": "P42261",
+                    "affinity_ki": 4.0 if "tak" in ident_blob else 20.0,
+                    "intrinsic_efficacy": 0.9,
+                })
+        # Neurotrophic Peptides & Enhancers (Semax, Selank, Noopept, Dihexa)
+        if any(w in ident_blob for w in ["semax", "selank", "noopept", "dihexa", "cerebrolysin"]):
+            if any(w in ident_blob for w in ["dihexa", "hgf"]):
+                if not any("met" in t.get("target", "").lower() or "hgf" in t.get("target", "").lower() for t in existing_targets):
+                    existing_targets.insert(0, {
+                        "target": "Hepatocyte Growth Factor Receptor (MET / c-Met)",
+                        "action": "agonist",
+                        "family": "Receptor Tyrosine Kinase",
+                        "gene_symbol": "MET",
+                        "uniprot_id": "P08581",
+                        "affinity_ki": 0.000065, # ~65 pM affinity
+                        "intrinsic_efficacy": 1.0,
+                    })
+            if not any("trkb" in t.get("target", "").lower() or "ntrk2" in t.get("target", "").lower() or "bdnf" in t.get("target", "").lower() for t in existing_targets):
+                existing_targets.append({
+                    "target": "Neurotrophic Receptor Tyrosine Kinase 2 (TrkB / NTRK2 / BDNF)",
+                    "action": "agonist",
+                    "family": "Receptor Tyrosine Kinase",
+                    "gene_symbol": "NTRK2",
+                    "uniprot_id": "Q16620",
+                    "intrinsic_efficacy": 0.85,
+                })
+        # Growth Hormone Secretagogues (MK-677 / Ibutamoren)
+        if any(w in ident_blob for w in ["mk_677", "mk677", "mk 677", "ibutamoren", "ghrp"]):
+            if not any("ghsr" in t.get("target", "").lower() or "ghrelin" in t.get("target", "").lower() for t in existing_targets):
+                existing_targets.insert(0, {
+                    "target": "Growth Hormone Secretagogue Receptor (GHSR / Ghrelin Receptor)",
+                    "action": "agonist",
+                    "family": "GPCR Class A",
+                    "gene_symbol": "GHSR",
+                    "uniprot_id": "Q92847",
+                    "affinity_ki": 0.4,
+                    "intrinsic_efficacy": 1.0,
+                })
+        # Racetam Cholinergic & GABAergic Modulators (Coluracetam, Fasoracetam)
+        if any(w in ident_blob for w in ["coluracetam", "fasoracetam", "pramiracetam", "phenylpiracetam"]):
+            if "coluracetam" in ident_blob and not any("choline" in t.get("target", "").lower() or "slc5a7" in t.get("target", "").lower() for t in existing_targets):
+                existing_targets.append({
+                    "target": "High-Affinity Choline Transporter 1 (SLC5A7 / CHT1 / HACU)",
+                    "action": "inducer",
+                    "family": "Choline Transporter",
+                    "gene_symbol": "SLC5A7",
+                    "uniprot_id": "Q9GZV3",
+                    "intrinsic_efficacy": 0.8,
+                })
+            if "fasoracetam" in ident_blob and not any("gaba-b" in t.get("target", "").lower() or "gabbr" in t.get("target", "").lower() for t in existing_targets):
+                existing_targets.append({
+                    "target": "GABA-B Receptor Subunit 1 (GABBR1 / Upregulation)",
+                    "action": "modulator",
+                    "family": "GPCR Class C",
+                    "gene_symbol": "GABBR1",
+                    "uniprot_id": "Q92540",
+                    "intrinsic_efficacy": 0.75,
+                })
+        if "yohimbine" in ident_blob or "rauwolscine" in ident_blob or any("alpha-2" in c.lower() for c in enriched["categories"]):
             for t in existing_targets:
                 if any(w in t.get("target", "").lower() for w in ["alpha-2", "adra2"]):
                     t["action"] = "antagonist"

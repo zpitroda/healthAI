@@ -45,6 +45,13 @@ class LabProfile(BaseModel):
     tsh_miu_l: Optional[float] = None
     sleep_hours: Optional[float] = None
 
+    # Pharmacogenomics (PGx)
+    cyp2d6_phenotype: Optional[str] = None
+    cyp2c19_phenotype: Optional[str] = None
+    cyp3a4_phenotype: Optional[str] = None
+    slco1b1_genotype: Optional[str] = None
+    comt_phenotype: Optional[str] = None
+
 
 class UserProfile(BaseModel):
     """User profile containing biometric inputs, goals, active compound stack, and clinical bloodwork."""

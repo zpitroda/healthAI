@@ -15,8 +15,27 @@ NO_CACHE_HEADERS = {
 }
 
 
+_GLOBAL_CATALOG_SERVICE: Optional[CatalogService] = None
+
+
 def get_catalog_service() -> CatalogService:
-    return CatalogService()
+    global _GLOBAL_CATALOG_SERVICE
+    if _GLOBAL_CATALOG_SERVICE is None:
+        _GLOBAL_CATALOG_SERVICE = CatalogService()
+    return _GLOBAL_CATALOG_SERVICE
+
+
+@router.post("/api/compounds/batch")
+def get_compounds_batch_api(
+    payload: Dict[str, Any],
+) -> JSONResponse:
+    """Retrieve multiple compound pharmacology profiles in a single batch request."""
+    keys = payload.get("keys", [])
+    if isinstance(keys, str):
+        keys = [k.strip() for k in keys.split(",") if k.strip()]
+    service = get_catalog_service()
+    results = service.get_compounds_by_keys(keys)
+    return JSONResponse(results, headers=NO_CACHE_HEADERS)
 
 
 @router.get("/api/compounds/search")

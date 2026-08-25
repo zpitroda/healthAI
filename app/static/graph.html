@@ -3360,8 +3360,9 @@
         }
       });
 
-      // STACK SEARCH AUTOCOMPLETE
+      // STACK SEARCH AUTOCOMPLETE (Instant cache + 100ms fast typeahead)
       let searchTimeout = null;
+      const _graphSearchQueryCache = {};
       stackSearchInput.addEventListener('input', (e) => {
         const query = e.target.value.trim();
         clearTimeout(searchTimeout);
@@ -3370,39 +3371,52 @@
           return;
         }
 
+        const normQ = query.toLowerCase();
+        if (_graphSearchQueryCache[normQ]) {
+          renderGraphSearchDropdown(_graphSearchQueryCache[normQ]);
+          return;
+        }
+
         searchTimeout = setTimeout(() => {
           fetch(`/api/compounds/search?q=${encodeURIComponent(query)}`)
             .then(res => res.json())
             .then(items => {
-              if (!items || !items.length) {
-                stackSearchDropdown.innerHTML = '<div style="padding:8px 11px;color:var(--text-muted);font-size:0.75rem;">No match found</div>';
-                stackSearchDropdown.style.display = 'block';
-                return;
+              _graphSearchQueryCache[normQ] = items;
+              if (stackSearchInput.value.trim().toLowerCase() === normQ) {
+                renderGraphSearchDropdown(items);
               }
-
-              stackSearchDropdown.innerHTML = items.map(c => `
-                <div class="autocomplete-row" data-key="${c.key}" data-name="${c.name || ''}">
-                  <span>${c.name}</span>
-                  <span style="color:#00f2fe;font-size:0.72rem;font-weight:700;">+ Add</span>
-                </div>
-              `).join('');
-
-              stackSearchDropdown.style.display = 'block';
-
-              stackSearchDropdown.querySelectorAll('.autocomplete-row').forEach(el => {
-                el.addEventListener('click', () => {
-                  if (el.dataset.key && el.dataset.name) {
-                    compoundNameCache[el.dataset.key.toLowerCase()] = el.dataset.name;
-                  }
-                  addCompoundToGraph(el.dataset.key);
-                  stackSearchInput.value = '';
-                  stackSearchDropdown.style.display = 'none';
-                });
-              });
             })
             .catch(err => console.error(err));
-        }, 150);
+        }, 100);
       });
+
+      function renderGraphSearchDropdown(items) {
+        if (!items || !items.length) {
+          stackSearchDropdown.innerHTML = '<div style="padding:8px 11px;color:var(--text-muted);font-size:0.75rem;">No match found</div>';
+          stackSearchDropdown.style.display = 'block';
+          return;
+        }
+
+        stackSearchDropdown.innerHTML = items.map(c => `
+          <div class="autocomplete-row" data-key="${c.key}" data-name="${c.name || ''}">
+            <span>${c.name}</span>
+            <span style="color:#00f2fe;font-size:0.72rem;font-weight:700;">+ Add</span>
+          </div>
+        `).join('');
+
+        stackSearchDropdown.style.display = 'block';
+
+        stackSearchDropdown.querySelectorAll('.autocomplete-row').forEach(el => {
+          el.addEventListener('click', () => {
+            if (el.dataset.key && el.dataset.name) {
+              compoundNameCache[el.dataset.key.toLowerCase()] = el.dataset.name;
+            }
+            addCompoundToGraph(el.dataset.key);
+            stackSearchInput.value = '';
+            stackSearchDropdown.style.display = 'none';
+          });
+        });
+      }
 
       document.addEventListener('click', (e) => {
         if (!stackSearchInput.contains(e.target) && !stackSearchDropdown.contains(e.target)) {

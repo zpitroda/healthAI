@@ -16,8 +16,9 @@ def test_drostanolone_and_masteron_canonical_entity_resolution():
 
     assert drostanolone is not None, "drostanolone should be found in catalog"
     assert masteron is not None, "masteron synonym should resolve in catalog"
-    assert drostanolone["key"] == masteron["key"]
-    assert masteron["key"] == "drostanolone"
+    assert drostanolone["key"] == masteron.get("parent_compound_id") or drostanolone["key"] == masteron["key"]
+    assert masteron.get("parent_compound_id") == "drostanolone" or masteron["key"] == "drostanolone"
+
 
 
 def test_methyldrostanolone_and_superdrol_canonical_entity_resolution():

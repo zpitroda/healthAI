@@ -461,7 +461,7 @@ def build_selected_compound_graph(stack: List[Any], catalog_service: CatalogServ
     # Pre-fetch stack compounds to evaluate stack-level endocrine context
     stack_compounds: List[Dict[str, Any]] = []
     for item in merged_stack:
-        c_obj = service.get_compound(item.get("key") or "")
+        c_obj = service.get_compound(item.get("key") or "", auto_enrich=False)
         if c_obj:
             stack_compounds.append(c_obj)
 
@@ -482,7 +482,7 @@ def build_selected_compound_graph(stack: List[Any], catalog_service: CatalogServ
         return True
 
     has_bioidentical_test_in_stack = any(
-        _is_effective_t_base_item(item, service.get_compound(item.get("key") or ""))
+        _is_effective_t_base_item(item, service.get_compound(item.get("key") or "", auto_enrich=False))
         for item in merged_stack
     )
 
@@ -490,7 +490,8 @@ def build_selected_compound_graph(stack: List[Any], catalog_service: CatalogServ
 
     for compound_entry in merged_stack:
         compound_key = compound_entry.get("key") or "compound"
-        compound = service.get_compound(compound_key)
+        compound = service.get_compound(compound_key, auto_enrich=False)
+
 
         dose_mg = float(compound_entry.get("dose_mg") if compound_entry.get("dose_mg") is not None else compound_entry.get("dose", 10.0))
         dose_str = str(compound_entry.get("dose_str") or (f"{dose_mg:g} mg" if dose_mg >= 1.0 else f"{dose_mg * 1000.0:g} μg"))

@@ -1,4 +1,10 @@
 #!/usr/bin/env python3
+"""
+Canonical Catalog Population & Ingestion Pipeline
+-------------------------------------------------
+Fetches and merges compound records from public biomedical APIs (PubChem PUG REST,
+EMBL-EBI ChEMBL, and Reactome) using canonical InChIKey identity resolution.
+"""
 from __future__ import annotations
 
 import argparse

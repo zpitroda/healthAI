@@ -1,13 +1,14 @@
 from __future__ import annotations
 
 import os
+from pathlib import Path
 import re
 import sqlite3
 import time
 from typing import Any, Dict, Optional, Union
 import httpx
 
-DEFAULT_DB_PATH = os.path.join(os.path.dirname(os.path.dirname(__file__)), "data", "compounds.db")
+DEFAULT_DB_PATH = os.getenv("HEALTHAI_CATALOG_DB", str(Path(__file__).resolve().parents[2] / "healthai_catalog.db"))
 
 # Authoritative clinical seed benchmarks for instant cache bootstrap
 SEED_CLINICAL_REFERENCE_DOSES_MG: Dict[str, float] = {
@@ -105,17 +106,63 @@ SEED_CLINICAL_REFERENCE_DOSES_MG: Dict[str, float] = {
     "berberine": 500.0,       # 500 mg/day
 
     # Androgens, Endocrine & 5-AR
-    "testosterone": 20.0,     # 20 mg/day standard daily replacement dose
+    "testosterone": 20.0,     # 20 mg/day standard daily unesterified dose
     "chembl386630": 20.0,
+    "testosterone_cypionate": 175.0,    # 175 mg per injection (350 mg/week split IM/SubQ)
+    "testosteronecypionate": 175.0,
+    "testc": 175.0,
+    "testcyp": 175.0,
+    "depotestosterone": 175.0,
+    "testosterone_enanthate": 175.0,    # 175 mg per injection (350 mg/week split IM/SubQ)
+    "testosteroneenanthate": 175.0,
+    "teste": 175.0,
+    "delatestryl": 175.0,
+    "testosterone_propionate": 50.0,    # 50 mg every other day
+    "testosteronepropionate": 50.0,
+    "testp": 50.0,
+    "testosterone_undecanoate": 250.0,  # 250 mg bi-weekly or 750-1000 mg depot
+    "testosteroneundecanoate": 250.0,
+    "nebido": 250.0,
+    "aveed": 250.0,
+    "nandrolone_decanoate": 150.0,      # 150 mg weekly/split
+    "nandrolonedecanoate": 150.0,
+    "deca": 150.0,
+    "deca_durabolin": 150.0,
+    "nandrolone_phenylpropionate": 50.0,
+    "npp": 50.0,
+    "boldenone_undecylenate": 200.0,    # 200 mg weekly/split
+    "boldenone": 200.0,
+    "equipoise": 200.0,
+    "drostanolone_propionate": 50.0,
+    "masteron": 50.0,
+    "drostanolone_enanthate": 150.0,
+    "methenolone_enanthate": 100.0,
+    "primobolan": 100.0,
+    "oxandrolone": 20.0,                # 20 mg/day oral
+    "anavar": 20.0,
+    "stanozolol": 25.0,                 # 25 mg/day oral
+    "winstrol": 25.0,
+    "dianabol": 25.0,                   # 25 mg/day oral
+    "methandrostenolone": 25.0,
+    "anadrol": 50.0,                    # 50 mg/day oral
+    "oxymetholone": 50.0,
     "finasteride": 1.0,       # 1 mg/day (alopecia) or 5 mg (BPH)
     "chembl553": 1.0,
     "dutasteride": 0.5,       # 0.5 mg/day
     "chembl1201083": 0.5,
-    "anastrozole": 0.5,       # 0.5 mg/day
-    "exemestane": 12.5,       # 12.5 mg/day
-    "tamoxifen": 20.0,        # 20 mg/day
+    "anastrozole": 0.5,       # 0.5 mg oral (e.g. 0.25-0.5 mg twice weekly)
+    "arimidex": 0.5,
+    "exemestane": 12.5,       # 12.5 mg oral (e.g. 12.5 mg twice weekly with meals)
+    "aromasin": 12.5,
+    "letrozole": 1.25,        # 1.25 mg oral
+    "femara": 1.25,
+    "tamoxifen": 20.0,        # 20 mg/day oral
+    "nolvadex": 20.0,
+    "raloxifene": 60.0,       # 60 mg/day oral
+    "evista": 60.0,
     "clomiphene": 25.0,       # 25 mg/day
     "enclomiphene": 12.5,     # 12.5 mg/day
+    "hcg": 250.0,             # 250 IU/injection SubQ twice weekly
 
     # Anti-inflammatory & Analgesics
     "aspirin": 81.0,          # 81 mg cardioprotective (or 325 mg)
@@ -173,14 +220,127 @@ SEED_CLINICAL_REFERENCE_DOSES_MG: Dict[str, float] = {
     "desmopressin": 0.1,      # 100 mcg (0.1 mg)
     "octreotide": 0.1,        # 100 mcg
     "leuprolide": 3.75,       # 3.75 mg
+
+    # Research Chemicals, Nootropics & SARMs (Allometric / Preclinical Scaled)
+    "trenbolone": 50.0,       # 50 mg
+    "trenbolone_acetate": 50.0,
+    "trenbolone_enanthate": 100.0,
+    "tak_653": 1.0,           # 1.0 mg (scaled from rat ED50 0.1-0.5 mg/kg)
+    "idra_21": 10.0,          # 10.0 mg (scaled from rodent 3 mg/kg)
+    "noopept": 10.0,          # 10.0 mg
+    "phenylpiracetam": 100.0, # 100.0 mg
+    "fasoracetam": 20.0,      # 20.0 mg
+    "bromantane": 50.0,       # 50.0 mg
+    "nsi_189": 20.0,          # 20.0 mg
+    "dihexa": 5.0,            # 5.0 mg (scaled from rat Morris Water Maze 1.44 mg/kg)
+    "9_me_bc": 15.0,          # 15.0 mg
+    "sunifiram": 5.0,         # 5.0 mg
+    "unifiram": 5.0,          # 5.0 mg
+    "pramiracetam": 300.0,    # 300.0 mg
+    "oxiracetam": 750.0,      # 750.0 mg
+    "aniracetam": 750.0,      # 750.0 mg
+    "coluracetam": 20.0,      # 20.0 mg
+    "rad_140": 10.0,          # 10.0 mg
+    "rad140": 10.0,
+    "lgd_4033": 5.0,          # 5.0 mg
+    "lgd4033": 5.0,
+    "mk_2866": 15.0,          # 15.0 mg
+    "ostarine": 15.0,
+    "mk_677": 15.0,           # 15.0 mg
+    "ibutamoren": 15.0,
+    "yk_11": 5.0,             # 5.0 mg
+    "yk11": 5.0,
+    "s_4": 25.0,              # 25.0 mg
+    "andarine": 25.0,
+    "emoxypine": 125.0,       # 125.0 mg
+    "picamilon": 50.0,        # 50.0 mg
+    "phenibut": 500.0,        # 500.0 mg
 }
 
 # Compatibility reference mapping
 CLINICAL_REFERENCE_DOSES_MG: Dict[str, float] = dict(SEED_CLINICAL_REFERENCE_DOSES_MG)
 
 
+class PreclinicalAllometricEngine:
+    """
+    Exact Interspecies Allometric Scaling Engine (FDA Reagan-Shaw Body Surface Area Normalization).
+    Calculates exact Human Equivalent Dose (HED) and evaluates data limitations without arbitrary safety buffers.
+    """
+    KM_FACTORS: Dict[str, float] = {
+        "mouse": 3.0,
+        "rat": 6.0,
+        "guinea_pig": 8.0,
+        "rabbit": 12.0,
+        "dog": 20.0,
+        "monkey": 12.0,
+        "human": 37.0,
+    }
+
+    @classmethod
+    def calculate_hed(cls, animal_dose_mg_kg: float, species: str = "rat", human_weight_kg: float = 70.0) -> Dict[str, Any]:
+        """
+        Calculates exact Human Equivalent Dose (HED) via standard Body Surface Area (BSA) normalization.
+        HED (mg/kg) = Animal Dose (mg/kg) * (Km_animal / Km_human)
+        Total Human Dose (mg) = HED (mg/kg) * Human Body Weight (kg)
+        """
+        species_lower = str(species).strip().lower()
+        km_animal = cls.KM_FACTORS.get(species_lower, 6.0)
+        km_human = cls.KM_FACTORS["human"]
+
+        hed_mg_kg = float(animal_dose_mg_kg) * (km_animal / km_human)
+        total_human_dose_mg = hed_mg_kg * float(human_weight_kg)
+
+        return {
+            "animal_dose_mg_kg": float(animal_dose_mg_kg),
+            "animal_species": species,
+            "km_animal": km_animal,
+            "km_human": km_human,
+            "hed_mg_kg": round(hed_mg_kg, 6),
+            "human_weight_kg": float(human_weight_kg),
+            "total_human_dose_mg": round(total_human_dose_mg, 4),
+            "calculation_method": f"FDA Reagan-Shaw BSA Allometric Normalization (Km {species}={km_animal} -> Human={km_human})",
+            "is_human_validated": False,
+        }
+
+    @classmethod
+    def evaluate_compound_limitations(cls, compound: Dict[str, Any]) -> Dict[str, Any]:
+        """
+        Audits compound data completeness and produces structured disclosures of data gaps.
+        """
+        meta = compound.get("metadata") or {}
+        evidence_tier = meta.get("evidence_tier") or compound.get("evidence_tier") or (
+            "FDA_APPROVED_CLINICAL_DATA" if meta.get("is_fda_approved") else "IN_VITRO_AND_ALLOMETRIC_EXTRAPOLATION"
+        )
+        has_human_trials = bool(meta.get("human_clinical_trials") or meta.get("is_fda_approved"))
+        has_human_pk = bool(meta.get("has_human_pk") or (has_human_trials and compound.get("t_half_numeric") and compound.get("c_max_ng_ml")))
+        has_chronic_tox = bool(meta.get("has_chronic_toxicity_studies") or meta.get("is_fda_approved"))
+        has_cyp_mapping = bool(
+            (compound.get("cyp_enzymes") or {}).get("substrates")
+            or (compound.get("cyp_enzymes") or {}).get("inhibitors")
+        )
+
+        limitations: List[str] = []
+        if not has_human_trials:
+            limitations.append("Zero FDA/EMA randomized human clinical trials exist; parameters are derived from preclinical in vitro assays or animal in vivo models.")
+        if not has_human_pk:
+            limitations.append("Human pharmacokinetic parameters (clearance, volume of distribution, and bioavailability) have not been established in human subjects.")
+        if not has_chronic_tox:
+            limitations.append("Long-term chronic toxicity, carcinogenicity, and organ accumulation profiles remain uncharacterized.")
+        if not has_cyp_mapping:
+            limitations.append("Hepatic CYP450 phase I and phase II metabolic clearance pathways are unmapped.")
+
+        return {
+            "has_human_trials": has_human_trials,
+            "has_human_pk": has_human_pk,
+            "has_chronic_toxicity_studies": has_chronic_tox,
+            "has_cyp_metabolite_mapping": has_cyp_mapping,
+            "known_limitations": limitations,
+            "evidence_tier": evidence_tier,
+        }
+
+
 def _get_db_connection(db_path: Optional[str] = None) -> sqlite3.Connection:
-    path = db_path or os.environ.get("COMPOUNDS_DB_PATH") or DEFAULT_DB_PATH
+    path = db_path or os.environ.get("HEALTHAI_CATALOG_DB") or os.environ.get("COMPOUNDS_DB_PATH") or DEFAULT_DB_PATH
     os.makedirs(os.path.dirname(path), exist_ok=True)
     conn = sqlite3.connect(path, timeout=30.0)
     conn.row_factory = sqlite3.Row
@@ -623,19 +783,51 @@ def get_frequency_interval_hours(frequency: Any) -> float:
     return float(meta["interval_hours"]) if meta else 24.0
 
 
+def infer_compound_route_and_frequency(key_or_name: str) -> Tuple[str, str]:
+    """Infers standard clinical route and frequency based on compound pharmacokinetics and formulation."""
+    blob = str(key_or_name or "").lower()
+    
+    # Depot androgens and esters
+    if any(e in blob for e in [
+        "cypionate", "enanthate", "decanoate", "undecanoate", "isocaproate", "depot",
+        "testc", "testcyp", "teste", "testenan", "delatestryl", "deca", "durabolin",
+        "equipoise", "primobolan", "masteron"
+    ]):
+        if "undecanoate" in blob or "nebido" in blob:
+            return "intramuscular", "biweekly"
+        elif "propionate" in blob:
+            return "intramuscular", "every_other_day"
+        return "intramuscular", "twice_weekly"
+    
+    # Peptides & Incretins (typically SubQ weekly or daily)
+    if any(p in blob for p in ["semaglutide", "tirzepatide", "retatrutide", "cagrilintide"]):
+        return "subcutaneous", "weekly"
+    if any(p in blob for p in ["bpc_157", "bpc157", "tb_500", "tb500", "ghk_cu", "kpv", "ipamorelin", "cjc_1295", "sermorelin", "tesamorelin", "epitalon", "epithalon", "mots_c", "elamipretide", "ss31", "thymosin", "hcg"]):
+        return "subcutaneous", "daily" if ("bpc" in blob or "ipam" in blob) else "twice_weekly"
+    
+    # Aromatase Inhibitors (typically oral twice-weekly or as needed)
+    if any(a in blob for a in ["anastrozole", "arimidex", "exemestane", "aromasin", "letrozole", "femara"]):
+        return "oral", "twice_weekly"
+    
+    return "oral", "daily"
+
+
 def parse_dose_string_or_spec(spec_input: Any) -> Dict[str, Any]:
     """
     Parse strings like 'clenbuterol:40ug', 'nebivolol:5mg:daily', 'testosterone:200mg:weekly',
-    or 'creatine:5g', or dict specs.
-    Returns structured { key, dose_mg, dose_val, dose_unit, dose_display, frequency, frequency_multiplier, effective_daily_dose_mg, effective_daily_display }.
+    'testosterone_cypionate:350mg:weekly', or 'creatine:5g', or dict specs.
+    Returns structured { key, dose_mg, dose_val, dose_unit, dose_display, frequency, frequency_multiplier, effective_daily_dose_mg, effective_daily_display, route }.
     """
     if isinstance(spec_input, dict):
         key = str(spec_input.get("key") or spec_input.get("name") or "").strip()
+        inferred_route, inferred_freq = infer_compound_route_and_frequency(key)
         dose_val = spec_input.get("dose_val") if spec_input.get("dose_val") is not None else spec_input.get("dose")
         if dose_val is None:
             dose_val = spec_input.get("dose_mg")
         dose_unit = str(spec_input.get("dose_unit") or spec_input.get("unit") or "mg").strip()
-        freq = str(spec_input.get("frequency") or spec_input.get("dosing_frequency") or "daily").strip()
+        raw_freq = spec_input.get("frequency") or spec_input.get("dosing_frequency")
+        freq = str(raw_freq).strip() if raw_freq is not None else inferred_freq
+        route = str(spec_input.get("route") or inferred_route).strip().lower()
         frequency = normalize_dosing_frequency(freq)
         freq_mult = get_frequency_multiplier(frequency)
 
@@ -663,6 +855,7 @@ def parse_dose_string_or_spec(spec_input: Any) -> Dict[str, Any]:
                 "frequency_multiplier": freq_mult,
                 "effective_daily_dose_mg": round(eff_daily, 4),
                 "effective_daily_display": eff_display,
+                "route": route,
             }
         else:
             default_info = get_default_compound_dose(key)
@@ -679,6 +872,7 @@ def parse_dose_string_or_spec(spec_input: Any) -> Dict[str, Any]:
                 "frequency_multiplier": freq_mult,
                 "effective_daily_dose_mg": round(eff_daily, 4),
                 "effective_daily_display": eff_display,
+                "route": route,
             }
 
     spec = str(spec_input or "").strip()
@@ -693,12 +887,14 @@ def parse_dose_string_or_spec(spec_input: Any) -> Dict[str, Any]:
             "frequency_multiplier": 1.0,
             "effective_daily_dose_mg": 10.0,
             "effective_daily_display": "10 mg/day",
+            "route": "oral",
         }
 
     parts = spec.split(":")
     key = parts[0].strip()
-    freq_candidate = "daily"
-    route_candidate = "oral"
+    inferred_route, inferred_freq = infer_compound_route_and_frequency(key)
+    freq_candidate = inferred_freq
+    route_candidate = inferred_route
 
     # Check if frequency or route tokens are included in parts
     if len(parts) >= 4:
@@ -707,7 +903,6 @@ def parse_dose_string_or_spec(spec_input: Any) -> Dict[str, Any]:
     elif len(parts) >= 3:
         freq_candidate = parts[2].strip()
     elif len(parts) == 2 and any(k in parts[1].lower() for k in ["daily", "weekly", "bid", "tid", "qid", "qod", "biw", "qw", "prn", "month"]):
-        # e.g. key:weekly or key:10mg_weekly
         if not re.search(r"\d", parts[1]):
             freq_candidate = parts[1].strip()
             parts = [key]

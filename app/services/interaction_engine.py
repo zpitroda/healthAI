@@ -118,6 +118,22 @@ _TARGET_GENE_SYNONYMS: Dict[str, str] = {
     "p2ry12": "P2RY12", "p2y12": "P2RY12", "q9h244": "P2RY12",
     "ptgs1": "PTGS1", "cox-1": "PTGS1", "cyclooxygenase-1": "PTGS1", "p23219": "PTGS1",
     "ptgs2": "PTGS2", "cox-2": "PTGS2", "cyclooxygenase-2": "PTGS2", "p35354": "PTGS2",
+    # Nootropics, Neurotrophins & Research Chemicals
+    "gria1": "GRIA1", "gria2": "GRIA1", "ampa": "GRIA1", "ampa receptor": "GRIA1", "ampakine": "GRIA1", "p42261": "GRIA1",
+    "grin1": "GRIN1", "grin2a": "GRIN1", "grin2b": "GRIN1", "nmda": "GRIN1", "nmda receptor": "GRIN1", "q05586": "GRIN1",
+    "ntrk2": "NTRK2", "trkb": "NTRK2", "bdnf receptor": "NTRK2", "q16620": "NTRK2",
+    "ntrk1": "NTRK1", "trka": "NTRK1", "ngf receptor": "NTRK1", "p04629": "NTRK1",
+    "met": "MET", "hgf receptor": "MET", "c-met": "MET", "p08581": "MET",
+    "slc6a3": "SLC6A3", "dat": "SLC6A3", "dopamine transporter": "SLC6A3", "q01959": "SLC6A3",
+    "slc6a2": "SLC6A2", "net": "SLC6A2", "norepinephrine transporter": "SLC6A2", "p23975": "SLC6A2",
+    "th": "TH", "tyrosine hydroxylase": "TH", "p07101": "TH",
+    "chrna7": "CHRNA7", "alpha-7 nachr": "CHRNA7", "alpha7 nachr": "CHRNA7", "p36544": "CHRNA7",
+    "sigmar1": "SIGMAR1", "sigma-1": "SIGMAR1", "sigma-1 receptor": "SIGMAR1", "q99720": "SIGMAR1",
+    "gabbr1": "GABBR1", "gabbr2": "GABBR1", "gaba-b": "GABBR1", "gaba-b receptor": "GABBR1", "q92540": "GABBR1",
+    "slc5a7": "SLC5A7", "hacu": "SLC5A7", "choline transporter": "SLC5A7", "q9gzv3": "SLC5A7",
+    "ghsr": "GHSR", "ghrelin receptor": "GHSR", "growth hormone secretagogue receptor": "GHSR", "q92847": "GHSR",
+    "pgr": "PGR", "progesterone receptor": "PGR", "p06401": "PGR",
+    "nr3c1": "NR3C1", "glucocorticoid receptor": "NR3C1", "p04150": "NR3C1",
 }
 
 
@@ -155,6 +171,17 @@ def _get_atc_prefixes(comp: Dict[str, Any]) -> Set[str]:
     return prefixes
 
 
+_PATHWAY_SERVICE_SINGLETON = None
+
+
+def _get_pathway_service():
+    global _PATHWAY_SERVICE_SINGLETON
+    if _PATHWAY_SERVICE_SINGLETON is None:
+        from app.services.pathway_service import PathwayService
+        _PATHWAY_SERVICE_SINGLETON = PathwayService()
+    return _PATHWAY_SERVICE_SINGLETON
+
+
 def _get_target_gene_actions(comp: Dict[str, Any]) -> Dict[str, Set[ActionType]]:
     """Standardizes compound receptor targets into a {GeneSymbol: {ActionType}} dictionary."""
     gene_map: Dict[str, Set[ActionType]] = {}
@@ -176,8 +203,7 @@ def _get_target_gene_actions(comp: Dict[str, Any]) -> Dict[str, Set[ActionType]]
 
         if not matched_gene and target_name:
             try:
-                from app.services.pathway_service import PathwayService
-                meta = PathwayService().resolve_target_metadata(target_name)
+                meta = _get_pathway_service().resolve_target_metadata(target_name, allow_online=False)
                 if meta.get("symbol") and meta["symbol"] != "UNKNOWN":
                     matched_gene = meta["symbol"]
             except Exception:
@@ -268,9 +294,15 @@ def _get_compound_ontology_tags(comp: Dict[str, Any]) -> str:
         str(comp.get("name", "")),
         str(comp.get("key", "")),
         str(comp.get("canonical_name", "")),
+        str(comp.get("drug_class", "")),
+        str(comp.get("mechanism", "")),
+        str(comp.get("category", "")),
+        str(comp.get("description", "")),
+        " ".join(str(s) for s in comp.get("categories", [])),
         " ".join(str(s) for s in comp.get("synonyms", [])),
     ]
     return " ".join(parts).lower()
+
 
 
 def _is_potassium_sparing_or_raas(comp: Dict[str, Any]) -> tuple[bool, str]:
@@ -889,7 +921,7 @@ class InteractionEngine:
 
                 cell_result = self._evaluate_pair(comp_a, comp_b, profile_data)
 
-                # Check if this pair participates in an active stack-level mitigation
+                # Check if this pair participates in an active stack-level mitigation for a RELEVANT axis
                 matched_mitigation = next(
                     (
                         m for m in active_mitigations
@@ -900,8 +932,19 @@ class InteractionEngine:
                 )
 
                 if matched_mitigation:
-                    cell_result["is_mitigated_by_stack"] = True
-                    cell_result["mitigation_summary"] = matched_mitigation["description"]
+                    mit_axis = str(matched_mitigation.get("benefited_axis", "")).lower()
+                    conflict_types = cell_result.get("conflict_types", [])
+                    is_relevant = False
+                    if "blood pressure" in mit_axis and any(t in conflict_types for t in ["CARDIOVASCULAR", "HYPERTENSION", "VASOCONSTRICTION"]):
+                        is_relevant = True
+                    elif "lipid" in mit_axis and any(t in conflict_types for t in ["LIPID", "ATHEROGENIC"]):
+                        is_relevant = True
+                    elif "inflammation" in mit_axis and any(t in conflict_types for t in ["INFLAMMATION", "NFKB"]):
+                        is_relevant = True
+                    
+                    if is_relevant:
+                        cell_result["is_mitigated_by_stack"] = True
+                        cell_result["mitigation_summary"] = matched_mitigation["description"]
 
                 row.append(cell_result)
 
@@ -929,12 +972,13 @@ class InteractionEngine:
             syn_title = str(syn.get("title", "")).lower()
             syn_name = str(syn.get("syndrome", "")).lower()
             if "potassium" in syn_title or "potassium" in syn_name:
-                k_axis = next((a for a in full_stack_balance.get("axes", []) if a.get("biomarker_id") in {"bio_serum_potassium", "bio_potassium"}), None)
-                if k_axis and k_axis.get("in_safe_range"):
+                # Potassium retention is only mitigated if a potassium-wasting agent (thiazide/loop diuretic) is present
+                has_k_wasting = any(any(w in str(c.get("drug_class", "")).lower() or w in str(c.get("name", "")).lower() for w in ["furosemide", "hydrochlorothiazide", "thiazide", "torsemide", "loop diuretic"]) for c in compounds)
+                if has_k_wasting:
                     is_syn_mitigated = True
             elif "blood pressure" in syn_title or "hypertensive" in syn_title or "hypotension" in syn_title:
                 bp_axis = next((a for a in full_stack_balance.get("axes", []) if a.get("biomarker_id") == "bio_blood_pressure"), None)
-                if bp_axis and (bp_axis.get("status") == "BALANCED_NORMOTENSIVE" or bp_axis.get("in_safe_range")):
+                if bp_axis and (bp_axis.get("status") == "BALANCED_NORMOTENSIVE"):
                     is_syn_mitigated = True
 
             if is_syn_mitigated:
@@ -942,6 +986,7 @@ class InteractionEngine:
                 syn["mitigation_summary"] = "Counterbalanced by full stack physiological equilibrium."
             else:
                 total_risk_points += syn["severity_score"]
+
             syndrome_alerts.append(syn)
 
         # Dynamic Biomarker Vector Convergence Evaluator
@@ -1002,7 +1047,7 @@ class InteractionEngine:
             biomarker_warnings.append(warning)
 
         # 3. Potassium & Electrolyte Dysregulation
-        if potassium_meq_l > 5.0 and any(c.get("drug_class") and any(dc in c.get("drug_class").lower() for dc in ["arb", "ace inhibitor", "angiotensin", "potassium"]) for c in compounds):
+        if potassium_meq_l > 5.0 and any(_is_potassium_sparing_or_raas(c)[0] or (c.get("drug_class") and any(dc in c.get("drug_class").lower() for dc in ["arb", "ace inhibitor", "angiotensin", "potassium", "aldosterone", "mineralocorticoid", "cardiovascular"])) for c in compounds):
             warning = {
                 "biomarker": "Serum Potassium (K+)",
                 "value": f"{potassium_meq_l} mEq/L (Hyperkalemia Risk)",
@@ -1413,9 +1458,10 @@ class InteractionEngine:
             has_antihypertensive = bool(antihypertensive_comps)
             if not has_antihypertensive:
                 for comp in compounds:
-                    if _is_sympathomimetic_stimulant(comp) or _is_adenosine_antagonist_or_pde_inhibitor(comp):
+                    if _is_sympathomimetic_stimulant(comp)[0] or _is_adenosine_antagonist_or_pde_inhibitor(comp)[0] or _is_alpha2_antagonist(comp)[0]:
                         continue
                     d_class = str(comp.get("drug_class", "")).lower()
+
                     if any(w in d_class for w in ["arb", "angiotensin", "sartan", "beta-blocker", "antihypertensive", "calcium channel blocker", "ace inhibitor"]):
                         has_antihypertensive = True
                         break
@@ -1448,10 +1494,24 @@ class InteractionEngine:
 
             participating_labels = [c.get("compound_label") for c in contributions] or [c.get("name") for c in compounds if c.get("name")]
 
-            if has_hypertensive and has_antihypertensive and 90.0 <= est_val <= 128.0:
+            genuine_antihypertensive = any(
+                _is_potassium_sparing_or_raas(c)[0] or _is_beta_blocker(c)
+                or any(w in str(c.get("drug_class", "")).lower() or w in str(c.get("key", "")).lower() for w in ["arb", "ace inhibitor", "beta-blocker", "calcium channel blocker", "telmisartan", "nebivolol", "amlodipine"])
+                for c in compounds
+            )
+            genuine_hypertensive = any(
+                "androgen" in str(c.get("drug_class", "")).lower() or "anabolic" in str(c.get("drug_class", "")).lower()
+                or "testosterone" in str(c.get("key", "")).lower()
+                or _is_sympathomimetic_stimulant(c)[0]
+                or _is_alpha2_antagonist(c)[0]
+                for c in compounds
+            )
+
+            if has_hypertensive and has_antihypertensive and genuine_antihypertensive and genuine_hypertensive and 90.0 <= est_val <= 128.0:
                 status = "BALANCED_NORMOTENSIVE"
                 status_label = f"Normotensive Equilibrium ({est_val} {unit})"
                 status_color = "#10b981"
+
                 mitigation = {
                     "title": "Hemodynamic & Vascular Counterbalance",
                     "description": (
@@ -2503,13 +2563,33 @@ class InteractionEngine:
                 "evidence_level": "strong",
             }
 
+        def _extract_enzyme_set(items, keys=("enzyme", "transporter", "name", "cyp", "gene")):
+            res = set()
+            for x in items or []:
+                raw = None
+                if isinstance(x, dict):
+                    for k in keys:
+                        v = x.get(k)
+                        if v:
+                            raw = str(v).strip()
+                            break
+                elif x:
+                    raw = str(x).strip()
+                if raw:
+                    upper_raw = raw.upper()
+                    if upper_raw in ("P-GP", "P-GLYCOPROTEIN", "PGP", "ABCB1"):
+                        res.add("P-gp")
+                    else:
+                        res.add(upper_raw)
+            return res
+
         # 2. CYP450 Collisions
         cyp_a = comp_a.get("cyp_enzymes", {}) or {}
         cyp_b = comp_b.get("cyp_enzymes", {}) or {}
-        sub_a = set(cyp_a.get("substrates", []))
-        inh_a = set(cyp_a.get("inhibitors", []))
-        sub_b = set(cyp_b.get("substrates", []))
-        inh_b = set(cyp_b.get("inhibitors", []))
+        sub_a = _extract_enzyme_set(cyp_a.get("substrates", []))
+        inh_a = _extract_enzyme_set(cyp_a.get("inhibitors", []))
+        sub_b = _extract_enzyme_set(cyp_b.get("substrates", []))
+        inh_b = _extract_enzyme_set(cyp_b.get("inhibitors", []))
 
         overlap_a_inh_b_sub = inh_a.intersection(sub_b)
         overlap_b_inh_a_sub = inh_b.intersection(sub_a)
@@ -2553,10 +2633,10 @@ class InteractionEngine:
         # 3. Transporter Collisions (P-gp, OATP1B1, BCRP, OCT2, OAT1/3)
         trans_a = comp_a.get("transporters", {}) or {}
         trans_b = comp_b.get("transporters", {}) or {}
-        t_sub_a = set(trans_a.get("substrates", []))
-        t_inh_a = set(trans_a.get("inhibitors", []))
-        t_sub_b = set(trans_b.get("substrates", []))
-        t_inh_b = set(trans_b.get("inhibitors", []))
+        t_sub_a = _extract_enzyme_set(trans_a.get("substrates", []))
+        t_inh_a = _extract_enzyme_set(trans_a.get("inhibitors", []))
+        t_sub_b = _extract_enzyme_set(trans_b.get("substrates", []))
+        t_inh_b = _extract_enzyme_set(trans_b.get("inhibitors", []))
 
         trans_overlap = (t_inh_a.intersection(t_sub_b)).union(t_inh_b.intersection(t_sub_a))
         if trans_overlap:
@@ -2573,7 +2653,7 @@ class InteractionEngine:
                 "target_key": key_b,
                 "target_name": name_b,
                 "is_self": False,
-                "severity": "HIGH_RISK" if "P-gp" in trans_overlap or "OATP1B1" in trans_overlap else "MODERATE_RISK",
+                "severity": "HIGH_RISK" if ("P-GP" in trans_overlap or "OATP1B1" in trans_overlap or "P-gp" in trans_overlap) else "MODERATE_RISK",
                 "severity_score": 22,
                 "conflict_types": ["TRANSPORTER"],
                 "title": f"Drug Transporter Collision ({trans_names})",
@@ -2588,10 +2668,10 @@ class InteractionEngine:
         # 4. Phase II Glucuronidation Collisions (UGTs)
         p2_a = comp_a.get("phase2_enzymes", {}) or {}
         p2_b = comp_b.get("phase2_enzymes", {}) or {}
-        p2_sub_a = set(p2_a.get("substrates", []))
-        p2_inh_a = set(p2_a.get("inhibitors", []))
-        p2_sub_b = set(p2_b.get("substrates", []))
-        p2_inh_b = set(p2_b.get("inhibitors", []))
+        p2_sub_a = _extract_enzyme_set(p2_a.get("substrates", []))
+        p2_inh_a = _extract_enzyme_set(p2_a.get("inhibitors", []))
+        p2_sub_b = _extract_enzyme_set(p2_b.get("substrates", []))
+        p2_inh_b = _extract_enzyme_set(p2_b.get("inhibitors", []))
 
         p2_overlap = (p2_inh_a.intersection(p2_sub_b)).union(p2_inh_b.intersection(p2_sub_a))
         if p2_overlap:

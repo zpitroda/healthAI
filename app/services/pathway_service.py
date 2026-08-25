@@ -13,6 +13,7 @@ import copy
 import json
 import logging
 import os
+from pathlib import Path
 import re
 import sqlite3
 import time
@@ -29,7 +30,7 @@ _PATHWAY_CASCADE_CACHE: Dict[Tuple[str, str], Dict[str, Any]] = {}
 _PATHWAY_METADATA_CACHE: Dict[Tuple[str, str], Dict[str, str]] = {}
 
 # Default Database Path
-DEFAULT_DB_PATH = os.path.join(os.path.dirname(os.path.dirname(__file__)), "data", "compounds.db")
+DEFAULT_DB_PATH = os.getenv("HEALTHAI_CATALOG_DB", str(Path(__file__).resolve().parents[2] / "healthai_catalog.db"))
 
 # Known authoritative seed mappings for zero-network bootstrap and instant cache warming
 INITIAL_TARGET_SEED_METADATA: Dict[str, Dict[str, str]] = {
@@ -86,7 +87,82 @@ INITIAL_TARGET_SEED_METADATA: Dict[str, Dict[str, str]] = {
     "avpr2": {"symbol": "AVPR2", "uniprot": "P30518", "ensembl": "ENSG00000126895", "name": "Vasopressin V2 Receptor (AVPR2)"},
     "carns1": {"symbol": "CARNS1", "uniprot": "A5YM72", "ensembl": "ENSG00000172508", "name": "Carnosine Synthase 1 (CARNS1 / Intramuscular Proton Buffering)"},
     "mrgprd": {"symbol": "MRGPRD", "uniprot": "Q8TDF5", "ensembl": "ENSG00000188987", "name": "Mas-Related G-Protein Coupled Receptor Member D (MRGPRD / Cutaneous Paresthesia)"},
+    "pde": {"symbol": "PDE", "uniprot": "O76074", "ensembl": "ENSG00000138735", "name": "Phosphodiesterase"},
+    "phosphodiesterase": {"symbol": "PDE", "uniprot": "O76074", "ensembl": "ENSG00000138735", "name": "Phosphodiesterase"},
+    "phosphodiesterase (non-selective)": {"symbol": "PDE", "uniprot": "O76074", "ensembl": "ENSG00000138735", "name": "Phosphodiesterase"},
+    "adenosine a1 receptor": {"symbol": "ADORA1", "uniprot": "P30542", "ensembl": "ENSG00000163485", "name": "Adenosine A1 Receptor (ADORA1)"},
+    "adenosine a2a receptor": {"symbol": "ADORA2A", "uniprot": "P29274", "ensembl": "ENSG00000128271", "name": "Adenosine A2A Receptor (ADORA2A)"},
+    "a1 receptor": {"symbol": "ADORA1", "uniprot": "P30542", "ensembl": "ENSG00000163485", "name": "Adenosine A1 Receptor (ADORA1)"},
+    "a2a receptor": {"symbol": "ADORA2A", "uniprot": "P29274", "ensembl": "ENSG00000128271", "name": "Adenosine A2A Receptor (ADORA2A)"},
+    "adenosine receptor (adora1 / adora2a)": {"symbol": "ADORA1", "uniprot": "P30542", "ensembl": "ENSG00000163485", "name": "Adenosine Receptor (ADORA1 / ADORA2A)"},
+    "adenosine receptor": {"symbol": "ADORA1", "uniprot": "P30542", "ensembl": "ENSG00000163485", "name": "Adenosine Receptor (ADORA1)"},
+    "xanthine dehydrogenase / oxidase (xdh / xo)": {"symbol": "XDH", "uniprot": "P47989", "ensembl": "ENSG00000158125", "name": "Xanthine Dehydrogenase / Oxidase (XDH / XO)"},
+    "transient receptor potential vanilloid 1 (trpv1)": {"symbol": "TRPV1", "uniprot": "Q8NER1", "ensembl": "ENSG00000196689", "name": "Transient Receptor Potential Vanilloid 1 (TRPV1)"},
+    "catechol-o-methyltransferase (comt)": {"symbol": "COMT", "uniprot": "P21964", "ensembl": "ENSG00000093010", "name": "Catechol-O-Methyltransferase (COMT)"},
+
+    "gaba-a": {"symbol": "GABRA1", "uniprot": "P14867", "ensembl": "ENSG00000022355", "name": "GABA-A Receptor Alpha-1 (GABRA1)"},
+    "glutamate": {"symbol": "GRIN1", "uniprot": "Q05586", "ensembl": "ENSG00000176884", "name": "NMDA Glutamate Receptor Subunit 1 (GRIN1)"},
+    # Nootropics & Research Chemical Targets
+    "gria1": {"symbol": "GRIA1", "uniprot": "P42261", "ensembl": "ENSG00000120251", "name": "Glutamate Ionotropic Receptor AMPA Type Subunit 1 (GRIA1 / AMPA)"},
+    "ampa": {"symbol": "GRIA1", "uniprot": "P42261", "ensembl": "ENSG00000120251", "name": "Glutamate Ionotropic Receptor AMPA Type Subunit 1 (GRIA1 / AMPA)"},
+    "ampa receptor": {"symbol": "GRIA1", "uniprot": "P42261", "ensembl": "ENSG00000120251", "name": "Glutamate Ionotropic Receptor AMPA Type Subunit 1 (GRIA1 / AMPA)"},
+    "ampakine": {"symbol": "GRIA1", "uniprot": "P42261", "ensembl": "ENSG00000120251", "name": "Glutamate Ionotropic Receptor AMPA Type Subunit 1 (GRIA1 / AMPA)"},
+    "grin1": {"symbol": "GRIN1", "uniprot": "Q05586", "ensembl": "ENSG00000176884", "name": "NMDA Glutamate Receptor Subunit 1 (GRIN1 / NMDA)"},
+    "nmda": {"symbol": "GRIN1", "uniprot": "Q05586", "ensembl": "ENSG00000176884", "name": "NMDA Glutamate Receptor Subunit 1 (GRIN1 / NMDA)"},
+    "nmda receptor": {"symbol": "GRIN1", "uniprot": "Q05586", "ensembl": "ENSG00000176884", "name": "NMDA Glutamate Receptor Subunit 1 (GRIN1 / NMDA)"},
+    "ntrk2": {"symbol": "NTRK2", "uniprot": "Q16620", "ensembl": "ENSG00000148053", "name": "Neurotrophic Receptor Tyrosine Kinase 2 (TrkB / NTRK2 / BDNF Receptor)"},
+    "trkb": {"symbol": "NTRK2", "uniprot": "Q16620", "ensembl": "ENSG00000148053", "name": "Neurotrophic Receptor Tyrosine Kinase 2 (TrkB / NTRK2 / BDNF Receptor)"},
+    "bdnf receptor": {"symbol": "NTRK2", "uniprot": "Q16620", "ensembl": "ENSG00000148053", "name": "Neurotrophic Receptor Tyrosine Kinase 2 (TrkB / NTRK2 / BDNF Receptor)"},
+    "ntrk1": {"symbol": "NTRK1", "uniprot": "P04629", "ensembl": "ENSG00000198400", "name": "Neurotrophic Receptor Tyrosine Kinase 1 (TrkA / NTRK1 / NGF Receptor)"},
+    "trka": {"symbol": "NTRK1", "uniprot": "P04629", "ensembl": "ENSG00000198400", "name": "Neurotrophic Receptor Tyrosine Kinase 1 (TrkA / NTRK1 / NGF Receptor)"},
+    "met": {"symbol": "MET", "uniprot": "P08581", "ensembl": "ENSG00000105976", "name": "Hepatocyte Growth Factor Receptor (MET / c-Met)"},
+    "hgf receptor": {"symbol": "MET", "uniprot": "P08581", "ensembl": "ENSG00000105976", "name": "Hepatocyte Growth Factor Receptor (MET / c-Met)"},
+    "c-met": {"symbol": "MET", "uniprot": "P08581", "ensembl": "ENSG00000105976", "name": "Hepatocyte Growth Factor Receptor (MET / c-Met)"},
+    "slc6a3": {"symbol": "SLC6A3", "uniprot": "Q01959", "ensembl": "ENSG00000142319", "name": "Dopamine Transporter (DAT / SLC6A3)"},
+    "dat": {"symbol": "SLC6A3", "uniprot": "Q01959", "ensembl": "ENSG00000142319", "name": "Dopamine Transporter (DAT / SLC6A3)"},
+    "dopamine transporter": {"symbol": "SLC6A3", "uniprot": "Q01959", "ensembl": "ENSG00000142319", "name": "Dopamine Transporter (DAT / SLC6A3)"},
+    "slc6a2": {"symbol": "SLC6A2", "uniprot": "P23975", "ensembl": "ENSG00000103511", "name": "Norepinephrine Transporter (NET / SLC6A2)"},
+    "net": {"symbol": "SLC6A2", "uniprot": "P23975", "ensembl": "ENSG00000103511", "name": "Norepinephrine Transporter (NET / SLC6A2)"},
+    "th": {"symbol": "TH", "uniprot": "P07101", "ensembl": "ENSG00000180176", "name": "Tyrosine Hydroxylase (TH)"},
+    "tyrosine hydroxylase": {"symbol": "TH", "uniprot": "P07101", "ensembl": "ENSG00000180176", "name": "Tyrosine Hydroxylase (TH)"},
+    "chrna7": {"symbol": "CHRNA7", "uniprot": "P36544", "ensembl": "ENSG00000175344", "name": "Neuronal Acetylcholine Receptor Subunit Alpha-7 (CHRNA7)"},
+    "alpha-7 nachr": {"symbol": "CHRNA7", "uniprot": "P36544", "ensembl": "ENSG00000175344", "name": "Neuronal Acetylcholine Receptor Subunit Alpha-7 (CHRNA7)"},
+    "sigmar1": {"symbol": "SIGMAR1", "uniprot": "Q99720", "ensembl": "ENSG00000147955", "name": "Sigma Non-Opioid Intracellular Receptor 1 (SIGMAR1)"},
+    "sigma-1": {"symbol": "SIGMAR1", "uniprot": "Q99720", "ensembl": "ENSG00000147955", "name": "Sigma Non-Opioid Intracellular Receptor 1 (SIGMAR1)"},
+    "sigma-1 receptor": {"symbol": "SIGMAR1", "uniprot": "Q99720", "ensembl": "ENSG00000147955", "name": "Sigma Non-Opioid Intracellular Receptor 1 (SIGMAR1)"},
+    "gabbr1": {"symbol": "GABBR1", "uniprot": "Q92540", "ensembl": "ENSG00000204688", "name": "GABA-B Receptor Subunit 1 (GABBR1)"},
+    "gaba-b": {"symbol": "GABBR1", "uniprot": "Q92540", "ensembl": "ENSG00000204688", "name": "GABA-B Receptor Subunit 1 (GABBR1)"},
+    "slc5a7": {"symbol": "SLC5A7", "uniprot": "Q9GZV3", "ensembl": "ENSG00000122863", "name": "High-Affinity Choline Transporter 1 (SLC5A7 / CHT1 / HACU)"},
+    "hacu": {"symbol": "SLC5A7", "uniprot": "Q9GZV3", "ensembl": "ENSG00000122863", "name": "High-Affinity Choline Transporter 1 (SLC5A7 / CHT1 / HACU)"},
+    "pgr": {"symbol": "PGR", "uniprot": "P06401", "ensembl": "ENSG00000082175", "name": "Progesterone Receptor (PGR / NR3C3)"},
+    "progesterone receptor": {"symbol": "PGR", "uniprot": "P06401", "ensembl": "ENSG00000082175", "name": "Progesterone Receptor (PGR / NR3C3)"},
+    "nr3c1": {"symbol": "NR3C1", "uniprot": "P04150", "ensembl": "ENSG00000113580", "name": "Glucocorticoid Receptor (NR3C1)"},
+    "glucocorticoid receptor": {"symbol": "NR3C1", "uniprot": "P04150", "ensembl": "ENSG00000113580", "name": "Glucocorticoid Receptor (NR3C1)"},
+    "ache": {"symbol": "ACHE", "uniprot": "P22303", "ensembl": "ENSG00000087088", "name": "Acetylcholinesterase (ACHE)"},
+    "acetylcholinesterase": {"symbol": "ACHE", "uniprot": "P22303", "ensembl": "ENSG00000087088", "name": "Acetylcholinesterase (ACHE)"},
+    "acetylcholinesterase (ache)": {"symbol": "ACHE", "uniprot": "P22303", "ensembl": "ENSG00000087088", "name": "Acetylcholinesterase (ACHE)"},
+    "sirt1": {"symbol": "SIRT1", "uniprot": "Q96EB6", "ensembl": "ENSG00000096717", "name": "Sirtuin 1 (SIRT1)"},
+    "sirt3": {"symbol": "SIRT3", "uniprot": "Q9NTG7", "ensembl": "ENSG00000149311", "name": "Sirtuin 3 (SIRT3 / Mitochondrial)"},
+    "cd38": {"symbol": "CD38", "uniprot": "P28907", "ensembl": "ENSG00000004468", "name": "CD38 NAD+ Hydrolase (CD38)"},
+    "mtor": {"symbol": "MTOR", "uniprot": "P42345", "ensembl": "ENSG00000198625", "name": "Mechanistic Target of Rapamycin Complex 1 (mTOR / MTORC1)"},
+    "mtorc1": {"symbol": "MTOR", "uniprot": "P42345", "ensembl": "ENSG00000198625", "name": "Mechanistic Target of Rapamycin Complex 1 (mTOR / MTORC1)"},
+    "shbg": {"symbol": "SHBG", "uniprot": "P04278", "ensembl": "ENSG00000129214", "name": "Sex Hormone-Binding Globulin (SHBG)"},
+    "prkaa1": {"symbol": "PRKAA1", "uniprot": "Q13131", "ensembl": "ENSG00000132356", "name": "AMP-Activated Protein Kinase (AMPK / PRKAA1)"},
+    "ampk": {"symbol": "PRKAA1", "uniprot": "Q13131", "ensembl": "ENSG00000132356", "name": "AMP-Activated Protein Kinase (AMPK)"},
+    "cpt1a": {"symbol": "CPT1A", "uniprot": "P50416", "ensembl": "ENSG00000110090", "name": "Carnitine Palmitoyltransferase 1A (CPT1A)"},
+    "nos3": {"symbol": "NOS3", "uniprot": "P29474", "ensembl": "ENSG00000164867", "name": "Endothelial Nitric Oxide Synthase (eNOS / NOS3)"},
+    "enos": {"symbol": "NOS3", "uniprot": "P29474", "ensembl": "ENSG00000164867", "name": "Endothelial Nitric Oxide Synthase (eNOS / NOS3)"},
+    "nfe2l2": {"symbol": "NFE2L2", "uniprot": "Q16236", "ensembl": "ENSG00000116044", "name": "Nuclear Factor Erythroid 2-Related Factor 2 (Nrf2 / NFE2L2)"},
+    "nrf2": {"symbol": "NFE2L2", "uniprot": "Q16236", "ensembl": "ENSG00000116044", "name": "Nuclear Factor Erythroid 2-Related Factor 2 (Nrf2 / NFE2L2)"},
+    "gclc": {"symbol": "GCLC", "uniprot": "P48506", "ensembl": "ENSG00000001084", "name": "Glutamate-Cysteine Ligase Catalytic Subunit (GCLC)"},
+    "nfkb1": {"symbol": "NFKB1", "uniprot": "P19838", "ensembl": "ENSG00000109320", "name": "Nuclear Factor NF-Kappa-B p105 Subunit (NFKB1)"},
+    "ngf": {"symbol": "NGF", "uniprot": "P01138", "ensembl": "ENSG00000134259", "name": "Nerve Growth Factor (NGF)"},
+    "bdnf": {"symbol": "BDNF", "uniprot": "P23560", "ensembl": "ENSG00000176697", "name": "Brain-Derived Neurotrophic Factor (BDNF)"},
+    "gria2": {"symbol": "GRIA2", "uniprot": "P42262", "ensembl": "ENSG00000120251", "name": "Glutamate Ionotropic Receptor AMPA Type Subunit 2 (GRIA2)"},
+    "actb": {"symbol": "ACTB", "uniprot": "P60709", "ensembl": "ENSG00000075624", "name": "Actin Beta (ACTB / Cytoskeleton)"},
+    "fkbp1a": {"symbol": "FKBP1A", "uniprot": "P62942", "ensembl": "ENSG00000088832", "name": "FKBP12 Prolyl Isomerase (FKBP1A)"},
 }
+
 
 # Backward compatibility alias
 TARGET_REFERENCE_MAP = INITIAL_TARGET_SEED_METADATA
@@ -100,7 +176,7 @@ class PathwayService:
     """
 
     def __init__(self, db_path: Optional[str] = None):
-        self.db_path = db_path or os.environ.get("COMPOUNDS_DB_PATH") or DEFAULT_DB_PATH
+        self.db_path = db_path or os.environ.get("HEALTHAI_CATALOG_DB") or os.environ.get("COMPOUNDS_DB_PATH") or DEFAULT_DB_PATH
         self.reactome_base_url = "https://reactome.org/ContentService"
         self.opentargets_graphql_url = "https://api.platform.opentargets.org/api/v4/graphql"
         self.uniprot_search_url = "https://rest.uniprot.org/uniprotkb/search"
@@ -208,6 +284,7 @@ class PathwayService:
                     items,
                 )
                 conn.commit()
+        _PATHWAY_INITIALIZED_DBS.add(self.db_path)
 
     def get_all_target_registries(self) -> List[Dict[str, Any]]:
         """Dynamically load all registered biological targets from SQLite metadata table."""
@@ -246,7 +323,7 @@ class PathwayService:
                     pass
             return cascades
 
-    def resolve_target_metadata(self, target_str: str) -> Dict[str, str]:
+    def resolve_target_metadata(self, target_str: str, allow_online: bool = False) -> Dict[str, str]:
         """Resolves target string to canonical Symbol, UniProt ID, and Ensembl ID dynamically."""
         cleaned = re.sub(r"[^\w\s-]", " ", str(target_str).lower()).strip()
         if not cleaned:
@@ -275,36 +352,37 @@ class PathwayService:
                 _PATHWAY_METADATA_CACHE[cache_key] = meta
                 return copy.deepcopy(meta)
 
-        # 3. Dynamic online lookup via UniProt REST API
         sym = cleaned.upper().replace(" ", "")
         uniprot_id = ""
         ensembl_id = ""
         canonical_name = target_str
 
-        try:
-            with httpx.Client(timeout=4.0, follow_redirects=True) as client:
-                # Query UniProt for Human protein
-                query_str = f"gene_exact:{sym} AND organism_id:9606"
-                resp = client.get(self.uniprot_search_url, params={"query": query_str, "format": "json", "size": 1})
-                if resp.status_code == 200:
-                    data = resp.json()
-                    results = data.get("results", [])
-                    if results:
-                        u_entry = results[0]
-                        uniprot_id = u_entry.get("primaryAccession", "")
-                        prot_desc = u_entry.get("proteinDescription", {}).get("recommendedName", {}).get("fullName", {}).get("value", "")
-                        if prot_desc:
-                            canonical_name = f"{prot_desc} ({sym})"
+        # 3. Dynamic online lookup via UniProt REST API (only if online allowed)
+        if allow_online:
+            try:
+                with httpx.Client(timeout=0.6, follow_redirects=True) as client:
+                    # Query UniProt for Human protein
+                    query_str = f"gene_exact:{sym} AND organism_id:9606"
+                    resp = client.get(self.uniprot_search_url, params={"query": query_str, "format": "json", "size": 1})
+                    if resp.status_code == 200:
+                        data = resp.json()
+                        results = data.get("results", [])
+                        if results:
+                            u_entry = results[0]
+                            uniprot_id = u_entry.get("primaryAccession", "")
+                            prot_desc = u_entry.get("proteinDescription", {}).get("recommendedName", {}).get("fullName", {}).get("value", "")
+                            if prot_desc:
+                                canonical_name = f"{prot_desc} ({sym})"
 
-                # If UniProt found or symbol exists, query Ensembl REST API for Ensembl ID
-                if sym:
-                    ens_resp = client.get(f"{self.ensembl_symbol_url}/{sym}", headers={"Content-Type": "application/json"})
-                    if ens_resp.status_code == 200:
-                        ens_data = ens_resp.json()
-                        if isinstance(ens_data, list) and len(ens_data) > 0:
-                            ensembl_id = ens_data[0].get("id", "")
-        except Exception as e:
-            logger.debug("Online target metadata resolution for %s failed: %s", target_str, e)
+                    # If UniProt found or symbol exists, query Ensembl REST API for Ensembl ID
+                    if sym:
+                        ens_resp = client.get(f"{self.ensembl_symbol_url}/{sym}", headers={"Content-Type": "application/json"})
+                        if ens_resp.status_code == 200:
+                            ens_data = ens_resp.json()
+                            if isinstance(ens_data, list) and len(ens_data) > 0:
+                                ensembl_id = ens_data[0].get("id", "")
+            except Exception as e:
+                logger.debug("Online target metadata resolution for %s failed: %s", target_str, e)
 
         meta = {"symbol": sym, "uniprot": uniprot_id, "ensembl": ensembl_id, "name": canonical_name}
         self._save_cached_metadata(cleaned, sym, uniprot_id, ensembl_id, canonical_name)
@@ -333,7 +411,7 @@ class PathwayService:
             return []
         url = f"{self.reactome_base_url}/data/mapping/UniProt/{uniprot_id}/pathways"
         try:
-            with httpx.Client(timeout=6.0, follow_redirects=True) as client:
+            with httpx.Client(timeout=httpx.Timeout(0.4, connect=0.2), follow_redirects=True) as client:
                 resp = client.get(url, params={"species": "9606"})
                 if resp.status_code == 200:
                     data = resp.json()
@@ -382,7 +460,7 @@ class PathwayService:
         }
         """
         try:
-            with httpx.Client(timeout=6.0, follow_redirects=True) as client:
+            with httpx.Client(timeout=httpx.Timeout(0.4, connect=0.2), follow_redirects=True) as client:
                 resp = client.post(self.opentargets_graphql_url, json={"query": query, "variables": {"ensemblId": ensembl_id}})
                 if resp.status_code == 200:
                     data = resp.json().get("data", {}).get("target", {})
@@ -410,7 +488,13 @@ class PathwayService:
             logger.debug("Open Targets phenotype lookup failed for %s: %s", ensembl_id, e)
         return []
 
-    def get_dynamic_target_cascade(self, target_node_id: str, target_attrs: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
+
+    def get_target_cascade(self, target_node_id: str, target_attrs: Optional[Dict[str, Any]] = None, allow_online: bool = False) -> Dict[str, Any]:
+        """Convenience alias for get_dynamic_target_cascade."""
+        return self.get_dynamic_target_cascade(target_node_id, target_attrs, allow_online=allow_online)
+
+    def get_dynamic_target_cascade(self, target_node_id: str, target_attrs: Optional[Dict[str, Any]] = None, allow_online: bool = False) -> Dict[str, Any]:
+
         """
         Retrieves complete multi-tier pathway hierarchy, physiological states,
         biomarkers, and phenotypes for a target node, querying Reactome and Open Targets
@@ -422,7 +506,7 @@ class PathwayService:
 
         target_attrs = target_attrs or {}
         target_name = target_attrs.get("label") or target_attrs.get("name") or target_node_id
-        meta = self.resolve_target_metadata(target_name)
+        meta = self.resolve_target_metadata(target_name, allow_online=allow_online)
         symbol = meta.get("symbol", target_name)
         uniprot_id = meta.get("uniprot", "")
         ensembl_id = meta.get("ensembl", "")
@@ -431,13 +515,13 @@ class PathwayService:
         cached_phenotypes = self._get_cached_phenotypes(target_node_id)
         cached_bridges = self._get_cached_bridges(target_node_id)
 
-        if not cached_pathways and uniprot_id:
+        if not cached_pathways and uniprot_id and allow_online:
             online_pathways = self.fetch_reactome_pathways(uniprot_id)
             if online_pathways:
                 self._save_cached_pathways(target_node_id, symbol, uniprot_id, ensembl_id, online_pathways)
                 cached_pathways = online_pathways
 
-        if not cached_phenotypes and ensembl_id:
+        if not cached_phenotypes and ensembl_id and allow_online:
             online_phenos = self.fetch_opentargets_phenotypes(ensembl_id)
             if online_phenos:
                 self._save_cached_phenotypes(target_node_id, online_phenos)
@@ -456,6 +540,7 @@ class PathwayService:
         cascade = self._assemble_cascade(target_node_id, target_name, meta, cached_pathways, cached_phenotypes, cached_bridges)
         _PATHWAY_CASCADE_CACHE[cache_key] = cascade
         return copy.deepcopy(cascade)
+
 
     def _get_cached_pathways(self, target_id: str) -> List[Dict[str, Any]]:
         with self._connect() as conn:
@@ -885,17 +970,63 @@ class PathwayService:
                 {"id": "pheno_comt_inhibition", "label": "COMT Inhibition & Prolonged Synaptic Dopaminergic Half-Life", "cat": "therapeutic_benefit", "sev": "high", "mag": 0.85},
             ])
 
-        # 18d. Pregnane X Receptor (PXR / NR1I2 / St. John's Wort)
-        elif "pxr" in t_lower or "pregnane x" in t_lower or sym == "NR1I2":
-            organ = "Hepatic / Xenobiotic Clearance"
+        # 18e. AMPA Receptor / Ampakines (GRIA1 / GRIA2 / Positive Allosteric Modulators)
+        elif "ampa" in t_lower or "ampakine" in t_lower or "gria" in t_lower or sym in ("GRIA1", "GRIA2", "GRIA3", "GRIA4"):
+            organ = "Central Nervous System / Glutamatergic"
             biomarkers.extend([
-                {"id": "bio_cyp3a4_activity", "label": "Hepatic & Intestinal CYP3A4 Activity Index", "unit": "index", "panel": "Metabolic Panel", "lower": 50.0, "upper": 150.0, "mag": 0.90},
+                {"id": "bio_synaptic_plasticity", "label": "Synaptic Plasticity & LTP Index", "unit": "index", "panel": "Neurochemical Panel", "lower": 50.0, "upper": 150.0, "mag": 0.90},
+                {"id": "bio_cognitive_efficacy", "label": "Cognitive Processing & Working Memory Index", "unit": "index", "panel": "Neurochemical Panel", "lower": 50.0, "upper": 150.0, "mag": 0.85},
             ])
             pheno_nodes.extend([
-                {"id": "pheno_pxr_induction", "label": "Nuclear PXR Activation & Accelerated Drug Metabolism", "cat": "adverse_effect", "sev": "high", "mag": 0.90},
+                {"id": "pheno_ampa_potentiation", "label": "AMPA-Mediated Synaptic Plasticity & Long-Term Potentiation (LTP)", "cat": "therapeutic_benefit", "sev": "high", "mag": 0.90},
+                {"id": "pheno_glutamate_excitotoxicity_risk", "label": "Glutamatergic Neuroexcitation Risk (High-Dose Excitotoxicity Liability)", "cat": "adverse_effect", "sev": "moderate", "mag": 0.35},
             ])
 
-        # 18e. Xanthine Dehydrogenase / Oxidase (XDH / XO / Tart Cherry Extract)
+        # 18f. Neurotrophin & Growth Factor Receptors (TrkB / NTRK2, TrkA / NTRK1, c-Met / MET)
+        elif "trkb" in t_lower or "trka" in t_lower or "bdnf" in t_lower or "ngf" in t_lower or "hgf" in t_lower or "c-met" in t_lower or sym in ("NTRK2", "NTRK1", "MET", "BDNF", "NGF"):
+            organ = "Central Nervous System / Neurotrophic"
+            biomarkers.extend([
+                {"id": "bio_synaptic_plasticity", "label": "Synaptic Plasticity & LTP Index", "unit": "index", "panel": "Neurochemical Panel", "lower": 50.0, "upper": 150.0, "mag": 0.85},
+                {"id": "bio_neuroprotection", "label": "Neuronal Survival & Neuroprotection Index", "unit": "index", "panel": "Neurochemical Panel", "lower": 50.0, "upper": 150.0, "mag": 0.90},
+            ])
+            pheno_nodes.extend([
+                {"id": "pheno_neurotrophin_induction", "label": "TrkB / BDNF & NGF Signaling Upregulation & Synaptogenesis", "cat": "therapeutic_benefit", "sev": "high", "mag": 0.90},
+            ])
+
+        # 18g. Dopaminergic Monoaminergic Transmission (DAT / SLC6A3, Tyrosine Hydroxylase / TH, Sigma-1)
+        elif "dat" in t_lower or "tyrosine hydroxylase" in t_lower or "sigma-1" in t_lower or sym in ("SLC6A3", "TH", "SIGMAR1", "SLC6A2"):
+            organ = "Central Nervous System / Dopaminergic"
+            biomarkers.extend([
+                {"id": "bio_dopamine_tone", "label": "Striatal & Prefrontal Dopaminergic Tone", "unit": "index", "panel": "Neurochemical Panel", "lower": 50.0, "upper": 150.0, "mag": 0.85},
+                {"id": "bio_cognitive_efficacy", "label": "Cognitive Processing & Working Memory Index", "unit": "index", "panel": "Neurochemical Panel", "lower": 50.0, "upper": 150.0, "mag": 0.75},
+            ])
+            pheno_nodes.extend([
+                {"id": "pheno_dopaminergic_transmission", "label": "Enhanced Dopamine Reuptake Inhibition & De Novo Synthesis", "cat": "therapeutic_benefit", "sev": "high", "mag": 0.85},
+            ])
+
+        # 18h. Growth Hormone Secretagogue Receptor (GHSR / Ghrelin Receptor / MK-677)
+        elif "ghsr" in t_lower or "ghrelin" in t_lower or sym == "GHSR":
+            organ = "Endocrine / Pituitary"
+            biomarkers.extend([
+                {"id": "bio_growth_hormone", "label": "Serum Growth Hormone (GH)", "unit": "ng/mL", "panel": "Endocrine Panel", "lower": 0.5, "upper": 5.0, "mag": 0.85},
+                {"id": "bio_igf1", "label": "Insulin-Like Growth Factor 1 (IGF-1)", "unit": "ng/mL", "panel": "Endocrine Panel", "lower": 100.0, "upper": 300.0, "mag": 0.80},
+                {"id": "bio_glucose", "label": "Fasting Blood Glucose", "unit": "mg/dL", "panel": "Metabolic Panel", "lower": 70.0, "upper": 100.0, "mag": 0.35},
+            ])
+            pheno_nodes.extend([
+                {"id": "pheno_gh_pulsatility", "label": "Pulsatile Pituitary Growth Hormone & Hepatic IGF-1 Secretion", "cat": "therapeutic_benefit", "sev": "high", "mag": 0.90},
+            ])
+
+        # 18i. Progesterone Receptor & Glucocorticoid Receptor (PGR / NR3C1)
+        elif "progesterone" in t_lower or "pgr" in t_lower or "glucocorticoid" in t_lower or sym in ("PGR", "NR3C1"):
+            organ = "Endocrine / Nuclear Receptor"
+            biomarkers.extend([
+                {"id": "bio_prolactin", "label": "Serum Prolactin", "unit": "ng/mL", "panel": "Endocrine Panel", "lower": 2.0, "upper": 18.0, "mag": 0.65},
+            ])
+            pheno_nodes.extend([
+                {"id": "pheno_progestin_activity", "label": "Nuclear Progestogenic Signaling & Prolactinemia Risk", "cat": "adverse_effect", "sev": "moderate", "mag": 0.60},
+            ])
+
+        # 18j. Xanthine Dehydrogenase / Oxidase (XDH / XO / Tart Cherry Extract)
         elif "xanthine" in t_lower or "xdh" in t_lower or "uric acid" in t_lower or sym == "XDH":
             organ = "Purine Metabolism / Joints"
             biomarkers.extend([

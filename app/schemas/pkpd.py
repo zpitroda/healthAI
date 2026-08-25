@@ -1,7 +1,42 @@
 from __future__ import annotations
 
+from enum import Enum
 from typing import Any, Dict, List, Optional
 from pydantic import BaseModel, Field, ConfigDict
+
+
+class EvidenceTier(str, Enum):
+    REGULATORY_HUMAN_CLINICAL = "regulatory_human_clinical"
+    EXPLORATORY_HUMAN_PILOT = "exploratory_human_pilot"
+    ANIMAL_IN_VIVO = "animal_in_vivo"
+    IN_VITRO_ASSAY = "in_vitro_assay"
+    IN_SILICO_QSAR = "in_silico_qsar"
+    COMMUNITY_REPORTED = "community_reported"
+    IN_VITRO_AND_ALLOMETRIC_EXTRAPOLATION = "in_vitro_and_allometric_extrapolation"
+
+
+class CompoundDataLimitations(BaseModel):
+    model_config = ConfigDict(extra="ignore")
+
+    has_human_trials: bool = Field(default=False, description="Whether compound has completed FDA/EMA human clinical trials")
+    has_human_pk: bool = Field(default=False, description="Whether human pharmacokinetic parameters (Tmax, Cmax, Vd, Cl) are clinically validated")
+    has_chronic_toxicity_studies: bool = Field(default=False, description="Whether long-term human or GLP toxicology data exists")
+    has_cyp_metabolite_mapping: bool = Field(default=False, description="Whether hepatic/renal metabolic degradation pathways are fully mapped")
+    known_limitations: List[str] = Field(default_factory=list, description="Explicit disclosures detailing data gaps and uncharacterized safety bounds")
+
+
+class AllometricExtrapolation(BaseModel):
+    model_config = ConfigDict(extra="ignore")
+
+    animal_species: str = Field(default="rat", description="Preclinical model species (mouse, rat, guinea_pig, dog, monkey)")
+    animal_dose_mg_kg: float = Field(..., description="Experimental preclinical animal dose in mg/kg")
+    km_animal: float = Field(default=6.0, description="Species-specific Body Surface Area normalization factor Km")
+    km_human: float = Field(default=37.0, description="Standard human Body Surface Area normalization factor Km (37)")
+    hed_mg_kg: float = Field(..., description="Calculated raw Human Equivalent Dose in mg/kg (no arbitrary buffer)")
+    human_weight_kg: float = Field(default=70.0, description="Human subject body weight in kg")
+    total_human_dose_mg: float = Field(..., description="Calculated total human dose in mg for specified body weight")
+    calculation_method: str = Field(default="FDA Reagan-Shaw Body Surface Area Allometric Scaling", description="Mathematical formula specification")
+    is_human_validated: bool = Field(default=False, description="Flag denoting whether this dose is validated in human clinical trials")
 
 
 class QuantitativeTargetAffinity(BaseModel):
@@ -115,6 +150,34 @@ class PKPDSimulationRequest(BaseModel):
     egfr_ml_min: Optional[float] = Field(default=None, description="Patient eGFR for renal clearance scaling (auto-calculated from age/sex/weight/creatinine if None)")
     alt_u_l: Optional[float] = Field(default=25.0, description="Patient ALT for hepatic clearance scaling")
     serum_albumin_g_dl: Optional[float] = Field(default=4.5, description="Patient serum albumin for protein binding scaling")
+    circadian_dosing_time_h: Optional[float] = Field(default=8.0, ge=0.0, le=24.0, description="Hour of day for administration (0-24, default 8.0 = 8 AM)")
+    enable_pbpk_tissues: bool = Field(default=True, description="Enable Rodgers-Rowland whole-body PBPK tissue partitioning")
+    enable_receptor_tolerance: bool = Field(default=True, description="Enable dynamic receptor desensitization and internalization ODE")
+    cyp2d6_phenotype: Optional[str] = Field(default=None, description="Patient CYP2D6 metabolizer phenotype (e.g. poor_metabolizer, ultrarapid_metabolizer)")
+    cyp2c19_phenotype: Optional[str] = Field(default=None, description="Patient CYP2C19 metabolizer phenotype")
+    cyp3a4_phenotype: Optional[str] = Field(default=None, description="Patient CYP3A4 activity status")
+    slco1b1_genotype: Optional[str] = Field(default=None, description="Patient SLCO1B1 genotype (e.g. *1/*5, *5/*5)")
+    comt_phenotype: Optional[str] = Field(default=None, description="Patient COMT Val158Met phenotype (val_val, met_met)")
+
+
+class TissuePartitionCoefficients(BaseModel):
+    model_config = ConfigDict(extra="ignore")
+
+    kp_brain: float = Field(default=1.0, description="Brain-to-plasma partition coefficient Kp,brain (adjusted for BBB permeability & efflux)")
+    kp_liver: float = Field(default=1.0, description="Liver-to-plasma partition coefficient Kp,liver")
+    kp_kidney: float = Field(default=1.0, description="Kidney-to-plasma partition coefficient Kp,kidney")
+    kp_muscle: float = Field(default=1.0, description="Muscle/lean tissue partition coefficient Kp,muscle")
+    kp_adipose: float = Field(default=1.0, description="Adipose/fat tissue partition coefficient Kp,adipose")
+    method: str = Field(default="Rodgers-Rowland / Poulin-Theil Biophysical Equation")
+
+
+class LysosomalTrappingInfo(BaseModel):
+    model_config = ConfigDict(extra="ignore")
+
+    pka: Optional[float] = Field(default=None, description="Compound basic pKa")
+    is_lysosomotropic: bool = Field(default=False, description="Whether compound exhibits significant lysosomal ion-trapping")
+    lysosomal_accumulation_ratio: float = Field(default=1.0, description="Lysosome-to-cytosol accumulation ratio R_lyso via Henderson-Hasselbalch")
+    cytosolic_free_fraction_pct: float = Field(default=100.0, description="Percentage of intracellular drug residing freely in cytosol for target engagement")
 
 
 class DistributionPercentiles(BaseModel):
@@ -135,6 +198,15 @@ class TimePoint(BaseModel):
     c_tissue_ng_ml: Optional[float] = Field(default=None, description="Peripheral compartment concentration for 2-compartment open models")
     cl_instantaneous_l_h: Optional[float] = Field(default=None, description="Instantaneous dynamic clearance at time t (L/h)")
     inhibitor_conc_ng_ml: Optional[float] = Field(default=None, description="Continuous inhibitor concentration I(t) modulating clearance")
+    # PBPK Tissue Concentrations (ng/mL or ng/g)
+    c_brain_ng_ml: Optional[float] = Field(default=None, description="Brain interstitial/tissue concentration (ng/mL)")
+    c_liver_ng_ml: Optional[float] = Field(default=None, description="Liver hepatocyte tissue concentration (ng/mL)")
+    c_kidney_ng_ml: Optional[float] = Field(default=None, description="Kidney tissue concentration (ng/mL)")
+    c_muscle_ng_ml: Optional[float] = Field(default=None, description="Muscle lean tissue concentration (ng/mL)")
+    c_adipose_ng_ml: Optional[float] = Field(default=None, description="Adipose fat tissue concentration (ng/mL)")
+    # Biophysical State Variables
+    active_enzyme_fraction_pct: Optional[float] = Field(default=None, description="Relative functional enzyme activity E(t)/E0 (%)")
+    surface_receptor_density_pct: Optional[float] = Field(default=None, description="Relative surface receptor density R_surf(t)/R0 (%) reflecting tolerance")
     # Distribution curve percentiles for concentration at time t
     c_plasma_distribution: Optional[DistributionPercentiles] = Field(default=None, description="Population probability distribution percentiles for C(t)")
     effect_distribution: Optional[DistributionPercentiles] = Field(default=None, description="Population probability distribution percentiles for Effect E(t)")
@@ -176,6 +248,12 @@ class PKPDSimulationResponse(BaseModel):
     elimination_half_life_effective_h: float
     total_clearance_l_h: float
 
+    # PBPK Tissue Partitioning & Lysosomal Trapping
+    tissue_partition_coefficients: Optional[TissuePartitionCoefficients] = Field(default=None, description="Rodgers-Rowland PBPK tissue partition coefficients Kp")
+    lysosomal_trapping: Optional[LysosomalTrappingInfo] = Field(default=None, description="Henderson-Hasselbalch lysosomal ion-trapping profile")
+    tachyphylaxis_tolerance_active: bool = Field(default=False, description="Whether receptor desensitization and tolerance ODE was simulated")
+    circadian_rhythm_active: bool = Field(default=False, description="Whether diurnal circadian clearance oscillation was simulated")
+
     # Population Inter-Individual Variability Distribution Curves
     c_max_distribution: MetricDistribution = Field(..., description="Population distribution curve for Cmax")
     c_avg_distribution: MetricDistribution = Field(..., description="Population distribution curve for Cavg")
@@ -205,3 +283,9 @@ class PKPDSimulationResponse(BaseModel):
     # Pharmacodynamic Hill Curve Points for Visualization
     pd_curve_concentrations: List[float]
     pd_curve_effects: List[float]
+
+    # Evidence Tier & Preclinical Data Disclosures
+    evidence_tier: Optional[str] = Field(default="regulatory_human_clinical", description="Empirical evidence tier (clinical, pilot, animal, in vitro, allometric)")
+    human_data_present: bool = Field(default=True, description="Whether human clinical trial data exists")
+    data_limitations: Optional[CompoundDataLimitations] = Field(default=None, description="Explicit disclosures of uncharacterized parameters and data gaps")
+    allometric_extrapolation: Optional[AllometricExtrapolation] = Field(default=None, description="Preclinical-to-human allometric scaling parameters if extrapolated")

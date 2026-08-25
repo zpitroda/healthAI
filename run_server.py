@@ -32,7 +32,19 @@ def main() -> None:
     parser.add_argument("--open-browser", action="store_true", help="Automatically open the dashboard in your default browser")
     args = parser.parse_args()
 
-    url = f"http://{args.host}:{args.port}"
+    # Probe port availability and fallback if occupied
+    import socket
+    target_port = args.port
+    for p in [target_port, 8001, 8002, 8088]:
+        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+            try:
+                s.bind((args.host, p))
+                target_port = p
+                break
+            except OSError:
+                continue
+
+    url = f"http://{args.host}:{target_port}"
     print("=" * 60)
     print("  [healthAI] Pharmacology Lab & Protocol Engine")
     print(f"  * Dashboard:        {url}")
@@ -54,7 +66,7 @@ def main() -> None:
     uvicorn.run(
         "app.main:app",
         host=args.host,
-        port=args.port,
+        port=target_port,
         reload=args.reload,
         app_dir=str(BASE_DIR),
     )

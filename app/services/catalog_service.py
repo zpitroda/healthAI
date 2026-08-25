@@ -8,8 +8,6 @@ import re
 import sqlite3
 from typing import Any, Dict, List, Optional, Set, Tuple
 
-from app.data.compounds import COMPOUND_LIBRARY
-
 DEFAULT_CATALOG_DB_PATH = str(Path(__file__).resolve().parent.parent.parent / "healthai_catalog.db")
 
 
@@ -386,6 +384,27 @@ CORE_SUPPLEMENT_LIBRARY: Dict[str, Dict[str, Any]] = {
             {"target": "Glucagon Receptor (GCGR)", "action": "agonist", "family": "GPCR Class B", "affinity_ki": 0.58},
         ],
     },
+    "nebivolol": {
+        "name": "Nebivolol",
+        "canonical_name": "Nebivolol (Bystolic)",
+        "synonyms": ["bystolic", "nebilet", "nebivololum", "nebivololhcl"],
+        "drug_class": "Third-Generation Beta-1 Selective Blocker (eNOS Vasodilating)",
+        "categories": ["Cardiovascular Agent", "Beta Blocker", "Antihypertensive", "Vasodilator"],
+        "molecular_weight": 405.44,
+        "logp": 4.1,
+        "oral_bioavailability": 0.12,
+        "half_life": "10-12 hours (Extensive Metabolizers) / 19-30 hours (Poor Metabolizers)",
+        "t_half_numeric": 12.0,
+        "volume_of_distribution": 10.5,
+        "protein_binding": 98.0,
+        "mechanism": "Highly selective competitive beta-1 adrenergic receptor antagonist combined with d-enantiomer mediated endothelial nitric oxide synthase (eNOS / NOS3) activation and beta-3 adrenergic agonism, producing systemic peripheral vasodilation with minimal bronchoconstrictive or inotropic depression.",
+        "receptor_targets": [
+            {"target": "Beta-1 Adrenergic Receptor (ADRB1)", "action": "antagonist", "family": "GPCR / Adrenergic", "affinity_ki": 0.9, "gene_symbol": "ADRB1"},
+            {"target": "Endothelial Nitric Oxide Synthase (eNOS / NOS3)", "action": "activator", "family": "Endothelial Vasodilation", "gene_symbol": "NOS3"},
+            {"target": "Beta-3 Adrenergic Receptor (ADRB3)", "action": "agonist", "family": "GPCR / Adrenergic", "affinity_ki": 25.0, "gene_symbol": "ADRB3"}
+        ],
+        "cyp_enzymes": {"substrates": ["CYP2D6", "CYP3A4"], "inhibitors": ["CYP2D6"], "inducers": []},
+    },
     "quercetin": {
         "name": "Quercetin",
         "canonical_name": "Quercetin",
@@ -611,6 +630,249 @@ CORE_SUPPLEMENT_LIBRARY: Dict[str, Dict[str, Any]] = {
             {"target": "NF-κB & Pro-Inflammatory Cytokines (NFKB1 / PTGS2)", "action": "inhibitor", "family": "Inflammatory Signaling"}
         ],
     },
+    "alpha_gpc": {
+        "name": "Alpha-GPC",
+        "canonical_name": "Alpha-GPC (L-Alpha Glycerylphosphorylcholine / Choline Alfoscerate)",
+        "synonyms": ["alphagpc", "alpha_gpc", "cholinealfoscerate", "lalphagpc", "gpc", "alfoscerate"],
+        "drug_class": "Dietary Supplement / Cholinergic Nootropic",
+        "categories": ["Dietary Supplement", "Nootropic", "Cognitive Support", "Cholinergic"],
+        "molecular_weight": 257.22,
+        "logp": -2.8,
+        "oral_bioavailability": 0.85,
+        "volume_of_distribution": 0.9,
+        "protein_binding": 10.0,
+        "mechanism": "Rapidly crosses the blood-brain barrier to deliver bioavailable free choline, accelerating central acetylcholine (ACh) neurotransmitter synthesis and supporting membrane phosphatidylcholine reserves.",
+        "receptor_targets": [
+            {"target": "Muscarinic Acetylcholine Receptor (CHRM1 / CHRM2)", "action": "agonist", "family": "GPCR / Cholinergic", "gene_symbol": "CHRM1"},
+            {"target": "Neuronal Nicotinic Acetylcholine Receptor (CHRNA7 / CHRNB2)", "action": "agonist", "family": "Ion Channel / Cholinergic", "gene_symbol": "CHRNA7"}
+        ],
+    },
+    "huperzine_a": {
+        "name": "Huperzine A",
+        "canonical_name": "Huperzine A (Huperzia serrata Extract)",
+        "synonyms": ["huperzinea", "huperzine", "selagine", "huperziaserrata"],
+        "drug_class": "Dietary Supplement / Acetylcholinesterase Inhibitor",
+        "categories": ["Dietary Supplement", "Nootropic", "AChE Inhibitor", "Neuroprotective"],
+        "molecular_weight": 242.32,
+        "logp": 1.4,
+        "oral_bioavailability": 0.95,
+        "half_life": "10-14 hours",
+        "t_half_numeric": 12.0,
+        "volume_of_distribution": 2.5,
+        "protein_binding": 40.0,
+        "mechanism": "Potent, highly selective, reversible, and centrally active inhibitor of acetylcholinesterase (AChE), preventing acetylcholine hydrolysis and enhancing synaptic cholinergic neurotransmission.",
+        "receptor_targets": [
+            {"target": "Acetylcholinesterase (ACHE)", "action": "inhibitor", "family": "Enzyme / Cholinergic", "gene_symbol": "ACHE"},
+            {"target": "Glutamate Receptor (GRIN1 / NMDA)", "action": "antagonist", "family": "Ion Channel / Glutamate", "gene_symbol": "GRIN1"}
+        ],
+    },
+    "ashwagandha": {
+        "name": "Ashwagandha",
+        "canonical_name": "Ashwagandha (Withania somnifera / KSM-66 / Sensoril)",
+        "synonyms": ["ashwagandha", "ksm66", "sensoril", "withaniasomnifera", "withanolides"],
+        "drug_class": "Dietary Supplement / Botanical Adaptogen",
+        "categories": ["Dietary Supplement", "Adaptogen", "Anxiolytic", "Endocrine Support"],
+        "molecular_weight": 470.60,
+        "logp": 2.3,
+        "oral_bioavailability": 0.35,
+        "volume_of_distribution": 1.8,
+        "protein_binding": 65.0,
+        "mechanism": "Withanolide glycosides modulate hypothalamic-pituitary-adrenal (HPA) axis feedback, reducing serum cortisol and activating central GABA-A receptor signaling.",
+        "receptor_targets": [
+            {"target": "GABA-A Receptor (GABRA1 / GABRA2)", "action": "agonist", "family": "Ion Channel / Neurotransmitter", "gene_symbol": "GABRA1"},
+            {"target": "Glucocorticoid Receptor (GR / NR3C1 / Cortisol Regulation)", "action": "modulator", "family": "Nuclear Receptor", "gene_symbol": "NR3C1"}
+        ],
+    },
+    "l_tyrosine": {
+        "name": "L-Tyrosine",
+        "canonical_name": "L-Tyrosine",
+        "synonyms": ["ltyrosine", "tyrosine", "nalt", "nacetyltyrosine"],
+        "drug_class": "Dietary Supplement / Catecholamine Amino Acid Precursor",
+        "categories": ["Dietary Supplement", "Nootropic", "Neurotransmitter Precursor", "Focus"],
+        "molecular_weight": 181.19,
+        "logp": -2.3,
+        "oral_bioavailability": 0.90,
+        "volume_of_distribution": 0.8,
+        "protein_binding": 15.0,
+        "mechanism": "Rate-limiting substrate precursor for tyrosine hydroxylase (TH), driving dopamine, norepinephrine, and epinephrine synthesis under acute environmental and cognitive stress.",
+        "receptor_targets": [
+            {"target": "Tyrosine Hydroxylase & Catecholamine Synthesis (TH / SLC6A3)", "action": "substrate", "family": "Neurotransmitter Biosynthesis", "gene_symbol": "TH"}
+        ],
+    },
+    "nmn": {
+        "name": "Nicotinamide Mononucleotide (NMN)",
+        "canonical_name": "Nicotinamide Mononucleotide",
+        "synonyms": ["nmn", "nicotinamidemononucleotide", "beta_nmn"],
+        "drug_class": "Dietary Supplement / NAD+ Precursor",
+        "categories": ["Dietary Supplement", "Longevity", "NAD+ Booster", "Mitochondrial Support"],
+        "molecular_weight": 334.22,
+        "logp": -3.5,
+        "oral_bioavailability": 0.65,
+        "volume_of_distribution": 1.1,
+        "protein_binding": 5.0,
+        "mechanism": "Direct intracellular precursor to Nicotinamide Adenine Dinucleotide (NAD+), activating sirtuin deacylases (SIRT1, SIRT3) and promoting mitochondrial oxidative phosphorylation.",
+        "receptor_targets": [
+            {"target": "Sirtuin 1 (SIRT1)", "action": "activator", "family": "Deacetylase / Longevity", "gene_symbol": "SIRT1"},
+            {"target": "Sirtuin 3 (SIRT3 / Mitochondrial)", "action": "activator", "family": "Deacetylase / Mitochondrial", "gene_symbol": "SIRT3"}
+        ],
+    },
+    "apigenin": {
+        "name": "Apigenin",
+        "canonical_name": "Apigenin (Chamomile Extract)",
+        "synonyms": ["apigenin", "chamomileextract", "flavone"],
+        "drug_class": "Dietary Supplement / Flavonoid CD38 Inhibitor",
+        "categories": ["Dietary Supplement", "Antioxidant", "Sleep Support", "Longevity"],
+        "molecular_weight": 270.24,
+        "logp": 2.6,
+        "oral_bioavailability": 0.30,
+        "volume_of_distribution": 1.5,
+        "protein_binding": 90.0,
+        "mechanism": "Positive allosteric modulator of central GABA-A benzodiazepine receptors that reduces sleep latency, alongside potent inhibition of the NADase CD38 enzyme to preserve cellular NAD+ pools.",
+        "receptor_targets": [
+            {"target": "GABA-A Receptor (GABRA1 / GABRA2)", "action": "agonist", "family": "Ion Channel / Neurotransmitter", "gene_symbol": "GABRA1"},
+            {"target": "CD38 NAD+ Hydrolase (CD38)", "action": "inhibitor", "family": "Enzyme / NAD Metabolism", "gene_symbol": "CD38"}
+        ],
+    },
+    "lions_mane": {
+        "name": "Lion's Mane Mushroom",
+        "canonical_name": "Lion's Mane (Hericium erinaceus)",
+        "synonyms": ["lionsmane", "lion_s_mane", "hericiumerinaceus", "erinacines", "hericenones"],
+        "drug_class": "Dietary Supplement / Botanical Neurotrophic",
+        "categories": ["Dietary Supplement", "Nootropic", "Neuroprotective", "Mushroom Extract"],
+        "molecular_weight": 450.00,
+        "logp": 1.8,
+        "oral_bioavailability": 0.40,
+        "volume_of_distribution": 1.4,
+        "protein_binding": 50.0,
+        "mechanism": "Erinacines (mycelium) and hericenones (fruiting body) cross the blood-brain barrier to stimulate Nerve Growth Factor (NGF) and Brain-Derived Neurotrophic Factor (BDNF) synthesis.",
+        "receptor_targets": [
+            {"target": "Nerve Growth Factor & TrkA Signaling (NGF / NTRK1)", "action": "inducer", "family": "Neurotrophic Factor", "gene_symbol": "NGF"},
+            {"target": "Brain-Derived Neurotrophic Factor (BDNF / NTRK2)", "action": "inducer", "family": "Neurotrophic Factor", "gene_symbol": "BDNF"}
+        ],
+    },
+    "magnesium_l_threonate": {
+        "name": "Magnesium L-Threonate",
+        "canonical_name": "Magnesium L-Threonate (Magtein)",
+        "synonyms": ["magnesiumlthreonate", "magtein", "mg_threonate"],
+        "drug_class": "Dietary Supplement / BBB-Penetrating Magnesium Chelate",
+        "categories": ["Dietary Supplement", "Nootropic", "Essential Mineral", "Synaptic Plasticity"],
+        "molecular_weight": 294.50,
+        "logp": -1.2,
+        "oral_bioavailability": 0.70,
+        "volume_of_distribution": 0.9,
+        "protein_binding": 25.0,
+        "mechanism": "Chelated magnesium form engineered to cross the blood-brain barrier, significantly raising cerebrospinal fluid magnesium concentrations and enhancing synaptic density and NMDA plasticity.",
+        "receptor_targets": [
+            {"target": "NMDA Receptor Ion Channel Voltage-Dependent Blockade (GRIN1 / GRIN2B)", "action": "antagonist", "family": "Ion Channel", "gene_symbol": "GRIN1"},
+            {"target": "Multivalent Cation Gastrointestinal Chelation Site", "action": "chelator", "family": "Physicochemical Interaction"}
+        ],
+    },
+    "tongkat_ali": {
+        "name": "Tongkat Ali",
+        "canonical_name": "Tongkat Ali (Eurycoma longifolia / Longjack)",
+        "synonyms": ["tongkatali", "longjack", "eurycomalongifolia", "eurycomanone"],
+        "drug_class": "Dietary Supplement / Botanical Endocrine Adaptogen",
+        "categories": ["Dietary Supplement", "Endocrine Support", "Ergogenic", "Herbal Extract"],
+        "molecular_weight": 408.40,
+        "logp": 1.9,
+        "oral_bioavailability": 0.30,
+        "volume_of_distribution": 1.6,
+        "protein_binding": 70.0,
+        "mechanism": "Eurycomanone quassinoids release bound testosterone from sex hormone-binding globulin (SHBG) and stimulate luteinizing hormone (LH) pulsatility.",
+        "receptor_targets": [
+            {"target": "Sex Hormone-Binding Globulin (SHBG)", "action": "antagonist", "family": "Endocrine Binding Globulin", "gene_symbol": "SHBG"},
+            {"target": "Hypothalamic-Pituitary-Gonadal Axis (HPG Axis / GnRH / LH)", "action": "agonist", "family": "Endocrine Axis"}
+        ],
+    },
+    "noopept": {
+        "name": "Noopept",
+        "canonical_name": "Noopept (N-Phenylacetyl-L-prolylglycine Ethyl Ester)",
+        "synonyms": ["noopept", "gvs111", "omberacetam"],
+        "drug_class": "Synthetic Peptide Nootropic / AMPA Modulator",
+        "categories": ["Nootropic", "Peptide", "Cognitive Support"],
+        "molecular_weight": 318.37,
+        "logp": 0.8,
+        "oral_bioavailability": 0.99,
+        "volume_of_distribution": 0.7,
+        "protein_binding": 10.0,
+        "mechanism": "Positively modulates central AMPA receptors and enhances hippocampal BDNF and NGF expression, improving synaptic consolidation and memory encoding.",
+        "receptor_targets": [
+            {"target": "AMPA Glutamate Receptor (GRIA1 / GRIA2)", "action": "agonist", "family": "Ion Channel / Glutamate", "gene_symbol": "GRIA1"},
+            {"target": "Brain-Derived Neurotrophic Factor (BDNF / NTRK2)", "action": "inducer", "family": "Neurotrophic Factor", "gene_symbol": "BDNF"}
+        ],
+    },
+    "bpc_157": {
+        "name": "BPC-157",
+        "canonical_name": "BPC-157 (Body Protection Compound-157 / Pentadecapeptide)",
+        "synonyms": ["bpc157", "bpc_157", "bepecin", "pentadecapeptide"],
+        "drug_class": "Cytoprotective Regenerative Peptide",
+        "categories": ["Peptide", "Cytoprotective", "Tissue Repair", "Angiogenesis"],
+        "molecular_weight": 1419.53,
+        "logp": -2.1,
+        "oral_bioavailability": 0.75,
+        "volume_of_distribution": 0.5,
+        "protein_binding": 20.0,
+        "mechanism": "Accelerates tissue healing, tendon repair, and mucosal cytoprotection via upregulation of VEGF-driven angiogenesis, focal adhesion kinase (FAK), and eNOS nitric oxide generation.",
+        "receptor_targets": [
+            {"target": "Vascular Endothelial Growth Factor Receptor (KDR / VEGFR2)", "action": "inducer", "family": "Receptor Tyrosine Kinase", "gene_symbol": "KDR"},
+            {"target": "Endothelial Nitric Oxide Synthase (eNOS / NOS3)", "action": "activator", "family": "Endothelial Vasodilation", "gene_symbol": "NOS3"}
+        ],
+    },
+    "tb_500": {
+        "name": "TB-500",
+        "canonical_name": "TB-500 (Thymosin Beta-4 Active Fragment LKKTETQ)",
+        "synonyms": ["tb500", "tb_500", "thymosinbeta4", "tbeta4"],
+        "drug_class": "Cytoprotective Regenerative Peptide",
+        "categories": ["Peptide", "Cytoprotective", "Tissue Repair", "Actin Sequestration"],
+        "molecular_weight": 4963.50,
+        "logp": -2.8,
+        "oral_bioavailability": 0.20,
+        "volume_of_distribution": 0.6,
+        "protein_binding": 30.0,
+        "mechanism": "Actin-binding peptide that sequesters G-actin, promoting endothelial cell migration, microvascular angiogenesis, and suppression of inflammatory myofibroblast differentiation.",
+        "receptor_targets": [
+            {"target": "Actin Cytoskeleton Dynamics (ACTB / Cell Migration)", "action": "agonist", "family": "Cytoskeleton", "gene_symbol": "ACTB"}
+        ],
+    },
+    "tirzepatide": {
+        "name": "Tirzepatide",
+        "canonical_name": "Tirzepatide (Mounjaro / Zepbound)",
+        "synonyms": ["tirzepatide", "mounjaro", "zepbound", "ly3298176"],
+        "drug_class": "Dual GIP / GLP-1 Receptor Agonist",
+        "categories": ["Approved Drug", "Dual Incretin Agonist", "Antidiabetic", "Anti-Obesity"],
+        "molecular_weight": 4813.45,
+        "logp": -1.4,
+        "oral_bioavailability": 0.80,
+        "half_life": "5 days (120 hours)",
+        "t_half_numeric": 120.0,
+        "volume_of_distribution": 10.3,
+        "protein_binding": 99.0,
+        "mechanism": "Bi-functional agonist at both glucose-dependent insulinotropic polypeptide (GIP) and glucagon-like peptide-1 (GLP-1) receptors, synergistically suppressing appetite, delaying gastric emptying, and optimizing insulin secretion.",
+        "receptor_targets": [
+            {"target": "Gastric Inhibitory Polypeptide Receptor (GIPR)", "action": "agonist", "family": "GPCR Class B", "gene_symbol": "GIPR"},
+            {"target": "Glucagon-Like Peptide 1 Receptor (GLP1R)", "action": "agonist", "family": "GPCR Class B", "gene_symbol": "GLP1R"}
+        ],
+    },
+    "rapamycin": {
+        "name": "Rapamycin",
+        "canonical_name": "Rapamycin (Sirolimus)",
+        "synonyms": ["sirolimus", "rapamune", "rapamycin"],
+        "drug_class": "mTORC1 Inhibitor / Autophagy Inducer",
+        "categories": ["Immunosuppressant", "Longevity", "mTOR Inhibitor", "Autophagy"],
+        "molecular_weight": 914.17,
+        "logp": 4.3,
+        "oral_bioavailability": 0.15,
+        "half_life": "62 hours",
+        "t_half_numeric": 62.0,
+        "volume_of_distribution": 12.0,
+        "protein_binding": 92.0,
+        "mechanism": "Binds FKBP12 to selectively inhibit the mammalian target of rapamycin complex 1 (mTORC1), triggering macroautophagy, reducing senescence-associated secretory phenotype (SASP), and extending lifespan.",
+        "receptor_targets": [
+            {"target": "Mechanistic Target of Rapamycin Complex 1 (mTOR / MTORC1)", "action": "inhibitor", "family": "Kinase / Longevity", "gene_symbol": "MTOR"},
+            {"target": "FKBP12 Peptidyl-Prolyl Cis-Trans Isomerase (FKBP1A)", "action": "agonist", "family": "Immunophilin", "gene_symbol": "FKBP1A"}
+        ],
+        "cyp_enzymes": {"substrates": ["CYP3A4"], "inhibitors": ["CYP3A4"], "inducers": []},
+    },
 }
 
 
@@ -648,7 +910,7 @@ CORE_ESTER_LIBRARY: Dict[str, Dict[str, Any]] = {
         "categories": ["Anabolic Steroid", "Hormone Replacement", "Prodrug Depot"],
         "molecular_weight": 412.61,
         "logp": 6.3,
-        "oral_bioavailability": 0.95,
+        "oral_bioavailability": 0.05,
         "half_life": "8 days (192 hours)",
         "t_half_numeric": 192.0,
         "absorption_rate_ka": 0.02,
@@ -668,7 +930,7 @@ CORE_ESTER_LIBRARY: Dict[str, Dict[str, Any]] = {
         "categories": ["Anabolic Steroid", "Hormone Replacement", "Prodrug Depot"],
         "molecular_weight": 400.59,
         "logp": 6.0,
-        "oral_bioavailability": 0.95,
+        "oral_bioavailability": 0.05,
         "half_life": "7 days (168 hours)",
         "t_half_numeric": 168.0,
         "absorption_rate_ka": 0.025,
@@ -688,7 +950,7 @@ CORE_ESTER_LIBRARY: Dict[str, Dict[str, Any]] = {
         "categories": ["Anabolic Steroid", "Hormone Replacement", "Short-Acting Ester"],
         "molecular_weight": 344.49,
         "logp": 4.9,
-        "oral_bioavailability": 0.95,
+        "oral_bioavailability": 0.05,
         "half_life": "1.5 days (36 hours)",
         "t_half_numeric": 36.0,
         "absorption_rate_ka": 0.08,
@@ -708,7 +970,7 @@ CORE_ESTER_LIBRARY: Dict[str, Dict[str, Any]] = {
         "categories": ["Anabolic Steroid", "Hormone Replacement", "Ultra Long-Acting Ester"],
         "molecular_weight": 456.70,
         "logp": 7.5,
-        "oral_bioavailability": 0.95,
+        "oral_bioavailability": 0.07,
         "half_life": "21 days (504 hours)",
         "t_half_numeric": 504.0,
         "absorption_rate_ka": 0.008,
@@ -719,6 +981,118 @@ CORE_ESTER_LIBRARY: Dict[str, Dict[str, Any]] = {
         "parent_compound_id": "testosterone",
         "ester_weight_factor": 0.632,
         "mechanism": "Ultra long-acting prodrug ester of testosterone.",
+    },
+    "trenbolone": {
+        "name": "Trenbolone",
+        "canonical_name": "Trenbolone Base (19-Nor Trienolone)",
+        "synonyms": ["trenbolonebase", "trenbase", "trienolone", "parabolanbase"],
+        "drug_class": "19-Nor Anabolic-Androgenic Steroid",
+        "categories": ["Anabolic Steroid", "19-Nor Derivative", "Non-Aromatizing Triene", "Research Chemical"],
+        "smiles": "CC12CCC3C(=CCC4=C3CCC(=O)C4)C1CCC2O",
+        "inchikey": "OKIZDXOPAGLMIA-UHFFFAOYSA-N",
+        "molecular_weight": 270.37,
+        "logp": 3.3,
+        "oral_bioavailability": 0.03,
+        "half_life": "6-12 hours (unesterified base)",
+        "t_half_numeric": 8.0,
+        "volume_of_distribution": 1.1,
+        "volume_of_distribution_l_kg": 1.1,
+        "protein_binding": 98.0,
+        "protein_binding_pct": 98.0,
+        "fraction_unbound": 0.02,
+        "is_ester": False,
+        "ester_name": None,
+        "parent_compound_id": None,
+        "ester_weight_factor": 1.0,
+        "source_tier": "research_chemical_enrichment",
+        "metadata": {
+            "evidence_tier": "IN_VITRO_AND_ALLOMETRIC_EXTRAPOLATION",
+            "regulatory_status": "VETERINARY / RESEARCH_CHEMICAL",
+            "human_clinical_trials": False,
+            "data_sources": [
+                "ChEMBL In Vitro Assays",
+                "PubChem Compound Database",
+                "Interspecies Allometric Scaling & QSPR PK Engine"
+            ],
+            "data_limitations": {
+                "has_human_trials": False,
+                "has_human_pk": False,
+                "has_chronic_toxicity_studies": False,
+                "has_cyp_metabolite_mapping": False,
+                "known_limitations": [
+                    "No FDA or EMA human clinical trials conducted for systemic human administration.",
+                    "Pharmacokinetics derived from veterinary models and in vitro human receptor assays.",
+                    "Long-term neurodegenerative and cardiovascular safety profiles uncharacterized in humans."
+                ]
+            }
+        },
+        "mechanism": "High-affinity binding to nuclear androgen receptor (AR / NR3C4, ~3-5x affinity of testosterone) and moderate progestogenic agonist activity (PGR / NR3C3). Non-aromatizable triene structure with strong anti-glucocorticoid and anabolic potency.",
+        "receptor_targets": [
+            {"target": "Androgen Receptor (AR / NR3C4)", "action": "agonist", "family": "Nuclear Receptor", "affinity_ki": 0.7, "gene_symbol": "AR"},
+            {"target": "Progesterone Receptor (PGR / NR3C3)", "action": "agonist", "family": "Nuclear Receptor", "affinity_ki": 1.2, "gene_symbol": "PGR"},
+            {"target": "Glucocorticoid Receptor (NR3C1)", "action": "antagonist", "family": "Nuclear Receptor", "gene_symbol": "NR3C1"}
+        ],
+        "cyp_enzymes": {"substrates": ["CYP3A4"], "inhibitors": [], "inducers": []},
+    },
+    "trenbolone_acetate": {
+        "name": "Trenbolone Acetate",
+        "canonical_name": "Trenbolone Acetate",
+        "synonyms": ["trenace", "trena", "finajet", "finaplix", "trenboloneacetate"],
+        "drug_class": "19-Nor Anabolic Steroid Ester",
+        "categories": ["Anabolic Steroid", "19-Nor Derivative", "Short-Acting Depot Ester"],
+        "molecular_weight": 312.41,
+        "logp": 4.5,
+        "oral_bioavailability": 0.03,
+        "half_life": "1.5 days (36 hours)",
+        "t_half_numeric": 36.0,
+        "absorption_rate_ka": 0.08,
+        "volume_of_distribution": 1.1,
+        "protein_binding": 98.0,
+        "is_ester": True,
+        "ester_name": "Acetate",
+        "parent_compound_id": "trenbolone",
+        "ester_weight_factor": 0.865,
+        "mechanism": "Short-acting intramuscular depot prodrug of trenbolone. Hydrolyzed by endogenous esterases into active trenbolone.",
+    },
+    "trenbolone_enanthate": {
+        "name": "Trenbolone Enanthate",
+        "canonical_name": "Trenbolone Enanthate",
+        "synonyms": ["trene", "trenenanthate", "trenboloneenanthate"],
+        "drug_class": "19-Nor Anabolic Steroid Ester",
+        "categories": ["Anabolic Steroid", "19-Nor Derivative", "Long-Acting Depot Ester"],
+        "molecular_weight": 382.54,
+        "logp": 6.1,
+        "oral_bioavailability": 0.03,
+        "half_life": "7-10 days (168 hours)",
+        "t_half_numeric": 168.0,
+        "absorption_rate_ka": 0.025,
+        "volume_of_distribution": 1.1,
+        "protein_binding": 98.0,
+        "is_ester": True,
+        "ester_name": "Enanthate",
+        "parent_compound_id": "trenbolone",
+        "ester_weight_factor": 0.706,
+        "mechanism": "Long-acting intramuscular depot prodrug of trenbolone. Hydrolyzed by endogenous esterases into active trenbolone.",
+    },
+    "trenbolone_hexahydrophenylcarbonate": {
+        "name": "Trenbolone Hexahydrobenzylcarbonate",
+        "canonical_name": "Trenbolone Hexahydrobenzylcarbonate (Parabolan)",
+        "synonyms": ["parabolan", "trenhex", "trenbolonecyclohexylmethylcarbonate"],
+        "drug_class": "19-Nor Anabolic Steroid Ester",
+        "categories": ["Anabolic Steroid", "19-Nor Derivative", "Extended Depot Ester"],
+        "molecular_weight": 410.55,
+        "logp": 6.5,
+        "oral_bioavailability": 0.03,
+        "half_life": "14 days (336 hours)",
+        "t_half_numeric": 336.0,
+        "absorption_rate_ka": 0.012,
+        "volume_of_distribution": 1.1,
+        "protein_binding": 98.0,
+        "is_ester": True,
+        "ester_name": "Hexahydrobenzylcarbonate",
+        "parent_compound_id": "trenbolone",
+        "ester_weight_factor": 0.658,
+        "mechanism": "Extended-release intramuscular depot prodrug of trenbolone.",
     },
     "nandrolone": {
         "name": "Nandrolone",
@@ -831,7 +1205,7 @@ CORE_ESTER_LIBRARY: Dict[str, Dict[str, Any]] = {
 
 
 def _get_default_compounds() -> List[Dict[str, Any]]:
-    compounds = [{"key": key, **value} for key, value in COMPOUND_LIBRARY.items()]
+    compounds = []
     for key, value in CORE_SUPPLEMENT_LIBRARY.items():
         compounds.append({"key": key, **value})
     for key, value in CORE_ESTER_LIBRARY.items():
@@ -862,15 +1236,28 @@ CANONICAL_SYNONYM_MAP: Dict[str, str] = {
     "durabolin": "nandrolone_decanoate",
     "decadurabolin": "nandrolone_decanoate",
     "nandrolonedecanoate": "nandrolone_decanoate",
+    "trenbolone": "trenbolone",
+    "tren": "trenbolone",
+    "trenbase": "trenbolone",
+    "trienolone": "trenbolone",
+    "trenace": "trenbolone_acetate",
+    "trena": "trenbolone_acetate",
+    "trenboloneacetate": "trenbolone_acetate",
+    "finajet": "trenbolone_acetate",
+    "finaplix": "trenbolone_acetate",
+    "trene": "trenbolone_enanthate",
+    "trenenanthate": "trenbolone_enanthate",
+    "trenboloneenanthate": "trenbolone_enanthate",
+    "parabolan": "trenbolone_hexahydrophenylcarbonate",
+    "trenhex": "trenbolone_hexahydrophenylcarbonate",
     "drostanolone": "drostanolone",
-    "masteron": "drostanolone_propionate",
-    "masteronpropionate": "drostanolone_propionate",
-    "drostanolonepropionate": "drostanolone_propionate",
-    "masteronenanthate": "drostanolone_enanthate",
-    "drostanoloneenanthate": "drostanolone_enanthate",
+    "masteron": "drostanolone",
+    "masteronpropionate": "drostanolone",
+    "drostanolonepropionate": "drostanolone",
+    "masteronenanthate": "drostanolone",
+    "drostanoloneenanthate": "drostanolone",
     "dromostanolone": "drostanolone",
 
-    "masteronenanthate": "drostanolone",
     "superdrol": "methyldrostanolone",
     "methasterone": "methyldrostanolone",
     "17amethyldrostanolone": "methyldrostanolone",
@@ -1101,6 +1488,32 @@ CANONICAL_SYNONYM_MAP: Dict[str, str] = {
     "leuprolide": "leuprolide",
     "lupron": "leuprolide",
     "leuprorelin": "leuprolide",
+    "alphagpc": "alpha_gpc",
+    "cholinealfoscerate": "alpha_gpc",
+    "gpc": "alpha_gpc",
+    "lalphagpc": "alpha_gpc",
+    "huperzinea": "huperzine_a",
+    "huperzine": "huperzine_a",
+    "huperziaserrata": "huperzine_a",
+    "ltyrosine": "l_tyrosine",
+    "tyrosine": "l_tyrosine",
+    "nalt": "l_tyrosine",
+    "nacetyltyrosine": "l_tyrosine",
+    "nmn": "nmn",
+    "nicotinamidemononucleotide": "nmn",
+    "betanmn": "nmn",
+    "apigenin": "apigenin",
+    "lionsmane": "lions_mane",
+    "hericiumerinaceus": "lions_mane",
+    "tongkatali": "tongkat_ali",
+    "longjack": "tongkat_ali",
+    "eurycomalongifolia": "tongkat_ali",
+    "noopept": "noopept",
+    "gvs111": "noopept",
+    "omberacetam": "noopept",
+    "rapamycin": "rapamycin",
+    "sirolimus": "rapamycin",
+    "rapamune": "rapamycin",
 }
 
 
@@ -1113,13 +1526,18 @@ def _normalize_compound_name(name: str | None) -> str:
 
 
 _CATALOG_MEMORY_CACHE: Dict[Tuple[str, str], Dict[str, Any]] = {}
+_CATALOG_ALL_COMPOUNDS: Dict[str, List[Dict[str, Any]]] = {}
+_CATALOG_VARIANTS: Dict[str, Dict[str, List[Dict[str, Any]]]] = {}
+_INITIALIZED_DATABASES: Set[str] = set()
 
 
 class CatalogService:
     def __init__(self, database_path: str | None = None):
         self._custom_database_path = database_path
-        self._ensure_database()
-        self.sync_seed_compounds()
+        if self.database_path not in _INITIALIZED_DATABASES:
+            self._ensure_database()
+            self.sync_seed_compounds()
+            _INITIALIZED_DATABASES.add(self.database_path)
 
     def sync_seed_compounds(self) -> None:
         with self._connect() as conn:
@@ -1142,22 +1560,22 @@ class CatalogService:
         db_dir = os.path.dirname(self.database_path)
         if db_dir:
             os.makedirs(db_dir, exist_ok=True)
-        connection = sqlite3.connect(self.database_path)
+        connection = sqlite3.connect(self.database_path, timeout=30.0)
         connection.row_factory = sqlite3.Row
-        try:
-            connection.execute("PRAGMA journal_mode=WAL;")
-            connection.execute("PRAGMA synchronous=NORMAL;")
-            connection.execute("PRAGMA temp_store=MEMORY;")
-            connection.execute("PRAGMA cache_size=-64000;")
-        except sqlite3.DatabaseError:
-            pass
         return connection
 
     def _ensure_database(self) -> None:
         with self._connect() as conn:
+            try:
+                conn.execute("PRAGMA journal_mode=WAL;")
+                conn.execute("PRAGMA synchronous=NORMAL;")
+                conn.execute("PRAGMA temp_store=MEMORY;")
+            except Exception:
+                pass
             conn.execute(
                 """
                 CREATE TABLE IF NOT EXISTS compounds (
+
                     key TEXT PRIMARY KEY,
                     name TEXT NOT NULL,
                     canonical_name TEXT,
@@ -1400,6 +1818,9 @@ class CatalogService:
         return merged_count
 
     def reset_database(self) -> None:
+        _INITIALIZED_DATABASES.discard(self.database_path)
+        _CATALOG_ALL_COMPOUNDS.pop(self.database_path, None)
+        _CATALOG_VARIANTS.pop(self.database_path, None)
         keys_to_del = [k for k in _CATALOG_MEMORY_CACHE if k[0] == self.database_path]
         for k in keys_to_del:
             _CATALOG_MEMORY_CACHE.pop(k, None)
@@ -1407,6 +1828,7 @@ class CatalogService:
             conn.execute("DROP TABLE IF EXISTS compounds")
         self._ensure_database()
         self.seed_default_compounds()
+        _INITIALIZED_DATABASES.add(self.database_path)
 
     def seed_default_compounds(self) -> None:
         for compound in _get_default_compounds():
@@ -1626,15 +2048,81 @@ class CatalogService:
             )
             conn.commit()
 
-        # Invalidate memory cache for updated record
-        for alias in [row.get("key"), row.get("name"), row.get("canonical_name")]:
+        # Invalidate path cache
+        self._invalidate_path_cache()
+        comp = self._row_to_compound(row)
+        for alias in [comp.get("key"), comp.get("name"), comp.get("canonical_name"), comp.get("canonical_key"), comp.get("inchikey")] + list(comp.get("synonyms") or []):
             if alias:
-                _CATALOG_MEMORY_CACHE.pop((self.database_path, _normalize_compound_name(alias)), None)
+                _CATALOG_MEMORY_CACHE[(self.database_path, _normalize_compound_name(alias))] = comp
 
-        try:
-            return self.get_compound(row["key"], auto_enrich=False)
-        except TypeError:
-            return self.get_compound(row["key"])
+        return copy.deepcopy(comp)
+
+    def _invalidate_path_cache(self) -> None:
+        _CATALOG_ALL_COMPOUNDS.pop(self.database_path, None)
+        _CATALOG_VARIANTS.pop(self.database_path, None)
+
+    def _warm_cache(self) -> List[Dict[str, Any]]:
+        db_path = self.database_path
+        with self._connect() as conn:
+            rows = conn.execute("SELECT * FROM compounds ORDER BY name ASC").fetchall()
+            variant_rows = conn.execute(
+                "SELECT parent_compound_id, key, name, ester_name, molecular_weight, ester_weight_factor, t_half_numeric, half_life FROM compounds WHERE parent_compound_id IS NOT NULL AND parent_compound_id != ''"
+            ).fetchall()
+
+        variants_map: Dict[str, List[Dict[str, Any]]] = {}
+        for vr in variant_rows:
+            pid = vr["parent_compound_id"]
+            if pid not in variants_map:
+                variants_map[pid] = []
+            variants_map[pid].append({
+                "key": vr["key"],
+                "name": vr["name"],
+                "ester_name": vr["ester_name"],
+                "molecular_weight": vr["molecular_weight"],
+                "ester_weight_factor": float(vr["ester_weight_factor"]) if vr["ester_weight_factor"] is not None else 1.0,
+                "t_half_numeric": vr["t_half_numeric"],
+                "half_life": vr["half_life"],
+            })
+        _CATALOG_VARIANTS[db_path] = variants_map
+
+        compounds_list: List[Dict[str, Any]] = []
+        seen_keys: Set[str] = set()
+        for r in rows:
+            comp = self._row_to_compound(dict(r))
+            k = comp.get("key")
+            if k and k not in seen_keys:
+                seen_keys.add(k)
+                compounds_list.append(comp)
+
+        # Pass 1: exact primary keys
+        for comp in compounds_list:
+            k = comp.get("key")
+            if k:
+                norm_k = _normalize_compound_name(k)
+                _CATALOG_MEMORY_CACHE[(db_path, norm_k)] = comp
+                _CATALOG_MEMORY_CACHE[(db_path, str(k).lower())] = comp
+
+        # Pass 2: exact names and canonical names
+        for comp in compounds_list:
+            for alias in [comp.get("name"), comp.get("canonical_name")]:
+                if alias:
+                    norm_alias = _normalize_compound_name(alias)
+                    existing = _CATALOG_MEMORY_CACHE.get((db_path, norm_alias))
+                    if existing is None or _normalize_compound_name(existing.get("key")) != norm_alias:
+                        if existing is None or len(str(comp.get("key") or "")) <= len(str(existing.get("key") or "")):
+                            _CATALOG_MEMORY_CACHE[(db_path, norm_alias)] = comp
+
+        # Pass 3: remaining aliases, synonyms, and identifiers
+        for comp in compounds_list:
+            for alias in [comp.get("canonical_key"), comp.get("inchikey")] + list(comp.get("synonyms") or []):
+                if alias:
+                    norm_alias = _normalize_compound_name(alias)
+                    existing = _CATALOG_MEMORY_CACHE.get((db_path, norm_alias))
+                    if existing is None:
+                        _CATALOG_MEMORY_CACHE[(db_path, norm_alias)] = comp
+
+        _CATALOG_ALL_COMPOUNDS[db_path] = compounds_list
+        return compounds_list
 
     def get_compound(self, key: str, auto_enrich: bool = True) -> Dict[str, Any] | None:
         if not key:
@@ -1643,16 +2131,33 @@ class CatalogService:
         norm_query = _normalize_compound_name(key)
         cache_key = (self.database_path, norm_query)
         if cache_key in _CATALOG_MEMORY_CACHE:
-            return copy.deepcopy(_CATALOG_MEMORY_CACHE[cache_key])
+            cached_val = _CATALOG_MEMORY_CACHE[cache_key]
+            if cached_val is not None:
+                return copy.deepcopy(cached_val)
+            if not auto_enrich:
+                return None
 
         # Resolve known synonym/brand aliases to canonical entity key
         if norm_query in CANONICAL_SYNONYM_MAP:
             canonical_key = CANONICAL_SYNONYM_MAP[norm_query]
             if canonical_key != key:
                 canon_res = self.get_compound(canonical_key, auto_enrich=auto_enrich)
-                if canon_res:
+                if canon_res is not None:
                     _CATALOG_MEMORY_CACHE[cache_key] = canon_res
                     return copy.deepcopy(canon_res)
+                if not auto_enrich:
+                    _CATALOG_MEMORY_CACHE[cache_key] = None
+                    return None
+
+        # Warm memory cache if not yet loaded for this DB path
+        if self.database_path not in _CATALOG_ALL_COMPOUNDS:
+            self._warm_cache()
+            if cache_key in _CATALOG_MEMORY_CACHE:
+                cached_val = _CATALOG_MEMORY_CACHE[cache_key]
+                if cached_val is not None:
+                    return copy.deepcopy(cached_val)
+                if not auto_enrich:
+                    return None
 
         normalized_query = str(key).strip().lower().replace(" ", "_").replace("-", "_")
 
@@ -1743,6 +2248,7 @@ class CatalogService:
             return copy.deepcopy(comp)
 
         if not auto_enrich:
+            _CATALOG_MEMORY_CACHE[cache_key] = None
             return None
 
         # Write-through lazy enrichment fallback
@@ -1754,8 +2260,12 @@ class CatalogService:
                 return self.upsert_compound(profile)
         except Exception:
             pass
-
+        _CATALOG_MEMORY_CACHE[cache_key] = None
         return None
+
+    def find_by_synonym(self, key: str, auto_enrich: bool = False) -> Dict[str, Any] | None:
+        """Resolves a compound by synonym, alias, key, or canonical name."""
+        return self.get_compound(key, auto_enrich=auto_enrich)
 
     def canonicalize_and_merge_stack(self, stack: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
         """
@@ -1778,7 +2288,7 @@ class CatalogService:
                 comp = self.get_compound(raw_key, auto_enrich=False)
             except TypeError:
                 comp = self.get_compound(raw_key)
-            canonical_id = (comp.get("canonical_key") or comp.get("inchikey") or comp.get("key") or raw_key).lower() if comp else raw_key.lower()
+            canonical_id = (comp.get("canonical_key") or comp.get("parent_compound_id") or comp.get("inchikey") or comp.get("key") or raw_key).lower() if comp else raw_key.lower()
 
             dose_val = item.get("dose") if item.get("dose") is not None else item.get("dose_mg")
             try:
@@ -1814,10 +2324,11 @@ class CatalogService:
                     new_entry = dict(item)
                 if dose_mg is not None:
                     new_entry["dose_mg"] = dose_mg
-                    new_entry["dose"] = dose_mg
                 raw_k_lower = raw_key.lower()
-                is_test_raw = "testosterone" in raw_k_lower and not any(w in raw_k_lower for w in ["trenbolone", "nandrolone", "drostanolone", "oxandrolone", "boldenone", "stanozolol", "dihydrotestosterone", "epitestosterone", "sarm", "rad140", "lgd", "ostarine", "s-4", "yk-11"])
-                new_entry["route"] = str(item.get("route") or (comp.get("route") if comp else None) or (comp.get("default_route") if comp else None) or ("intramuscular" if is_test_raw else "oral")).strip().lower()
+                is_inj_aas = any(w in raw_k_lower for w in ["testosterone", "trenbolone", "nandrolone", "drostanolone", "boldenone", "methenolone", "primobolan", "masteron", "deca", "equipoise", "sustanon", "cypionate", "enanthate", "propionate", "undecanoate"]) and not any(w in raw_k_lower for w in ["oxandrolone", "anavar", "stanozolol", "winstrol", "dianabol", "anadrol", "turinabol", "superdrol", "sarm", "rad140", "lgd", "ostarine"])
+                is_inj_pep = any(w in raw_k_lower for w in ["semaglutide", "tirzepatide", "retatrutide", "liraglutide", "bpc-157", "bpc_157", "tb-500", "tb_500", "somatropin", "hgh", "ipamorelin", "cjc"])
+                default_route = "intramuscular" if is_inj_aas else ("subcutaneous" if is_inj_pep else "oral")
+                new_entry["route"] = str(item.get("route") or (comp.get("route") if comp else None) or (comp.get("default_route") if comp else None) or default_route).strip().lower()
                 merged_by_canonical[canonical_id] = new_entry
 
         return list(merged_by_canonical.values())
@@ -1854,90 +2365,83 @@ class CatalogService:
     def _enrich_ester_variant_metadata(self, compounds: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
         if not compounds:
             return compounds
-        with self._connect() as conn:
-            for comp in compounds:
-                comp_key = comp.get("key")
-                if not comp_key:
-                    continue
-                variant_rows = conn.execute(
-                    "SELECT key, name, ester_name, molecular_weight, ester_weight_factor, t_half_numeric, half_life FROM compounds WHERE parent_compound_id = ?",
-                    (comp_key,),
-                ).fetchall()
-                if variant_rows:
-                    comp["variants"] = [
-                        {
-                            "key": r["key"],
-                            "name": r["name"],
-                            "ester_name": r["ester_name"],
-                            "molecular_weight": r["molecular_weight"],
-                            "ester_weight_factor": float(r["ester_weight_factor"]) if r["ester_weight_factor"] is not None else 1.0,
-                            "t_half_numeric": r["t_half_numeric"],
-                            "half_life": r["half_life"],
-                        }
-                        for r in variant_rows
-                    ]
+        db_path = self.database_path
+        variants_map = _CATALOG_VARIANTS.get(db_path)
+        if variants_map is None:
+            self._warm_cache()
+            variants_map = _CATALOG_VARIANTS.get(db_path, {})
+        for comp in compounds:
+            comp_key = comp.get("key")
+            if comp_key and comp_key in variants_map:
+                comp["variants"] = copy.deepcopy(variants_map[comp_key])
         return compounds
 
-    def search_compounds(self, query: str, limit: int = 20, auto_enrich: bool = True) -> List[Dict[str, Any]]:
+    def search_compounds(self, query: str, limit: int = 20, auto_enrich: bool = False) -> List[Dict[str, Any]]:
         query_str = str(query or "").strip().lower()
+        all_compounds = _CATALOG_ALL_COMPOUNDS.get(self.database_path)
+        if all_compounds is None:
+            all_compounds = self._warm_cache()
+
         if not query_str:
-            with self._connect() as conn:
-                rows = conn.execute("SELECT * FROM compounds ORDER BY name ASC").fetchall()
-            unique_compounds: List[Dict[str, Any]] = []
-            seen_names: Set[str] = set()
-            for row in rows:
-                c = self._row_to_compound(dict(row))
-                norm_name = str(c.get("name") or c.get("key") or "").strip().lower()
-                if norm_name and norm_name not in seen_names:
-                    seen_names.add(norm_name)
-                    unique_compounds.append(c)
-                    if len(unique_compounds) >= limit:
-                        break
+            unique_compounds = [copy.deepcopy(c) for c in all_compounds[:limit]]
             return self._enrich_ester_variant_metadata(unique_compounds)
 
-        with self._connect() as conn:
-            pattern = f"%{query_str}%"
-            rows = conn.execute(
-                """
-                SELECT * FROM compounds 
-                WHERE LOWER(key) LIKE ? 
-                   OR LOWER(name) LIKE ? 
-                   OR LOWER(canonical_name) LIKE ? 
-                   OR LOWER(drug_class) LIKE ?
-                   OR LOWER(indications) LIKE ?
-                   OR LOWER(synonyms) LIKE ?
-                ORDER BY 
-                  CASE 
-                    WHEN LOWER(name) = LOWER(?) THEN 0
-                    WHEN LOWER(name) LIKE ? THEN 1
-                    WHEN LOWER(key) LIKE ? THEN 2
-                    ELSE 3
-                  END,
-                  name ASC
-                """,
-                (pattern, pattern, pattern, pattern, pattern, pattern, query_str, f"{query_str}%", f"{query_str}%"),
-            ).fetchall()
+        norm_q = _normalize_compound_name(query_str)
+        scored_matches: List[Tuple[int, str, Dict[str, Any]]] = []
 
-        unique_compounds = []
-        seen_names = set()
-        for row in rows:
-            c = self._row_to_compound(dict(row))
-            norm_name = str(c.get("name") or c.get("key") or "").strip().lower()
-            if norm_name and norm_name not in seen_names:
-                seen_names.add(norm_name)
-                unique_compounds.append(c)
-                if len(unique_compounds) >= limit:
-                    break
+        for comp in all_compounds:
+            comp_key = str(comp.get("key") or "").lower()
+            comp_name = str(comp.get("name") or "").lower()
+            comp_canonical = str(comp.get("canonical_name") or "").lower()
+            comp_class = str(comp.get("drug_class") or "").lower()
+            comp_indications = str(comp.get("indications") or "").lower()
+            syns = [str(s).lower() for s in (comp.get("synonyms") or [])]
 
-        if unique_compounds:
-            return self._enrich_ester_variant_metadata(unique_compounds)
+            norm_k = _normalize_compound_name(comp_key)
+            norm_n = _normalize_compound_name(comp_name)
+            norm_syns = [_normalize_compound_name(s) for s in syns]
+
+            score = 0
+            # Exact match
+            if comp_name == query_str or comp_key == query_str or norm_n == norm_q or norm_k == norm_q:
+                score = 100
+            elif any(s == query_str or ns == norm_q for s, ns in zip(syns, norm_syns)):
+                score = 90
+            # Prefix match
+            elif comp_name.startswith(query_str) or norm_n.startswith(norm_q):
+                score = 80
+            elif comp_key.startswith(query_str) or norm_k.startswith(norm_q):
+                score = 75
+            elif any(s.startswith(query_str) or ns.startswith(norm_q) for s, ns in zip(syns, norm_syns)):
+                score = 70
+            # Word boundary or substring match
+            elif f" {query_str}" in f" {comp_name}" or norm_q in norm_n:
+                score = 60
+            elif query_str in comp_key or norm_q in norm_k:
+                score = 50
+            elif any(query_str in s or norm_q in ns for s, ns in zip(syns, norm_syns)):
+                score = 45
+            elif query_str in comp_canonical:
+                score = 40
+            elif query_str in comp_class:
+                score = 30
+            elif query_str in comp_indications:
+                score = 20
+
+            if score > 0:
+                scored_matches.append((score, comp_name, comp))
+
+        if scored_matches:
+            scored_matches.sort(key=lambda x: (-x[0], x[1]))
+            matched_compounds = [copy.deepcopy(x[2]) for x in scored_matches[:limit]]
+            return self._enrich_ester_variant_metadata(matched_compounds)
 
         # On-demand write-through lookup if search returned 0 matches
         if auto_enrich and len(query_str) >= 3:
             try:
                 enriched = self.get_compound(query_str, auto_enrich=True)
                 if enriched:
-                    return self._enrich_ester_variant_metadata([enriched])
+                    return self._enrich_ester_variant_metadata([copy.deepcopy(enriched)])
             except Exception:
                 pass
 
@@ -1975,7 +2479,19 @@ class CatalogService:
     def delete_compound(self, key: str) -> bool:
         if not key:
             return False
-        keys_to_del = [k for k in _CATALOG_MEMORY_CACHE if k[0] == self.database_path and (k[1] == _normalize_compound_name(key) or _CATALOG_MEMORY_CACHE[k].get("key") == key)]
+        self._invalidate_path_cache()
+        keys_to_del = [
+            k
+            for k in _CATALOG_MEMORY_CACHE
+            if k[0] == self.database_path
+            and (
+                k[1] == _normalize_compound_name(key)
+                or (
+                    _CATALOG_MEMORY_CACHE[k] is not None
+                    and _CATALOG_MEMORY_CACHE[k].get("key") == key
+                )
+            )
+        ]
         for k in keys_to_del:
             _CATALOG_MEMORY_CACHE.pop(k, None)
         with self._connect() as conn:
@@ -2071,6 +2587,25 @@ class CatalogService:
             "ester_name": row.get("ester_name"),
             "ester_weight_factor": float(row.get("ester_weight_factor") if row.get("ester_weight_factor") is not None else 1.0),
         }
+
+        # Overlay structured seed library definitions if available
+        comp_k = compound.get("key")
+        seed_item = CORE_SUPPLEMENT_LIBRARY.get(comp_k) or CORE_ESTER_LIBRARY.get(comp_k) if comp_k else None
+        if seed_item:
+            if seed_item.get("smiles") and not compound.get("smiles"):
+                compound["smiles"] = seed_item["smiles"]
+            if seed_item.get("source_tier") and (compound.get("source_tier") in ("seed", None, "") or seed_item.get("source_tier") == "research_chemical_enrichment"):
+                compound["source_tier"] = seed_item["source_tier"]
+            if seed_item.get("metadata"):
+                cur_meta = dict(compound.get("metadata") or {})
+                for mk, mv in seed_item["metadata"].items():
+                    if mk not in cur_meta or cur_meta[mk] is None or cur_meta[mk] == "":
+                        cur_meta[mk] = mv
+                compound["metadata"] = cur_meta
+            if seed_item.get("volume_of_distribution_l_kg") is not None and compound.get("volume_of_distribution_l_kg") is None:
+                compound["volume_of_distribution_l_kg"] = seed_item["volume_of_distribution_l_kg"]
+            if seed_item.get("fraction_unbound") is not None and compound.get("fraction_unbound") is None:
+                compound["fraction_unbound"] = seed_item["fraction_unbound"]
 
         burdens = compound.get("organ_burdens") or {}
         if not burdens or all(v == "none" for v in burdens.values()):

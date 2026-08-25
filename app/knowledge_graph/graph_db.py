@@ -42,6 +42,19 @@ class Neo4jGraphDatabase:
 
     def _setup_db(self) -> None:
         try:
+            import socket
+            import urllib.parse
+            parsed = urllib.parse.urlparse(self.uri.replace("bolt://", "http://"))
+            host = parsed.hostname or "localhost"
+            port = parsed.port or 7687
+            
+            # Fast socket probe (0.15s) to avoid slow driver timeout when offline
+            with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
+                sock.settimeout(0.15)
+                if sock.connect_ex((host, port)) != 0:
+                    self.driver = None
+                    return
+
             self.driver = GraphDatabase.driver(self.uri, auth=self.auth)
             self.driver.verify_connectivity()
             self._init_schema()
@@ -88,13 +101,33 @@ class Neo4jGraphDatabase:
                 pass
             self.driver = None
 
+    @staticmethod
+    def _sanitize_param_value(val: Any) -> Any:
+        if isinstance(val, (set, tuple)):
+            return [Neo4jGraphDatabase._sanitize_param_value(x) for x in val]
+        if isinstance(val, dict):
+            return {k: Neo4jGraphDatabase._sanitize_param_value(v) for k, v in val.items() if not k.startswith("_")}
+        return val
+
+    @classmethod
+    def _clean_neo4j_params(cls, params: Optional[Dict[str, Any]]) -> Dict[str, Any]:
+        if not params:
+            return {}
+        clean = {}
+        for k, v in params.items():
+            if k.startswith("_"):
+                continue
+            clean[k] = cls._sanitize_param_value(v)
+        return clean
+
     def execute_cypher(self, query: str, params: Optional[Dict[str, Any]] = None) -> List[Dict[str, Any]]:
         """Executes a Cypher query against Neo4j or falls back to in-memory graph store."""
         params = params or {}
         if self.driver:
             try:
                 with self.driver.session() as session:
-                    result = session.run(query, params)
+                    clean_params = self._clean_neo4j_params(params)
+                    result = session.run(query, clean_params)
                     rows: List[Dict[str, Any]] = []
                     for record in result:
                         data = record.data()
@@ -460,6 +493,8 @@ class Neo4jGraphDatabase:
         chains: List[List[Dict[str, Any]]] = []
 
         def dfs(current_id: str, path: List[Dict[str, Any]], visited: Set[str], depth: int) -> None:
+            if len(chains) >= 25:
+                return
             if depth >= max_depth:
                 if len(path) > 1:
                     chains.append(list(path))
@@ -473,6 +508,8 @@ class Neo4jGraphDatabase:
 
             has_children = False
             for edge in outgoing:
+                if len(chains) >= 25:
+                    return
                 tgt = edge["target"]
                 if tgt in visited:
                     continue
@@ -496,11 +533,14 @@ class Neo4jGraphDatabase:
                 chains.append(list(path))
 
         for start_id in start_node_ids:
+            if len(chains) >= 25:
+                break
             sid = str(start_id)
             if sid in self._mock_nodes:
                 s_node = self._mock_nodes[sid]
                 root_step = {"source": "ROOT", "target": sid, "target_label": s_node.get("label", sid), "target_type": s_node.get("node_type", "compound")}
                 dfs(sid, [root_step], {sid}, 0)
+
 
         return chains
 
@@ -549,12 +589,98 @@ class Neo4jGraphDatabase:
                     clean[k] = v
             return clean
 
+        from app.services.catalog_service import CatalogService
+        catalog = CatalogService()
+
+        # Dynamically build and synchronize biological graph for queried entities if missing
+        missing_nodes = [eid for eid in clean_ids if eid not in self._mock_nodes]
+        if missing_nodes or not self._mock_edges:
+            try:
+                from app.services.graph_service import build_selected_compound_graph
+                bio_subgraph = build_selected_compound_graph(clean_ids, catalog_service=catalog)
+                if bio_subgraph and getattr(bio_subgraph, "graph", None):
+                    self.sync_biological_graph(bio_subgraph)
+            except Exception as sync_err:
+                logger.debug("Dynamic subgraph sync notice: %s", sync_err)
+
         # 1. Discover entities and 1-2 hop relationships
         for eid in clean_ids:
+            # Query authoritative catalog record for exact clinical PK/PD
+            comp_data = catalog.get_compound(eid, auto_enrich=False) or catalog.find_by_synonym(eid)
+
             if eid in self._mock_nodes:
                 n_info = _clean_node_data(self._mock_nodes[eid])
                 entities_found[eid] = n_info
-                if n_info.get("node_type") == "compound" and include_pkpd:
+            elif comp_data:
+                entities_found[eid] = {
+                    "id": eid,
+                    "label": comp_data.get("name") or comp_data.get("canonical_name") or eid,
+                    "node_type": "compound",
+                    "category": comp_data.get("drug_class") or "Pharmacological Agent",
+                }
+
+            if include_pkpd:
+                if comp_data:
+                    c_name = comp_data.get("name") or comp_data.get("canonical_name") or eid
+                    t_half = comp_data.get("t_half_numeric") or comp_data.get("half_life_hours")
+                    if t_half is None and comp_data.get("half_life"):
+                        hl_str = str(comp_data.get("half_life"))
+                        m_paren = re.search(r"\((\d+(?:\.\d+)?)\s*hours?\)", hl_str, re.IGNORECASE)
+                        if m_paren:
+                            t_half = float(m_paren.group(1))
+                        else:
+                            m_num = re.search(r"(\d+(?:\.\d+)?)", hl_str)
+                            if m_num:
+                                t_half = float(m_num.group(1))
+
+                    f_val = comp_data.get("bioavailability_f")
+                    if f_val is None:
+                        f_val = comp_data.get("oral_bioavailability")
+                    f_pct = round(float(f_val) * 100.0, 1) if f_val is not None else None
+
+                    vd = comp_data.get("volume_of_distribution_l_kg") or comp_data.get("volume_of_distribution")
+                    pb = comp_data.get("protein_binding_pct") or comp_data.get("protein_binding")
+                    fe = comp_data.get("renal_clearance_fraction")
+                    fh = comp_data.get("hepatic_clearance_fraction")
+                    if fe is not None and fh is None:
+                        try:
+                            fh = round(1.0 - float(fe), 2)
+                        except (ValueError, TypeError):
+                            pass
+
+                    cyps = comp_data.get("cyp_enzymes") or {}
+                    if isinstance(cyps, str):
+                        try:
+                            import json
+                            cyps = json.loads(cyps)
+                        except Exception:
+                            cyps = {}
+
+                    route_admin = comp_data.get("route_of_administration") or comp_data.get("default_route") or comp_data.get("route")
+                    is_ester = bool(comp_data.get("is_ester"))
+                    ester_name = comp_data.get("ester_name")
+
+                    pkpd_matrix[eid] = {
+                        "name": c_name,
+                        "smiles": comp_data.get("smiles"),
+                        "inchikey": comp_data.get("inchikey"),
+                        "drug_class": comp_data.get("drug_class"),
+                        "half_life_hours": t_half,
+                        "oral_bioavailability_pct": f_pct,
+                        "route_of_administration": route_admin,
+                        "is_ester": is_ester,
+                        "ester_name": ester_name,
+                        "volume_of_distribution_L_kg": vd,
+                        "protein_binding_pct": pb,
+                        "renal_clearance_fraction": fe,
+                        "hepatic_clearance_fraction": fh,
+                        "is_narrow_therapeutic_index": comp_data.get("is_narrow_therapeutic_index", False),
+                        "cyp_substrates": cyps.get("substrates", []),
+                        "cyp_inhibitors": cyps.get("inhibitors", []),
+                        "cyp_inducers": cyps.get("inducers", []),
+                    }
+                elif eid in self._mock_nodes and self._mock_nodes[eid].get("node_type") == "compound":
+                    n_info = entities_found[eid]
                     pkpd_matrix[eid] = {
                         "name": n_info.get("label", eid),
                         "smiles": n_info.get("smiles"),
@@ -681,8 +807,10 @@ class Neo4jGraphDatabase:
         if pkpd_matrix:
             prompt_sections.append("\n## 2. Pharmacokinetic & Clearance Profiles")
             for cid, pk in pkpd_matrix.items():
+                route_str = f" | Route: {pk.get('route_of_administration')}" if pk.get("route_of_administration") else ""
+                ester_str = f" | Ester: {pk.get('ester_name')}" if pk.get("is_ester") and pk.get("ester_name") else ""
                 prompt_sections.append(
-                    f"- **{pk['name']}**: t1/2 = {pk.get('half_life_hours', 'N/A')}h, "
+                    f"- **{pk['name']}**{route_str}{ester_str}: t1/2 = {pk.get('half_life_hours', 'N/A')}h, "
                     f"Bioavailability = {pk.get('oral_bioavailability_pct', 'N/A')}%, "
                     f"Vd = {pk.get('volume_of_distribution_L_kg', 'N/A')} L/kg, "
                     f"Renal (fe) = {pk.get('renal_clearance_fraction', 'N/A')}, "

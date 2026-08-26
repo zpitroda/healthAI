@@ -2482,6 +2482,46 @@ class InteractionEngine:
                     "ddi_cmax_multiplier": round(cmax_mult, 2),
                 }
 
+        # Gut Microbiota TMA/TMAO Mitigation (Oral L-Carnitine/Choline + Allicin/Garlic Extract/DMB)
+        is_tma_prec_a = _has_any_ontology_match(tags_a, ["carnitine", "alcar", "acetylcarnitine", "choline", "alpha-gpc", "citicoline", "betaine"]) or any("tma lyase" in str(r.get("target", "")).lower() and "substrate" in str(r.get("action", "")).lower() for r in comp_a.get("receptor_targets", []) if isinstance(r, dict))
+        is_tma_prec_b = _has_any_ontology_match(tags_b, ["carnitine", "alcar", "acetylcarnitine", "choline", "alpha-gpc", "citicoline", "betaine"]) or any("tma lyase" in str(r.get("target", "")).lower() and "substrate" in str(r.get("action", "")).lower() for r in comp_b.get("receptor_targets", []) if isinstance(r, dict))
+        is_tma_inh_a = _has_any_ontology_match(tags_a, ["allicin", "garlic", "allium", "diallyl thiosulfinate", "dimethylbutanol", "dmb"]) or any("tma lyase" in str(r.get("target", "")).lower() and "inhibitor" in str(r.get("action", "")).lower() for r in comp_a.get("receptor_targets", []) if isinstance(r, dict))
+        is_tma_inh_b = _has_any_ontology_match(tags_b, ["allicin", "garlic", "allium", "diallyl thiosulfinate", "dimethylbutanol", "dmb"]) or any("tma lyase" in str(r.get("target", "")).lower() and "inhibitor" in str(r.get("action", "")).lower() for r in comp_b.get("receptor_targets", []) if isinstance(r, dict))
+
+        if (is_tma_prec_a and is_tma_inh_b) or (is_tma_prec_b and is_tma_inh_a):
+            prec_name = name_a if is_tma_prec_a else name_b
+            inh_name = name_b if is_tma_prec_a else name_a
+            prec_comp = comp_a if is_tma_prec_a else comp_b
+            prec_route = str(prec_comp.get("route") or "oral").lower()
+            is_oral = prec_route in ["oral", "po", "swallow"]
+
+            return {
+                "source_key": key_a,
+                "source_name": name_a,
+                "target_key": key_b,
+                "target_name": name_b,
+                "is_self": False,
+                "severity": "SYNERGISTIC",
+                "severity_score": -6,
+                "conflict_types": ["SYNERGY", "GUT_MICROBIOME_MITIGATION"],
+                "title": f"Gut Microbiota TMAO Mitigation ({inh_name} + {prec_name})",
+                "description": (
+                    f"{inh_name} potently inhibits gut bacterial trimethylamine lyase (CntA/CntB / yeaW/yeaX), "
+                    f"blocking the intestinal microbial cleavage of oral {prec_name} into trimethylamine (TMA) and preventing "
+                    f"downstream host hepatic FMO3 oxidation to atherogenic Trimethylamine N-Oxide (TMAO)."
+                    if is_oral else
+                    f"{prec_name} is administered via parenteral {prec_route.upper()} route, already bypassing intestinal microbiota; "
+                    f"{inh_name} provides supplementary cardiovascular endothelial protection."
+                ),
+                "affected_targets": [
+                    "Gut Microbiota Carnitine TMA-Lyase (CntA/CntB / yeaW/yeaX)",
+                    "Flavin-Containing Monooxygenase 3 (FMO3)",
+                    "Endothelial Nitric Oxide Synthase (eNOS / NOS3)",
+                ],
+                "clinical_recommendation": f"Co-administration of {inh_name} with oral {prec_name} effectively counterbalances potential TMAO generation while preserving mitochondrial metabolic benefits.",
+                "evidence_level": "strong",
+            }
+
         # Multivalent Cation Gastrointestinal Chelation Collision
         is_mineral_a = _has_any_ontology_match(tags_a, ["magnesium", "zinc", "calcium", "iron", "aluminum", "multivalent cation"])
         is_mineral_b = _has_any_ontology_match(tags_b, ["magnesium", "zinc", "calcium", "iron", "aluminum", "multivalent cation"])

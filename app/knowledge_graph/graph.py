@@ -650,6 +650,21 @@ BIOMARKER_CLINICAL_CALIBRATION: Dict[str, Dict[str, Any]] = {
         "kinetic_profile": "direct_endocrine",
         "time_course_description": "Progressive skeletal muscle carnosine synthesis and intracellular storage (2-4 weeks to saturation)",
     },
+    # 10. Gut Microbiome & Vascular Metabolite Domain
+    "bio_tmao": {
+        "baseline": 3.5,
+        "unit": "μmol/L",
+        "gain_up": 12.0,
+        "gain_down": 2.2,
+        "safe_lower": 0.5,
+        "safe_upper": 6.2,
+        "label": "Serum Trimethylamine N-Oxide (TMAO)",
+        "onset_days": 0.5,
+        "half_time_days": 1.5,
+        "time_to_steady_state_weeks": 1.0,
+        "kinetic_profile": "gut_microbial_metabolism",
+        "time_course_description": "Intestinal microbial TMA lyase cleavage, portal vein transport, and hepatic FMO3 oxidation",
+    },
 }
 
 
@@ -776,6 +791,7 @@ TISSUE_TARGET_MAP: Dict[str, str] = {
     "bio_sleep_hours": "Central Nervous System & Suprachiasmatic Nucleus",
     "bio_cortisol": "Adrenal Cortex & HPA Axis",
     "bio_tsh": "Anterior Pituitary & Thyroid Follicular Cells",
+    "bio_tmao": "Intestinal Microbiota, Hepatic FMO3 & Vascular Endothelium",
 }
 
 
@@ -1280,6 +1296,7 @@ class BiologicalGraph:
             "serum_albumin_g_dl": "bio_serum_albumin",
             "qtc_ms": "bio_qtc",
             "platelets_k_ul": "bio_platelets",
+            "tmao_umol_l": "bio_tmao", "tmao": "bio_tmao", "tmao_ug_ml": "bio_tmao",
         }
 
         # Compute Biomarker Impacts with Bounded Per-Compound Aggregation

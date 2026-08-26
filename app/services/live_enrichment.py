@@ -263,17 +263,21 @@ class LiveEnrichmentService:
                                     action_type = "inhibitor"
                                 elif any(s in t_lower for s in ["aromatase", "5-alpha reductase", "srd5a"]) and any(w in cleaned_name for w in ["testosterone", "androstenedione", "dhea", "nandrolone", "boldenone"]):
                                     action_type = "substrate"
-                                elif any(s in t_lower for s in ["transporter", "reductase", "aromatase", "dehydrogenase", "synthase", "kinase", "pde5", "neprilysin", "enkephalinase"]):
+                                elif any(s in t_lower for s in ["transporter", "reductase", "aromatase", "dehydrogenase", "synthase", "kinase", "pde5", "neprilysin", "enkephalinase", "lyase"]):
                                     action_type = "inhibitor"
                                 else:
                                     action_type = "modulator"
 
+                                is_microbial_target = any(w in t_lower for w in ["cnta", "cntb", "cutc", "cutd", "yeaw", "yeax", "microbi", "bacteri"])
                                 target_entry = {
                                     "target": t_name,
                                     "action": action_type,
-                                    "family": "ChEMBL Bioactivity Assay",
+                                    "family": "Gut Microbiota / Microbial Lyase" if is_microbial_target else "ChEMBL Bioactivity Assay",
                                     "target_id": t_chembl,
+                                    "is_microbial": is_microbial_target,
                                 }
+                                if is_microbial_target:
+                                    target_entry["microbial_source"] = "Gut Microbiota"
                                 if std_type in ("KI", "KD") and affinity_val:
                                     target_entry["affinity_ki"] = affinity_val
                                 elif std_type == "IC50" and affinity_val:

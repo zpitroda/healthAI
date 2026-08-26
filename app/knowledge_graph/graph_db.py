@@ -296,12 +296,15 @@ class Neo4jGraphDatabase:
                     "gene_symbol": str(attrs.get("gene_symbol") or ""),
                     "subcellular_location": str(attrs.get("subcellular_location") or ""),
                     "direction": str(attrs.get("direction") or ""),
+                    "is_microbial": bool(attrs.get("is_microbial", False)),
+                    "microbial_source": str(attrs.get("microbial_source") or ""),
                 })
                 q = """
                 MERGE (t:EntityNode:TargetNode {id: $id})
                 SET t.label = $label, t.node_type = $node_type, t.family = $family, t.category = $category,
                     t.uniprot_id = $uniprot_id, t.gene_symbol = $gene_symbol,
-                    t.subcellular_location = $subcellular_location, t.direction = $direction
+                    t.subcellular_location = $subcellular_location, t.direction = $direction,
+                    t.is_microbial = $is_microbial, t.microbial_source = $microbial_source
                 """
                 self.execute_cypher(q, node_props)
 

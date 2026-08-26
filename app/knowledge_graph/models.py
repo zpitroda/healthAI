@@ -54,10 +54,12 @@ class CompoundNode(BaseNode):
 
 class EnzymeNode(BaseNode):
     node_type: str = "enzyme"
-    enzyme_family: Optional[str] = Field(default=None, description="e.g. CYP450, UGT, Kinase, Esterase, Reductase")
+    enzyme_family: Optional[str] = Field(default=None, description="e.g. CYP450, UGT, Kinase, Esterase, Reductase, Lyase")
     uniprot_id: Optional[str] = Field(default=None, description="UniProt Accession ID")
-    gene_symbol: Optional[str] = Field(default=None, description="HGNC Gene Symbol")
-    subcellular_location: Optional[str] = Field(default=None, description="e.g. Endoplasmic Reticulum, Cytoplasm, Mitochondria")
+    gene_symbol: Optional[str] = Field(default=None, description="HGNC Gene Symbol or Microbial Gene identifier")
+    subcellular_location: Optional[str] = Field(default=None, description="e.g. Endoplasmic Reticulum, Cytoplasm, Mitochondria, Intestinal Lumen")
+    is_microbial: bool = Field(default=False, description="Flag indicating if enzyme is expressed by gut microbiota rather than human host")
+    microbial_source: Optional[str] = Field(default=None, description="e.g. Gut Microbiota, Clostridium, Escherichia, Prevotella")
 
 
 class ReceptorNode(BaseNode):

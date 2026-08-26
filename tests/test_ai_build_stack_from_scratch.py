@@ -293,3 +293,68 @@ def test_build_scratch_stack_proposal_organ_priorities_and_budget_tier():
     assert "resveratrol" not in b_keys
 
 
+def test_build_scratch_stack_proposal_user_contradiction_exclusion_carnitine():
+    """Verify that when a user requests Anabolic Physique but explicitly excludes oral L-Carnitine, the engine respects the exclusion."""
+    proposal = StackIntentEngine.build_scratch_stack_proposal(
+        goal_id="anabolic_physique",
+        biometrics={"weight_kg": 85.0},
+        custom_notes="I want an anabolic physique stack, but please no oral l-carnitine",
+    )
+    keys = [c["key"] for c in proposal["compounds"]]
+    assert "l_carnitine" not in keys
+    assert "creatine" in keys
+    assert "beta_alanine" in keys
+
+    # Check applied_exclusions list
+    assert any("carnitine" in e.lower() for e in proposal["applied_exclusions"])
+
+    # Action card must not include L-Carnitine
+    card_keys = [a["key"] for a in proposal["action_card"]["add"]]
+    assert "l_carnitine" not in card_keys
+    assert "creatine" in card_keys
+
+
+def test_build_scratch_stack_proposal_exclusion_caffeine_focus():
+    """Verify that when a user requests Cognitive Focus but explicitly asks to avoid caffeine, caffeine is omitted and nootropics remain."""
+    proposal = StackIntentEngine.build_scratch_stack_proposal(
+        goal_id="cognitive_focus",
+        biometrics={"weight_kg": 75.0},
+        custom_notes="I am building a focus stack but need to avoid caffeine due to anxiety.",
+    )
+    keys = [c["key"] for c in proposal["compounds"]]
+    assert "caffeine" not in keys
+    assert "l_theanine" in keys
+    assert "bacopa" in keys
+    assert any("caffeine" in e.lower() for e in proposal["applied_exclusions"])
+
+
+def test_build_scratch_stack_proposal_structured_exclusions_list():
+    """Verify explicit structured exclusions parameter filters candidate compounds and gap co-factors."""
+    proposal = StackIntentEngine.build_scratch_stack_proposal(
+        goal_id="anabolic_physique",
+        biometrics={"weight_kg": 90.0, "alt_u_l": 55.0},
+        exclusions=["telmisartan", "nac"],
+    )
+    keys = [c["key"] for c in proposal["compounds"]]
+    assert "telmisartan" not in keys
+    assert "nac" not in keys
+    assert "creatine" in keys
+
+
+def test_copilot_system_context_with_contradiction_exclusion():
+    """Verify CopilotAgent.build_system_context injects the calibrated blueprint and reflects exclusions."""
+    from app.services.copilot_agent import CopilotAgent
+    context = CopilotAgent.build_system_context(
+        persona="architect",
+        stack=[],
+        biometrics={"weight_kg": 85.0, "egfr": 95.0, "alt_u_l": 25.0},
+        protocol_goal="anabolic_physique",
+        custom_instructions="no oral l-carnitine, avoid caffeine",
+    )
+    assert "### PRE-CALIBRATED EVIDENCE-BASED PROTOCOL BLUEPRINT" in context
+    assert "User-Requested Exclusions Applied" in context
+    assert "carnitine" in context.lower()
+    assert "### DYNAMIC GRAPH REASONING, CLINICAL SCRATCHPAD & TOOL PROTOCOL:" in context
+
+
+

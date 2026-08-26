@@ -145,18 +145,15 @@ async def get_best_available_model(preferred_model: Optional[str] = None, base_u
     return target
 
 
-# Cloud & Local fallback models in priority order (Qwen3 & Qwen prioritized for Groq, OpenRouter, and local)
+# Cloud & Local fallback models in priority order (Qwen 3.8 27B prioritized for local and cloud)
 CLOUD_FALLBACK_MODELS = [
-    "qwen3.6:27b",
-    "qwen3.6-27b",
     "qwen/qwen3.8-27b",
-    "qwen/qwen3.6-27b",
-    "qwen/qwen3-32b",
-    "qwen-2.5-32b",
+    "qwen/qwen3.8-27b-20260814",
+    "qwen3.8:27b",
+    "qwen3.8",
     "qwen/qwen-2.5-72b-instruct",
-    "llama-3.3-70b-versatile",
-    "llama-3.1-8b-instant",
-    "gpt-4o-mini",
+    "qwen3.6:27b",
+    "qwen-2.5-32b",
 ]
 
 
@@ -225,7 +222,7 @@ async def ask_local_llm(
     primary_model = await get_best_available_model(model, base_url=base_url)
     url = f"{base_url}/chat/completions"
     headers = get_auth_headers()
-    token_limit = max_tokens if max_tokens is not None else int(os.getenv("OPENAI_MAX_TOKENS", "1200"))
+    token_limit = max_tokens if max_tokens is not None else int(os.getenv("OPENAI_MAX_TOKENS", "8192"))
 
     models_to_try = [primary_model]
     for fm in CLOUD_FALLBACK_MODELS:
@@ -296,7 +293,7 @@ async def stream_local_llm_chat(
     primary_model = await get_best_available_model(model, base_url=base_url)
     url = f"{base_url}/chat/completions"
     headers = get_auth_headers()
-    token_limit = max_tokens if max_tokens is not None else int(os.getenv("OPENAI_MAX_TOKENS", "1200"))
+    token_limit = max_tokens if max_tokens is not None else int(os.getenv("OPENAI_MAX_TOKENS", "8192"))
 
     full_messages = []
     if system_prompt:
@@ -360,7 +357,7 @@ async def stream_local_llm_chat(
                                 delta = choices[0].get("delta", {})
 
                                 # 1. Reasoning / Thinking delta
-                                reasoning = delta.get("reasoning_content") or delta.get("thought") or delta.get("thinking")
+                                reasoning = delta.get("reasoning") or delta.get("reasoning_content") or delta.get("thought") or delta.get("thinking")
                                 if reasoning:
                                     yield {"type": "reasoning", "data": reasoning}
 

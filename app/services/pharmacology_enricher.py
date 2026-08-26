@@ -860,6 +860,58 @@ USAN_STEM_RULES: List[Dict[str, Any]] = [
             {"target": "Multivalent Cation Gastrointestinal Chelation Site", "action": "chelator", "family": "Physicochemical Interaction"}
         ],
     },
+    {
+        "stems": ["allicin", "allium", "garlic"],
+        "class_name": "Organosulfur Botanical / Microbial Lyase Inhibitor",
+        "cyp_substrates": [],
+        "cyp_inhibitors": ["CYP2E1"],
+        "cyp_inducers": [],
+        "transporter_substrates": [],
+        "transporter_inhibitors": ["P-GP"],
+        "phase2_substrates": ["GST"],
+        "organ_burdens": {"hepatic": "none", "renal": "none", "cardiovascular": "low", "cns_stimulant": "none", "sedative": "none"},
+        "dosing": {"common": 10, "unit": "mg", "frequency": "daily", "timing": "with_meal"},
+        "half_life": "1.0 hours",
+        "oral_bioavailability": "80%",
+        "volume_of_distribution": "0.8 L/kg",
+        "protein_binding": "45%",
+        "clearance_routes": "Hepatic metabolism & pulmonary/renal elimination",
+        "route": "oral",
+        "logp": 1.35,
+        "tpsa": 42.5,
+        "is_narrow_therapeutic_index": False,
+        "targets": [
+            {"target": "Gut Microbiota Carnitine TMA-Lyase (CntA/CntB / yeaW/yeaX)", "action": "inhibitor", "family": "Gut Microbiome / Microbial Lyase", "inhibition_ic50": 0.05, "is_microbial": True},
+            {"target": "HMG-CoA Reductase", "action": "inhibitor", "family": "Lipid Metabolism", "inhibition_ic50": 1.2},
+            {"target": "Endothelial Nitric Oxide Synthase (eNOS / NOS3)", "action": "agonist", "family": "Vascular Endothelium"},
+            {"target": "Glutathione Biosynthesis & Cellular Antioxidant Defense (System xc- / Nrf2 / GCL)", "action": "agonist", "family": "Antioxidant Defense"}
+        ],
+    },
+    {
+        "stems": ["carnitine", "alcar", "acetylcarnitine", "levocarnitine"],
+        "class_name": "Dietary Nutrient / Mitochondrial Fatty Acid Shuttle",
+        "cyp_substrates": [],
+        "cyp_inhibitors": [],
+        "cyp_inducers": [],
+        "transporter_substrates": ["OCTN2"],
+        "transporter_inhibitors": [],
+        "phase2_substrates": [],
+        "organ_burdens": {"hepatic": "none", "renal": "none", "cardiovascular": "low", "cns_stimulant": "none", "sedative": "none"},
+        "dosing": {"common": 1000, "unit": "mg", "frequency": "daily", "timing": "morning"},
+        "half_life": "15 hours",
+        "oral_bioavailability": "15-20%",
+        "volume_of_distribution": "0.65 L/kg",
+        "protein_binding": "0%",
+        "clearance_routes": "Renal tubular reabsorption & excretion; intestinal microbial cleavage",
+        "route": "oral",
+        "logp": -5.48,
+        "tpsa": 60.4,
+        "is_narrow_therapeutic_index": False,
+        "targets": [
+            {"target": "Carnitine Palmitoyltransferase 1A (CPT1A)", "action": "agonist", "family": "Mitochondrial Fatty Acid Oxidation", "affinity_ki": 10.0},
+            {"target": "Gut Microbiota Carnitine TMA-Lyase (CntA/CntB / yeaW/yeaX)", "action": "substrate", "family": "Gut Microbiome / Microbial Lyase", "is_microbial": True}
+        ],
+    },
 ]
 
 

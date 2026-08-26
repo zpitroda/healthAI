@@ -182,8 +182,28 @@ CORE_SUPPLEMENT_LIBRARY: Dict[str, Dict[str, Any]] = {
         "volume_of_distribution": 0.7,
         "protein_binding": 0.0,
         "receptor_targets": [
-            {"target": "Carnitine Palmitoyltransferase (CPT1A / CPT2)", "action": "agonist", "family": "Enzyme / Fatty Acid Oxidation"}
+            {"target": "Carnitine Palmitoyltransferase (CPT1A / CPT2)", "action": "agonist", "family": "Enzyme / Fatty Acid Oxidation"},
+            {"target": "Gut Microbiota Carnitine TMA-Lyase (CntA/CntB / yeaW/yeaX)", "action": "substrate", "family": "Gut Microbiota / Microbial Lyase", "is_microbial": True}
         ],
+    },
+    "allicin": {
+        "name": "Allicin",
+        "canonical_name": "Allicin (Garlic Extract / Allium sativum)",
+        "synonyms": ["allicin", "garlic", "garlicextract", "alliumsativum", "agedgarlicextract", "diallylthiosulfinate"],
+        "drug_class": "Dietary Supplement / Organosulfur Botanical / Microbial Lyase Inhibitor",
+        "categories": ["Dietary Supplement", "Antioxidant", "Cardiovascular Support", "Gut Microbiome Modulator"],
+        "molecular_weight": 162.27,
+        "logp": 1.35,
+        "oral_bioavailability": 0.80,
+        "volume_of_distribution": 0.8,
+        "protein_binding": 45.0,
+        "receptor_targets": [
+            {"target": "Gut Microbiota Carnitine TMA-Lyase (CntA/CntB / yeaW/yeaX)", "action": "inhibitor", "family": "Gut Microbiota / Microbial Lyase", "inhibition_ic50": 0.05, "is_microbial": True},
+            {"target": "HMG-CoA Reductase (HMGCR)", "action": "inhibitor", "family": "Enzyme / Lipid", "inhibition_ic50": 1.2},
+            {"target": "Endothelial Nitric Oxide Synthase (eNOS / NOS3)", "action": "agonist", "family": "Vascular Endothelium"},
+            {"target": "Glutathione Biosynthesis & Cellular Antioxidant Defense (System xc- / Nrf2 / GCL)", "action": "agonist", "family": "Antioxidant Defense"}
+        ],
+        "cyp_enzymes": {"substrates": [], "inhibitors": ["CYP2E1"], "inducers": []},
     },
     "l_theanine": {
         "name": "L-Theanine",
@@ -1335,6 +1355,12 @@ CANONICAL_SYNONYM_MAP: Dict[str, str] = {
     "carnitine": "l_carnitine",
     "lcarnitine": "l_carnitine",
     "lcarnitinetartrate": "l_carnitine",
+    "allicin": "allicin",
+    "garlic": "allicin",
+    "garlicextract": "allicin",
+    "alliumsativum": "allicin",
+    "agedgarlicextract": "allicin",
+    "diallylthiosulfinate": "allicin",
     "ltheanine": "l_theanine",
     "theanine": "l_theanine",
     "suntheanine": "l_theanine",

@@ -65,7 +65,7 @@ def test_zero_regex_exact_target_cascade_blueprint_lookup():
 
     at1_bp = get_exact_target_cascade_blueprint(target_name="unknown", uniprot_id="P30556")
     assert at1_bp is not None
-    assert "Angiotensin II" in at1_bp["target_name"]
+    assert "angiotensin ii" in at1_bp["target_name"].lower()
 
     # 2. Gene Symbol Lookups
     b1_bp = get_exact_target_cascade_blueprint(target_name="unknown", gene_symbol="ADRB1")

@@ -19,6 +19,7 @@ from app.services.graph_service import (
     resolve_stack_to_catalog_keys,
 )
 from app.services.interaction_engine import InteractionEngine
+from app.services.markdown_protocol_parser import MarkdownProtocolParser
 from app.services.pathway_service import PathwayService
 from app.services.pkpd_engine import PKPDEngine
 from app.services.stack_intent_engine import StackIntentEngine
@@ -32,6 +33,7 @@ PERSONA_SYSTEM_PROMPTS = {
 You specialize in designing synergistic, bio-individualized stacks, circadian timing schedules (Morning, Midday, Afternoon, Bedtime), half-life alignments, and protective co-factor pairings.
 
 ### CLINICAL & SCIENTIFIC MANDATE:
+- Focused Internal Reasoning: Focus internal thought strictly on verifying pharmacokinetics, DDI safety, and timing alignment without meta-deliberation, word-counting, or drafting iterations. Proceed directly to the final markdown response once verified.
 - Quantitative Grounding: Base every protocol recommendation on quantitative pharmacokinetics (Cmax, Tmax, elimination t1/2, clearance routes) and molecular pharmacodynamics.
 - Circadian Scheduling: Formulate schedules matching receptor expression rhythms, cortisol/melatonin diurnal cycles, and metabolic absorption windows.
 - Half-Life Timing Alignment: Schedule compounds according to elimination half-life (t1/2) and route. Long-acting depot formulations (t1/2 > 72h, e.g. testosterone esters, nandrolone) MUST be scheduled as weekly or split-weekly administration under a dedicated 'Depot Injections (Weekly / Split Protocol)' header with route (IM/SubQ) and frequency (e.g. Twice Weekly / Mon & Thu), never placed in the daily oral meal table. Short half-life oral compounds belong in the daily circadian meal table.
@@ -39,7 +41,7 @@ You specialize in designing synergistic, bio-individualized stacks, circadian ti
 - Organ Burden Offsetting: Address identified multi-organ burdens (renal, hepatic, cardiovascular, lipid) with evidence-graded clinical co-factors.
 - Publication-Ready Prose: Write directly in finished, authoritative clinical markdown. Do not write drafting questions, internal debates, or self-talk. Support assertions with clean bracketed citations (e.g. [FDA Label: Telmisartan §5.1], [PMID: 18449337]).
 
-### RESPONSE FORMAT (200–350 WORDS, HIGH SIGNAL, CRISP MARKDOWN):
+### RESPONSE FORMAT (HIGH SIGNAL, CRISP MARKDOWN):
 1. **Executive Assessment**: 1–2 direct sentences on stack balance, safety, and core synergy vectors relative to the primary protocol objective and user constraints.
 2. **Targeted Synergies & Co-Factors**: 2–4 high-yield bullet points with exact molecular rationale, target dosages, and timing.
 3. **Protocol Schedule**:
@@ -47,7 +49,7 @@ You specialize in designing synergistic, bio-individualized stacks, circadian ti
    - Then provide a compact **Daily Circadian Schedule Table**:
      | Window | Compound | Dose & Route | Pharmacokinetic & Chronobiological Rationale |
 4. **Clinical Titration & Notes**: 1–2 bullet points on titration milestones, safety monitoring, or co-ingestion rules.
-5. **Action Card**: If proposing protocol additions, titrations, or removals, provide **EXACTLY ONE consolidated `<action_card>` at the VERY END of the response**.
+5. **Action Card**: When proposing protocol additions, titrations, or removals, provide **EXACTLY ONE consolidated `<action_card type="stack_diff">` at the VERY END of the response**. The action card MUST contain EVERY compound recommended in the schedule and synergies with matching dosages and timing (e.g. `{"add": [{"key": "telmisartan", "name": "Telmisartan", "dose": 40, "unit": "mg", "timing": "morning", "frequency": "daily", "route": "oral"}], "modify": [], "remove": []}`). Do NOT omit any recommended compound from the card, and do NOT include unmentioned compounds.
    Example:
    <action_card type="stack_diff">
    {"add": [{"key": "telmisartan", "name": "Telmisartan", "dose": 40, "unit": "mg", "timing": "morning", "frequency": "daily", "route": "oral"}], "modify": [], "remove": []}
@@ -57,13 +59,14 @@ You specialize in designing synergistic, bio-individualized stacks, circadian ti
 Your role is to forensically red-team compound stacks, identifying drug-drug interactions (DDIs), CYP450 enzyme competition, Phase II and transporter saturation (P-gp, OATP1B1, BCRP), acute syndrome hazards (Serotonin Syndrome, QTc prolongation, Renal Triple Whammy), and hepatic/renal clearance bottlenecks.
 
 ### CLINICAL & SCIENTIFIC MANDATE:
+- Focused Internal Reasoning: Focus internal thought strictly on verifying collision matrices, clearance bottlenecks, and toxicological risks without meta-deliberation, word-counting, or drafting iterations. Proceed directly to the final audit response once verified.
 - Quantify risk severity (MINIMAL, LOW, MODERATE, ELEVATED, SEVERE) referencing the deterministic collision matrix.
 - Explain clearance kinetics: competitive CYP inhibition vs mechanism-based inactivation (MBI), AUCR surges, and renal CrCl/eGFR impacts.
 - Detail acute receptor cross-talk and toxicological collisions.
 - Propose evidence-based pharmacological countermeasures with verified clinical safety and dosing.
 - Provide direct, actionable conflict audits and solutions in finished prose.
 
-### RESPONSE FORMAT (200–350 WORDS, OBJECTIVE & ACTIONABLE):
+### RESPONSE FORMAT (OBJECTIVE & ACTIONABLE):
 1. **Risk Severity Classification**: Headline with risk level and cumulative score (e.g. `MODERATE RISK [Score: 32/100]` or `CRITICAL DDI ALERT`).
 2. **Identified Conflicts & Bottlenecks**: Bullet points detailing CYP450 competition, transporter clashes, receptor collisions, or organ burden convergence.
 3. **Protective Countermeasures**: Concrete clinical solutions (e.g. dose reduction, timing separation, enzyme-specific mitigations, or targeted protective co-factors).
@@ -73,11 +76,12 @@ Your role is to forensically red-team compound stacks, identifying drug-drug int
 You provide PhD-level molecular pharmacology explanations of receptor binding dynamics, allosteric modulations (PAM/NAM), enzyme kinetics, second messenger cascades, and downstream gene expression.
 
 ### BIOCHEMICAL & MOLECULAR MANDATE:
+- Focused Internal Reasoning: Focus internal thought strictly on resolving receptor affinities, enzyme pathways, and signaling cascades without meta-deliberation, word-counting, or drafting iterations. Proceed directly to the final explanation once verified.
 - Quote quantitative binding affinities ($K_i, K_d, IC_{50}, EC_{50}$) and Hill coefficients whenever available.
 - Detail specific receptor subtypes (e.g. 5-HT1A, 5-HT2A, alpha-1/beta-2 adrenergic, GABA-A alpha-1/alpha-2, CB1/CB2, Progesterone Receptor).
 - Trace intracellular signaling: G-protein coupling (Gs, Gi, Gq), second messengers (cAMP, IP3/DAG, Ca2+, PKA/PKC), and nuclear translocation/transcription factor activation (AMPK -> SIRT1 -> PGC-1alpha, Nrf2/ARE, NF-kB, CREB -> BDNF, mTORC1 -> p70S6K).
 
-### RESPONSE FORMAT (200–350 WORDS, HIGH SCIENTIFIC DENSITY):
+### RESPONSE FORMAT (HIGH SCIENTIFIC DENSITY):
 1. **Primary Molecular Targets & Binding Kinetics**: Specific receptors/enzymes, affinities, and agonist/antagonist/allosteric mode.
 2. **Intracellular Signaling Cascade**: Step-by-step pathway transduction mechanism.
 3. **Physiological & Clinical Translation**: How cellular signaling translates to systemic physiological performance or health outcomes.
@@ -86,11 +90,12 @@ You provide PhD-level molecular pharmacology explanations of receptor binding dy
 You interpret quantitative patient blood panels (Lipids, Hepatic transaminases, Renal clearance, Endocrine/Hormonal axes, Glycemic and Inflammatory markers) and correlate them directly with compound pharmacology to optimize titrations and safeguard organ function.
 
 ### CLINICAL LABORATORY STANDARDS:
+- Focused Internal Reasoning: Focus internal thought strictly on biomarker reference ranges, organ burdens, and dose adjustments without meta-deliberation, word-counting, or drafting iterations. Proceed directly to the final clinical guidance once verified.
 - Correlate laboratory shifts with specific pharmacokinetic and metabolic burdens (e.g. 17alpha-alkylated hepatic clearance, eGFR renal clearance, HMGCR modulation, HPTA axis negative feedback).
 - Provide individual baseline comparisons against clinical reference ranges.
 - Propose exact titration offsets and targeted ancillary co-factors to normalize skewed laboratory parameters.
 
-### RESPONSE FORMAT (200–350 WORDS, CLINICALLY FOCUSED):
+### RESPONSE FORMAT (CLINICALLY FOCUSED):
 1. **Biomarker Profile & Impact Overview**: Assessment across Lipid (ApoB, LDL-C, Triglycerides), Hepatic (ALT, AST, Bilirubin), Renal (eGFR, Cr, K+), and Hormonal axes.
 2. **Individualized Titration Guidance**: Concrete dose calibrations scaled to the patient's current organ clearance metrics.
 3. **Recommended Monitoring Panel & Timeline**: Key lab panels to order at the next 4-week / 12-week draw.
@@ -1587,6 +1592,7 @@ You have autonomous access to execute live graph traversals, pathway queries, ph
 3. **Structured Response & Action Card Mandate**:
    - Output clean, publication-ready clinical markdown without drafting monologue or inline questioning.
    - Conclude with exactly ONE consolidated `<action_card type="stack_diff">` containing the final `add`, `modify`, `remove` directives.
+   - The `<action_card>` MUST match the proposed compounds, dosages, and schedule in your text 1:1. Include every compound you recommended, and do not include unmentioned compounds.
 """
         full_system_parts.append(react_instructions)
 
@@ -2077,39 +2083,65 @@ You have autonomous access to execute live graph traversals, pathway queries, ph
                         yield {"event": "delta", "data": clean_final_text}
 
                 # Extract and emit any structured action cards
+                turn_text = accumulated_turn_content or accumulated_reasoning_text
                 all_cards = list(parser.action_cards)
                 for source_text in (accumulated_turn_content, accumulated_reasoning_text):
-                    for ac in re.findall(r'<action_card\s+type="([^"]+)"\s*>(.*?)</action_card>', source_text, re.DOTALL):
-                        all_cards.append(f'<action_card type="{ac[0]}">{ac[1]}</action_card>')
+                    for ac in re.findall(r'<action_card(?:\s+type=[\'"]?([^\'">\s]+)[\'"]?)?\s*>(.*?)(?:</action_card>|$)', source_text, re.DOTALL | re.IGNORECASE):
+                        card_t = ac[0] or "stack_diff"
+                        all_cards.append(f'<action_card type="{card_t}">{ac[1]}</action_card>')
 
                 for card_text in all_cards:
-                    m = re.search(r'<action_card\s+type="([^"]+)"\s*>(.*?)</action_card>', card_text, re.DOTALL | re.IGNORECASE)
+                    m = re.search(r'<action_card(?:\s+type=[\'"]?([^\'">\s]+)[\'"]?)?\s*>(.*?)(?:</action_card>|$)', card_text, re.DOTALL | re.IGNORECASE)
                     if m:
-                        card_type = m.group(1).strip()
+                        card_type = (m.group(1) or "stack_diff").strip()
                         card_body = m.group(2).strip()
                         match_key = f"{card_type}:{card_body}"
                         if match_key not in action_cards_emitted:
                             action_cards_emitted.add(match_key)
                             try:
-                                card_data = json.loads(card_body)
-                                from app.services.action_card_validator import ActionCardValidator
-                                validated_payload, val_notes = ActionCardValidator.validate_and_sanitize_card(
-                                    card_type=card_type,
-                                    payload=card_data,
-                                    current_stack=stack_list,
-                                    biometrics=biometrics_dict,
-                                )
-                                yield {
-                                    "event": "action_card",
-                                    "data": {
-                                        "type": card_type,
-                                        "payload": validated_payload
+                                card_data = MarkdownProtocolParser._extract_first_json_object(card_body)
+                                if card_data and isinstance(card_data, dict):
+                                    reconciled_card = MarkdownProtocolParser.reconcile_card_with_text(
+                                        card_payload=card_data,
+                                        text=turn_text,
+                                        base_stack=stack_list,
+                                        biometrics=biometrics_dict,
+                                    )
+                                    from app.services.action_card_validator import ActionCardValidator
+                                    validated_payload, val_notes = ActionCardValidator.validate_and_sanitize_card(
+                                        card_type=card_type,
+                                        payload=reconciled_card,
+                                        current_stack=stack_list,
+                                        biometrics=biometrics_dict,
+                                    )
+                                    yield {
+                                        "event": "action_card",
+                                        "data": {
+                                            "type": card_type,
+                                            "payload": validated_payload
+                                        }
                                     }
-                                }
                             except Exception as card_err:
                                 logger.debug("Action card parsing notice: %s", card_err)
-                
-                # If no action cards were emitted by the model during an initial scratch build request, guarantee action card emission
+
+                # If no explicit action card was emitted in XML, dynamically extract protocol from generated markdown text
+                if not action_cards_emitted:
+                    text_card = MarkdownProtocolParser.extract_from_text(
+                        text=turn_text,
+                        base_stack=stack_list,
+                        biometrics=biometrics_dict,
+                    )
+                    if text_card and (text_card.get("add") or text_card.get("modify") or text_card.get("remove")):
+                        action_cards_emitted.add("text_extracted")
+                        yield {
+                            "event": "action_card",
+                            "data": {
+                                "type": "stack_diff",
+                                "payload": text_card
+                            }
+                        }
+
+                # If still no action cards and this is an initial scratch build request, fall back to blueprint proposal
                 user_msgs = [m for m in messages if m.get("role") == "user"]
                 last_user_content = str(user_msgs[-1].get("content", "")).lower() if user_msgs else ""
                 is_initial_scratch_build = len(user_msgs) <= 1 and (
@@ -2218,10 +2250,27 @@ You have autonomous access to execute live graph traversals, pathway queries, ph
                         )
                 break
 
+        # Extract structured action card or suggested mutations
+        extracted_card = MarkdownProtocolParser.extract_from_text(
+            text=full_text,
+            base_stack=stack_list,
+            biometrics=biometrics_dict,
+        )
+
+        suggested_actions = []
+        if extracted_card:
+            for add_item in extracted_card.get("add", []):
+                suggested_actions.append(f"Add {add_item.get('name', add_item.get('key'))} ({add_item.get('dose')}{add_item.get('unit', 'mg')} {add_item.get('timing', 'morning')})")
+            for mod_item in extracted_card.get("modify", []):
+                suggested_actions.append(f"Titrate {mod_item.get('name', mod_item.get('key'))} to {mod_item.get('dose')}{mod_item.get('unit', 'mg')}")
+            for rem_item in extracted_card.get("remove", []):
+                suggested_actions.append(f"Remove {rem_item}")
+
         return {
             "response_text": full_text or "Analysis completed.",
             "key_takeaways": [],
-            "suggested_actions": [],
+            "suggested_actions": suggested_actions,
+            "action_card": extracted_card,
             "clinical_scratchpad": "\n\n".join(scratchpad_notes) if scratchpad_notes else None
         }
 

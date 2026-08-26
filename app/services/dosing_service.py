@@ -1083,12 +1083,18 @@ def parse_dose_string_or_spec(spec_input: Any) -> Dict[str, Any]:
     freq_candidate = inferred_freq
     route_candidate = inferred_route
 
+    KNOWN_ROUTES = {"oral", "intramuscular", "im", "subcutaneous", "sc", "subq", "transdermal", "sublingual", "intravenous", "iv", "topical", "nasal", "inhalation"}
+
     # Check if frequency or route tokens are included in parts
     if len(parts) >= 4:
         freq_candidate = parts[2].strip()
         route_candidate = parts[3].strip().lower()
     elif len(parts) >= 3:
-        freq_candidate = parts[2].strip()
+        p2_low = parts[2].strip().lower()
+        if p2_low in KNOWN_ROUTES:
+            route_candidate = p2_low
+        else:
+            freq_candidate = parts[2].strip()
     elif len(parts) == 2 and any(k in parts[1].lower() for k in ["daily", "weekly", "bid", "tid", "qid", "qod", "biw", "qw", "prn", "month"]):
         if not re.search(r"\d", parts[1]):
             freq_candidate = parts[1].strip()

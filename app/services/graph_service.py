@@ -860,6 +860,62 @@ def build_selected_compound_graph(stack: List[Any], catalog_service: CatalogServ
                     "pre_computed_stress": True,
                 })
 
+        # Gut Microbial TMA Precursors (Oral L-Carnitine, Choline, Betaine)
+        is_tma_precursor = any(w in c_name_lower or w in drug_class_lower or w in mechanism_text for w in ["carnitine", "alcar", "acetylcarnitine", "choline", "alpha-gpc", "citicoline", "betaine", "trimethylamine"])
+        if is_tma_precursor:
+            c_route = str(compound_entry.get("route") or compound.get("route") or "oral").lower().strip()
+            is_parenteral = c_route in ["intramuscular", "im", "subcutaneous", "sc", "subq", "intravenous", "iv"]
+
+            if is_parenteral:
+                # Parenteral delivery completely bypasses intestinal lumen microbiota
+                receptor_targets = [
+                    t for t in receptor_targets
+                    if not any(w in str(t.get("target", "")).lower() for w in ["tma lyase", "tma-lyase", "cnta", "cntb", "yeaw", "yeax", "cutc", "fmo3"])
+                ]
+            else:
+                # Oral administration exposes unabsorbed compound to intestinal microbial TMA lyases
+                # 1000mg oral dose -> ~0.85 substrate conversion drive
+                lyase_eff = min(0.95, 0.55 + 0.35 * math.log10(max(1.0, dose_mg / 250.0)))
+                lyase_ki = 2.5
+
+                existing_lyase = next((t for t in receptor_targets if any(w in str(t.get("target", "")).lower() for w in ["tma lyase", "tma-lyase", "cnta", "cntb", "yeaw", "yeax", "cutc"])), None)
+                if existing_lyase:
+                    existing_lyase["action"] = "substrate"
+                    existing_lyase["family"] = "Gut Microbiota / Microbial Lyase"
+                    existing_lyase["intrinsic_efficacy"] = lyase_eff
+                    existing_lyase["affinity_ki"] = lyase_ki
+                    existing_lyase["is_microbial"] = True
+                else:
+                    receptor_targets.append({
+                        "target": "Gut Microbiota Carnitine TMA-Lyase (CntA/CntB / yeaW/yeaX)",
+                        "action": "substrate",
+                        "family": "Gut Microbiota / Microbial Lyase",
+                        "affinity_ki": lyase_ki,
+                        "intrinsic_efficacy": lyase_eff,
+                        "is_microbial": True,
+                    })
+
+        # Allicin / Garlic Extract / DMB (Microbial TMA Lyase Inhibitors)
+        is_tma_inhibitor = any(w in c_name_lower or w in drug_class_lower or w in mechanism_text for w in ["allicin", "garlic", "allium", "diallyl thiosulfinate", "dimethylbutanol", "dmb"])
+        if is_tma_inhibitor:
+            allicin_inh_eff = -min(0.95, 0.65 + 0.25 * math.log10(max(0.1, dose_mg / 2.0)))
+            existing_inh_lyase = next((t for t in receptor_targets if any(w in str(t.get("target", "")).lower() for w in ["tma lyase", "tma-lyase", "cnta", "cntb", "yeaw", "yeax", "cutc"])), None)
+            if existing_inh_lyase:
+                existing_inh_lyase["action"] = "inhibitor"
+                existing_inh_lyase["family"] = "Gut Microbiota / Microbial Lyase"
+                existing_inh_lyase["intrinsic_efficacy"] = allicin_inh_eff
+                existing_inh_lyase["inhibition_ic50"] = 0.05
+                existing_inh_lyase["is_microbial"] = True
+            else:
+                receptor_targets.append({
+                    "target": "Gut Microbiota Carnitine TMA-Lyase (CntA/CntB / yeaW/yeaX)",
+                    "action": "inhibitor",
+                    "family": "Gut Microbiota / Microbial Lyase",
+                    "inhibition_ic50": 0.05,
+                    "intrinsic_efficacy": allicin_inh_eff,
+                    "is_microbial": True,
+                })
+
         # Dynamic First-Principles Organ Stress & Clearance Pathway Synthesis
         cyp_info = compound.get("cyp_enzymes") or {}
         transporter_info = compound.get("transporters") or {}
@@ -1114,12 +1170,14 @@ def build_selected_compound_graph(stack: List[Any], catalog_service: CatalogServ
             # Instantiate accurate biological node type (Enzyme, Transporter, Ion Channel, or Receptor)
             if (
                 cascade_node_type == "enzyme"
-                or any(w in target_lower or w in target_fam for w in ["enzyme", "synthase", "reductase", "aromatase", "cyp", "cox", "pde", "kinase", "esterase", "oxygenase", "dehydrogenase"])
+                or any(w in target_lower or w in target_fam for w in ["enzyme", "synthase", "reductase", "aromatase", "cyp", "cox", "pde", "kinase", "esterase", "oxygenase", "dehydrogenase", "lyase"])
             ):
                 target_node = EnzymeNode(
                     node_id=target_id,
                     label=target_label,
                     enzyme_family=receptor.get("family") or "Enzyme",
+                    is_microbial=bool(receptor.get("is_microbial") or "microbi" in target_fam or "microbi" in target_lower),
+                    microbial_source=str(receptor.get("microbial_source") or ("Gut Microbiota" if ("microbi" in target_fam or "microbi" in target_lower) else "")) or None,
                 )
             elif (
                 cascade_node_type == "transporter"

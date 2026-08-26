@@ -161,6 +161,14 @@ INITIAL_TARGET_SEED_METADATA: Dict[str, Dict[str, str]] = {
     "gria2": {"symbol": "GRIA2", "uniprot": "P42262", "ensembl": "ENSG00000120251", "name": "Glutamate Ionotropic Receptor AMPA Type Subunit 2 (GRIA2)"},
     "actb": {"symbol": "ACTB", "uniprot": "P60709", "ensembl": "ENSG00000075624", "name": "Actin Beta (ACTB / Cytoskeleton)"},
     "fkbp1a": {"symbol": "FKBP1A", "uniprot": "P62942", "ensembl": "ENSG00000088832", "name": "FKBP12 Prolyl Isomerase (FKBP1A)"},
+    # Gut Microbiome & Hepatic FMO3 Axis
+    "cnta": {"symbol": "CntA", "uniprot": "Q835H2", "ensembl": "MICROB_CNTA", "name": "Gut Microbiota Carnitine TMA-Lyase (CntA/CntB / yeaW/yeaX)"},
+    "cntb": {"symbol": "CntB", "uniprot": "Q835H1", "ensembl": "MICROB_CNTB", "name": "Gut Microbiota Carnitine TMA-Lyase Subunit B (CntB)"},
+    "carnitine tma lyase": {"symbol": "CntA", "uniprot": "Q835H2", "ensembl": "MICROB_CNTA", "name": "Gut Microbiota Carnitine TMA-Lyase (CntA/CntB / yeaW/yeaX)"},
+    "gut microbiota carnitine tma-lyase": {"symbol": "CntA", "uniprot": "Q835H2", "ensembl": "MICROB_CNTA", "name": "Gut Microbiota Carnitine TMA-Lyase (CntA/CntB / yeaW/yeaX)"},
+    "gut microbiota carnitine tma lyase": {"symbol": "CntA", "uniprot": "Q835H2", "ensembl": "MICROB_CNTA", "name": "Gut Microbiota Carnitine TMA-Lyase (CntA/CntB / yeaW/yeaX)"},
+    "fmo3": {"symbol": "FMO3", "uniprot": "P31513", "ensembl": "ENSG00000007933", "name": "Flavin-Containing Monooxygenase 3 (FMO3)"},
+    "flavin-containing monooxygenase 3": {"symbol": "FMO3", "uniprot": "P31513", "ensembl": "ENSG00000007933", "name": "Flavin-Containing Monooxygenase 3 (FMO3)"},
 }
 
 
@@ -1075,6 +1083,19 @@ class PathwayService:
             ])
             pheno_nodes.extend([
                 {"id": "pheno_enos_vasodilation", "label": "Endothelial Nitric Oxide Production & Microvascular Perfusion", "cat": "therapeutic_benefit", "sev": "high", "mag": 0.85},
+            ])
+
+        # 18h. Gut Microbiota Carnitine/Choline TMA Lyase & Hepatic FMO3 Axis (CntA/B, yeaW/X, FMO3)
+        elif any(w in t_lower for w in ["tma lyase", "tma-lyase", "cnta", "cntb", "yeaw", "yeax", "cutc", "fmo3", "trimethylamine"]):
+            organ = "Gastrointestinal / Microbiome & Hepatic FMO3 Axis"
+            biomarkers.extend([
+                {"id": "bio_tmao", "label": "Serum Trimethylamine N-Oxide (TMAO)", "unit": "μmol/L", "panel": "Microbial Metabolite Panel", "lower": 0.5, "upper": 6.2, "mag": 0.95},
+                {"id": "bio_crp", "label": "High-Sensitivity C-Reactive Protein (hs-CRP)", "unit": "mg/L", "panel": "Inflammatory Panel", "lower": 0.0, "upper": 1.0, "mag": 0.35},
+                {"id": "bio_blood_pressure", "label": "Systolic Blood Pressure", "unit": "mmHg", "panel": "Vitals", "lower": 90.0, "upper": 120.0, "mag": 0.20},
+            ])
+            pheno_nodes.extend([
+                {"id": "pheno_tmao_cardiovascular_risk", "label": "Microbial TMA Conversion & Elevated Atherogenic TMAO Risk", "cat": "adverse_effect", "sev": "high", "mag": 0.85},
+                {"id": "pheno_microbial_metabolite_attenuation", "label": "Microbial TMA-Lyase Inhibition & Cardiovascular Protection", "cat": "therapeutic_benefit", "sev": "high", "mag": -0.85},
             ])
 
         # 19. Generic / Dynamic OpenTargets Phenotypes Fallback

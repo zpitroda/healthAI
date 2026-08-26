@@ -35,9 +35,8 @@ echo     - GPU Offload: All Layers (-ngl 99)
 echo     - Multi-Target Prediction Speculative Decoding (--spec-type draft-mtp)
 echo     - Max Draft Lookahead: 2 (--spec-draft-n-max 2)
 echo     - Jinja Template Parser (--jinja)
-echo     - Compact Reasoning Effort (--reasoning-effort low)
-echo     - Tight Reasoning Token Budget (--reasoning-budget 256)
-echo     - Drop Past Thoughts From History (--no-reasoning-preserve)
+echo     - Balanced Reasoning Effort (--reasoning-effort medium)
+echo     - Reasoning Token Budget Cap (--reasoning-budget 512)
 echo     - Reasoning Stream Extractor (--reasoning-format deepseek)
 echo     - Flash Attention (-fa on)
 echo     - 8-bit KV Cache Quantization (-ctk q8_0 -ctv q8_0)
@@ -45,7 +44,7 @@ echo     - Context Window: 16384 (-c 16384)
 echo     - Memory Lock (--load-mode mlock)
 echo.
 
-llama-server.exe -m "%MODEL_PATH%" -ngl 99 -c 16384 -b 2048 -fa on -ctk q8_0 -ctv q8_0 --spec-type draft-mtp --spec-draft-n-max 2 --jinja --reasoning-effort low --reasoning-budget 256 --no-reasoning-preserve --reasoning-format deepseek --load-mode mlock --port 8080
+llama-server.exe -m "%MODEL_PATH%" -ngl 99 -c 16384 -b 2048 -fa on -ctk q8_0 -ctv q8_0 --spec-type draft-mtp --spec-draft-n-max 2 --jinja --reasoning-effort medium --reasoning-budget 512 --reasoning-format deepseek --load-mode mlock --port 8080
 
 if %errorlevel% neq 0 (
     echo.

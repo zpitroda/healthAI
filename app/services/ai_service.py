@@ -9,11 +9,44 @@ logger = logging.getLogger("healthai.ai_service")
 # Candidate endpoints in order of priority (llama-server preferred for RTX 5090, Ollama as fallback)
 def get_auth_headers() -> Dict[str, str]:
     """Returns headers for OpenAI-compatible HTTP requests including Authorization if OPENAI_API_KEY is configured."""
-    headers = {"Content-Type": "application/json"}
+    headers = {
+        "Content-Type": "application/json",
+        "HTTP-Referer": "http://localhost:8000",
+        "X-Title": "HealthAI Pharmacology Copilot",
+    }
     api_key = os.getenv("OPENAI_API_KEY")
     if api_key:
         headers["Authorization"] = f"Bearer {api_key.strip()}"
     return headers
+
+
+def get_reasoning_params() -> Dict[str, Any]:
+    """
+    Constructs provider-compliant reasoning parameters for OpenRouter, Groq, OpenAI,
+    and local OpenAI-compatible backends (vLLM, llama-server).
+    Controls thinking budget and effort to prevent runaway chain-of-thought latency.
+    """
+    effort = os.getenv("REASONING_EFFORT", "medium").strip().lower()
+    raw_max = os.getenv("REASONING_MAX_TOKENS", "512").strip()
+    try:
+        max_tokens = int(raw_max)
+    except (ValueError, TypeError):
+        max_tokens = 512
+
+    return {
+        # OpenRouter standard reasoning payload
+        "reasoning": {
+            "effort": effort,
+            "max_tokens": max_tokens,
+            "exclude": False,
+        },
+        # OpenAI / Groq standard top-level property
+        "reasoning_effort": effort,
+        # vLLM / SGLang / Jinja template passthrough
+        "chat_template_kwargs": {
+            "reasoning_effort": effort,
+        },
+    }
 
 
 def get_candidate_urls() -> list[str]:
@@ -230,6 +263,7 @@ async def ask_local_llm(
             models_to_try.append(fm)
 
     last_error = None
+    reasoning_cfg = get_reasoning_params()
     for attempt_model in models_to_try:
         payload = {
             "model": attempt_model,
@@ -242,6 +276,7 @@ async def ask_local_llm(
             "temperature": 0.0,
             "top_p": 0.80,
             "max_tokens": token_limit,
+            **reasoning_cfg,
         }
 
         try:
@@ -306,6 +341,7 @@ async def stream_local_llm_chat(
             models_to_try.append(fm)
 
     last_error_msg = None
+    reasoning_cfg = get_reasoning_params()
     for attempt_model in models_to_try:
         payload: Dict[str, Any] = {
             "model": attempt_model,
@@ -315,6 +351,7 @@ async def stream_local_llm_chat(
             "top_p": top_p,
             "max_tokens": token_limit,
             "stop": ["<|im_end|>", "<|endoftext|>", "<|im_start|>"],
+            **reasoning_cfg,
         }
 
         if tools:

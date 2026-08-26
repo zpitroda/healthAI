@@ -1,5 +1,5 @@
 from __future__ import annotations
-
+import logging
 import os
 from pathlib import Path
 import re
@@ -7,6 +7,8 @@ import sqlite3
 import time
 from typing import Any, Dict, Optional, Union
 import httpx
+
+logger = logging.getLogger("healthai.dosing_service")
 
 DEFAULT_DB_PATH = os.getenv("HEALTHAI_CATALOG_DB", str(Path(__file__).resolve().parents[2] / "healthai_catalog.db"))
 
@@ -342,6 +344,20 @@ class PreclinicalAllometricEngine:
 def _get_db_connection(db_path: Optional[str] = None) -> sqlite3.Connection:
     path = db_path or os.environ.get("HEALTHAI_CATALOG_DB") or os.environ.get("COMPOUNDS_DB_PATH") or DEFAULT_DB_PATH
     os.makedirs(os.path.dirname(path), exist_ok=True)
+    try:
+        return _init_dosing_conn(path)
+    except sqlite3.DatabaseError as e:
+        logger.error(f"Malformed or corrupted SQLite database detected in dosing_service at {path}: {e}. Auto-recovering clean database...")
+        try:
+            import shutil
+            if os.path.isfile(path):
+                shutil.move(path, f"{path}.corrupt_{int(time.time())}")
+        except Exception:
+            pass
+        return _init_dosing_conn(path)
+
+
+def _init_dosing_conn(path: str) -> sqlite3.Connection:
     conn = sqlite3.connect(path, timeout=30.0)
     conn.row_factory = sqlite3.Row
     conn.execute(

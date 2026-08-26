@@ -2,11 +2,15 @@ from __future__ import annotations
 
 import copy
 import json
+import logging
 import os
 from pathlib import Path
 import re
 import sqlite3
+import time
 from typing import Any, Dict, List, Optional, Set, Tuple
+
+logger = logging.getLogger("healthai.catalog_service")
 
 DEFAULT_CATALOG_DB_PATH = str(Path(__file__).resolve().parent.parent.parent / "healthai_catalog.db")
 
@@ -1565,6 +1569,19 @@ class CatalogService:
         return connection
 
     def _ensure_database(self) -> None:
+        try:
+            self._init_database_tables()
+        except sqlite3.DatabaseError as e:
+            logger.error(f"Malformed or corrupted SQLite database schema detected at {self.db_path}: {e}. Auto-recovering clean database...")
+            try:
+                import shutil
+                if os.path.isfile(self.db_path):
+                    shutil.move(self.db_path, f"{self.db_path}.corrupt_{int(time.time())}")
+            except Exception:
+                pass
+            self._init_database_tables()
+
+    def _init_database_tables(self) -> None:
         with self._connect() as conn:
             try:
                 conn.execute("PRAGMA journal_mode=WAL;")

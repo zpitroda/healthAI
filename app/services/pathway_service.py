@@ -192,6 +192,20 @@ class PathwayService:
         if self.db_path in _PATHWAY_INITIALIZED_DBS:
             return
         os.makedirs(os.path.dirname(self.db_path), exist_ok=True)
+        try:
+            self._init_schema_tables()
+        except sqlite3.DatabaseError as e:
+            logger.error(f"Malformed or corrupted SQLite database schema detected at {self.db_path}: {e}. Auto-recovering clean database...")
+            try:
+                import shutil
+                if os.path.isfile(self.db_path):
+                    shutil.move(self.db_path, f"{self.db_path}.corrupt_{int(time.time())}")
+            except Exception:
+                pass
+            self._init_schema_tables()
+        _PATHWAY_INITIALIZED_DBS.add(self.db_path)
+
+    def _init_schema_tables(self) -> None:
         with self._connect() as conn:
             conn.execute(
                 """
@@ -284,7 +298,6 @@ class PathwayService:
                     items,
                 )
                 conn.commit()
-        _PATHWAY_INITIALIZED_DBS.add(self.db_path)
 
     def get_all_target_registries(self) -> List[Dict[str, Any]]:
         """Dynamically load all registered biological targets from SQLite metadata table."""

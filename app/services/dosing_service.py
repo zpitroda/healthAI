@@ -346,12 +346,18 @@ def _get_db_connection(db_path: Optional[str] = None) -> sqlite3.Connection:
     os.makedirs(os.path.dirname(path), exist_ok=True)
     try:
         return _init_dosing_conn(path)
-    except sqlite3.DatabaseError as e:
+    except (sqlite3.DatabaseError, sqlite3.OperationalError) as e:
         logger.error(f"Malformed or corrupted SQLite database detected in dosing_service at {path}: {e}. Auto-recovering clean database...")
         try:
             import shutil
             if os.path.isfile(path):
                 shutil.move(path, f"{path}.corrupt_{int(time.time())}")
+            for extra in [f"{path}-wal", f"{path}-shm", f"{path}-journal"]:
+                if os.path.isfile(extra):
+                    try:
+                        os.remove(extra)
+                    except Exception:
+                        pass
         except Exception:
             pass
         return _init_dosing_conn(path)

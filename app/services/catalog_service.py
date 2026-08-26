@@ -1571,12 +1571,19 @@ class CatalogService:
     def _ensure_database(self) -> None:
         try:
             self._init_database_tables()
-        except sqlite3.DatabaseError as e:
-            logger.error(f"Malformed or corrupted SQLite database schema detected at {self.db_path}: {e}. Auto-recovering clean database...")
+        except (sqlite3.DatabaseError, sqlite3.OperationalError) as e:
+            db_file = self.database_path
+            logger.error(f"Malformed or corrupted SQLite database detected at {db_file}: {e}. Auto-recovering clean database...")
             try:
                 import shutil
-                if os.path.isfile(self.db_path):
-                    shutil.move(self.db_path, f"{self.db_path}.corrupt_{int(time.time())}")
+                if os.path.isfile(db_file):
+                    shutil.move(db_file, f"{db_file}.corrupt_{int(time.time())}")
+                for extra in [f"{db_file}-wal", f"{db_file}-shm", f"{db_file}-journal"]:
+                    if os.path.isfile(extra):
+                        try:
+                            os.remove(extra)
+                        except Exception:
+                            pass
             except Exception:
                 pass
             self._init_database_tables()

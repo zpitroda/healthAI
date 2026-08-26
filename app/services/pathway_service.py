@@ -194,12 +194,18 @@ class PathwayService:
         os.makedirs(os.path.dirname(self.db_path), exist_ok=True)
         try:
             self._init_schema_tables()
-        except sqlite3.DatabaseError as e:
+        except (sqlite3.DatabaseError, sqlite3.OperationalError) as e:
             logger.error(f"Malformed or corrupted SQLite database schema detected at {self.db_path}: {e}. Auto-recovering clean database...")
             try:
                 import shutil
                 if os.path.isfile(self.db_path):
                     shutil.move(self.db_path, f"{self.db_path}.corrupt_{int(time.time())}")
+                for extra in [f"{self.db_path}-wal", f"{self.db_path}-shm", f"{self.db_path}-journal"]:
+                    if os.path.isfile(extra):
+                        try:
+                            os.remove(extra)
+                        except Exception:
+                            pass
             except Exception:
                 pass
             self._init_schema_tables()

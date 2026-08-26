@@ -24,21 +24,23 @@ def get_reasoning_params(base_url: str = "") -> Dict[str, Any]:
     """
     Constructs provider-compliant reasoning parameters for OpenRouter, Groq, OpenAI,
     and local OpenAI-compatible backends (vLLM, llama-server).
-    Properly sanitizes env vars to prevent trailing inline comments or invalid formats.
+    Properly adheres to OpenRouter's mutually exclusive reasoning.effort vs reasoning.max_tokens schema.
     """
-    raw_effort = os.getenv("REASONING_EFFORT", "medium")
-    if "#" in raw_effort:
+    raw_effort = os.getenv("REASONING_EFFORT")
+    has_explicit_effort = raw_effort is not None and bool(raw_effort.strip())
+    if raw_effort and "#" in raw_effort:
         raw_effort = raw_effort.split("#")[0]
-    effort = raw_effort.strip().strip("'\"").lower()
-    
+    effort = (raw_effort or "medium").strip().strip("'\"").lower()
+
     valid_efforts = {"max", "xhigh", "high", "medium", "low", "minimal", "none"}
     if effort not in valid_efforts:
         effort = "medium"
 
-    raw_max = os.getenv("REASONING_MAX_TOKENS", "512")
-    if "#" in raw_max:
+    raw_max = os.getenv("REASONING_MAX_TOKENS")
+    has_explicit_max = raw_max is not None and bool(raw_max.strip())
+    if raw_max and "#" in raw_max:
         raw_max = raw_max.split("#")[0]
-    raw_max = raw_max.strip().strip("'\"")
+    raw_max = (raw_max or "512").strip().strip("'\"")
     try:
         max_tokens = int(raw_max)
     except (ValueError, TypeError):
@@ -48,13 +50,18 @@ def get_reasoning_params(base_url: str = "") -> Dict[str, Any]:
     is_openrouter = "openrouter.ai" in active_base
 
     if is_openrouter:
-        # OpenRouter native schema (requires clean reasoning object without colliding top-level keys)
-        return {
-            "reasoning": {
-                "effort": effort,
-                "max_tokens": max_tokens,
-                "exclude": (effort == "none"),
+        # OpenRouter strictly enforces EITHER reasoning.effort OR reasoning.max_tokens (never both simultaneously)
+        if has_explicit_max and not has_explicit_effort:
+            return {
+                "reasoning": {
+                    "max_tokens": max_tokens
+                }
             }
+        reasoning_obj: Dict[str, Any] = {"effort": effort}
+        if effort == "none":
+            reasoning_obj["exclude"] = True
+        return {
+            "reasoning": reasoning_obj
         }
 
     # For OpenAI / Groq / other cloud providers
@@ -211,7 +218,7 @@ def get_candidate_fallback_models(primary_model: str, base_url: str) -> list[str
             "qwen/qwen3.8-27b",
             "qwen/qwen3.8-27b-20260814",
             "qwen/qwen-2.5-72b-instruct",
-            "qwen/qwen-2.5-32b-instruct",
+            "qwen/qwen-2.5-coder-32b-instruct",
             "meta-llama/llama-3.3-70b-instruct",
         ]
         for m in openrouter_fallbacks:

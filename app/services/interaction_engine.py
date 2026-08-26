@@ -714,7 +714,7 @@ def _is_hormonal_or_endocrine_agent(comp: Dict[str, Any]) -> tuple[bool, str, st
     # 5. Incretin / Metabolic Hormones
     if not is_botanical and not is_non_endocrine_small_mol and bool({"GLP1R", "GIPR", "GCGR", "INSR", "IGF1R"} & set(targets.keys())):
         return True, "Incretin / Metabolic Peptide Hormone", "Metabolic Endocrine Axis"
-    if bool(atc & {"A10A", "A10B", "A10BJ"}):
+    if bool(atc & {"A10A", "A10BJ"}):
         return True, "Incretin / Insulin Mimetic", "Metabolic Endocrine Axis"
 
     # 6. USAN Stems

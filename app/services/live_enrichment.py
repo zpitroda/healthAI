@@ -819,9 +819,17 @@ class LiveEnrichmentService:
                         if c_resp.status_code == 200:
                             drug_info_list = c_resp.json().get("rxclassDrugInfoList", {}).get("rxclassDrugInfo", [])
                             for item in drug_info_list:
-                                c_name = item.get("rxclassMinConceptItem", {}).get("className")
-                                if c_name and c_name not in atc_classes:
-                                    atc_classes.append(c_name)
+                                min_concept = item.get("minConcept", {})
+                                mc_rxcui = str(min_concept.get("rxcui", ""))
+                                mc_tty = str(min_concept.get("tty", ""))
+                                mc_name = str(min_concept.get("name", ""))
+                                # Exclude multi-ingredient combination products (tty == 'MIN' or containing '/')
+                                # Only accept ATC classes belonging to the single ingredient itself
+                                is_single_ingredient = (mc_rxcui == str(rxcui) or mc_tty in ("IN", "PIN")) and ("/" not in mc_name and "+" not in mc_name)
+                                if is_single_ingredient:
+                                    c_name = item.get("rxclassMinConceptItem", {}).get("className")
+                                    if c_name and c_name not in atc_classes:
+                                        atc_classes.append(c_name)
         except Exception as e:
             logger.debug("RxNorm ATC query for %s encountered error: %s", cleaned_name, e)
 
@@ -1354,9 +1362,14 @@ class LiveEnrichmentService:
             return None
 
         # Infer drug_class and mechanism if not yet specific
-        if enriched.get("categories"):
-            if enriched.get("drug_class") in (None, "", "Therapeutic Agent"):
-                enriched["drug_class"] = enriched["categories"][0]
+        if enriched.get("drug_class") in (None, "", "Therapeutic Agent"):
+            epc = online_meta.get("pharm_class_epc")
+            if epc:
+                enriched["drug_class"] = epc[0]
+            elif enriched.get("categories"):
+                # Prioritize specific pharmacological action classes if present
+                action_cat = next((c for c in enriched["categories"] if any(w in c.lower() for w in ["inhibitor", "agonist", "antagonist", "blocker", "modulator", "agent"])), None)
+                enriched["drug_class"] = action_cat or enriched["categories"][0]
 
         if online_meta.get("pharm_class_moa"):
             moas = online_meta["pharm_class_moa"]

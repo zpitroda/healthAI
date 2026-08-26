@@ -257,13 +257,12 @@ def _get_usan_stem(comp: Dict[str, Any]) -> str:
 
 
 def _has_ontology_match(context: str, term: str) -> bool:
-    """Fallback textual match with exact word boundary protection for short acronyms."""
+    """Word-boundary protected textual match to avoid substring cross-contamination."""
     clean_term = term.strip().lower()
     if not clean_term:
         return False
-    if len(clean_term) <= 4 and clean_term.isalpha():
-        return bool(re.search(rf"\b{re.escape(clean_term)}\b", context))
-    return clean_term in context
+    escaped = re.escape(clean_term)
+    return bool(re.search(rf"\b{escaped}\b", context))
 
 
 def _has_any_ontology_match(context: str, terms: List[str]) -> bool:
@@ -687,7 +686,10 @@ def _is_hormonal_or_endocrine_agent(comp: Dict[str, Any]) -> tuple[bool, str, st
 
     is_botanical = any(w in str(comp.get("drug_class", "")).lower() for w in ["botanical", "adaptogen", "herbal", "dietary supplement"])
     d_class = str(comp.get("drug_class", "")).lower()
-    is_non_endocrine_small_mol = any(w in d_class for w in ["sglt", "transporter", "biguanide", "diuretic", "statin", "antioxidant", "nsaid"])
+    is_non_endocrine_small_mol = any(w in d_class for w in [
+        "sglt", "transporter", "biguanide", "diuretic", "statin", "antioxidant", "nsaid",
+        "pde5", "pde-5", "phosphodiesterase", "vasodilator", "erectile dysfunction", "xanthine"
+    ])
 
     # 1. Sex Steroids / HPG Axis
     if not is_botanical and not is_non_endocrine_small_mol and bool({"AR", "ESR1", "ESR2", "PGR", "CYP19A1", "SRD5A1", "SRD5A2", "SHBG", "LHCGR", "FSHR", "GNRHR"} & set(targets.keys())):
@@ -732,6 +734,8 @@ def _is_hormonal_or_endocrine_agent(comp: Dict[str, Any]) -> tuple[bool, str, st
             str(comp.get("name", "")),
             str(comp.get("canonical_name", "")),
         ]).lower()
+        if any(re.search(rf"\b{re.escape(w)}\b", core_context) for w in ["pde5", "phosphodiesterase", "vasodilator", "erectile dysfunction"]):
+            return False, "", ""
         endocrine_keywords = [
             "hormone replacement", "hormone therapy", "anabolic steroid", "androgenic steroid",
             "androgen", "estrogen", "progestin", "progestogen", "corticosteroid", "glucocorticoid",
@@ -741,6 +745,8 @@ def _is_hormonal_or_endocrine_agent(comp: Dict[str, Any]) -> tuple[bool, str, st
             "boldenone", "stanozolol", "dhea", "pregnenolone", "liothyronine", "levothyroxine"
         ]
         if _has_any_ontology_match(core_context, endocrine_keywords):
+            if "reductase inhibitor" in core_context and "testosterone" in core_context and not any(k in core_context for k in ["anabolic", "androgen replacement", "testosterone cypionate", "testosterone enanthate", "testosterone propionate"]):
+                return False, "", ""
             return True, "Endocrine / Hormonal Compound", "Endocrine System"
 
     return False, "", ""

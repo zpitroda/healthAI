@@ -367,21 +367,71 @@ DEFAULT_THERAPEUTIC_DOSES_MG: Dict[str, float] = CLINICAL_REFERENCE_DOSES_MG
 
 
 def is_steroidal_androgen(compound: Dict[str, Any]) -> bool:
-    """Determine if a compound is a steroidal androgen from its drug class, mechanism, key/name, or structure."""
+    """
+    Determine if a compound is a steroidal androgen using structured target actions,
+    ATC hierarchy, USAN stems, and tokenized pharmacology without brittle substring matching.
+    """
+    if not isinstance(compound, dict):
+        return False
+
+    # 1. Inspect structured targets: if compound is an inhibitor of steroidogenic enzymes or PDE5, it is NOT an androgen
+    receptor_targets = compound.get("receptor_targets") or []
+    for t in receptor_targets:
+        if isinstance(t, dict):
+            t_name = str(t.get("target", "")).lower()
+            t_action = str(t.get("action", "")).lower()
+            t_gene = str(t.get("gene_symbol", "")).upper()
+            if t_action in ("inhibitor", "antagonist", "negative allosteric modulator"):
+                if t_gene in ("SRD5A1", "SRD5A2", "CYP19A1", "PDE5A", "AR", "NR3C4") or any(w in t_name for w in ["5-alpha reductase", "aromatase", "phosphodiesterase", "pde5", "androgen receptor"]):
+                    return False
+
+    # 2. Check USAN stem
+    meta = compound.get("metadata") or {}
+    usan = str(compound.get("usan_stem") or (meta.get("usan_stem") if isinstance(meta, dict) else "") or "").lower()
+    if usan:
+        if any(usan.endswith(s) or usan.startswith(s) for s in ["afil", "sartan", "olol", "steride", "statin", "tide", "gliflozin"]):
+            return False
+        if any(usan.endswith(s) or usan.startswith(s) for s in ["olone", "sterone", "stan", "bol", "andr"]):
+            return True
+
+    # 3. Check ATC hierarchy codes
+    ext = compound.get("external_ids") or {}
+    atc_codes = [str(c).upper() for c in (ext.get("atc_codes") or [])]
+    if any(c.startswith(("G04BE", "G04CB", "C02KX", "C07", "C08", "C09", "A10", "L02BG", "N02", "B01")) for c in atc_codes):
+        return False
+    if any(c.startswith(("G03B", "G03BA", "G03BB", "A14A", "A14AA", "A14AB")) for c in atc_codes):
+        return True
+
     drug_class = str(compound.get("drug_class") or "").lower()
     mech = str(compound.get("mechanism") or "").lower()
     key = str(compound.get("key") or "").lower()
     name = str(compound.get("name") or "").lower()
     cats = [str(c).lower() for c in (compound.get("categories") or [])]
     all_text = f"{key} {name} {drug_class} {mech} {' '.join(cats)}"
-    
-    if any(k in all_text for k in ["aromatase inhibitor", "glucocorticoid", "mineralocorticoid", "corticosteroid", "estrogen receptor modulator", "serm"]):
+
+    # 4. Immediate exclusion of non-androgens / enzyme inhibitors / vasodilators
+    exclusion_patterns = [
+        r"\baromatase inhibitor\b", r"\b5-alpha reductase\b", r"\b5-alpha-reductase\b",
+        r"\b5ar inhibitor\b", r"\b5ari\b", r"\breductase inhibitor\b", r"\bpde5\b",
+        r"\bpde-5\b", r"\bphosphodiesterase\b", r"\bvasodilator\b", r"\berectile dysfunction\b",
+        r"\bglucocorticoid\b", r"\bmineralocorticoid\b", r"\bcorticosteroid\b",
+        r"\bestrogen receptor modulator\b", r"\bserm\b", r"\bantiandrogen\b",
+        r"\bandrogen receptor antagonist\b", r"\bnon-steroidal\b", r"\bsarm\b",
+        r"\bselective androgen receptor\b", r"\bamino acid\b", r"\bnootropic\b", r"\bbeta-blocker\b"
+    ]
+    if any(re.search(p, all_text) for p in exclusion_patterns):
         return False
-    if any(k in all_text for k in ["androgen", "anabolic", "androstan", "testosterone", "nandrolone", "trenbolone", "drostanolone", "masteron", "primobolan", "methenolone", "boldenone", "oxandrolone", "anavar", "stanozolol", "winstrol", "superdrol", "dianabol", "anadrol"]):
-        if any(k in all_text for k in ["non-steroidal", "sarm", "selective androgen receptor", "antiandrogen", "androgen receptor antagonist"]):
-            return False
-        return True
-    return False
+
+    # 5. Check true androgen keywords with word boundaries
+    androgen_patterns = [
+        r"\bandrogen\b", r"\banabolic steroid\b", r"\bandrogenic steroid\b", r"\bandrostan\b",
+        r"\btestosterone\b", r"\bnandrolone\b", r"\btrenbolone\b", r"\bdrostanolone\b",
+        r"\bmasteron\b", r"\bprimobolan\b", r"\bmethenolone\b", r"\bboldenone\b",
+        r"\boxandrolone\b", r"\banavar\b", r"\bstanozolol\b", r"\bwinstrol\b",
+        r"\bsuperdrol\b", r"\bdianabol\b", r"\banadrol\b", r"\bmethandrostenolone\b",
+        r"\bturinabol\b", r"\bmesterolone\b", r"\bproviron\b"
+    ]
+    return any(re.search(p, all_text) for p in androgen_patterns)
 
 
 def is_aromatizable_androgen(compound: Dict[str, Any]) -> bool:
@@ -660,7 +710,16 @@ def build_selected_compound_graph(stack: List[Any], catalog_service: CatalogServ
                 })
 
         # 5-Alpha Reductase Inhibitors (Finasteride, Dutasteride)
-        is_5ari = any(w in c_name_lower or w in drug_class_lower or w in mechanism_text for w in ["5-alpha reductase", "5ari", "finasteride", "dutasteride", "steride"])
+        has_5ar_target = any(
+            isinstance(t, dict) and t.get("action") in ("inhibitor", "antagonist")
+            and (t.get("gene_symbol") in ("SRD5A1", "SRD5A2") or "5-alpha" in str(t.get("target", "")).lower() or "srd5a" in str(t.get("target", "")).lower())
+            for t in receptor_targets
+        )
+        is_5ari = (
+            has_5ar_target
+            or bool(re.search(r"steride$", str(compound.get("usan_stem") or "")))
+            or bool(re.search(r"\b5-alpha reductase inhibitor\b|\b5-alpha-reductase inhibitor\b|\b5ari\b|\bfinasteride\b|\bdutasteride\b", f"{c_name_lower} {drug_class_lower} {mechanism_text}"))
+        ) and not any(w in drug_class_lower for w in ["pde5", "phosphodiesterase", "vasodilator", "erectile dysfunction"])
         if is_5ari:
             is_duta = "dutasteride" in c_name_lower
             ari_eff = -0.95 if is_duta else -min(0.90, 0.70 + 0.15 * math.log10(max(0.1, dose_mg / 1.0)))
@@ -780,7 +839,14 @@ def build_selected_compound_graph(stack: List[Any], catalog_service: CatalogServ
                     "pre_computed_stress": True,
                 })
 
-        is_androgen = (is_steroidal_androgen(compound) or ("androgen" in drug_class_lower and "antagonist" not in drug_class_lower and "inhibitor" not in drug_class_lower) or "sarm" in drug_class_lower) and not is_ai
+        is_androgen = (
+            is_steroidal_androgen(compound)
+            or (
+                bool(re.search(r"\bandrogen\b|\banabolic steroid\b", drug_class_lower))
+                and not bool(re.search(r"\bantagonist\b|\binhibitor\b|\bblocker\b", drug_class_lower))
+            )
+            or bool(re.search(r"\bsarm\b", drug_class_lower))
+        ) and not is_ai
         is_arom = is_aromatizable_androgen(compound) if is_androgen else True
         is_5ar = is_5alpha_reductase_substrate(compound) if is_androgen else True
 

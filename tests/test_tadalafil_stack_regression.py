@@ -80,3 +80,29 @@ def test_rxnorm_atc_filters_multi_ingredient_combination_classes():
     assert "Antihypertensives for pulmonary arterial hypertension" not in atc_classes
     if atc_classes:
         assert any("erectile dysfunction" in c.lower() for c in atc_classes)
+
+
+def test_tadalafil_10mg_lowers_blood_pressure_in_full_stack_balance():
+    """Verify that InteractionEngine full_stack_balance correctly reflects blood pressure lowering and cGMP elevation for 10mg Tadalafil."""
+    cs = CatalogService()
+    tada = cs.get_compound("tadalafil")
+    tada["dose"] = 10
+    tada["unit"] = "mg"
+    tada["frequency"] = "daily"
+
+    engine = InteractionEngine()
+    result = engine.analyze_stack([tada])
+    fsb = result.get("full_stack_balance", {})
+    axes = fsb.get("axes", [])
+
+    bp_axis = next((a for a in axes if a.get("biomarker_id") == "bio_blood_pressure"), None)
+    cgmp_axis = next((a for a in axes if a.get("biomarker_id") == "bio_cgmp"), None)
+
+    assert bp_axis is not None
+    assert bp_axis["estimated_value"] < bp_axis["baseline"]
+    assert float(bp_axis["net_delta_str"].replace("mmHg", "").strip()) < 0.0
+
+    assert cgmp_axis is not None
+    assert cgmp_axis["estimated_value"] > cgmp_axis["baseline"]
+    assert float(cgmp_axis["net_delta_str"].replace("index", "").strip()) > 0.0
+

@@ -175,6 +175,8 @@ class LiveEnrichmentService:
                                     t_detail_resp = client.get(f"https://www.ebi.ac.uk/chembl/api/data/target/{t_chembl}?format=json")
                                     if t_detail_resp.status_code == 200:
                                         t_data = t_detail_resp.json()
+                                        if t_data.get("pref_name"):
+                                            target_entry["target"] = t_data["pref_name"]
                                         comps = t_data.get("target_components", [])
                                         if comps:
                                             first_comp = comps[0]
@@ -243,6 +245,36 @@ class LiveEnrichmentService:
 
                         # Sort by affinity ascending so high-affinity (<10,000 nM) targets are processed first
                         parsed_acts.sort(key=lambda x: x["affinity_val"])
+
+                        for item in parsed_acts:
+                            t_name = item["target"]
+                            t_lower = t_name.lower()
+                            std_type = item["std_type"]
+                            affinity_val = item["raw_val"]
+                            t_chembl = item["target_id"]
+
+                            # Correlate with existing mechanism target entries
+                            matched_mech_target = next(
+                                (
+                                    t for t in result["receptor_targets"]
+                                    if (t_chembl and t.get("target_id") == t_chembl)
+                                    or t.get("target", "").lower() == t_lower
+                                ),
+                                None,
+                            )
+                            if matched_mech_target and affinity_val:
+                                if std_type in ("KI", "KD"):
+                                    if matched_mech_target.get("affinity_ki") is None or affinity_val < matched_mech_target["affinity_ki"]:
+                                        matched_mech_target["affinity_ki"] = affinity_val
+                                elif std_type in ("IC50", "INHIBITION"):
+                                    if matched_mech_target.get("inhibition_ic50") is None or affinity_val < matched_mech_target["inhibition_ic50"]:
+                                        matched_mech_target["inhibition_ic50"] = affinity_val
+                                elif std_type in ("EC50", "POTENCY"):
+                                    if matched_mech_target.get("ec50") is None or affinity_val < matched_mech_target["ec50"]:
+                                        matched_mech_target["ec50"] = affinity_val
+                                elif std_type == "KM":
+                                    if matched_mech_target.get("km_nm") is None or affinity_val < matched_mech_target["km_nm"]:
+                                        matched_mech_target["km_nm"] = affinity_val
 
                         for item in parsed_acts:
                             t_name = item["target"]

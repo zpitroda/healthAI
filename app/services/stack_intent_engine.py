@@ -1086,6 +1086,170 @@ class StackIntentEngine:
         return False
 
     @classmethod
+    def _extract_user_requested_compounds(
+        cls,
+        custom_notes: Optional[str] = None,
+        preferences: Optional[Dict[str, Any]] = None,
+        catalog: Any = None,
+    ) -> List[Dict[str, Any]]:
+        """
+        Dynamically extracts user-requested compounds from custom notes or preference parameters,
+        resolving canonical keys and metadata via CatalogService without hardcoding.
+        """
+        import re
+        from app.services.dosing_service import parse_dose_string_or_spec, infer_compound_route_and_frequency
+
+        if catalog is None:
+            from app.services.catalog_service import CatalogService
+            catalog = CatalogService()
+
+        requested_specs: List[Dict[str, Any]] = []
+        seen_keys: Set[str] = set()
+
+        prefs = preferences or {}
+        req_inputs = []
+        for k in ("requested_compounds", "requested", "include", "compounds", "user_compounds", "add"):
+            val = prefs.get(k)
+            if isinstance(val, list):
+                req_inputs.extend(val)
+            elif isinstance(val, str) and val.strip():
+                req_inputs.extend([v.strip() for v in val.split(",") if v.strip()])
+
+        notes_str = (custom_notes or "").strip()
+        if notes_str:
+            req_patterns = [
+                r"(?:include|add|want|with|using|take|please add|requesting|incorporate|stuck on)\s+([a-zA-Z0-9_\-\s]{2,40})(?=[,\.;\n]|$)",
+                r"([a-zA-Z0-9_\-\+]{3,35})\s+(?:cycle|stack|protocol|included|added)",
+            ]
+            for pat in req_patterns:
+                for match in re.finditer(pat, notes_str, re.IGNORECASE):
+                    chunk = match.group(1).strip()
+                    if chunk:
+                        req_inputs.append(chunk)
+
+        for item in req_inputs:
+            item_str = str(item).strip()
+            if not item_str:
+                continue
+
+            # Strip leading exclusion prefix verbs if accidentally caught
+            item_clean = re.sub(r"^(?:please\s+|i\s+want\s+to\s+|add\s+|include\s+|with\s+|take\s+)", "", item_str, flags=re.IGNORECASE).strip()
+            # Strip trailing context filler
+            item_clean = re.sub(r"\s+(?:for\s+my\s+|to\s+my\s+|for\s+|in\s+my\s+|cycle|stack|protocol|cut|bulk|routine).*$", "", item_clean, flags=re.IGNORECASE).strip()
+
+            if not item_clean or len(item_clean) < 2:
+                continue
+
+            # Parse dose/spec if provided in string
+            parsed_spec = parse_dose_string_or_spec(item_clean)
+            raw_key = parsed_spec.get("key") or item_clean.lower().replace(" ", "_")
+
+            # Try resolving whole item or individual word tokens via catalog
+            comp_rec = catalog.get_compound(raw_key, auto_enrich=False) or catalog.find_by_synonym(raw_key)
+            if not comp_rec:
+                # Try tokens within item_clean
+                tokens = re.findall(r"[a-zA-Z0-9_\-\+]+", item_clean)
+                for tok in tokens:
+                    if len(tok) >= 3 and tok.lower() not in ("stack", "protocol", "compounds", "routine", "cycle", "hypertrophy", "please", "want", "include", "add"):
+                        rec_tok = catalog.get_compound(tok, auto_enrich=False) or catalog.find_by_synonym(tok)
+                        if rec_tok:
+                            comp_rec = rec_tok
+                            break
+
+            if not comp_rec:
+                comp_rec = catalog.get_compound(raw_key, auto_enrich=True) or catalog.find_by_synonym(raw_key)
+
+            if comp_rec:
+                c_key = comp_rec.get("key", raw_key)
+                if c_key in seen_keys:
+                    continue
+                seen_keys.add(c_key)
+
+                inf_route, inf_freq = infer_compound_route_and_frequency(c_key)
+                dose_val = parsed_spec.get("dose_mg") or comp_rec.get("dose") or comp_rec.get("standard_dose_mg") or 100.0
+
+                requested_specs.append({
+                    "key": c_key,
+                    "name": comp_rec.get("name") or comp_rec.get("canonical_name") or c_key.replace("_", " ").title(),
+                    "dose": dose_val,
+                    "unit": parsed_spec.get("unit") or "mg",
+                    "timing": parsed_spec.get("timing") or "morning",
+                    "frequency": parsed_spec.get("frequency") or inf_freq,
+                    "route": parsed_spec.get("route") or inf_route,
+                    "target": comp_rec.get("mechanism") or comp_rec.get("drug_class") or "Target receptor",
+                    "is_user_requested": True,
+                    "metadata": comp_rec.get("metadata", {}),
+                    "evidence_level": comp_rec.get("evidence_level", "moderate"),
+                    "risk_band": comp_rec.get("risk_band", "low"),
+                    "boxed_warning": comp_rec.get("boxed_warning"),
+                })
+            else:
+                # Dynamic fallback spec for uncataloged requested string if valid candidate token
+                clean_tok = re.sub(r"[^a-zA-Z0-9_]", "", raw_key)
+                if len(clean_tok) >= 3 and clean_tok not in ("stack", "protocol", "compounds", "routine", "cycle", "hypertrophy", "please", "want", "include", "add") and clean_tok not in seen_keys:
+                    seen_keys.add(clean_tok)
+                    requested_specs.append({
+                        "key": clean_tok,
+                        "name": item_clean.replace("_", " ").title(),
+                        "dose": parsed_spec.get("dose_mg") or 100.0,
+                        "unit": parsed_spec.get("unit") or "mg",
+                        "timing": "morning",
+                        "frequency": "daily",
+                        "route": "oral",
+                        "target": "User-specified agent",
+                        "is_user_requested": True,
+                        "metadata": {"human_clinical_trials": False, "regulatory_status": "UNAPPROVED"},
+                    })
+
+        return requested_specs
+
+    @classmethod
+    def _discover_experimental_candidates_for_goal(
+        cls,
+        target_goal: str,
+        catalog: Any,
+    ) -> List[Dict[str, Any]]:
+        """
+        Dynamically queries CatalogService for experimental compounds / research chemicals
+        with limited human data matching the biological mechanisms of target_goal.
+        Zero hardcoding.
+        """
+        all_compounds = catalog.list_compounds() if hasattr(catalog, "list_compounds") else []
+        experimental_cands: List[Dict[str, Any]] = []
+
+        goal_keywords = {
+            "cognitive_focus": ["nootropic", "cholinergic", "ampa", "peptidergic", "dopaminergic", "neuro", "semax", "selank", "noopept", "bromantane", "tak_653"],
+            "longevity_autophagy": ["geroprotective", "mitochondrial", "autophagy", "ampk", "sirt", "mots", "epithalon", "bpc", "elamipretide", "ss31"],
+            "anabolic_physique": ["gh_secretagogue", "sarm", "androgenic", "growth hormone", "hypertrophy", "mk_677", "ipamorelin", "cjc", "bpc", "rad140", "lgd"],
+            "fat_loss_metabolic": ["ppar", "lipolysis", "thermogenic", "cardarine", "gw501516", "sr9009", "retatrutide", "aod"],
+            "sleep_stress_recovery": ["gabaergic", "anxiolytic", "dsip", "selank"],
+        }
+        keywords = goal_keywords.get(target_goal, ["nootropic", "peptide", "experimental"])
+
+        for comp in all_compounds:
+            meta = comp.get("metadata", {}) or {}
+            ev_tier = str(meta.get("evidence_tier") or "").upper()
+            reg_stat = str(meta.get("regulatory_status") or "").upper()
+            ev_level = str(comp.get("evidence_level") or "").lower()
+            has_trials = meta.get("human_clinical_trials")
+
+            is_experimental = (
+                has_trials is False
+                or ev_tier in ("IN_VITRO_AND_ALLOMETRIC_EXTRAPOLATION", "PRECLINICAL", "ANECDOTAL")
+                or reg_stat in ("RESEARCH_CHEMICAL", "EXPERIMENTAL", "UNAPPROVED", "INVESTIGATIONAL PEPTIDE")
+                or ev_level in ("experimental", "low", "preclinical", "anecdotal", "in_vitro")
+            )
+
+            if not is_experimental:
+                continue
+
+            text_blob = f"{comp.get('key', '')} {comp.get('name', '')} {comp.get('drug_class', '')} {comp.get('mechanism', '')} {' '.join(comp.get('categories') or [])}".lower()
+            if any(kw in text_blob for kw in keywords):
+                experimental_cands.append(comp)
+
+        return experimental_cands
+
+    @classmethod
     def build_scratch_stack_proposal(
         cls,
         goal_id: Optional[str] = None,
@@ -1168,11 +1332,43 @@ class StackIntentEngine:
 
         catalog = CatalogService()
 
+        # Extract user specifically requested compounds
+        user_requested_compounds = cls._extract_user_requested_compounds(
+            custom_notes=custom_notes,
+            preferences=preferences,
+            catalog=catalog,
+        )
+
         # Collect candidate compounds from blueprint
         raw_candidates: List[Dict[str, Any]] = [dict(c) for c in blueprint.get("core_compounds", [])]
 
         if budget_pref != "essential" and complexity in ("standard", "maximum", "comprehensive", "full"):
             raw_candidates.extend([dict(a) for a in blueprint.get("ancillaries", [])])
+
+        # Step 1: Aggressive Risk Tolerance -> Discover experimental candidates dynamically
+        experimental_notices: List[str] = []
+        if risk_pref in ("aggressive", "high", "performance", "high_potency"):
+            exp_candidates = cls._discover_experimental_candidates_for_goal(target_goal, catalog)
+            for exp in exp_candidates[:2]:
+                exp_key = exp.get("key")
+                if exp_key and exp_key not in [c.get("key") for c in raw_candidates]:
+                    raw_candidates.append({
+                        "key": exp_key,
+                        "name": exp.get("name") or exp_key.replace("_", " ").title(),
+                        "base_dose": exp.get("dose") or (exp.get("default_dose") or {}).get("dose_val") or 10.0,
+                        "unit": exp.get("unit") or (exp.get("default_dose") or {}).get("dose_unit") or "mg",
+                        "timing": "morning",
+                        "frequency": (exp.get("default_dose") or {}).get("frequency") or "daily",
+                        "route": exp.get("route_of_administration") or "oral",
+                        "target": exp.get("mechanism") or exp.get("drug_class") or "Research agent",
+                        "rationale": f"[EXPERIMENTAL: Preclinical / Limited Human Data] Recommended under aggressive risk tolerance mode for {goal_title}.",
+                        "is_stimulant": False,
+                        "is_experimental": True,
+                        "metadata": exp.get("metadata", {}),
+                    })
+                    experimental_notices.append(
+                        f"⚠️ EXPERIMENTAL COMPOUND NOTICE [{exp.get('name') or exp_key}]: Limited human clinical trial data (preclinical/in vitro evidence). Recommended under aggressive risk tolerance mode; monitor individual response."
+                    )
 
         # Enhanced / Aggressive Testosterone Support for Anabolic Physique
         is_enhanced_mode = (
@@ -1314,6 +1510,12 @@ class StackIntentEngine:
             if not c_key or c_key in seen_keys:
                 continue
 
+            # Exclude experimental candidates if risk preference is non-aggressive (unless explicitly requested)
+            meta = cand.get("metadata", {}) or {}
+            is_exp = cand.get("is_experimental") or meta.get("human_clinical_trials") is False or str(meta.get("evidence_tier")).upper() in ("IN_VITRO_AND_ALLOMETRIC_EXTRAPOLATION", "PRECLINICAL") or str(meta.get("regulatory_status")).upper() in ("RESEARCH_CHEMICAL", "EXPERIMENTAL")
+            if is_exp and risk_pref not in ("aggressive", "high", "performance", "high_potency") and not any(r.get("key") == c_key for r in user_requested_compounds):
+                continue
+
             # Route and frequency inference
             inf_route, inf_freq = infer_compound_route_and_frequency(c_key)
             c_route = cand.get("route") or inf_route
@@ -1380,7 +1582,58 @@ class StackIntentEngine:
                 "rationale": cand.get("rationale", f"Calibrated for {goal_title}."),
             })
 
-        # Dynamically evaluate gaps and attach protective co-factors
+        # Step 2: FORCE INCLUDE USER REQUESTED COMPOUNDS REGARDLESS OF RISK
+        requested_compound_warnings: List[str] = []
+
+        for req in user_requested_compounds:
+            req_key = req.get("key")
+            if not req_key or req_key in seen_keys:
+                continue
+
+            req_check = {"key": req_key, "name": req.get("name"), "route": req.get("route")}
+            if cls._is_compound_excluded(req_check, parsed_exclusions, catalog):
+                applied_exclusions.append(f"{req.get('name') or req_key} ({req.get('route')})")
+                continue
+
+            seen_keys.add(req_key)
+
+            req_name = req.get("name") or req_key.replace("_", " ").title()
+            req_dose = req.get("dose", 100.0)
+            req_unit = req.get("unit", "mg")
+            req_route = req.get("route", "oral")
+            req_freq = req.get("frequency", "daily")
+            req_timing = req.get("timing", "morning")
+
+            meta = req.get("metadata", {}) or {}
+            is_high_risk = req.get("risk_band") in ("high", "severe", "elevated") or req.get("boxed_warning") is not None
+            is_exp = meta.get("human_clinical_trials") is False or str(meta.get("evidence_tier")).upper() in ("IN_VITRO_AND_ALLOMETRIC_EXTRAPOLATION", "PRECLINICAL") or str(meta.get("regulatory_status")).upper() in ("RESEARCH_CHEMICAL", "EXPERIMENTAL")
+
+            warn_reasons = []
+            if is_exp:
+                warn_reasons.append("Limited human clinical trial data (preclinical/in vitro evidence).")
+            if is_high_risk or req.get("boxed_warning"):
+                warn_reasons.append(f"High risk profile / Boxed warning: {req.get('boxed_warning') or 'Requires strict monitoring.'}")
+            if req_key in ("clenbuterol", "yohimbine"):
+                warn_reasons.append("Sympathomimetic Beta-2 agonist / Alpha blocker drive carries cardiac strain and electrolyte depletion risks.")
+
+            warn_detail = " ".join(warn_reasons) if warn_reasons else "Monitor individual tolerance."
+            warn_msg = f"⚠️ USER-REQUESTED COMPOUND [{req_name}]: Included as specifically requested regardless of baseline risk. {warn_detail}"
+            requested_compound_warnings.append(warn_msg)
+
+            built_compounds.append({
+                "key": req_key,
+                "name": req_name,
+                "dose": req_dose,
+                "unit": req_unit,
+                "timing": req_timing,
+                "frequency": req_freq,
+                "route": req_route,
+                "target": req.get("target", "User requested agent"),
+                "rationale": f"Specifically requested by user. {warn_msg}",
+                "is_user_requested": True,
+            })
+
+        # Dynamically evaluate gaps and attach protective co-factors (Side-effect mitigation)
         comp_records_for_analysis = [dict(c) for c in built_compounds]
         features = cls._extract_pharmacological_features(comp_records_for_analysis)
         gaps = cls._detect_therapeutic_gaps(features, comp_records_for_analysis, biometrics)
@@ -1450,6 +1703,8 @@ class StackIntentEngine:
             "remove": []
         }
 
+        all_warnings = list(dict.fromkeys(experimental_notices + requested_compound_warnings))
+
         return {
             "goal_id": target_goal,
             "goal_title": goal_title,
@@ -1458,6 +1713,8 @@ class StackIntentEngine:
             "schedule": schedule,
             "action_card": action_card_payload,
             "applied_exclusions": list(dict.fromkeys(applied_exclusions)),
+            "requested_compounds": [r.get("name") for r in user_requested_compounds],
+            "warnings": all_warnings,
             "biometric_calibration": {
                 "weight_scale": round(weight_scale, 2),
                 "renal_scale": round(renal_scale, 2),

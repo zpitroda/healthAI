@@ -408,5 +408,66 @@ def test_build_scratch_stack_proposal_empty_preferences():
     assert proposal["biometric_calibration"]["risk_scale"] == 1.0
 
 
+def test_aggressive_risk_tolerance_recommends_experimental_compounds():
+    """Verify that selecting aggressive risk tolerance allows recommending experimental compounds with limited human data."""
+    proposal = StackIntentEngine.build_scratch_stack_proposal(
+        goal_id="cognitive_focus",
+        biometrics={"weight_kg": 80.0},
+        preferences={"risk_tolerance": "aggressive"},
+    )
+    # Under aggressive mode, candidate experimental compounds with limited human data matching cognitive_focus (e.g. semax, tak_653) are eligible
+    comp_keys = [c["key"] for c in proposal["compounds"]]
+    assert len(proposal["compounds"]) >= 3
+    # Check that warnings / notices include experimental disclosures
+    assert "warnings" in proposal
+    exp_warnings = [w for w in proposal["warnings"] if "EXPERIMENTAL" in w or "Limited human" in w]
+    assert len(exp_warnings) > 0 or any("EXPERIMENTAL" in str(c.get("rationale")) for c in proposal["compounds"])
+
+
+def test_conservative_risk_tolerance_omits_unrequested_experimental_compounds():
+    """Verify that conservative risk tolerance omits unrequested experimental compounds with limited human data."""
+    proposal = StackIntentEngine.build_scratch_stack_proposal(
+        goal_id="cognitive_focus",
+        biometrics={"weight_kg": 80.0},
+        preferences={"risk_tolerance": "conservative"},
+    )
+    comp_keys = [c["key"] for c in proposal["compounds"]]
+    # Unrequested experimental agents like TAK-653 or Semax should not be automatically inserted into conservative stack
+    assert "tak_653" not in comp_keys
+
+
+def test_user_requested_compound_included_regardless_of_risk():
+    """Verify that if the user specifically requests a compound (e.g., Clenbuterol), it is included regardless of conservative risk preference."""
+    proposal = StackIntentEngine.build_scratch_stack_proposal(
+        goal_id="fat_loss_metabolic",
+        biometrics={"weight_kg": 85.0},
+        preferences={"risk_tolerance": "conservative"},
+        custom_notes="Please include clenbuterol for my cut",
+    )
+    comp_keys = [c["key"] for c in proposal["compounds"]]
+    # Clenbuterol MUST be included because user specifically requested it
+    assert "clenbuterol" in comp_keys
+    clen = next(c for c in proposal["compounds"] if c["key"] == "clenbuterol")
+    assert clen.get("is_user_requested") is True
+
+
+def test_user_requested_compound_side_effect_mitigation_and_warnings():
+    """Verify that when a high-risk compound is requested, protective co-factors are dynamically added and warnings generated."""
+    proposal = StackIntentEngine.build_scratch_stack_proposal(
+        goal_id="fat_loss_metabolic",
+        biometrics={"weight_kg": 85.0, "blood_pressure": 125.0},
+        preferences={"risk_tolerance": "balanced"},
+        custom_notes="I want to add clenbuterol to my protocol",
+    )
+    comp_keys = [c["key"] for c in proposal["compounds"]]
+    # 1. Clenbuterol is included
+    assert "clenbuterol" in comp_keys
+
+    # 2. Side-effect mitigations (Taurine for cramping/cardiac support, L-Theanine for autonomic buffer) are attached
+    assert "taurine" in comp_keys or "l_theanine" in comp_keys
+
+    # 3. Explicit clinical warning is generated
+    warnings = proposal.get("warnings", [])
+    assert any("Clenbuterol" in w or "USER-REQUESTED" in w for w in warnings)
 
 

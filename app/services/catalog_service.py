@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import copy
+import difflib
 import json
 import logging
 import os
@@ -1555,6 +1556,41 @@ def _normalize_compound_name(name: str | None) -> str:
     return cleaned
 
 
+def _phonetic_key(s: str) -> str:
+    """Simplifies phonetic ambiguities (e.g. c->s before e/i/y, ph->f, double consonants, unstressed vowels)."""
+    s = str(s or "").lower().strip()
+    s = re.sub(r"[^a-z0-9]", "", s)
+    s = re.sub(r"ph", "f", s)
+    s = re.sub(r"c(?=[eiy])", "s", s)
+    s = re.sub(r"c(?=[aou])", "k", s)
+    s = re.sub(r"ck", "k", s)
+    s = re.sub(r"q", "k", s)
+    s = re.sub(r"x", "ks", s)
+    s = re.sub(r"(.)\1+", r"\1", s)
+    if len(s) > 1:
+        first = s[0]
+        rest = re.sub(r"[aeiouy]", "", s[1:])
+        return first + rest
+    return s
+
+
+def _levenshtein_distance(s1: str, s2: str) -> int:
+    if len(s1) < len(s2):
+        return _levenshtein_distance(s2, s1)
+    if len(s2) == 0:
+        return len(s1)
+    previous_row = list(range(len(s2) + 1))
+    for i, c1 in enumerate(s1):
+        current_row = [i + 1]
+        for j, c2 in enumerate(s2):
+            insertions = previous_row[j + 1] + 1
+            deletions = current_row[j] + 1
+            substitutions = previous_row[j] + (c1 != c2)
+            current_row.append(min(insertions, deletions, substitutions))
+        previous_row = current_row
+    return previous_row[-1]
+
+
 _CATALOG_MEMORY_CACHE: Dict[Tuple[str, str], Dict[str, Any]] = {}
 _CATALOG_ALL_COMPOUNDS: Dict[str, List[Dict[str, Any]]] = {}
 _CATALOG_VARIANTS: Dict[str, Dict[str, List[Dict[str, Any]]]] = {}
@@ -2257,6 +2293,65 @@ class CatalogService:
                     if row is not None:
                         break
 
+            if row is None:
+                # Generalized fuzzy / phonetic near-miss matching (e.g. "alison" -> "allicin", "cypionat" -> "cypionate")
+                target_norm = _normalize_compound_name(key)
+                if len(target_norm) >= 3:
+                    target_pk = _phonetic_key(target_norm)
+                    all_candidates: List[str] = []
+                    row_by_cand: Dict[str, Any] = {}
+                    row_by_pk: Dict[str, Any] = {}
+                    all_rows = conn.execute("SELECT * FROM compounds").fetchall()
+                    for r in all_rows:
+                        k_norm = _normalize_compound_name(r["key"])
+                        n_norm = _normalize_compound_name(r["name"])
+                        if k_norm:
+                            all_candidates.append(k_norm)
+                            row_by_cand[k_norm] = r
+                            pk = _phonetic_key(k_norm)
+                            if pk not in row_by_pk:
+                                row_by_pk[pk] = r
+                        if n_norm and n_norm != k_norm:
+                            all_candidates.append(n_norm)
+                            row_by_cand[n_norm] = r
+                            pk = _phonetic_key(n_norm)
+                            if pk not in row_by_pk:
+                                row_by_pk[pk] = r
+                        syns = self._deserialize(r["synonyms"], [])
+                        for s in syns:
+                            s_norm = _normalize_compound_name(str(s))
+                            if s_norm:
+                                if s_norm not in row_by_cand:
+                                    all_candidates.append(s_norm)
+                                    row_by_cand[s_norm] = r
+                                pk = _phonetic_key(s_norm)
+                                if pk not in row_by_pk:
+                                    row_by_pk[pk] = r
+
+                    # 1. Phonetic matching
+                    if target_pk in row_by_pk:
+                        row = row_by_pk[target_pk]
+
+                    # 2. Levenshtein edit-distance matching (<=2 for len>=5, <=1 for len<5)
+                    if row is None:
+                        max_dist = 2 if len(target_norm) >= 5 else 1
+                        best_cand = None
+                        best_dist = max_dist + 1
+                        for cand in all_candidates:
+                            if abs(len(cand) - len(target_norm)) <= max_dist:
+                                d = _levenshtein_distance(target_norm, cand)
+                                if d < best_dist and d <= max_dist:
+                                    best_dist = d
+                                    best_cand = cand
+                        if best_cand:
+                            row = row_by_cand.get(best_cand)
+
+                    # 3. SequenceMatcher close match fallback
+                    if row is None:
+                        matches = difflib.get_close_matches(target_norm, all_candidates, n=1, cutoff=0.60)
+                        if matches:
+                            row = row_by_cand.get(matches[0])
+
         if row is not None:
             comp = self._row_to_compound(dict(row))
             parent_id = comp.get("parent_compound_id")
@@ -2324,6 +2419,36 @@ class CatalogService:
     def find_by_synonym(self, key: str, auto_enrich: bool = False) -> Dict[str, Any] | None:
         """Resolves a compound by synonym, alias, key, or canonical name."""
         return self.get_compound(key, auto_enrich=auto_enrich)
+
+    def find_compounds_by_target(self, target_name_or_keyword: str, action: Optional[str] = None) -> List[Dict[str, Any]]:
+        """
+        Dynamically finds all catalog compounds that interact with or modulate a target enzyme/receptor.
+        Optionally filters by action mode (e.g. 'inhibitor', 'antagonist', 'agonist', 'substrate').
+        """
+        tgt_kw = str(target_name_or_keyword or "").strip().lower()
+        act_kw = str(action or "").strip().lower() if action else ""
+        if not tgt_kw:
+            return []
+
+        results: List[Dict[str, Any]] = []
+        with sqlite3.connect(self.database_path) as conn:
+            conn.row_factory = sqlite3.Row
+            all_rows = conn.execute("SELECT * FROM compounds").fetchall()
+            for r in all_rows:
+                comp = self._row_to_compound(dict(r))
+                targets = comp.get("receptor_targets") or []
+                matched = False
+                for t in targets:
+                    t_str = str(t.get("target") or t.get("name") or "").lower()
+                    t_act = str(t.get("action") or "").lower()
+                    t_fam = str(t.get("family") or "").lower()
+                    if (tgt_kw in t_str or tgt_kw in t_fam or any(w in t_str for w in tgt_kw.split() if len(w) >= 4)):
+                        if not act_kw or act_kw in t_act or (act_kw == "inhibitor" and any(w in t_act for w in ["inhibitor", "antagonist", "blocker", "inactivator"])):
+                            matched = True
+                            break
+                if matched and comp.get("key") not in [res["key"] for res in results]:
+                    results.append(comp)
+        return results
 
     def canonicalize_and_merge_stack(self, stack: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
         """

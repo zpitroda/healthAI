@@ -596,7 +596,10 @@ class StackIntentEngine:
             "has_lipid_regulators": False,
             "has_renal_support": False,
             "has_depot_injectables": False,
+            "has_oral_tma_precursors": False,
+            "has_microbial_tma_inhibitors": False,
             "androgen_names": [],
+            "oral_tma_precursor_names": [],
             "protective_ancillary_names": [],
         }
 
@@ -680,6 +683,22 @@ class StackIntentEngine:
             # Renal support
             if any(w in text_blob for w in ["astragalus", "cycloastragenol", "telmisartan"]):
                 features["has_renal_support"] = True
+
+            # Oral TMA precursors (e.g. oral L-carnitine, choline, betaine)
+            is_oral_route = route in ("oral", "po", "swallow", "") or ":oral" in k
+            is_parenteral = route in ("intramuscular", "im", "subcutaneous", "subq", "iv")
+            is_tma_substrate = any(
+                ("tma lyase" in t or "cnta" in t or "cntb" in t or "cutc" in t or "yeaw" in t)
+                for t in targets
+            ) or any(w in text_blob for w in ["carnitine", "alcar", "choline", "alpha_gpc", "alpha-gpc", "citicoline", "betaine"])
+            if is_oral_route and not is_parenteral and is_tma_substrate:
+                features["has_oral_tma_precursors"] = True
+                features["oral_tma_precursor_names"].append(c.get("name") or k.title())
+
+            # Microbial TMA lyase inhibitors (e.g. allicin, garlic extract, DMB)
+            if any(w in text_blob for w in ["allicin", "garlic", "allium", "dimethylbutanol", "dmb"]) or any(("tma lyase" in t or "cnta" in t) and "inhibitor" in str(getattr(t, "action", "")).lower() for t in targets):
+                features["has_microbial_tma_inhibitors"] = True
+                features["protective_ancillary_names"].append(c.get("name") or k.title())
 
         return features
 
@@ -894,6 +913,18 @@ class StackIntentEngine:
                 "issue": "Exogenous androgenic exposure in female patient carries high risk of virilization (hyperandrogenism, voice deepening, clitoromegaly, hirsutism, and menstrual disruption).",
                 "recommended_cofactor": "Titrate androgens to micro-doses (e.g. low-dose TRT 5–10 mg/week or Oxandrolone <= 5 mg/day) and monitor free androgen index / SHBG",
                 "mechanism": "Female AR tissue sensitivity is significantly higher; avoid supra-physiological male dosing levels."
+            })
+
+        # 9. Gut Microbiota TMA/TMAO Axis (Oral L-Carnitine/Choline without Microbial Lyase Inhibition)
+        if features.get("has_oral_tma_precursors") and not features.get("has_microbial_tma_inhibitors"):
+            precursor_str = ", ".join(features.get("oral_tma_precursor_names", ["Oral L-Carnitine/Choline"]))
+            gaps.append({
+                "axis": "Gastrointestinal / Microbial TMAO Axis",
+                "severity": "MODERATE",
+                "issue": f"Oral TMA precursor active ({precursor_str}) without gut microbial TMA-lyase inhibition. Intestinal bacteria (CntA/CntB / yeaW/yeaX) cleave oral carnitine/choline to trimethylamine (TMA), oxidized by host hepatic FMO3 into atherogenic Trimethylamine N-Oxide (TMAO).",
+                "recommended_cofactor": "Allicin (Garlic Extract / Allium sativum) 10–20 mg (or 600–1200 mg Aged Garlic Extract) daily with meals, or switch to parenteral (IM/SubQ) route to bypass intestinal microbiota.",
+                "cofactor_search_terms": ["allicin", "garlic", "aged_garlic_extract", "garlic_extract"],
+                "mechanism": "Inactivates bacterial CntA/CntB / CutC TMA-lyase enzymes, suppressing TMA and TMAO formation by >50% while preserving mitochondrial carnitine shuttle bioactivity."
             })
 
         return gaps

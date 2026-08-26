@@ -358,8 +358,8 @@ class CopilotAgent:
     @classmethod
     def extract_entities_from_messages(cls, messages: List[Dict[str, Any]]) -> List[str]:
         """
-        Scans conversation history (especially the latest user prompt) for known pharmacological compounds
-        and returns catalog keys to enrich GraphRAG & PK/PD context.
+        Scans conversation history (especially the latest user prompt) for known pharmacological compounds,
+        biomarkers (e.g. TMAO, ALT, eGFR, BP), and enzyme targets to enrich GraphRAG & PK/PD context.
         """
         if not messages:
             return []
@@ -371,6 +371,7 @@ class CopilotAgent:
         if not combined_text:
             return []
 
+        # 1. Compound extraction (exact, normalized, and fuzzy)
         words = re.findall(r"[a-z0-9_\-\+]+", combined_text)
         for w in words:
             if len(w) >= 3:
@@ -383,6 +384,35 @@ class CopilotAgent:
             comp = catalog.get_compound(bigram, auto_enrich=False) or catalog.find_by_synonym(bigram)
             if comp and comp.get("key"):
                 found_keys.add(comp["key"])
+
+        # 2. Biomarker & Molecular Target Extraction (e.g. TMAO, ALT, eGFR, Blood Pressure, CntA, FMO3)
+        from app.knowledge_graph.graph import BIOMARKER_CLINICAL_CALIBRATION
+        for bio_id, b_meta in BIOMARKER_CLINICAL_CALIBRATION.items():
+            b_label = str(b_meta.get("label", "")).lower()
+            clean_bio = bio_id.replace("bio_", "").lower()
+            if clean_bio in combined_text or (b_label and any(part in combined_text for part in [b_label, clean_bio.replace("_", " ")])):
+                found_keys.add(bio_id)
+            elif "tmao" in combined_text and bio_id == "bio_tmao":
+                found_keys.add("bio_tmao")
+            elif any(bp_kw in combined_text for bp_kw in ["blood pressure", "systolic", "hypertension"]) and bio_id == "bio_blood_pressure":
+                found_keys.add("bio_blood_pressure")
+            elif any(hr_kw in combined_text for hr_kw in ["heart rate", "tachycardia", "pulse", "rhr"]) and bio_id == "bio_heart_rate":
+                found_keys.add("bio_heart_rate")
+
+        target_entity_map = {
+            "cnta": "Gut Microbiota Carnitine TMA-Lyase (CntA/CntB / yeaW/yeaX)",
+            "cntb": "Gut Microbiota Carnitine TMA-Lyase (CntA/CntB / yeaW/yeaX)",
+            "tma lyase": "Gut Microbiota Carnitine TMA-Lyase (CntA/CntB / yeaW/yeaX)",
+            "fmo3": "Flavin-Containing Monooxygenase 3 (FMO3)",
+            "cyp19a1": "CYP19A1 Aromatase",
+            "aromatase": "CYP19A1 Aromatase",
+            "5ar": "5-Alpha Reductase",
+            "cpt1": "Carnitine Palmitoyltransferase (CPT1A / CPT2)",
+            "hmgcr": "HMG-CoA Reductase (HMGCR)",
+        }
+        for kw, tgt_node in target_entity_map.items():
+            if kw in combined_text:
+                found_keys.add(tgt_node)
 
         return list(found_keys)
 
@@ -620,7 +650,60 @@ class CopilotAgent:
                     "interaction_safety": "Non-sedating, highly bioavailable chelate."
                 })
 
-        # 8. Literature-Mined & Curated Association Discovery from Knowledge Graph
+        # 8. Gut Microbiome & Microbial Metabolite Burden (TMAO / TMA-Lyase)
+        has_oral_tma = any(
+            (c.get("route", "oral") in ["oral", "po", "swallow", ""] or ":oral" in str(c.get("key", "")).lower())
+            and (
+                any(w in str(c.get("key", "")).lower() or w in str(c.get("name", "")).lower() for w in ["carnitine", "alcar", "choline", "alpha_gpc", "alpha-gpc", "citicoline", "betaine"])
+                or any("tma lyase" in str(t.get("target", "")).lower() for t in (c.get("receptor_targets") or []) if isinstance(t, dict))
+            )
+            for c in compounds
+        )
+        has_tma_gap = any("tmao" in str(g).lower() or "microbial" in str(g).lower() for g in therapeutic_gaps)
+        if has_oral_tma or has_tma_gap:
+            if "allicin" not in existing_keys and "garlic" not in existing_keys:
+                candidate_pool.append({
+                    "key": "allicin",
+                    "name": "Allicin (Garlic Extract / Allium sativum)",
+                    "target": "Gut Microbiota Carnitine TMA-Lyase (CntA/CntB / yeaW/yeaX) Inhibitor (IC50 = 0.05 mg/mL)",
+                    "standard_dose": "10-20 mg allicin (or 600-1200 mg Aged Garlic Extract) oral daily with meals",
+                    "clinical_purpose": "Inactivates bacterial trimethylamine lyase enzymes in the gut lumen, blocking the cleavage of oral L-carnitine/choline into trimethylamine (TMA) and preventing downstream host hepatic FMO3 oxidation to atherogenic Trimethylamine N-Oxide (TMAO).",
+                    "solves_burden": "Gut Microbial TMA Conversion & Serum TMAO Elevation",
+                    "evidence_grade": "Clinical Human Trials & Microbiome Mechanistic Validation",
+                    "interaction_safety": "Safe natural botanical organosulfur; zero CYP3A4 burden, provides additive vascular eNOS stimulation and lipid support.",
+                })
+
+        # 9. Dynamic Target-Complementarity & Enzymatic Countermeasure Discovery (First Principles)
+        try:
+            for c in compounds:
+                c_name = c.get("name") or c.get("key", "Compound")
+                targets = c.get("receptor_targets") or []
+                for tgt in targets:
+                    if not isinstance(tgt, dict):
+                        continue
+                    t_name = str(tgt.get("target") or tgt.get("name") or "").strip()
+                    t_act = str(tgt.get("action") or "").lower()
+                    if t_name and ("substrate" in t_act or "inducer" in t_act or tgt.get("is_microbial")):
+                        matching_inhibitors = catalog.find_compounds_by_target(t_name, action="inhibitor")
+                        for inh in matching_inhibitors:
+                            inh_key = inh.get("key")
+                            if inh_key and inh_key not in existing_keys and inh_key not in [cand["key"] for cand in candidate_pool]:
+                                inh_name = inh.get("name") or inh.get("canonical_name") or inh_key.title()
+                                candidate_pool.append({
+                                    "key": inh_key,
+                                    "name": inh_name,
+                                    "target": f"{t_name} Inhibitor",
+                                    "standard_dose": str(inh.get("standard_dose") or "Per clinical titration"),
+                                    "clinical_purpose": f"Mechanistic Countermeasure: Inhibits {t_name} to prevent uncompensated downstream metabolic conversion from {c_name}.",
+                                    "solves_burden": f"Uncompensated {t_name} activity driven by {c_name}",
+                                    "evidence_grade": "Biochemical Target Complementarity",
+                                    "interaction_safety": "Targeted enzymatic mitigation pairing.",
+                                    "is_target_derived": True,
+                                })
+        except Exception as tc_err:
+            logger.debug("Target complementarity discovery notice: %s", tc_err)
+
+        # 10. Literature-Mined & Curated Association Discovery from Knowledge Graph
         try:
             gdb = get_graph_database()
             for edge in gdb._mock_edges:
@@ -2033,6 +2116,41 @@ You have autonomous access to execute live graph traversals, pathway queries, ph
             )
             md = cls.format_deterministic_protocol_markdown(proposal, persona)
             return md, proposal.get("action_card")
+
+        # Scenario TMAO / Gut Microbiome Mitigation Query
+        is_tmao_query = any(w in q_lower for w in ["tmao", "trimethylamine", "cnta", "microbiota", "microbiome"]) or (any(w in q_lower for w in ["carnitine", "choline"]) and any(w in q_lower for w in ["lower", "reduce", "mitigate", "prevent", "side effect"]))
+        if is_tmao_query:
+            lines = [
+                "### 🧬 HealthAI Clinical Guidance: Mitigating Trimethylamine N-Oxide (TMAO) Elevation\n",
+                "**Executive Clinical Assessment**: Serum TMAO (Trimethylamine N-Oxide) is a pro-atherogenic vascular metabolite generated when unabsorbed oral quaternary amines (e.g. L-Carnitine, Choline) are cleaved by intestinal bacterial enzymes (**Carnitine TMA-Lyase, CntA/CntB / yeaW/yeaX**) into trimethylamine (TMA), which is subsequently oxidized by host hepatic **FMO3** into TMAO.\n",
+                "**Evidence-Based Actionable Solutions**:\n",
+                "1. **Enzymatic Microbial TMA-Lyase Inhibition (Allicin / Garlic Extract)**:",
+                "   - **Compound**: **Allicin (Garlic Extract / Allium sativum)** — 10–20 mg allicin yield (or 600–1200 mg Aged Garlic Extract) daily with meals.",
+                "   - **Molecular Mechanism**: Allicin's organosulfur moieties potently inactivate bacterial TMA-lyase (CntA/CntB) in the gut lumen (IC50 ≈ 0.05 mg/mL), suppressing TMA and serum TMAO formation by >50–70% while preserving systemic L-carnitine absorption and CPT1 mitochondrial shuttle activity.",
+                "2. **Pharmacokinetic Route Optimization (Parenteral Bypass)**:",
+                "   - **Strategy**: Switch administration from oral to **Intramuscular (IM) or Subcutaneous (SubQ)** injection (e.g. L-Carnitine 500 mg IM daily or pre-workout).",
+                "   - **Mechanism**: Parenteral administration delivers carnitine directly into systemic circulation, completely bypassing the gastrointestinal lumen and intestinal microbiota, resulting in negligible (<0.5 μmol/L) TMAO generation.",
+                "3. **Dietary & Microbiome Optimization**:",
+                "   - Increase soluble dietary fiber, prebiotic arabinogalactans, and polyphenol-rich foods (pomegranate, extra virgin olive oil / DMB) which promote non-TMA-producing microbial species.\n",
+                "**Monitoring Panel**: Serum TMAO (<6.2 μmol/L safe upper limit), lipid panel (ApoB, LDL-C), and high-sensitivity CRP at 8–12 week intervals."
+            ]
+            alli_card = {
+                "action_card": "stack_diff",
+                "add": [
+                    {
+                        "key": "allicin",
+                        "name": "Allicin (Garlic Extract)",
+                        "dose": 10,
+                        "unit": "mg",
+                        "timing": "morning",
+                        "frequency": "daily",
+                        "route": "oral"
+                    }
+                ],
+                "modify": [],
+                "remove": []
+            }
+            return "\n".join(lines), alli_card
 
         # Scenario B: Risk / Conflict / DDI / Safety Query (Auditor persona or safety keywords)
         is_safety_query = (persona == "auditor") or any(w in q_lower for w in ["safe", "conflict", "ddi", "interact", "risk", "warning", "cyp", "side effect", "toxic", "organ"])

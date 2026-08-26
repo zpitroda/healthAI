@@ -2323,13 +2323,14 @@ class InteractionEngine:
                 status = "ELEVATED_RISK" if is_severe else "MODERATE_ELEVATION"
                 status_label = f"Elevated {label} ({est_val} {unit})"
                 status_color = "#ef4444" if is_severe else "#f59e0b"
-                if is_severe and bio_id in {"bio_qtc", "bio_hematocrit", "bio_alt", "bio_ast", "bio_serum_creatinine", "bio_blood_glucose", "bio_prolactin", "bio_free_t3"}:
+                if is_severe and bio_id in {"bio_tmao", "bio_qtc", "bio_hematocrit", "bio_alt", "bio_ast", "bio_serum_creatinine", "bio_blood_glucose", "bio_prolactin", "bio_free_t3"}:
+                    rec_text = "Incorporate microbial TMA-lyase inhibitor (e.g. Allicin 10-20 mg or Aged Garlic Extract) or switch to parenteral route (IM) to bypass gut microbiota." if bio_id == "bio_tmao" else f"Monitor {label} and adjust dosage or add counterbalancing support if necessary."
                     uncompensated_risks.append({
                         "axis": label,
                         "severity": "HIGH_RISK",
                         "title": f"Elevated {label} ({est_val} {unit})",
                         "description": f"Compound pharmacological action shifts {label} beyond the safe upper bound ({safe_upper} {unit}) to {est_val} {unit}.",
-                        "clinical_recommendation": f"Monitor {label} and adjust dosage or add counterbalancing support if necessary.",
+                        "clinical_recommendation": rec_text,
                     })
             elif not in_safe and est_val < safe_lower:
                 is_severe = est_val < (safe_lower * 0.65)

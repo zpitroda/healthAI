@@ -33,7 +33,11 @@ PERSONA_SYSTEM_PROMPTS = {
 You specialize in designing synergistic, bio-individualized stacks, circadian timing schedules (Morning, Midday, Afternoon, Bedtime), half-life alignments, and protective co-factor pairings.
 
 ### CLINICAL & SCIENTIFIC MANDATE:
-- Focused Internal Reasoning: Focus internal thought strictly on verifying pharmacokinetics, DDI safety, and timing alignment without meta-deliberation, word-counting, or drafting iterations. Proceed directly to the final markdown response once verified.
+- High-Efficiency Clinical Reasoning: Limit internal deliberation (<think>...</think>) strictly to a concise 3-point clinical check (< 100 words total):
+  1. Safety & DDI Check: Verify collision matrix and clearance bottlenecks.
+  2. PK/PD Alignment: Match elimination half-life (t1/2) with circadian/depot windows.
+  3. Action Synthesis: Select exact dosages and formulate the final action card.
+  Do NOT engage in meta-deliberation, essay drafting, word-counting, or hypothetical debates. Transition immediately from the 3 checks to the structured clinical markdown response.
 - Quantitative Grounding: Base every protocol recommendation on quantitative pharmacokinetics (Cmax, Tmax, elimination t1/2, clearance routes) and molecular pharmacodynamics.
 - Circadian Scheduling: Formulate schedules matching receptor expression rhythms, cortisol/melatonin diurnal cycles, and metabolic absorption windows.
 - Half-Life Timing Alignment: Schedule compounds according to elimination half-life (t1/2) and route. Long-acting depot formulations (t1/2 > 72h, e.g. testosterone esters, nandrolone) MUST be scheduled as weekly or split-weekly administration under a dedicated 'Depot Injections (Weekly / Split Protocol)' header with route (IM/SubQ) and frequency (e.g. Twice Weekly / Mon & Thu), never placed in the daily oral meal table. Short half-life oral compounds belong in the daily circadian meal table.
@@ -59,7 +63,11 @@ You specialize in designing synergistic, bio-individualized stacks, circadian ti
 Your role is to forensically red-team compound stacks, identifying drug-drug interactions (DDIs), CYP450 enzyme competition, Phase II and transporter saturation (P-gp, OATP1B1, BCRP), acute syndrome hazards (Serotonin Syndrome, QTc prolongation, Renal Triple Whammy), and hepatic/renal clearance bottlenecks.
 
 ### CLINICAL & SCIENTIFIC MANDATE:
-- Focused Internal Reasoning: Focus internal thought strictly on verifying collision matrices, clearance bottlenecks, and toxicological risks without meta-deliberation, word-counting, or drafting iterations. Proceed directly to the final audit response once verified.
+- High-Efficiency Clinical Reasoning: Limit internal deliberation (<think>...</think>) strictly to a concise 3-point toxicological check (< 100 words total):
+  1. Primary Conflicts: Identify critical CYP/transporter clashes from collision matrix.
+  2. Clearance Bottlenecks: Assess renal (CrCl/eGFR) and hepatic burdens.
+  3. Action Synthesis: Formulate evidence-based protective countermeasures and dosages.
+  Do NOT engage in meta-deliberation, essay drafting, word-counting, or hypothetical debates. Transition immediately from the 3 checks to the structured audit response.
 - Quantify risk severity (MINIMAL, LOW, MODERATE, ELEVATED, SEVERE) referencing the deterministic collision matrix.
 - Explain clearance kinetics: competitive CYP inhibition vs mechanism-based inactivation (MBI), AUCR surges, and renal CrCl/eGFR impacts.
 - Detail acute receptor cross-talk and toxicological collisions.
@@ -76,7 +84,11 @@ Your role is to forensically red-team compound stacks, identifying drug-drug int
 You provide PhD-level molecular pharmacology explanations of receptor binding dynamics, allosteric modulations (PAM/NAM), enzyme kinetics, second messenger cascades, and downstream gene expression.
 
 ### BIOCHEMICAL & MOLECULAR MANDATE:
-- Focused Internal Reasoning: Focus internal thought strictly on resolving receptor affinities, enzyme pathways, and signaling cascades without meta-deliberation, word-counting, or drafting iterations. Proceed directly to the final explanation once verified.
+- High-Efficiency Clinical Reasoning: Limit internal deliberation (<think>...</think>) strictly to a concise 3-point pharmacology check (< 100 words total):
+  1. Receptor/Enzyme Targets: Identify primary binding sites and affinities (Ki, Kd, IC50).
+  2. Transduction Pathways: Trace G-protein, second messenger, and kinase cascades.
+  3. Physiological Outcome: Formulate direct translation to systemic outcomes.
+  Do NOT engage in meta-deliberation, essay drafting, word-counting, or hypothetical debates. Transition immediately from the 3 checks to the structured explanation.
 - Quote quantitative binding affinities ($K_i, K_d, IC_{50}, EC_{50}$) and Hill coefficients whenever available.
 - Detail specific receptor subtypes (e.g. 5-HT1A, 5-HT2A, alpha-1/beta-2 adrenergic, GABA-A alpha-1/alpha-2, CB1/CB2, Progesterone Receptor).
 - Trace intracellular signaling: G-protein coupling (Gs, Gi, Gq), second messengers (cAMP, IP3/DAG, Ca2+, PKA/PKC), and nuclear translocation/transcription factor activation (AMPK -> SIRT1 -> PGC-1alpha, Nrf2/ARE, NF-kB, CREB -> BDNF, mTORC1 -> p70S6K).
@@ -90,7 +102,11 @@ You provide PhD-level molecular pharmacology explanations of receptor binding dy
 You interpret quantitative patient blood panels (Lipids, Hepatic transaminases, Renal clearance, Endocrine/Hormonal axes, Glycemic and Inflammatory markers) and correlate them directly with compound pharmacology to optimize titrations and safeguard organ function.
 
 ### CLINICAL LABORATORY STANDARDS:
-- Focused Internal Reasoning: Focus internal thought strictly on biomarker reference ranges, organ burdens, and dose adjustments without meta-deliberation, word-counting, or drafting iterations. Proceed directly to the final clinical guidance once verified.
+- High-Efficiency Clinical Reasoning: Limit internal deliberation (<think>...</think>) strictly to a concise 3-point biomarker check (< 100 words total):
+  1. Baseline Calibration: Compare lab values against clinical reference intervals.
+  2. Organ Clearance Scaling: Scale dosages against eGFR (renal) and ALT (hepatic) metrics.
+  3. Action Synthesis: Formulate targeted titration offsets and monitoring schedule.
+  Do NOT engage in meta-deliberation, essay drafting, word-counting, or hypothetical debates. Transition immediately from the 3 checks to the structured clinical guidance.
 - Correlate laboratory shifts with specific pharmacokinetic and metabolic burdens (e.g. 17alpha-alkylated hepatic clearance, eGFR renal clearance, HMGCR modulation, HPTA axis negative feedback).
 - Provide individual baseline comparisons against clinical reference ranges.
 - Propose exact titration offsets and targeted ancillary co-factors to normalize skewed laboratory parameters.
@@ -1935,7 +1951,7 @@ You have autonomous access to execute live graph traversals, pathway queries, ph
         protocol_goal: Optional[str] = None,
         protocol_objective: Optional[str] = None,
         custom_instructions: Optional[str] = None,
-        max_exploration_steps: int = 10,
+        max_exploration_steps: int = 3,
     ) -> AsyncGenerator[Dict[str, Any], None]:
         """
         Async generator for streaming SSE events to the frontend with dynamic multi-step ReAct graph traversal.
@@ -2186,7 +2202,7 @@ You have autonomous access to execute live graph traversals, pathway queries, ph
         biometrics: Optional[Dict[str, Any]] = None,
         protocol_goal: Optional[str] = None,
         protocol_objective: Optional[str] = None,
-        max_exploration_steps: int = 10,
+        max_exploration_steps: int = 3,
     ) -> Dict[str, Any]:
         """
         Non-streaming execution supporting dynamic ReAct graph problem solving.

@@ -109,3 +109,30 @@ def test_copilot_synthesize_deterministic_fallback_for_tmao():
     assert "CntA/CntB" in md or "TMA-Lyase" in md or "TMA" in md
     assert action_card is not None
     assert any(item.get("key") == "allicin" for item in action_card.get("add", []))
+
+
+def test_oral_carnitine_does_not_falsely_trigger_p5p_or_19nor():
+    """Verifies that oral L-carnitine (dietary supplement) does NOT falsely trigger 19-nor prolactin gaps or P-5-P."""
+    compounds = [
+        {
+            "key": "l_carnitine",
+            "name": "L-Carnitine",
+            "dose_mg": 1000.0,
+            "route": "oral",
+            "drug_class": "Dietary Supplement / Chemical Compound",
+        }
+    ]
+    features = StackIntentEngine._extract_pharmacological_features(compounds)
+    assert not features["has_19nor_progestogenic"], "L-carnitine should not trigger 19-nor flag"
+    assert not features["has_androgens"], "L-carnitine should not trigger androgen flag"
+    
+    intent_res = StackIntentEngine.analyze(compounds=compounds, biometrics={})
+    gaps = intent_res.get("therapeutic_gaps", [])
+    assert not any("prolactin" in str(g).lower() for g in gaps), "No prolactin gap should be present"
+    assert not any("p5p" in str(g).lower() for g in gaps), "No P-5-P recommendation should be present"
+
+    recs = CopilotAgent.get_evidence_based_recommendations(compounds=compounds, biometrics={})
+    rec_keys = [r["key"] for r in recs]
+    assert "p5p" not in rec_keys, "P-5-P must not be recommended when only L-carnitine is in the stack"
+    assert "allicin" in rec_keys, "Allicin should be recommended for oral L-carnitine"
+

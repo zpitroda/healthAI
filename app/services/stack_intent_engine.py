@@ -611,6 +611,7 @@ class StackIntentEngine:
             route = str(c.get("route", "")).lower()
             targets = [str(t.get("target", "")).lower() if isinstance(t, dict) else str(t).lower() for t in (c.get("receptor_targets") or [])]
 
+            tokens = set(re.findall(r"[a-z0-9]+", f"{k} {name} {d_class}"))
             text_blob = f"{k} {name} {d_class} {mech} {' '.join(targets)}"
 
             # Depot injectable detection
@@ -618,26 +619,26 @@ class StackIntentEngine:
                 features["has_depot_injectables"] = True
 
             # Androgen / AAS detection
-            if any(w in text_blob for w in ["testosterone", "trenbolone", "nandrolone", "drostanolone", "masteron", "primobolan", "methenolone", "boldenone", "oxandrolone", "anavar", "stanozolol", "winstrol", "superdrol", "dianabol", "anadrol"]):
+            if any(w in tokens for w in ["testosterone", "trenbolone", "nandrolone", "drostanolone", "masteron", "primobolan", "methenolone", "boldenone", "oxandrolone", "anavar", "stanozolol", "winstrol", "superdrol", "dianabol", "anadrol", "turinabol", "trestolone", "ment"]) or any(w in k or w in name for w in ["testosterone", "trenbolone", "nandrolone", "drostanolone", "masteron", "primobolan", "methenolone", "boldenone", "oxandrolone", "anavar", "stanozolol", "winstrol", "superdrol", "dianabol", "anadrol", "turinabol", "sarm", "rad140", "lgd4033", "ostarine"]):
                 features["has_androgens"] = True
                 features["androgen_names"].append(c.get("name") or k.title())
 
             # 19-nor progestogenic
-            if any(w in text_blob for w in ["trenbolone", "nandrolone", "deca", "durabolin", "trestolone", "ment"]) or any("progesterone" in t for t in targets):
+            if any(w in tokens for w in ["trenbolone", "nandrolone", "durabolin", "trestolone", "ment", "npp", "parabolan"]) or any(w in k or w in name for w in ["nandrolone", "trenbolone", "trestolone", "19-nor", "19nor"]) or any("progesterone receptor" in t and any(act in t for act in ["agonist", "substrate", "cleaved"]) for t in targets):
                 features["has_19nor_progestogenic"] = True
 
             # Aromatase inhibitor (AI)
-            if any(w in text_blob for w in ["exemestane", "anastrozole", "letrozole", "aromasin", "arimidex", "femara"]) or "aromatase" in text_blob or "cyp19a1" in text_blob:
+            if any(w in tokens for w in ["exemestane", "anastrozole", "letrozole", "aromasin", "arimidex", "femara"]) or any(w in text_blob for w in ["aromatase inhibitor", "cyp19a1 inhibitor"]):
                 features["has_aromatase_inhibitors"] = True
                 features["protective_ancillary_names"].append(c.get("name") or k.title())
 
             # SERMs (Selective Estrogen Receptor Modulators)
-            if any(w in text_blob for w in ["tamoxifen", "nolvadex", "raloxifene", "evista", "clomiphene", "clomid", "enclomiphene", "toremifene", "fareston"]):
+            if any(w in tokens for w in ["tamoxifen", "nolvadex", "raloxifene", "evista", "clomiphene", "clomid", "enclomiphene", "toremifene", "fareston"]):
                 features["has_serms"] = True
                 features["protective_ancillary_names"].append(c.get("name") or k.title())
 
             # Aromatizable substrate
-            if any(w in text_blob for w in ["testosterone", "testc", "testcyp", "teste", "testenan", "dianabol", "dbol", "methandrostenolone", "boldenone", "equipoise"]):
+            if any(w in tokens for w in ["testosterone", "testc", "testcyp", "teste", "testenan", "dianabol", "dbol", "methandrostenolone", "boldenone", "equipoise"]) or any(w in k or w in name for w in ["testosterone", "dianabol", "boldenone", "methandrostenolone"]):
                 features["has_aromatizable_substrate"] = True
 
             # RAAS blockers

@@ -542,11 +542,13 @@ class CopilotAgent:
 
         # 4. Prolactin / Progestogenic Burden (19-nor steroids)
         has_19nor = any(
-            any(w in str(c.get("key", "")).lower() or w in str(c.get("name", "")).lower()
-                for w in ["trenbolone", "nandrolone", "deca", "npp", "ment", "trestolone"])
+            any(w in set(re.findall(r"[a-z0-9]+", str(c.get("key", "") + " " + c.get("name", "")).lower()))
+                for w in ["trenbolone", "nandrolone", "durabolin", "trestolone", "ment", "npp", "parabolan"])
+            or any(w in str(c.get("key", "")).lower() or w in str(c.get("name", "")).lower()
+                for w in ["nandrolone", "trenbolone", "trestolone", "19-nor", "19nor"])
             for c in compounds
         )
-        if has_19nor or any("prolactin" in str(g).lower() for g in therapeutic_gaps):
+        if has_19nor or (any("prolactin" in str(g).lower() for g in therapeutic_gaps) and any(is_steroidal_androgen(c) or "androgen" in str(c.get("drug_class", "")).lower() for c in compounds)):
             if "p5p" not in existing_keys:
                 candidate_pool.append({
                     "key": "p5p",

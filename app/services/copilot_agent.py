@@ -1989,7 +1989,15 @@ You have autonomous access to execute live graph traversals, pathway queries, ph
             "data": f"🔍 Grounded against Collision Matrix & Steady-State PK/PD for [{', '.join(stack_list) if stack_list else 'general consultation'}] | Streaming from inference engine..."
         }
 
-        current_messages = list(messages)
+        # Strip any legacy reasoning/scratchpad tags from previous turns to prevent multi-turn thinking explosion
+        sanitized_history = []
+        for m in messages:
+            m_copy = dict(m)
+            if m_copy.get("role") == "assistant":
+                m_copy["content"] = cls.clean_scratchpad_and_tools_from_text(str(m_copy.get("content", "")))
+            sanitized_history.append(m_copy)
+
+        current_messages = list(sanitized_history)
         action_cards_emitted = set()
 
         for step in range(1, max_exploration_steps + 1):

@@ -2995,15 +2995,17 @@
                 <div>
                   <label style="display: block; font-size: 0.74rem; font-weight: 700; color: var(--text-secondary); margin-bottom: 4px;">🛡️ Risk Tolerance</label>
                   <select id="builder-risk-pref" class="biomarker-input" style="width: 100%; font-size: 0.8rem; padding: 6px 8px;">
+                    <option value="" selected>-- Select (Default / Unspecified) --</option>
                     <option value="conservative">Conservative (Max Safety & Low Doses)</option>
-                    <option value="balanced" selected>Balanced (Standard Clinical Efficacy)</option>
+                    <option value="balanced">Balanced (Standard Clinical Efficacy)</option>
                     <option value="aggressive">Aggressive (Max Potency & High Range)</option>
                   </select>
                 </div>
                 <div>
                   <label style="display: block; font-size: 0.74rem; font-weight: 700; color: var(--text-secondary); margin-bottom: 4px;">⚡ Stimulant Profile</label>
                   <select id="builder-stim-pref" class="biomarker-input" style="width: 100%; font-size: 0.8rem; padding: 6px 8px;">
-                    <option value="standard" selected>Standard (Balanced 100–150mg)</option>
+                    <option value="" selected>-- Select (Default / Unspecified) --</option>
+                    <option value="standard">Standard (Balanced 100–150mg)</option>
                     <option value="mild">Mild (Low Dose &lt; 50mg)</option>
                     <option value="free">Stimulant-Free (Zero Caffeine)</option>
                   </select>
@@ -3011,7 +3013,8 @@
                 <div>
                   <label style="display: block; font-size: 0.74rem; font-weight: 700; color: var(--text-secondary); margin-bottom: 4px;">📦 Complexity & Stack Size</label>
                   <select id="builder-complexity-pref" class="biomarker-input" style="width: 100%; font-size: 0.8rem; padding: 6px 8px;">
-                    <option value="standard" selected>Comprehensive (3–5 Compounds + Co-factors)</option>
+                    <option value="" selected>-- Select (Default / Unspecified) --</option>
+                    <option value="standard">Comprehensive (3–5 Compounds + Co-factors)</option>
                     <option value="minimalist">Minimalist Essential (2–3 Core Compounds)</option>
                     <option value="maximum">Full Stack (5+ Synergistic Multi-Agents)</option>
                   </select>
@@ -3019,14 +3022,16 @@
                 <div>
                   <label style="display: block; font-size: 0.74rem; font-weight: 700; color: var(--text-secondary); margin-bottom: 4px;">🌿 Substance Style</label>
                   <select id="builder-style-pref" class="biomarker-input" style="width: 100%; font-size: 0.8rem; padding: 6px 8px;">
-                    <option value="hybrid" selected>Hybrid (Rx & Supplements)</option>
+                    <option value="" selected>-- Select (Default / Unspecified) --</option>
+                    <option value="hybrid">Hybrid (Rx & Supplements)</option>
                     <option value="natural">Natural Only (Botanicals & Nutrients)</option>
                   </select>
                 </div>
                 <div>
                   <label style="display: block; font-size: 0.74rem; font-weight: 700; color: var(--text-secondary); margin-bottom: 4px;">💊 Route & Delivery</label>
                   <select id="builder-route-pref" class="biomarker-input" style="width: 100%; font-size: 0.8rem; padding: 6px 8px;">
-                    <option value="all" selected>Any Modality (Oral, Sublingual, Injectable)</option>
+                    <option value="" selected>-- Select (Default / Unspecified) --</option>
+                    <option value="all">Any Modality (Oral, Sublingual, Injectable)</option>
                     <option value="oral_only">Oral Only (Capsules & Powders)</option>
                     <option value="capsules_only">Capsules / Tablets Only (Zero Powders)</option>
                   </select>
@@ -3034,14 +3039,16 @@
                 <div>
                   <label style="display: block; font-size: 0.74rem; font-weight: 700; color: var(--text-secondary); margin-bottom: 4px;">⏰ Dosing Schedule</label>
                   <select id="builder-schedule-pref" class="biomarker-input" style="width: 100%; font-size: 0.8rem; padding: 6px 8px;">
-                    <option value="circadian" selected>Circadian Split (Morning + Bedtime)</option>
+                    <option value="" selected>-- Select (Default / Unspecified) --</option>
+                    <option value="circadian">Circadian Split (Morning + Bedtime)</option>
                     <option value="morning_only">Morning Only (Single-Dose Adherence)</option>
                   </select>
                 </div>
                 <div>
                   <label style="display: block; font-size: 0.74rem; font-weight: 700; color: var(--text-secondary); margin-bottom: 4px;">🛡️ Organ Shield Priority</label>
                   <select id="builder-organ-pref" class="biomarker-input" style="width: 100%; font-size: 0.8rem; padding: 6px 8px;">
-                    <option value="auto" selected>Auto-Detect from Biometrics</option>
+                    <option value="" selected>-- Select (Default / Unspecified) --</option>
+                    <option value="auto">Auto-Detect from Biometrics</option>
                     <option value="cardiovascular">Cardio & Lipid Shield (BP / ApoB)</option>
                     <option value="hepatic">Hepatic & Phase II Detox (Liver / ALT)</option>
                     <option value="neuro_recovery">Neuro & Adrenal Recovery (HPA / GABA)</option>
@@ -3050,7 +3057,8 @@
                 <div>
                   <label style="display: block; font-size: 0.74rem; font-weight: 700; color: var(--text-secondary); margin-bottom: 4px;">💰 Sourcing & Bioavailability</label>
                   <select id="builder-budget-pref" class="biomarker-input" style="width: 100%; font-size: 0.8rem; padding: 6px 8px;">
-                    <option value="standard" selected>Premium Bioavailability (Ubiquinol, KSM-66)</option>
+                    <option value="" selected>-- Select (Default / Unspecified) --</option>
+                    <option value="standard">Premium Bioavailability (Ubiquinol, KSM-66)</option>
                     <option value="essential">Cost-Conscious High-ROI Essentials</option>
                   </select>
                 </div>
@@ -5907,14 +5915,14 @@
         builderGenerateBtn.addEventListener('click', () => {
           const goal = selectedBuilderGoal || 'cognitive_focus';
           const title = GOAL_TITLES[goal] || 'Clinical Protocol';
-          const risk = builderRiskPref ? builderRiskPref.value : 'balanced';
-          const stim = builderStimPref ? builderStimPref.value : 'standard';
-          const complexity = builderComplexityPref ? builderComplexityPref.value : 'standard';
-          const style = builderStylePref ? builderStylePref.value : 'hybrid';
-          const route = builderRoutePref ? builderRoutePref.value : 'all';
-          const schedule = builderSchedulePref ? builderSchedulePref.value : 'circadian';
-          const organ = builderOrganPref ? builderOrganPref.value : 'auto';
-          const budget = builderBudgetPref ? builderBudgetPref.value : 'standard';
+          const risk = builderRiskPref ? builderRiskPref.value : '';
+          const stim = builderStimPref ? builderStimPref.value : '';
+          const complexity = builderComplexityPref ? builderComplexityPref.value : '';
+          const style = builderStylePref ? builderStylePref.value : '';
+          const route = builderRoutePref ? builderRoutePref.value : '';
+          const schedule = builderSchedulePref ? builderSchedulePref.value : '';
+          const organ = builderOrganPref ? builderOrganPref.value : '';
+          const budget = builderBudgetPref ? builderBudgetPref.value : '';
           const notes = (builderCustomNotes ? builderCustomNotes.value : '').trim();
 
           closeAiStackBuilderModal();
@@ -5935,7 +5943,20 @@
           }
 
           let promptParts = [`🏗️ Please build a personalized ${title} protocol from scratch.`];
-          promptParts.push(`Preferences: Risk tolerance = ${risk}, Stimulant level = ${stim}, Complexity = ${complexity}, Substance style = ${style}, Route preference = ${route}, Dosing schedule = ${schedule}, Organ shield priority = ${organ}, Sourcing/Budget tier = ${budget}.`);
+          
+          let prefItems = [];
+          if (risk) prefItems.push(`Risk tolerance = ${risk}`);
+          if (stim) prefItems.push(`Stimulant level = ${stim}`);
+          if (complexity) prefItems.push(`Complexity = ${complexity}`);
+          if (style) prefItems.push(`Substance style = ${style}`);
+          if (route) prefItems.push(`Route preference = ${route}`);
+          if (schedule) prefItems.push(`Dosing schedule = ${schedule}`);
+          if (organ) prefItems.push(`Organ shield priority = ${organ}`);
+          if (budget) prefItems.push(`Sourcing/Budget tier = ${budget}`);
+
+          if (prefItems.length > 0) {
+            promptParts.push(`Preferences: ${prefItems.join(', ')}.`);
+          }
           if (notes) {
             promptParts.push(`Patient specific notes/constraints: "${notes}".`);
           }
@@ -5946,17 +5967,19 @@
             tagPills.push(`<span style="background: rgba(16,185,129,0.15); border: 1px solid rgba(16,185,129,0.3); border-radius: 4px; padding: 1px 5px; color: var(--accent-teal);">🛡️ Conservative Risk</span>`);
           } else if (risk === 'aggressive') {
             tagPills.push(`<span style="background: rgba(245,158,11,0.15); border: 1px solid rgba(245,158,11,0.3); border-radius: 4px; padding: 1px 5px; color: #f59e0b;">⚡ Aggressive Potency</span>`);
-          } else {
+          } else if (risk === 'balanced') {
             tagPills.push(`<span style="background: rgba(0,242,254,0.1); border: 1px solid rgba(0,242,254,0.25); border-radius: 4px; padding: 1px 5px; color: var(--accent-cyan);">🛡️ Balanced Risk</span>`);
+          } else if (risk) {
+            tagPills.push(`<span style="background: rgba(0,242,254,0.1); border: 1px solid rgba(0,242,254,0.25); border-radius: 4px; padding: 1px 5px; color: var(--accent-cyan);">Risk: ${escapeHtml(risk)}</span>`);
           }
 
-          if (stim && stim !== 'standard') tagPills.push(`<span style="background: rgba(255,255,255,0.06); border-radius: 4px; padding: 1px 5px;">Stim: ${escapeHtml(stim)}</span>`);
-          if (complexity && complexity !== 'standard') tagPills.push(`<span style="background: rgba(255,255,255,0.06); border-radius: 4px; padding: 1px 5px;">${escapeHtml(complexity)}</span>`);
-          if (style && style !== 'hybrid') tagPills.push(`<span style="background: rgba(255,255,255,0.06); border-radius: 4px; padding: 1px 5px;">${escapeHtml(style)}</span>`);
-          if (route && route !== 'all') tagPills.push(`<span style="background: rgba(255,255,255,0.06); border-radius: 4px; padding: 1px 5px;">Route: ${escapeHtml(route)}</span>`);
-          if (schedule && schedule !== 'circadian') tagPills.push(`<span style="background: rgba(255,255,255,0.06); border-radius: 4px; padding: 1px 5px;">Schedule: ${escapeHtml(schedule)}</span>`);
-          if (organ && organ !== 'auto') tagPills.push(`<span style="background: rgba(236,72,153,0.12); border: 1px solid rgba(236,72,153,0.25); border-radius: 4px; padding: 1px 5px; color: #f472b6;">Shield: ${escapeHtml(organ)}</span>`);
-          if (budget && budget !== 'standard') tagPills.push(`<span style="background: rgba(255,255,255,0.06); border-radius: 4px; padding: 1px 5px;">Budget: ${escapeHtml(budget)}</span>`);
+          if (stim) tagPills.push(`<span style="background: rgba(255,255,255,0.06); border-radius: 4px; padding: 1px 5px;">Stim: ${escapeHtml(stim)}</span>`);
+          if (complexity) tagPills.push(`<span style="background: rgba(255,255,255,0.06); border-radius: 4px; padding: 1px 5px;">${escapeHtml(complexity)}</span>`);
+          if (style) tagPills.push(`<span style="background: rgba(255,255,255,0.06); border-radius: 4px; padding: 1px 5px;">${escapeHtml(style)}</span>`);
+          if (route) tagPills.push(`<span style="background: rgba(255,255,255,0.06); border-radius: 4px; padding: 1px 5px;">Route: ${escapeHtml(route)}</span>`);
+          if (schedule) tagPills.push(`<span style="background: rgba(255,255,255,0.06); border-radius: 4px; padding: 1px 5px;">Schedule: ${escapeHtml(schedule)}</span>`);
+          if (organ) tagPills.push(`<span style="background: rgba(236,72,153,0.12); border: 1px solid rgba(236,72,153,0.25); border-radius: 4px; padding: 1px 5px; color: #f472b6;">Shield: ${escapeHtml(organ)}</span>`);
+          if (budget) tagPills.push(`<span style="background: rgba(255,255,255,0.06); border-radius: 4px; padding: 1px 5px;">Budget: ${escapeHtml(budget)}</span>`);
           if (notes) tagPills.push(`<span style="background: rgba(16,185,129,0.1); border: 1px solid rgba(16,185,129,0.25); border-radius: 4px; padding: 1px 5px; color: var(--accent-teal);">Note: ${escapeHtml(notes)}</span>`);
 
           const displayHtml = `

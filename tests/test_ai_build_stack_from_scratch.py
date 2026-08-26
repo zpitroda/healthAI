@@ -357,4 +357,56 @@ def test_copilot_system_context_with_contradiction_exclusion():
     assert "### DYNAMIC GRAPH REASONING, CLINICAL SCRATCHPAD & TOOL PROTOCOL:" in context
 
 
+def test_ai_stack_builder_options_blank_by_default(client):
+    """Verify that options in the AI stack builder UI default to blank/unspecified."""
+    import re
+    response = client.get("/")
+    assert response.status_code == 200
+    html = response.text
+
+    # Verify all builder preference select elements exist and default to value="" selected
+    pref_select_ids = [
+        "builder-risk-pref",
+        "builder-stim-pref",
+        "builder-complexity-pref",
+        "builder-style-pref",
+        "builder-route-pref",
+        "builder-schedule-pref",
+        "builder-organ-pref",
+        "builder-budget-pref",
+    ]
+
+    for sel_id in pref_select_ids:
+        assert f'id="{sel_id}"' in html, f"Missing select element with id {sel_id}"
+        # Extract the <select> tag block
+        pattern = rf'<select id="{sel_id}"[^>]*>(.*?)</select>'
+        match = re.search(pattern, html, re.DOTALL)
+        assert match, f"Could not find <select> block for {sel_id}"
+        select_content = match.group(1)
+        
+        # Verify default option is value="" with selected attribute
+        assert '<option value="" selected>' in select_content, f"{sel_id} does not have empty option selected by default"
+        
+        # Verify no other option is marked selected
+        options = re.findall(r'<option\s+value="([^"]*)"([^>]*)>', select_content)
+        for val, attrs in options:
+            if val != "":
+                assert "selected" not in attrs, f"{sel_id} has non-empty option value='{val}' marked selected"
+
+
+def test_build_scratch_stack_proposal_empty_preferences():
+    """Verify that omitting preferences or passing empty dict produces a valid balanced stack."""
+    proposal = StackIntentEngine.build_scratch_stack_proposal(
+        goal_id="cognitive_focus",
+        biometrics={"weight_kg": 75.0},
+        preferences={},
+    )
+    assert proposal["goal_id"] == "cognitive_focus"
+    assert len(proposal["compounds"]) >= 3
+    assert proposal["customizations"]["risk_tolerance"] == "balanced"
+    assert proposal["customizations"]["stimulant_level"] == "standard"
+    assert proposal["biometric_calibration"]["risk_scale"] == 1.0
+
+
+
 

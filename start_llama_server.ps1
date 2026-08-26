@@ -30,8 +30,9 @@ if (-not $MODEL_PATH) {
 # --spec-type draft-mtp   : Multi-Target Prediction Speculative Decoding (massive generation speedup)
 # --spec-draft-n-max 2    : Maximum 2 draft tokens per step
 # --jinja                 : Accurately renders Qwen chat templates without breaking
-# --reasoning-effort medium : Sets balanced reasoning effort level in chat template
-# --reasoning-budget 512  : Caps reasoning tokens to prevent runaway thinking loops
+# --reasoning-effort low  : Fast, compact reasoning effort in chat template
+# --reasoning-budget 256  : Tight reasoning token cap to keep thinking fast (< 3-5 sec)
+# --no-reasoning-preserve : Drops past reasoning traces from history to prevent compounding context thinking loops
 # --reasoning-format deepseek : Cleanly separates reasoning thoughts from final content
 # --load-mode mlock       : Locks model weights in memory (prevents paging/swapping)
 # --port 8080             : Standard port (matches HealthAI OPENAI_BASE_URL default)
@@ -48,8 +49,9 @@ Set-Location $LlamaDir
     --spec-type draft-mtp `
     --spec-draft-n-max 2 `
     --jinja `
-    --reasoning-effort medium `
-    --reasoning-budget 512 `
+    --reasoning-effort low `
+    --reasoning-budget 256 `
+    --no-reasoning-preserve `
     --reasoning-format deepseek `
     --load-mode mlock `
     --port 8080

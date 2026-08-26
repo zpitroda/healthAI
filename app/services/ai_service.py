@@ -20,29 +20,52 @@ def get_auth_headers() -> Dict[str, str]:
     return headers
 
 
-def get_reasoning_params() -> Dict[str, Any]:
+def get_reasoning_params(base_url: str = "") -> Dict[str, Any]:
     """
     Constructs provider-compliant reasoning parameters for OpenRouter, Groq, OpenAI,
     and local OpenAI-compatible backends (vLLM, llama-server).
-    Controls thinking budget and effort to prevent runaway chain-of-thought latency.
+    Properly sanitizes env vars to prevent trailing inline comments or invalid formats.
     """
-    effort = os.getenv("REASONING_EFFORT", "medium").strip().lower()
-    raw_max = os.getenv("REASONING_MAX_TOKENS", "512").strip()
+    raw_effort = os.getenv("REASONING_EFFORT", "medium")
+    if "#" in raw_effort:
+        raw_effort = raw_effort.split("#")[0]
+    effort = raw_effort.strip().strip("'\"").lower()
+    
+    valid_efforts = {"max", "xhigh", "high", "medium", "low", "minimal", "none"}
+    if effort not in valid_efforts:
+        effort = "medium"
+
+    raw_max = os.getenv("REASONING_MAX_TOKENS", "512")
+    if "#" in raw_max:
+        raw_max = raw_max.split("#")[0]
+    raw_max = raw_max.strip().strip("'\"")
     try:
         max_tokens = int(raw_max)
     except (ValueError, TypeError):
         max_tokens = 512
 
+    active_base = (base_url or os.getenv("OPENAI_BASE_URL", "")).lower()
+    is_openrouter = "openrouter.ai" in active_base
+
+    if is_openrouter:
+        # OpenRouter native schema (requires clean reasoning object without colliding top-level keys)
+        return {
+            "reasoning": {
+                "effort": effort,
+                "max_tokens": max_tokens,
+                "exclude": (effort == "none"),
+            }
+        }
+
+    # For OpenAI / Groq / other cloud providers
+    if os.getenv("OPENAI_BASE_URL"):
+        if effort in ("high", "medium", "low"):
+            return {"reasoning_effort": effort}
+        return {}
+
+    # For local llama-server / vLLM
     return {
-        # OpenRouter standard reasoning payload
-        "reasoning": {
-            "effort": effort,
-            "max_tokens": max_tokens,
-            "exclude": False,
-        },
-        # OpenAI / Groq standard top-level property
         "reasoning_effort": effort,
-        # vLLM / SGLang / Jinja template passthrough
         "chat_template_kwargs": {
             "reasoning_effort": effort,
         },
@@ -178,16 +201,47 @@ async def get_best_available_model(preferred_model: Optional[str] = None, base_u
     return target
 
 
-# Cloud & Local fallback models in priority order (Qwen 3.8 27B prioritized for local and cloud)
-CLOUD_FALLBACK_MODELS = [
-    "qwen/qwen3.8-27b",
-    "qwen/qwen3.8-27b-20260814",
-    "qwen3.8:27b",
-    "qwen3.8",
-    "qwen/qwen-2.5-72b-instruct",
-    "qwen3.6:27b",
-    "qwen-2.5-32b",
-]
+def get_candidate_fallback_models(primary_model: str, base_url: str) -> list[str]:
+    """Returns provider-compatible fallback model list for automatic failover."""
+    candidates = [primary_model]
+    active_base = (base_url or os.getenv("OPENAI_BASE_URL", "")).lower()
+
+    if "openrouter.ai" in active_base:
+        openrouter_fallbacks = [
+            "qwen/qwen3.8-27b",
+            "qwen/qwen3.8-27b-20260814",
+            "qwen/qwen-2.5-72b-instruct",
+            "qwen/qwen-2.5-32b-instruct",
+            "meta-llama/llama-3.3-70b-instruct",
+        ]
+        for m in openrouter_fallbacks:
+            if m not in candidates:
+                candidates.append(m)
+    elif os.getenv("OPENAI_BASE_URL") and not any(h in active_base for h in ("localhost", "127.0.0.1", "0.0.0.0")):
+        cloud_fallbacks = [
+            "qwen/qwen3.8-27b",
+            "qwen-2.5-72b-instruct",
+            "llama-3.3-70b-versatile",
+        ]
+        for m in cloud_fallbacks:
+            if m not in candidates:
+                candidates.append(m)
+    else:
+        local_fallbacks = [
+            "qwen3.8:27b",
+            "qwen3.8",
+            "qwen3.6:27b",
+            "qwen3.6",
+            "qwen3:27b",
+            "qwen2.5:32b",
+            "qwen2.5:14b",
+            "llama3.3:70b",
+            "llama3.1:8b",
+        ]
+        for m in local_fallbacks:
+            if m not in candidates:
+                candidates.append(m)
+    return candidates
 
 
 def _extract_json_from_llm_response(content: str) -> Dict[str, Any]:
@@ -257,13 +311,10 @@ async def ask_local_llm(
     headers = get_auth_headers()
     token_limit = max_tokens if max_tokens is not None else int(os.getenv("OPENAI_MAX_TOKENS", "8192"))
 
-    models_to_try = [primary_model]
-    for fm in CLOUD_FALLBACK_MODELS:
-        if fm not in models_to_try:
-            models_to_try.append(fm)
-
+    models_to_try = get_candidate_fallback_models(primary_model, base_url)
     last_error = None
-    reasoning_cfg = get_reasoning_params()
+    reasoning_cfg = get_reasoning_params(base_url)
+
     for attempt_model in models_to_try:
         payload = {
             "model": attempt_model,
@@ -335,13 +386,10 @@ async def stream_local_llm_chat(
         full_messages.append({"role": "system", "content": system_prompt})
     full_messages.extend(messages)
 
-    models_to_try = [primary_model]
-    for fm in CLOUD_FALLBACK_MODELS:
-        if fm not in models_to_try:
-            models_to_try.append(fm)
-
+    models_to_try = get_candidate_fallback_models(primary_model, base_url)
     last_error_msg = None
-    reasoning_cfg = get_reasoning_params()
+    reasoning_cfg = get_reasoning_params(base_url)
+
     for attempt_model in models_to_try:
         payload: Dict[str, Any] = {
             "model": attempt_model,

@@ -1440,7 +1440,6 @@ You have autonomous access to execute live graph traversals, pathway queries, ph
                 system_prompt=system_prompt,
                 temperature=0.2,
                 top_p=0.85,
-                max_tokens=16384,
             ):
                 chunk_type = chunk.get("type")
                 data = chunk.get("data")
@@ -1633,7 +1632,7 @@ You have autonomous access to execute live graph traversals, pathway queries, ph
         for step in range(1, max_exploration_steps + 1):
             turn_response = ""
             turn_reasoning = ""
-            async for chunk in stream_local_llm_chat(messages=current_messages, system_prompt=system_prompt, max_tokens=16384):
+            async for chunk in stream_local_llm_chat(messages=current_messages, system_prompt=system_prompt):
                 if chunk.get("type") == "content":
                     turn_response += str(chunk.get("data", ""))
                 elif chunk.get("type") == "reasoning":

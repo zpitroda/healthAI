@@ -141,7 +141,7 @@ async def ask_local_llm(
     system_prompt: str,
     user_prompt: str,
     model: Optional[str] = None,
-    max_tokens: int = 16384,
+    max_tokens: Optional[int] = None,
 ) -> Dict[str, Any]:
     """
     Sends a prompt to the active OpenAI-compatible instance (local llama-server/Ollama or cloud provider)
@@ -151,6 +151,7 @@ async def ask_local_llm(
     active_model = await get_best_available_model(model, base_url=base_url)
     url = f"{base_url}/chat/completions"
     headers = get_auth_headers()
+    token_limit = max_tokens if max_tokens is not None else int(os.getenv("OPENAI_MAX_TOKENS", "2048"))
 
     payload = {
         "model": active_model,
@@ -162,7 +163,7 @@ async def ask_local_llm(
         "response_format": {"type": "json_object"},
         "temperature": 0.0,
         "top_p": 0.85,
-        "max_tokens": max_tokens,
+        "max_tokens": token_limit,
     }
 
     try:
@@ -204,7 +205,7 @@ async def stream_local_llm_chat(
     model: Optional[str] = None,
     temperature: float = 0.2,
     top_p: float = 0.9,
-    max_tokens: int = 16384,
+    max_tokens: Optional[int] = None,
     tools: Optional[list[Dict[str, Any]]] = None,
 ):
     """
@@ -216,6 +217,7 @@ async def stream_local_llm_chat(
     active_model = await get_best_available_model(model, base_url=base_url)
     url = f"{base_url}/chat/completions"
     headers = get_auth_headers()
+    token_limit = max_tokens if max_tokens is not None else int(os.getenv("OPENAI_MAX_TOKENS", "2048"))
 
     full_messages = []
     if system_prompt:
@@ -228,7 +230,7 @@ async def stream_local_llm_chat(
         "stream": True,
         "temperature": temperature,
         "top_p": top_p,
-        "max_tokens": max_tokens,
+        "max_tokens": token_limit,
     }
 
     if tools:

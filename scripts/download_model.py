@@ -16,9 +16,19 @@ import urllib.request
 import threading
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
-MODEL_HF_URL = "https://huggingface.co/unsloth/Qwen3.8-27B-GGUF/resolve/main/Qwen3.8-27B-UD-Q6_K.gguf"
-OUTPUT_PATH = r"C:\models\qwen3.8-27b-q6_k.gguf"
-PROGRESS_PATH = r"C:\models\qwen3.8-27b-q6_k.gguf.progress"
+PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+MODELS_DIR = os.path.join(PROJECT_ROOT, "models")
+DEFAULT_HF_URL = os.getenv(
+    "MODEL_HF_URL",
+    "https://huggingface.co/Qwen/Qwen3.8-27B-GGUF/resolve/main/qwen3.8-27b-q6_k.gguf"
+)
+MODEL_HF_URL = DEFAULT_HF_URL
+MODEL_NAME = os.getenv("OPENAI_MODEL", "qwen3.8-27b-q6_k.gguf")
+if not MODEL_NAME.endswith(".gguf"):
+    MODEL_NAME = f"{MODEL_NAME.replace(':', '-')}.gguf"
+
+OUTPUT_PATH = os.path.join(MODELS_DIR, MODEL_NAME)
+PROGRESS_PATH = os.path.join(MODELS_DIR, f"{MODEL_NAME}.progress")
 NUM_WORKERS = 24
 CHUNK_SIZE = 16 * 1024 * 1024  # 16 MB chunks for finer-grained resumption
 

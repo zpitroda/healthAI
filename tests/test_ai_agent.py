@@ -66,3 +66,60 @@ async def test_optimize_protocol_service():
         assert result["summary_analysis"] == "Safe balanced protocol."
         assert len(result["dosage_adjustments"]) == 1
         assert result["dosage_adjustments"][0]["compound"] == "Telmisartan"
+
+
+def test_qwen3_json_extractor_clean():
+    from app.services.ai_service import _extract_json_from_llm_response
+
+    # Standard clean JSON
+    res = _extract_json_from_llm_response('{"status": "ok", "dose": 40}')
+    assert res == {"status": "ok", "dose": 40}
+
+
+def test_qwen3_json_extractor_with_think_tags():
+    from app.services.ai_service import _extract_json_from_llm_response
+
+    # Qwen3 output with <think>...</think> reasoning before JSON
+    raw_output = """<think>
+Evaluating patient eGFR of 95 mL/min and BP 120/80.
+Telmisartan 40mg is appropriate.
+</think>
+{"dosage_adjustments": [{"compound": "Telmisartan", "dose": 40}], "summary": "Optimal"}"""
+
+    res = _extract_json_from_llm_response(raw_output)
+    assert res["summary"] == "Optimal"
+    assert res["dosage_adjustments"][0]["compound"] == "Telmisartan"
+
+
+def test_qwen3_json_extractor_with_markdown_fence():
+    from app.services.ai_service import _extract_json_from_llm_response
+
+    raw_output = """Here is the clinical protocol optimization:
+```json
+{
+    "active_stack": ["telmisartan", "nebivolol"],
+    "balanced": true
+}
+```
+Protocol complete."""
+
+    res = _extract_json_from_llm_response(raw_output)
+    assert res["active_stack"] == ["telmisartan", "nebivolol"]
+    assert res["balanced"] is True
+
+
+@pytest.mark.anyio
+async def test_qwen3_model_resolution():
+    from app.services.ai_service import get_best_available_model, MODEL_PREFERENCES
+
+    # Both qwen3.8:27b and qwen3.6:27b should be in priority tier
+    assert "qwen3.8:27b" in MODEL_PREFERENCES[:4]
+    assert "qwen3.6:27b" in MODEL_PREFERENCES[:4]
+
+    # Explicit preference passed
+    resolved_local = await get_best_available_model(preferred_model="qwen3.8:27b")
+    assert "qwen" in resolved_local.lower()
+
+    resolved_live = await get_best_available_model(preferred_model="qwen3.6:27b")
+    assert "qwen" in resolved_live.lower()
+

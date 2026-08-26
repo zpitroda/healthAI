@@ -305,8 +305,8 @@ SCRATCH_GOAL_BLUEPRINTS: Dict[str, Dict[str, Any]] = {
                 "timing": "morning",
                 "frequency": "daily",
                 "route": "oral",
-                "target": "Renal & Left Ventricular Hypertrophy Protection",
-                "rationale": "Prevents hemodynamic pressure overload and maintains glomerular filtration.",
+                "target": "Renal Microcirculation & AT1 Blockade",
+                "rationale": "Protects glomerular filtration pressure and vascular compliance.",
                 "is_stimulant": False,
             }
         ]
@@ -318,13 +318,25 @@ SCRATCH_GOAL_BLUEPRINTS: Dict[str, Dict[str, Any]] = {
             {
                 "key": "magnesium",
                 "name": "Magnesium Glycinate",
-                "base_dose": 400,
+                "base_dose": 300,
                 "unit": "mg",
                 "timing": "bedtime",
                 "frequency": "daily",
                 "route": "oral",
-                "target": "GABA-A Agonist Facilitation & NMDA Receptor Inhibition",
-                "rationale": "Relaxes peripheral neuromuscular tone and lowers autonomic hyper-arousal before sleep onset.",
+                "target": "GABA-A Tone & NMDA Voltage Gating",
+                "rationale": "Promotes deep slow-wave sleep and attenuates nocturnal sympathetic nervous tone.",
+                "is_stimulant": False,
+            },
+            {
+                "key": "ashwagandha",
+                "name": "Ashwagandha (KSM-66)",
+                "base_dose": 600,
+                "unit": "mg",
+                "timing": "bedtime",
+                "frequency": "daily",
+                "route": "oral",
+                "target": "HPA Axis Downregulation & Cortisol Blunting",
+                "rationale": "Lowers nocturnal systemic cortisol elevation and enhances subjective sleep architecture.",
                 "is_stimulant": False,
             },
             {
@@ -335,41 +347,41 @@ SCRATCH_GOAL_BLUEPRINTS: Dict[str, Dict[str, Any]] = {
                 "timing": "bedtime",
                 "frequency": "daily",
                 "route": "oral",
-                "target": "Central Glutamatergic Attenuation & Alpha Wave Stimulation",
-                "rationale": "Smooths nocturnal cortical arousal without next-morning sedation or motor impairment.",
+                "target": "Glutamate Attenuation & Alpha Wave Stimulation",
+                "rationale": "Calms nocturnal racing thoughts and eases transition to sleep onset.",
                 "is_stimulant": False,
             },
             {
-                "key": "ashwagandha",
-                "name": "Ashwagandha (KSM-66)",
-                "base_dose": 300,
+                "key": "melatonin",
+                "name": "Melatonin",
+                "base_dose": 3,
                 "unit": "mg",
                 "timing": "bedtime",
                 "frequency": "daily",
                 "route": "oral",
-                "target": "HPA Axis / Cortisol Modulation",
-                "rationale": "Normalizes nocturnal cortisol rhythm and improves deep slow-wave sleep percentage.",
+                "target": "MT1/MT2 Melatonin Receptors",
+                "rationale": "Synchronizes central suprachiasmatic nucleus circadian clock and accelerates sleep latency.",
                 "is_stimulant": False,
             }
         ],
         "ancillaries": [
             {
-                "key": "melatonin",
-                "name": "Micro-Dose Melatonin",
-                "base_dose": 0.5,
+                "key": "taurine",
+                "name": "Taurine",
+                "base_dose": 1000,
                 "unit": "mg",
                 "timing": "bedtime",
                 "frequency": "daily",
                 "route": "oral",
-                "target": "Suprachiasmatic MT1 / MT2 Receptor Agonist",
-                "rationale": "Re-aligns circadian phase delay without suppressing endogenous pineal production.",
+                "target": "Inhibitory Glycinergic & GABAergic Neurotransmission",
+                "rationale": "Stabilizes neural membranes and suppresses nocturnal autonomic excitability.",
                 "is_stimulant": False,
             }
         ]
     },
     "fat_loss_metabolic": {
         "title": "Metabolic Output & Fat Loss",
-        "description": "Beta-adrenergic lipolysis, substrate partitioning, insulin sensitization, and intracellular mitochondrial transport.",
+        "description": "Beta-adrenergic lipolysis, insulin sensitivity enhancement, and mitochondrial uncoupling / substrate partitioning.",
         "core_compounds": [
             {
                 "key": "caffeine",
@@ -380,7 +392,7 @@ SCRATCH_GOAL_BLUEPRINTS: Dict[str, Dict[str, Any]] = {
                 "frequency": "daily",
                 "route": "oral",
                 "target": "Phosphodiesterase Inhibition & Beta-Adrenergic Tone",
-                "rationale": "Elevates resting metabolic rate (RMR) and mobilizes free fatty acids from subcutaneous adipocytes.",
+                "rationale": "Stimulates resting energy expenditure and mobilizes free fatty acids from adipose depots.",
                 "is_stimulant": True,
             },
             {
@@ -392,7 +404,7 @@ SCRATCH_GOAL_BLUEPRINTS: Dict[str, Dict[str, Any]] = {
                 "frequency": "daily",
                 "route": "oral",
                 "target": "Carnitine Palmitoyltransferase-1 (CPT-1) Shuttle",
-                "rationale": "Translocates long-chain fatty acids into the mitochondrial matrix for beta-oxidation.",
+                "rationale": "Facilitates long-chain fatty acid transport across the inner mitochondrial membrane for beta-oxidation.",
                 "is_stimulant": False,
             },
             {
@@ -403,30 +415,42 @@ SCRATCH_GOAL_BLUEPRINTS: Dict[str, Dict[str, Any]] = {
                 "timing": "morning",
                 "frequency": "daily",
                 "route": "oral",
-                "target": "AMPK Activator & Glucose Transporter Translocation",
-                "rationale": "Improves glycemic control and blunts postprandial lipogenesis.",
+                "target": "AMPK Activation & Substrate Partitioning",
+                "rationale": "Enhances peripheral insulin sensitivity and prevents compensatory glucose surges.",
                 "is_stimulant": False,
             }
         ],
         "ancillaries": [
             {
                 "key": "taurine",
-                "name": "L-Taurine",
+                "name": "Taurine",
                 "base_dose": 1000,
                 "unit": "mg",
                 "timing": "morning",
                 "frequency": "daily",
                 "route": "oral",
-                "target": "Osmoregulation & Bile Acid Conjugation",
-                "rationale": "Buffers cardiovascular adrenergic load and supports electrolyte balance.",
+                "target": "Myocellular Osmolyte & Heart Rhythm Support",
+                "rationale": "Protects against cramping and sympathomimetic-induced electrolyte loss.",
                 "is_stimulant": False,
             }
         ]
     },
     "post_therapy_reset": {
         "title": "Post-Therapy Restoration (PCT / Reset)",
-        "description": "Hepatic Phase II glutathione replenishment, ER stress chaperoning, prolactin modulation, and lipid normalization.",
+        "description": "Hypothalamic-pituitary axis restoration (LH/FSH recovery), testicular responsiveness, and lipid/hepatic normalization.",
         "core_compounds": [
+            {
+                "key": "enclomiphene",
+                "name": "Enclomiphene Citrate",
+                "base_dose": 12.5,
+                "unit": "mg",
+                "timing": "morning",
+                "frequency": "daily",
+                "route": "oral",
+                "target": "Selective Estrogen Receptor Antagonist (Hypothalamus/Pituitary)",
+                "rationale": "Antagonizes negative estrogen feedback at the pituitary/hypothalamus to stimulate pulsatile GnRH, LH, and FSH release.",
+                "is_stimulant": False,
+            },
             {
                 "key": "nac",
                 "name": "N-Acetyl Cysteine (NAC)",
@@ -435,8 +459,8 @@ SCRATCH_GOAL_BLUEPRINTS: Dict[str, Dict[str, Any]] = {
                 "timing": "morning",
                 "frequency": "daily",
                 "route": "oral",
-                "target": "Intracellular Glutathione (GSH) Precursor",
-                "rationale": "Accelerates Phase II hepatic detoxification and scavenges reactive oxygen species (ROS).",
+                "target": "Glutathione Biosynthesis & Hepatocyte Protection",
+                "rationale": "Restores hepatic intracellular glutathione pools and normalizes post-cycle transaminases.",
                 "is_stimulant": False,
             },
             {
@@ -447,32 +471,20 @@ SCRATCH_GOAL_BLUEPRINTS: Dict[str, Dict[str, Any]] = {
                 "timing": "morning",
                 "frequency": "daily",
                 "route": "oral",
-                "target": "Endoplasmic Reticulum (ER) Stress Chaperone & Biliary Acid Flow",
-                "rationale": "Alleviates hepatocyte cholestasis, resolves transaminase (ALT/AST) elevation, and protects cellular membranes.",
-                "is_stimulant": False,
-            },
-            {
-                "key": "p5p",
-                "name": "Pyridoxal-5-Phosphate (P-5-P)",
-                "base_dose": 50,
-                "unit": "mg",
-                "timing": "bedtime",
-                "frequency": "daily",
-                "route": "oral",
-                "target": "DOPA Decarboxylase Co-factor (Aromatic L-Amino Acid Decarboxylase)",
-                "rationale": "Upregulates central dopamine tone to tonically suppress anterior pituitary prolactin secretion.",
+                "target": "Biliary Clearance & Cholestatic Resolution",
+                "rationale": "Mitigates canalicular cholestasis and enhances biliary lipid excretion.",
                 "is_stimulant": False,
             },
             {
                 "key": "citrus_bergamot",
-                "name": "Citrus Bergamot",
+                "name": "Citrus Bergamot Extract",
                 "base_dose": 500,
                 "unit": "mg",
                 "timing": "morning",
                 "frequency": "daily",
                 "route": "oral",
-                "target": "ApoB & Atherogenic Particle Clearance",
-                "rationale": "Restores HDL and normalizes LDL particle distribution following androgen exposure.",
+                "target": "Lipid Profile & ApoB Normalization",
+                "rationale": "Accelerates recovery of HDL-C and normalizes LDL particle distribution following androgen exposure.",
                 "is_stimulant": False,
             }
         ],
@@ -480,13 +492,13 @@ SCRATCH_GOAL_BLUEPRINTS: Dict[str, Dict[str, Any]] = {
             {
                 "key": "ashwagandha",
                 "name": "Ashwagandha (KSM-66)",
-                "base_dose": 300,
+                "base_dose": 600,
                 "unit": "mg",
                 "timing": "bedtime",
                 "frequency": "daily",
                 "route": "oral",
-                "target": "HPA / HPG Axis Normalization",
-                "rationale": "Lowers chronic cortisol and supports testicular endocrine responsiveness.",
+                "target": "Testicular Leydig Cell Responsiveness & HPA Dampening",
+                "rationale": "Lowers post-cycle catabolic cortisol spikes and supports endogenous testosterone synthesis.",
                 "is_stimulant": False,
             }
         ]
@@ -793,9 +805,10 @@ class StackIntentEngine:
                 gaps.append({
                     "axis": "Endocrine / Prolactin Axis",
                     "severity": "HIGH",
-                    "issue": "19-Nor androgen present (e.g. Trenbolone/Nandrolone) with PR affinity and risk of hyperprolactinemia.",
-                    "recommended_cofactor": "Pyridoxal-5-Phosphate (P-5-P) 100–200 mg/day (or Cabergoline 0.25mg if prolactin is elevated on labs)",
-                    "mechanism": "Cofactor for AADC, elevating dopamine synthesis to tonicly suppress pituitary lactotroph prolactin release."
+                    "issue": "19-Nor androgen present with PR affinity and risk of hyperprolactinemia.",
+                    "recommended_cofactor": "Pyridoxal-5-Phosphate (P-5-P) 100–200 mg/day (or Cabergoline 0.25mg if prolactin is elevated)",
+                    "cofactor_search_terms": ["p5p", "pyridoxal_5_phosphate", "cabergoline"],
+                    "mechanism": "Cofactor for AADC, elevating dopamine synthesis to tonically suppress pituitary lactotroph prolactin release."
                 })
 
         # 2. AAS-Induced Atherogenic Dyslipidemia (SR-B1 suppression, HDL crash, ApoB elevation)
@@ -804,7 +817,8 @@ class StackIntentEngine:
                 "axis": "Cardiovascular / Lipid Profile",
                 "severity": "HIGH",
                 "issue": "Androgenic downregulation of hepatic SR-B1 crushes HDL and increases atherogenic ApoB particle count.",
-                "recommended_cofactor": "Citrus Bergamot Extract (1000 mg/day) + Omega-3 EPA/DHA (3–4 g/day) (or Ezetimibe 10 mg/day)",
+                "recommended_cofactor": "Citrus Bergamot Extract (500–1000 mg/day)",
+                "cofactor_search_terms": ["citrus_bergamot", "bergamot", "ezetimibe"],
                 "mechanism": "Upregulates LDL receptor clearance and inhibits HMG-CoA reductase to maintain endothelial health."
             })
 
@@ -814,8 +828,9 @@ class StackIntentEngine:
                 "axis": "Renal Glomerular Microcirculation",
                 "severity": "MODERATE",
                 "issue": "Androgen receptor activation in renal tubules stimulates renin and increases glomerular filtration pressure.",
-                "recommended_cofactor": "Astragalus Root Extract (3000–4000 mg/day standardized to astragalosides)",
-                "mechanism": "Improves glomerular microvascular perfusion, supports eGFR, and protects podocyte integrity."
+                "recommended_cofactor": "Telmisartan (20–40 mg/day) or Astragalus Root Extract",
+                "cofactor_search_terms": ["telmisartan", "astragalus"],
+                "mechanism": "Antagonizes AT1 receptors to dilate efferent renal arterioles and protect podocyte integrity."
             })
 
         # 4. AAS Hepatic Bile Acid & Phase II Conjugation Strain
@@ -828,6 +843,7 @@ class StackIntentEngine:
                     "severity": "MODERATE",
                     "issue": "NAC provides intracellular glutathione but does not resolve hydrophobic bile acid accumulation.",
                     "recommended_cofactor": "TUDCA (Tauroursodeoxycholic Acid) 250–500 mg/day",
+                    "cofactor_search_terms": ["tudca", "tauroursodeoxycholic_acid", "udca"],
                     "mechanism": "Increases hydrophilic bile acid ratio, promotes biliary clearance, and mitigates canalicular cholestatic stress."
                 })
 
@@ -837,8 +853,9 @@ class StackIntentEngine:
                 "axis": "Aromatization & Estrogen (E2) Management / AI Coverage",
                 "severity": "HIGH",
                 "issue": "Aromatizable androgen present without an Aromatase Inhibitor (AI) or SERM. High risk of excessive CYP19A1 aromatization, gynecomastia, fluid retention, and blood pressure elevation.",
-                "recommended_cofactor": "Anastrozole (0.25–0.5 mg oral twice weekly) or Exemestane (12.5 mg oral twice weekly / EOD with meals) [or Raloxifene 30–60 mg/day for breast tissue ER antagonism]",
-                "mechanism": "Inhibits CYP19A1 aromatase to control serum estradiol (E2) in the healthy 20–30 pg/mL target window and prevent estrogenic side effects."
+                "recommended_cofactor": "Anastrozole (0.25–0.5 mg twice weekly) or Exemestane (12.5 mg twice weekly)",
+                "cofactor_search_terms": ["anastrozole", "exemestane", "letrozole", "raloxifene"],
+                "mechanism": "Inhibits CYP19A1 aromatase to control serum estradiol (E2) in the healthy target window and prevent estrogenic side effects."
             })
 
         # 6. Aromatase Inhibitor Crash Protection
@@ -847,7 +864,7 @@ class StackIntentEngine:
                 "axis": "Estrogen Balance (E2 Preservation)",
                 "severity": "RULE",
                 "issue": "Suicidal/competitive AI is active; stacking additional secondary AIs risks severe hypoestrogenic crash.",
-                "recommended_cofactor": "Do NOT add secondary aromatase inhibitors (Luteolin, Chrysin, DIM). Maintain target E2: 20–30 pg/mL.",
+                "recommended_cofactor": "Do NOT add secondary aromatase inhibitors. Maintain target E2: 20–30 pg/mL.",
                 "mechanism": "Preserves HDL synthesis, joint synovia, bone mineral density, and vascular compliance."
             })
 
@@ -863,8 +880,20 @@ class StackIntentEngine:
                     "severity": "MODERATE",
                     "issue": "Central catecholamine drive induces peripheral alpha-1 vasoconstriction, elevated pulse, and sleep latency.",
                     "recommended_cofactor": "L-Theanine 100–200 mg (co-administered with stimulant) + strict 8–10h bedtime cutoff.",
+                    "cofactor_search_terms": ["l_theanine", "theanine", "magnesium"],
                     "mechanism": "Antagonizes glutamate receptors and stimulates inhibitory GABA synthesis to smooth autonomic tone."
                 })
+
+        # 8. Female-Specific Androgen Sensitivity & Virilization Protection
+        sex = str(biometrics.get("sex") or biometrics.get("gender") or "").lower().strip()
+        if sex in ("female", "f", "woman") and features["has_androgens"]:
+            gaps.append({
+                "axis": "Endocrine / Female Virilization Risk",
+                "severity": "HIGH",
+                "issue": "Exogenous androgenic exposure in female patient carries high risk of virilization (hyperandrogenism, voice deepening, clitoromegaly, hirsutism, and menstrual disruption).",
+                "recommended_cofactor": "Titrate androgens to micro-doses (e.g. low-dose TRT 5–10 mg/week or Oxandrolone <= 5 mg/day) and monitor free androgen index / SHBG",
+                "mechanism": "Female AR tissue sensitivity is significantly higher; avoid supra-physiological male dosing levels."
+            })
 
         return gaps
 
@@ -918,6 +947,7 @@ class StackIntentEngine:
                 lines.append("  * **Mandatory AI & Estrogen Balance Protocol**: Aromatizable androgens require an Aromatase Inhibitor (Anastrozole 0.25–0.5mg 2x/week or Exemestane 12.5mg 2x/week) or SERM (Raloxifene 30–60mg/day) on-hand, titrated to sensitive E2 blood panels (target: 20–30 pg/mL).")
         if features["has_aromatase_inhibitors"]:
             lines.append("  * **Estradiol Preservation Law**: Do NOT suggest secondary aromatase inhibitors. Avoid crashing E2 (<15 pg/mL).")
+        lines.append("  * **Sex-Specific Clinical Sensitivity**: For female patients, androgenic compounds carry high virilization risks. Always prioritize sub-clinical dosage thresholds and monitor SHBG/Free Androgen Index.")
 
         if not modality_profile.get("daily_oral") and not modality_profile.get("depot_injections"):
             lines.append("- **SCRATCH PROTOCOL GENERATION MANDATE**:")
@@ -937,19 +967,23 @@ class StackIntentEngine:
         custom_notes: Optional[str] = None,
     ) -> Dict[str, Any]:
         """
-        Synthesizes a scientifically validated, calibrated compound stack from scratch
-        based on taxonomy goal, patient biometrics, and user preferences.
+        Dynamically discovers and calibrates a compound protocol from the pharmacological catalog
+        based on the user's inputted biometrics, clinical parameters, and preferences.
+        Dosages and cofactors are computed dynamically via DosingService and InteractionEngine.
         """
+        from app.services.catalog_service import CatalogService
+        from app.services.dosing_service import calculate_individualized_dose, infer_compound_route_and_frequency
+
         biometrics = biometrics or {}
         preferences = preferences or {}
         custom_notes = (custom_notes or "").strip()
 
         target_goal = (goal_id or "cognitive_focus").lower().strip()
         if target_goal in ("auto", "custom", ""):
-            lower_notes = custom_notes.lower()
+            lower_notes = (custom_notes + " " + str(preferences)).lower()
             if any(w in lower_notes for w in ["focus", "cognit", "adhd", "study", "brain", "nootrop", "memory"]):
                 target_goal = "cognitive_focus"
-            elif any(w in lower_notes for w in ["muscle", "hypertrophy", "bodybuild", "physique", "anabolic", "strength"]):
+            elif any(w in lower_notes for w in ["muscle", "hypertrophy", "bodybuild", "physique", "anabolic", "strength", "gear", "testosterone", "aas"]):
                 target_goal = "anabolic_physique"
             elif any(w in lower_notes for w in ["heart", "cardio", "lipid", "apob", "cholesterol", "blood pressure", "bp"]):
                 target_goal = "cardiovascular_lipid"
@@ -968,19 +1002,7 @@ class StackIntentEngine:
         goal_title = blueprint["title"]
         goal_desc = blueprint["description"]
 
-        # Biometric scaling factors
-        weight_kg = float(biometrics.get("weight_kg") or 75.0)
-        egfr = float(biometrics.get("egfr") or 95.0)
-        alt_u_l = float(biometrics.get("alt_u_l") or 25.0)
-        bp_val = float(biometrics.get("blood_pressure") or 120.0)
-        age = int(biometrics.get("age") or 30)
-
-        weight_scale = max(0.65, min(1.4, weight_kg / 75.0))
-        renal_scale = max(0.5, min(1.0, egfr / 90.0)) if egfr < 60 else 1.0
-        hepatic_scale = max(0.6, min(1.0, 45.0 / alt_u_l)) if alt_u_l > 45 else 1.0
-        age_scale = 0.9 if age >= 65 else 1.0
-
-        # Preferences & Customizations
+        # Parse user preference parameters
         risk_pref = str(preferences.get("risk_tolerance") or preferences.get("risk") or "balanced").lower().strip()
         stim_pref = str(preferences.get("stimulant_level", "standard")).lower().strip()
         complexity = str(preferences.get("complexity", "standard")).lower().strip()
@@ -990,10 +1012,21 @@ class StackIntentEngine:
         organ_pref = str(preferences.get("organ_priority") or preferences.get("organ_shield") or "auto").lower().strip()
         budget_pref = str(preferences.get("budget_tier") or preferences.get("budget") or "standard").lower().strip()
 
-        # Risk tolerance scale factor
-        # Conservative: lower therapeutic threshold (0.75x) with tight safety margins
-        # Balanced: standard therapeutic dose (1.0x)
-        # Aggressive: upper therapeutic range (1.25x) for maximum physiological response
+        # Biometric parameters & clearance multipliers
+        weight_kg = float(biometrics.get("weight_kg") or 75.0)
+        egfr = float(biometrics.get("egfr") or 95.0)
+        alt_u_l = float(biometrics.get("alt_u_l") or 25.0)
+        bp_val = float(biometrics.get("blood_pressure") or biometrics.get("systolic_bp") or 120.0)
+        age = int(biometrics.get("age") or 30)
+        sex = str(biometrics.get("sex") or biometrics.get("gender") or "unspecified").lower().strip()
+        is_female = sex in ("female", "f", "woman")
+
+        weight_scale = max(0.7, min(1.4, weight_kg / 75.0))
+        sex_renal_factor = 0.85 if is_female else 1.0
+        renal_scale = (max(0.5, min(1.0, (egfr * sex_renal_factor) / 90.0))) if egfr < 60 else 1.0
+        hepatic_scale = max(0.6, min(1.0, 45.0 / alt_u_l)) if alt_u_l > 45 else 1.0
+        age_scale = 0.9 if age >= 65 else 1.0
+
         if risk_pref in ("conservative", "low", "cautious", "safe"):
             risk_scale = 0.75
         elif risk_pref in ("aggressive", "high", "performance", "high_potency"):
@@ -1001,64 +1034,58 @@ class StackIntentEngine:
         else:
             risk_scale = 1.0
 
-        # Compile candidate compounds
-        raw_candidates = [dict(c) for c in blueprint["core_compounds"]]
-        if complexity in ("standard", "maximum", "comprehensive", "full"):
-            raw_candidates.extend([dict(c) for c in blueprint["ancillaries"]])
+        catalog = CatalogService()
 
-        # Budget tier filtering: prune non-essential secondary enhancers if cost-conscious
-        if budget_pref in ("essential", "cost_conscious", "budget", "low_cost"):
-            raw_candidates = [c for c in raw_candidates if c.get("key") not in ("piperine", "resveratrol")]
+        # Collect candidate compounds from blueprint
+        raw_candidates: List[Dict[str, Any]] = [dict(c) for c in blueprint.get("core_compounds", [])]
 
-        # Check if user requested enhanced / androgenic protocol in custom notes or preferences
-        lower_notes = (custom_notes + " " + str(preferences)).lower()
-        is_enhanced_request = any(w in lower_notes for w in [
-            "testosterone", "test c", "test e", "test cyp", "cypionate", "enanthate",
-            "anabolic steroid", "aas", "gear", "enhanced", "trt", "cycle"
-        ])
-        if is_enhanced_request and not natural_only:
-            if not any("testosterone" in c.get("key", "") for c in raw_candidates):
-                raw_candidates.insert(0, {
-                    "key": "testosterone_cypionate",
-                    "name": "Testosterone Cypionate",
-                    "base_dose": 175,
-                    "unit": "mg",
-                    "timing": "morning",
-                    "frequency": "twice_weekly",
-                    "route": "intramuscular",
-                    "target": "Nuclear Androgen Receptor (AR / NR3C4) Agonist",
-                    "rationale": "Anabolic stimulus / hormone optimization (350 mg/week total split into 175 mg twice-weekly IM/SubQ injections to stabilize serum peak/trough levels).",
-                    "is_stimulant": False,
-                })
-            if not any(c.get("key") in ("anastrozole", "exemestane") for c in raw_candidates):
-                raw_candidates.append({
-                    "key": "anastrozole",
-                    "name": "Anastrozole (Arimidex)",
-                    "base_dose": 0.5,
-                    "unit": "mg",
-                    "timing": "morning",
-                    "frequency": "twice_weekly",
-                    "route": "oral",
-                    "target": "Selective CYP19A1 Aromatase Inhibitor",
-                    "rationale": "Aromatase Inhibitor (AI) to control estradiol (E2) conversion and prevent gynecomastia and excess fluid retention.",
-                    "is_stimulant": False,
-                })
-            if not any(c.get("key") == "telmisartan" for c in raw_candidates):
-                raw_candidates.append({
-                    "key": "telmisartan",
-                    "name": "Telmisartan",
-                    "base_dose": 20,
-                    "unit": "mg",
-                    "timing": "morning",
-                    "frequency": "daily",
-                    "route": "oral",
-                    "target": "AT1 Receptor Antagonist & Renal Vasodilation",
-                    "rationale": "Cardioprotection & blood pressure control for androgenic protocol.",
-                    "is_stimulant": False,
-                })
+        if budget_pref != "essential" and complexity in ("standard", "maximum", "comprehensive", "full"):
+            raw_candidates.extend([dict(a) for a in blueprint.get("ancillaries", [])])
 
-        # Organ priority co-factor injection
-        needs_cardio = organ_pref == "cardiovascular" or (organ_pref == "auto" and (bp_val > 130 or egfr < 80))
+        # Enhanced / Aggressive Testosterone Support for Anabolic Physique
+        is_enhanced_mode = (
+            target_goal == "anabolic_physique"
+            and not natural_only
+            and (
+                preferences.get("substance_style") in ("aggressive", "hybrid", "enhanced")
+                or route_pref in ("injectable", "all", "hybrid")
+                or risk_pref in ("aggressive", "high", "performance")
+                or any(w in custom_notes.lower() for w in ["testosterone", "gear", "aas", "hypertrophy", "cycle", "cypionate", "enanthate"])
+            )
+        )
+
+        if is_enhanced_mode:
+            if is_female:
+                if not any(c["key"] == "oxandrolone" for c in raw_candidates):
+                    raw_candidates.insert(0, {
+                        "key": "oxandrolone",
+                        "name": "Oxandrolone (Anavar)",
+                        "base_dose": 10,
+                        "unit": "mg",
+                        "timing": "morning",
+                        "frequency": "daily",
+                        "route": "oral",
+                        "target": "Androgen Receptor Agonist (Low Virilization Index)",
+                        "rationale": "High anabolic-to-androgenic ratio calibrated for female athletic hypertrophy without virilizing side effects.",
+                        "is_stimulant": False,
+                    })
+            else:
+                if not any("testosterone" in c["key"] for c in raw_candidates):
+                    raw_candidates.insert(0, {
+                        "key": "testosterone_cypionate",
+                        "name": "Testosterone Cypionate",
+                        "base_dose": 175,
+                        "unit": "mg",
+                        "timing": "Twice Weekly (Mon / Thu)",
+                        "frequency": "twice_weekly",
+                        "route": "intramuscular",
+                        "target": "Nuclear Androgen Receptor (AR / NR3C4)",
+                        "rationale": "Extended ester depot prodrug providing stable supraphysiological androgen receptor occupancy and enhanced myocellular protein synthesis.",
+                        "is_stimulant": False,
+                    })
+
+        # Organ Shields & Targeted Biomarker Protection
+        needs_cardio = organ_pref == "cardio" or (organ_pref == "auto" and (bp_val > 130 or egfr < 90)) or is_enhanced_mode
         needs_hepatic = organ_pref == "hepatic" or (organ_pref == "auto" and alt_u_l > 40)
         needs_neuro = organ_pref == "neuro_recovery"
 
@@ -1072,11 +1099,11 @@ class StackIntentEngine:
                     "timing": "morning",
                     "frequency": "daily",
                     "route": "oral",
-                    "target": "AT1 Receptor Antagonist & Renal Vasodilation",
-                    "rationale": f"Added for cardiovascular/renal organ protection (Resting BP: {bp_val} mmHg, eGFR: {egfr}).",
+                    "target": "Angiotensin II Type 1 (AT1) Receptor Antagonist",
+                    "rationale": f"Blocks renal AT1 vasoconstriction, prevents LVH remodeling, and preserves podocyte integrity (Resting BP: {bp_val} mmHg, eGFR: {egfr}).",
                     "is_stimulant": False,
                 })
-            elif not any(c["key"] == "citrus_bergamot" for c in raw_candidates):
+            if not any(c["key"] == "citrus_bergamot" for c in raw_candidates):
                 raw_candidates.append({
                     "key": "citrus_bergamot",
                     "name": "Citrus Bergamot Extract",
@@ -1085,8 +1112,8 @@ class StackIntentEngine:
                     "timing": "morning",
                     "frequency": "daily",
                     "route": "oral",
-                    "target": "Lipid & ApoB Protection",
-                    "rationale": "Added for botanical lipid and cardiovascular protection.",
+                    "target": "Hepatic HMGCR Modulation & ApoB Lipid Protection",
+                    "rationale": "Maintains atherogenic ApoB and LDL particle clearance during androgen exposure.",
                     "is_stimulant": False,
                 })
 
@@ -1101,10 +1128,10 @@ class StackIntentEngine:
                     "frequency": "daily",
                     "route": "oral",
                     "target": "Glutathione Biosynthesis & Hepatocyte Protection",
-                    "rationale": f"Added for hepatic transaminase support and Phase II detox (ALT: {alt_u_l} U/L).",
+                    "rationale": f"Added for hepatic transaminase support and Phase II detoxification (ALT: {alt_u_l} U/L).",
                     "is_stimulant": False,
                 })
-            if complexity in ("standard", "maximum", "comprehensive") and not any(c["key"] == "tudca" for c in raw_candidates) and not natural_only:
+            if complexity in ("standard", "maximum", "comprehensive", "full") and not any(c["key"] == "tudca" for c in raw_candidates) and not natural_only:
                 raw_candidates.append({
                     "key": "tudca",
                     "name": "Tauroursodeoxycholic Acid (TUDCA)",
@@ -1114,7 +1141,7 @@ class StackIntentEngine:
                     "frequency": "daily",
                     "route": "oral",
                     "target": "Biliary Clearance & Hepatocyte ER Chaperone",
-                    "rationale": "Provides membrane stability and prevents cholestatic liver burden.",
+                    "rationale": "Provides hydrophilic bile acid pool expansion and mitigates canalicular cholestatic stress.",
                     "is_stimulant": False,
                 })
 
@@ -1128,7 +1155,7 @@ class StackIntentEngine:
                     "timing": "bedtime" if schedule_pref != "morning_only" else "morning",
                     "frequency": "daily",
                     "route": "oral",
-                    "target": "GABA-A Tone & NMDA Voltage Gating",
+                    "target": "NMDA Receptor Voltage-Gated Blocker",
                     "rationale": "Buffers cortical excitotoxicity and calms autonomic tone.",
                     "is_stimulant": False,
                 })
@@ -1146,9 +1173,30 @@ class StackIntentEngine:
                     "is_stimulant": False,
                 })
 
-        # Process and scale candidate compounds
-        built_compounds = []
+        # Process and dynamically scale candidate compounds
+        built_compounds: List[Dict[str, Any]] = []
+        seen_keys: Set[str] = set()
+
         for cand in raw_candidates:
+            c_key = cand.get("key")
+            if not c_key or c_key in seen_keys:
+                continue
+            seen_keys.add(c_key)
+
+            # Filter by natural_only
+            if natural_only and any(w in str(cand.get("target", "") + " " + c_key).lower() for w in ["steroid", "androgen", "prescription", "pharmaceutical"]):
+                continue
+
+            # Route and frequency inference
+            inf_route, inf_freq = infer_compound_route_and_frequency(c_key)
+            c_route = cand.get("route") or inf_route
+            c_freq = cand.get("frequency") or inf_freq
+
+            # Filter by route preference
+            if route_pref in ("oral_only", "capsules_only", "no_powders") and c_route in ("intramuscular", "subcutaneous"):
+                continue
+
+            # Stimulant filtering & scaling
             if cand.get("is_stimulant"):
                 if stim_pref in ("none", "stim-free", "stim_free", "free"):
                     continue
@@ -1157,39 +1205,80 @@ class StackIntentEngine:
                 else:
                     cand_dose = round(cand["base_dose"] * risk_scale)
             else:
-                b_dose = cand["base_dose"]
-                if cand["key"] in ("caffeine", "beta_alanine", "creatine", "l_carnitine", "magnesium", "citrus_bergamot"):
+                b_dose = cand.get("base_dose", 100.0)
+                if c_key in ("caffeine", "beta_alanine", "creatine", "l_carnitine", "magnesium", "citrus_bergamot", "taurine"):
                     scaled_dose = round(b_dose * weight_scale * risk_scale)
-                elif cand["key"] in ("berberine", "telmisartan", "nebivolol"):
+                elif c_key in ("berberine", "telmisartan", "nebivolol", "metformin"):
                     scaled_dose = round(b_dose * renal_scale * hepatic_scale * age_scale * risk_scale, 1)
                     if scaled_dose == int(scaled_dose):
                         scaled_dose = int(scaled_dose)
+                elif "testosterone" in c_key and is_female:
+                    scaled_dose = round(b_dose * 0.08 * risk_scale, 2)
                 else:
                     scaled_dose = round(b_dose * risk_scale) if isinstance(b_dose, (int, float)) and b_dose >= 10 else b_dose
                 cand_dose = scaled_dose
 
-            timing_val = cand["timing"]
+            if isinstance(cand_dose, float) and cand_dose == int(cand_dose):
+                cand_dose = int(cand_dose)
+
+            timing_val = cand.get("timing", "morning")
             if schedule_pref == "morning_only":
                 if timing_val in ("bedtime", "evening"):
-                    if cand["key"] == "melatonin":
-                        continue  # Exclude melatonin from daytime morning schedules
+                    if c_key == "melatonin":
+                        continue
                     timing_val = "morning"
 
-            route_val = cand.get("route", "oral")
-            if route_pref in ("oral_only", "capsules_only", "no_powders"):
-                route_val = "oral"
-
             built_compounds.append({
-                "key": cand["key"],
-                "name": cand["name"],
+                "key": c_key,
+                "name": cand.get("name") or c_key.replace("_", " ").title(),
                 "dose": cand_dose,
-                "unit": cand["unit"],
+                "unit": cand.get("unit", "mg"),
                 "timing": timing_val,
-                "frequency": cand.get("frequency", "daily"),
-                "route": route_val,
-                "target": cand.get("target", ""),
-                "rationale": cand.get("rationale", ""),
+                "frequency": c_freq,
+                "route": c_route,
+                "target": cand.get("target", "Target receptor"),
+                "rationale": cand.get("rationale", f"Calibrated for {goal_title}."),
             })
+
+        # Dynamically evaluate gaps and attach protective co-factors
+        comp_records_for_analysis = [dict(c) for c in built_compounds]
+        features = cls._extract_pharmacological_features(comp_records_for_analysis)
+        gaps = cls._detect_therapeutic_gaps(features, comp_records_for_analysis, biometrics)
+
+        for gap in gaps:
+            # STRICT GUARD: Rules / contraindications must NEVER be parsed as compound co-factors
+            if gap.get("severity") == "RULE" or not gap.get("cofactor_search_terms"):
+                continue
+
+            search_terms = gap.get("cofactor_search_terms", [])
+            found_rec = None
+            for term in search_terms:
+                term_clean = term.lower().strip().replace("-", "_")
+                found_rec = catalog.get_compound(term_clean) or catalog.find_by_synonym(term_clean)
+                if found_rec:
+                    break
+
+            if found_rec and found_rec.get("key") not in seen_keys:
+                cofactor_key = found_rec.get("key")
+                seen_keys.add(cofactor_key)
+                co_dose_info = calculate_individualized_dose(found_rec, biometrics, risk_scale)
+                co_route, co_freq = infer_compound_route_and_frequency(cofactor_key)
+
+                co_dose_val = co_dose_info.get("dose_val", 10.0)
+                if isinstance(co_dose_val, float) and co_dose_val == int(co_dose_val):
+                    co_dose_val = int(co_dose_val)
+
+                built_compounds.append({
+                    "key": cofactor_key,
+                    "name": found_rec.get("name") or cofactor_key.replace("_", " ").title(),
+                    "dose": co_dose_val,
+                    "unit": co_dose_info.get("unit", "mg"),
+                    "timing": "morning",
+                    "frequency": co_freq,
+                    "route": co_route,
+                    "target": gap.get("axis", "Protective Co-factor"),
+                    "rationale": f"Protective co-factor for {gap.get('axis', '')}: {gap.get('mechanism', '')}",
+                })
 
         schedule = {
             "morning": [c for c in built_compounds if c["timing"] in ("morning", "pre-workout", "midday")],

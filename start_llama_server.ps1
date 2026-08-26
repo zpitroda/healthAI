@@ -1,10 +1,24 @@
 $ScriptDir = Split-Path -Parent $MyInvocation.MyCommand.Definition
-$MODEL_PATH = "C:\models\qwen3.8-27b-q6_k.gguf"
 $LlamaDir = Join-Path $ScriptDir "llama.cpp"
 
-if (-not (Test-Path $MODEL_PATH)) {
-    Write-Warning "Model file not found at $MODEL_PATH"
-    $MODEL_PATH = Read-Host "Please enter full path to model GGUF"
+# Auto-detect Qwen 3.8 / 3.6 model GGUF path
+$CandidateModels = @(
+    (Join-Path $ScriptDir "models\qwen3.8-27b-q6_k.gguf"),
+    (Join-Path $ScriptDir "models\qwen3.6-27b-q6_k.gguf"),
+    (Join-Path $ScriptDir "models\qwen3.8-27b.gguf"),
+    (Join-Path $ScriptDir "models\qwen3.6-27b.gguf")
+)
+
+$MODEL_PATH = $CandidateModels | Where-Object { Test-Path $_ } | Select-Object -First 1
+
+if (-not $MODEL_PATH) {
+    $FallbackPath = Join-Path $ScriptDir "models\qwen3.8-27b-q6_k.gguf"
+    if (-not (Test-Path $FallbackPath)) {
+        Write-Warning "Model file not found at default locations."
+        $MODEL_PATH = Read-Host "Please enter full path to model GGUF"
+    } else {
+        $MODEL_PATH = $FallbackPath
+    }
 }
 
 # Optimization flags explained:

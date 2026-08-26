@@ -33,10 +33,18 @@ DEFAULT_MODEL = os.getenv("OPENAI_MODEL", "qwen3.8:27b")
 MODEL_PREFERENCES = [
     "qwen3.8:27b",
     "qwen3.8",
+    "qwen3.6:27b",
+    "qwen3.6",
+    "qwen3:27b",
     "qwen3:30b",
+    "qwen3:32b",
+    "qwen3",
+    "qwen-3-32b",
+    "qwen-2.5-32b",
     "qwen2.5:32b",
     "qwen2.5:14b",
     "qwen2.5:7b",
+    "llama-3.3-70b-versatile",
     "llama3.3:70b",
     "llama3.1:8b",
     "llama3.1",
@@ -137,6 +145,71 @@ async def get_best_available_model(preferred_model: Optional[str] = None, base_u
     return target
 
 
+# Cloud & Local fallback models in priority order (Qwen3 & Qwen prioritized for Groq, OpenRouter, and local)
+CLOUD_FALLBACK_MODELS = [
+    "qwen3.6:27b",
+    "qwen3.6-27b",
+    "qwen/qwen3.8-27b",
+    "qwen/qwen3.6-27b",
+    "qwen/qwen3-32b",
+    "qwen-2.5-32b",
+    "qwen/qwen-2.5-72b-instruct",
+    "llama-3.3-70b-versatile",
+    "llama-3.1-8b-instant",
+    "gpt-4o-mini",
+]
+
+
+def _extract_json_from_llm_response(content: str) -> Dict[str, Any]:
+    """
+    Extracts and parses JSON object from LLM response, stripping Qwen3 thinking tags
+    (<think>...</think>), markdown code blocks, or leading/trailing whitespace.
+    """
+    import re
+    cleaned = (content or "").strip()
+    if not cleaned:
+        return {}
+
+    # Direct JSON parse attempt
+    try:
+        return json.loads(cleaned)
+    except json.JSONDecodeError:
+        pass
+
+    # Strip Qwen3 <think>...</think> or <thought>...</thought> tags
+    without_thoughts = re.sub(r'<(think|thought|scratchpad|clinical_notes)>.*?</\1>', '', cleaned, flags=re.DOTALL | re.IGNORECASE).strip()
+    try:
+        return json.loads(without_thoughts)
+    except json.JSONDecodeError:
+        pass
+
+    # Extract from markdown fences ```json ... ``` or ``` ... ```
+    if "```json" in without_thoughts:
+        extracted = without_thoughts.split("```json", 1)[1].split("```", 1)[0].strip()
+        try:
+            return json.loads(extracted)
+        except json.JSONDecodeError:
+            pass
+    elif "```" in without_thoughts:
+        extracted = without_thoughts.split("```", 1)[1].split("```", 1)[0].strip()
+        try:
+            return json.loads(extracted)
+        except json.JSONDecodeError:
+            pass
+
+    # Substring between first '{' and last '}'
+    first_brace = without_thoughts.find('{')
+    last_brace = without_thoughts.rfind('}')
+    if first_brace != -1 and last_brace != -1 and last_brace > first_brace:
+        candidate = without_thoughts[first_brace:last_brace + 1]
+        try:
+            return json.loads(candidate)
+        except json.JSONDecodeError:
+            pass
+
+    raise json.JSONDecodeError("Could not extract valid JSON from LLM response", cleaned, 0)
+
+
 async def ask_local_llm(
     system_prompt: str,
     user_prompt: str,
@@ -144,59 +217,64 @@ async def ask_local_llm(
     max_tokens: Optional[int] = None,
 ) -> Dict[str, Any]:
     """
-    Sends a prompt to the active OpenAI-compatible instance (local llama-server/Ollama or cloud provider)
-    and enforces a JSON response using structured outputs / JSON Object mode.
+    Sends a prompt to the active OpenAI-compatible instance (local llama-server/Ollama or cloud provider like Groq)
+    and enforces a JSON response using structured outputs / JSON Object mode with Qwen3 hyperparameter tuning.
+    Includes automatic failover for cloud rate limits (429) or model unavailability.
     """
     base_url = await resolve_active_endpoint()
-    active_model = await get_best_available_model(model, base_url=base_url)
+    primary_model = await get_best_available_model(model, base_url=base_url)
     url = f"{base_url}/chat/completions"
     headers = get_auth_headers()
-    token_limit = max_tokens if max_tokens is not None else int(os.getenv("OPENAI_MAX_TOKENS", "2048"))
+    token_limit = max_tokens if max_tokens is not None else int(os.getenv("OPENAI_MAX_TOKENS", "1200"))
 
-    payload = {
-        "model": active_model,
-        "messages": [
-            {"role": "system", "content": system_prompt},
-            {"role": "user", "content": user_prompt}
-        ],
-        "stream": False,
-        "response_format": {"type": "json_object"},
-        "temperature": 0.0,
-        "top_p": 0.85,
-        "max_tokens": token_limit,
-    }
+    models_to_try = [primary_model]
+    for fm in CLOUD_FALLBACK_MODELS:
+        if fm not in models_to_try:
+            models_to_try.append(fm)
 
-    try:
-        async with httpx.AsyncClient(timeout=180.0) as client:
-            response = await client.post(url, json=payload, headers=headers)
-            response.raise_for_status()
-            data = response.json()
+    last_error = None
+    for attempt_model in models_to_try:
+        payload = {
+            "model": attempt_model,
+            "messages": [
+                {"role": "system", "content": system_prompt},
+                {"role": "user", "content": user_prompt}
+            ],
+            "stream": False,
+            "response_format": {"type": "json_object"},
+            "temperature": 0.0,
+            "top_p": 0.80,
+            "max_tokens": token_limit,
+        }
 
-            # OpenAI structure: choices[0].message.content
-            message_content = data.get("choices", [{}])[0].get("message", {}).get("content", "{}")
-            try:
-                return json.loads(message_content)
-            except json.JSONDecodeError:
-                # Handle possible markdown codeblock wrapping
-                if "```json" in message_content:
-                    extracted = message_content.split("```json")[1].split("```")[0].strip()
-                    return json.loads(extracted)
-                elif "```" in message_content:
-                    extracted = message_content.split("```")[1].split("```")[0].strip()
-                    return json.loads(extracted)
-                raise
-    except httpx.ConnectError:
+        try:
+            async with httpx.AsyncClient(timeout=180.0) as client:
+                response = await client.post(url, json=payload, headers=headers)
+                if response.status_code in (429, 404, 503) and attempt_model != models_to_try[-1]:
+                    logger.warning(f"AI query on {attempt_model} returned {response.status_code}. Retrying on fallback model...")
+                    continue
+                response.raise_for_status()
+                data = response.json()
+
+                # OpenAI structure: choices[0].message.content
+                message_content = data.get("choices", [{}])[0].get("message", {}).get("content", "{}")
+                return _extract_json_from_llm_response(message_content)
+        except httpx.ConnectError as ce:
+            last_error = ce
+            break
+        except Exception as ex:
+            last_error = ex
+            if attempt_model != models_to_try[-1]:
+                continue
+            break
+
+    if isinstance(last_error, httpx.ConnectError):
         logger.error(f"Failed to connect to AI server at {base_url}. Is it running?")
         raise RuntimeError(
             f"Cannot connect to AI service at {base_url}. "
             "Please ensure local llama-server (start_llama_server.bat) is running or OPENAI_API_KEY/OPENAI_BASE_URL are configured."
         )
-    except json.JSONDecodeError as e:
-        logger.error(f"Failed to parse JSON from AI response: {e}")
-        raise RuntimeError("AI responded with invalid JSON format. Structured output generation failed.")
-    except Exception as e:
-        logger.error(f"Error querying LLM: {e}")
-        raise RuntimeError(f"Error executing AI request: {str(e)}")
+    raise RuntimeError(f"Error executing AI request: {str(last_error)}")
 
 
 async def stream_local_llm_chat(
@@ -204,94 +282,120 @@ async def stream_local_llm_chat(
     system_prompt: Optional[str] = None,
     model: Optional[str] = None,
     temperature: float = 0.2,
-    top_p: float = 0.9,
+    top_p: float = 0.85,
     max_tokens: Optional[int] = None,
     tools: Optional[list[Dict[str, Any]]] = None,
 ):
     """
     Streams chat completion tokens and reasoning deltas from active OpenAI-compatible endpoint
-    (llama-server on 8080, Ollama on 11434, or Cloud LLM) using SSE.
+    (llama-server on 8080, Ollama on 11434, or Cloud LLM like Groq) using SSE.
     Yields dictionary chunks: {'type': 'content'|'reasoning'|'tool_call'|'done'|'error', 'data': ...}
+    Includes resilient fallback across models upon rate limits (429) or transient errors.
     """
     base_url = await resolve_active_endpoint()
-    active_model = await get_best_available_model(model, base_url=base_url)
+    primary_model = await get_best_available_model(model, base_url=base_url)
     url = f"{base_url}/chat/completions"
     headers = get_auth_headers()
-    token_limit = max_tokens if max_tokens is not None else int(os.getenv("OPENAI_MAX_TOKENS", "2048"))
+    token_limit = max_tokens if max_tokens is not None else int(os.getenv("OPENAI_MAX_TOKENS", "1200"))
 
     full_messages = []
     if system_prompt:
         full_messages.append({"role": "system", "content": system_prompt})
     full_messages.extend(messages)
 
-    payload: Dict[str, Any] = {
-        "model": active_model,
-        "messages": full_messages,
-        "stream": True,
-        "temperature": temperature,
-        "top_p": top_p,
-        "max_tokens": token_limit,
-    }
+    models_to_try = [primary_model]
+    for fm in CLOUD_FALLBACK_MODELS:
+        if fm not in models_to_try:
+            models_to_try.append(fm)
 
-    if tools:
-        payload["tools"] = tools
-        payload["tool_choice"] = "auto"
-
-    try:
-        async with httpx.AsyncClient(timeout=httpx.Timeout(180.0, connect=5.0)) as client:
-            async with client.stream("POST", url, json=payload, headers=headers) as response:
-                if response.status_code != 200:
-                    err_text = await response.aread()
-                    logger.error(f"AI Stream returned status {response.status_code}: {err_text.decode('utf-8', errors='ignore')}")
-                    yield {"type": "error", "data": f"AI Server error ({response.status_code}): {err_text.decode('utf-8', errors='ignore')}"}
-                    return
-
-                async for line in response.aiter_lines():
-                    line = line.strip()
-                    if not line:
-                        continue
-                    if line.startswith("data: "):
-                        data_str = line[6:].strip()
-                        if data_str == "[DONE]":
-                            yield {"type": "done", "data": "[DONE]"}
-                            break
-                        try:
-                            chunk = json.loads(data_str)
-                            choices = chunk.get("choices", [])
-                            if not choices:
-                                continue
-                            delta = choices[0].get("delta", {})
-
-                            # 1. Reasoning / Thinking delta (e.g. DeepSeek-R1 / Qwen thinking)
-                            reasoning = delta.get("reasoning_content") or delta.get("thought") or delta.get("thinking")
-                            if reasoning:
-                                yield {"type": "reasoning", "data": reasoning}
-
-                            # 2. Standard content delta
-                            content = delta.get("content")
-                            if content:
-                                yield {"type": "content", "data": content}
-
-                            # 3. Tool call deltas
-                            tool_calls = delta.get("tool_calls")
-                            if tool_calls:
-                                yield {"type": "tool_call_delta", "data": tool_calls}
-
-                            # 4. Finish reason
-                            finish_reason = choices[0].get("finish_reason")
-                            if finish_reason:
-                                yield {"type": "finish_reason", "data": finish_reason}
-                        except json.JSONDecodeError:
-                            continue
-    except httpx.ConnectError:
-        logger.error(f"Cannot connect to AI service at {base_url}")
-        yield {
-            "type": "error",
-            "data": f"Cannot connect to AI engine at {base_url}. Please ensure local server is running or cloud credentials are set in .env."
+    last_error_msg = None
+    for attempt_model in models_to_try:
+        payload: Dict[str, Any] = {
+            "model": attempt_model,
+            "messages": full_messages,
+            "stream": True,
+            "temperature": temperature,
+            "top_p": top_p,
+            "max_tokens": token_limit,
+            "stop": ["<|im_end|>", "<|endoftext|>", "<|im_start|>"],
         }
-    except Exception as e:
-        logger.error(f"Error during AI streaming: {e}")
-        yield {"type": "error", "data": str(e)}
+
+        if tools:
+            payload["tools"] = tools
+            payload["tool_choice"] = "auto"
+
+        stream_succeeded = False
+        try:
+            async with httpx.AsyncClient(timeout=httpx.Timeout(180.0, connect=5.0)) as client:
+                async with client.stream("POST", url, json=payload, headers=headers) as response:
+                    if response.status_code in (429, 404, 503) and attempt_model != models_to_try[-1]:
+                        err_text = await response.aread()
+                        logger.warning(f"AI Stream for {attempt_model} returned {response.status_code} ({err_text.decode('utf-8', errors='ignore')[:120]}). Trying fallback model...")
+                        last_error_msg = f"Model {attempt_model} unavailable ({response.status_code})."
+                        continue
+
+                    if response.status_code != 200:
+                        err_text = await response.aread()
+                        logger.error(f"AI Stream returned status {response.status_code}: {err_text.decode('utf-8', errors='ignore')}")
+                        if attempt_model != models_to_try[-1]:
+                            continue
+                        yield {"type": "error", "data": f"AI Server returned status {response.status_code}"}
+                        return
+
+                    stream_succeeded = True
+                    async for line in response.aiter_lines():
+                        line = line.strip()
+                        if not line:
+                            continue
+                        if line.startswith("data: "):
+                            data_str = line[6:].strip()
+                            if data_str == "[DONE]":
+                                yield {"type": "done", "data": "[DONE]"}
+                                return
+                            try:
+                                chunk = json.loads(data_str)
+                                choices = chunk.get("choices", [])
+                                if not choices:
+                                    continue
+                                delta = choices[0].get("delta", {})
+
+                                # 1. Reasoning / Thinking delta
+                                reasoning = delta.get("reasoning_content") or delta.get("thought") or delta.get("thinking")
+                                if reasoning:
+                                    yield {"type": "reasoning", "data": reasoning}
+
+                                # 2. Standard content delta
+                                content = delta.get("content")
+                                if content:
+                                    yield {"type": "content", "data": content}
+
+                                # 3. Tool call deltas
+                                tool_calls = delta.get("tool_calls")
+                                if tool_calls:
+                                    yield {"type": "tool_call_delta", "data": tool_calls}
+
+                                # 4. Finish reason
+                                finish_reason = choices[0].get("finish_reason")
+                                if finish_reason:
+                                    yield {"type": "finish_reason", "data": finish_reason}
+                            except json.JSONDecodeError:
+                                continue
+            if stream_succeeded:
+                return
+        except httpx.ConnectError:
+            logger.error(f"Cannot connect to AI service at {base_url}")
+            yield {
+                "type": "error",
+                "data": f"Cannot connect to AI engine at {base_url}. Please ensure local server is running or cloud credentials are set in .env."
+            }
+            return
+        except Exception as e:
+            logger.warning(f"Notice during AI streaming on {attempt_model}: {e}")
+            last_error_msg = str(e)
+            if attempt_model != models_to_try[-1]:
+                continue
+            yield {"type": "error", "data": last_error_msg or "AI streaming interrupted"}
+            return
 
 
 async def preload_and_warmup_model() -> None:

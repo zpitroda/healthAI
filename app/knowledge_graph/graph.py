@@ -1208,13 +1208,16 @@ class BiologicalGraph:
 
                     stack.append((succ, list(path) + [succ], next_mag, list(edge_trail) + [edge_attrs]))
 
-        def _aggregate_compound_paths(paths: List[float]) -> float:
+        def _aggregate_compound_paths(paths: List[float], bio_id: str = "") -> float:
             if not paths:
                 return 0.0
             pos = [p for p in paths if p > 0]
             neg = [p for p in paths if p < 0]
             m_pos = (max(pos) + 0.15 * sum(p for p in pos if p != max(pos))) if pos else 0.0
             m_neg = (min(neg) + 0.15 * sum(p for p in neg if p != min(neg))) if neg else 0.0
+            if bio_id == "bio_testosterone" and pos and m_pos > 0.01:
+                # Direct exogenous bioidentical hormone supplies circulating pool; self-HPG feedback does not subtract from infused compound
+                return max(-1.0, min(1.0, m_pos))
             return max(-1.0, min(1.0, m_pos + m_neg))
 
         def _compute_dist_curve(
@@ -1285,7 +1288,7 @@ class BiologicalGraph:
         for bio_id, start_map in biomarker_path_signals.items():
             biomarker_contributions[bio_id] = {}
             for c_id, p_list in start_map.items():
-                biomarker_contributions[bio_id][c_id] = _aggregate_compound_paths(p_list)
+                biomarker_contributions[bio_id][c_id] = _aggregate_compound_paths(p_list, bio_id=bio_id)
             biomarker_impacts[bio_id] = max(-1.0, min(1.0, sum(biomarker_contributions[bio_id].values())))
 
         formatted_biomarkers = []

@@ -425,7 +425,7 @@ Run the multi-threaded resumable downloader:
 ```bash
 python scripts/download_model.py
 ```
-*(Downloads `Qwen3.8-27B-UD-Q6_K.gguf` to `C:\models\` in 24 concurrent threads with automatic integrity tracking).*
+*(Downloads `Qwen3.8-27B-UD-Q6_K.gguf` to `models/` in 24 concurrent threads with automatic integrity tracking).*
 
 ### Starting the Local LLM Server
 Launch the hardware-accelerated `llama-server`:

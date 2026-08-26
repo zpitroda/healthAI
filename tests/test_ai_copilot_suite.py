@@ -644,5 +644,94 @@ def test_pgx_engine_phenotype_scaling():
     assert warnings[0]["gene"] == "CYP2D6"
 
 
+def test_unspecified_and_partial_biometrics_fallback():
+    """Verify system smoothly defaults to normal/average population reference when biometrics are empty or partial."""
+    from app.services.copilot_agent import CopilotAgent
+    from app.services.stack_intent_engine import StackIntentEngine
+
+    # 1. Empty biometrics in system context
+    context_empty = CopilotAgent.build_system_context(
+        persona="architect",
+        stack=["caffeine", "l_theanine"],
+        biometrics={},
+        protocol_goal="cognitive_focus"
+    )
+    assert "assuming standard normal/average adult population baseline" in context_empty
+
+    # 2. Partially specified biometrics
+    context_partial = CopilotAgent.build_system_context(
+        persona="architect",
+        stack=["caffeine", "l_theanine"],
+        biometrics={"weight_kg": 82, "egfr": 105},
+        protocol_goal="cognitive_focus"
+    )
+    assert "Weight: 82 kg" in context_partial
+    assert "eGFR: 105 mL/min" in context_partial
+    assert "Unspecified metrics defaulted to normal healthy adult baseline" in context_partial
+
+    # 3. Dynamic scratch proposal with empty biometrics
+    proposal = StackIntentEngine.build_scratch_stack_proposal(
+        goal_id="cognitive_focus",
+        biometrics={},
+        preferences={}
+    )
+    assert proposal["goal_id"] == "cognitive_focus"
+    assert len(proposal["compounds"]) >= 2
+    for comp in proposal["compounds"]:
+        assert comp["dose"] > 0
 
 
+def test_sex_gender_hormone_and_clearance_scaling():
+    """Verify gender/sex factors into hormone dosing, virilization gap detection, and renal clearance."""
+    from app.services.dosing_service import calculate_individualized_dose
+    from app.services.copilot_agent import CopilotAgent
+    from app.services.stack_intent_engine import StackIntentEngine
+
+    # 1. Testosterone dosing for male vs female
+    test_male = calculate_individualized_dose("testosterone_cypionate", {"sex": "male", "weight_kg": 75})
+    test_female = calculate_individualized_dose("testosterone_cypionate", {"sex": "female", "weight_kg": 60})
+    # Female dose should be significantly lower (~5-10% of male standard)
+    assert test_female["dose_mg"] < test_male["dose_mg"] * 0.20
+    assert test_female["dose_mg"] > 0
+
+    # 2. DHEA dosing for male vs female
+    dhea_male = calculate_individualized_dose("dhea", {"sex": "male"})
+    dhea_female = calculate_individualized_dose("dhea", {"sex": "female"})
+    assert dhea_female["dose_mg"] < dhea_male["dose_mg"]
+
+    # 3. Copilot prompt includes female clinical mandate
+    context_female = CopilotAgent.build_system_context(
+        persona="architect",
+        stack=["testosterone_cypionate"],
+        biometrics={"sex": "female", "weight_kg": 60},
+        protocol_goal="anabolic_physique"
+    )
+    assert "Female patient physiology active" in context_female
+    assert "virilization" in context_female.lower()
+
+    # 4. Virilization gap detection for female with androgens
+    analysis_female = StackIntentEngine.analyze(
+        compounds=[{"key": "testosterone_cypionate", "name": "Testosterone Cypionate", "dose": 50, "route": "intramuscular"}],
+        biometrics={"sex": "female"}
+    )
+    gap_axes = [g["axis"] for g in analysis_female.get("therapeutic_gaps", [])]
+    assert any("Virilization" in a for a in gap_axes)
+
+
+def test_inline_drafting_self_talk_sanitization():
+    """Verify that inline drafting questions and citation self-talk are cleaned from final markdown."""
+    raw_dirty_text = (
+        "**Executive Assessment**: Balanced stack.\n\n"
+        "**Targeted Synergies & Co-Factors**:\n"
+        "- Testosterone Cypionate 175 mg IM/SubQ Mon/Thu: t1/2 ~7-10 d [PMID: 18449337? Need real? Could use generic? Need verified citations. Use known?]\n"
+        "- Anastrozole 0.25 mg oral twice weekly [FDA Label: Anastrozole §5.1]. Telmisartan [FDA Label: Telmisartan §5.1]. Ezetimibe [IMPROVE-IT Trial; PMID: 19726719? Actually IMPROVE-IT PMID 19726719? I think yes. Creatine [PMID: 21639795? maybe]. Caffeine [PMID: 16399952?]. Need not be perfect? But should be plausible. Could use [FDA Label: Testosterone Cypionate §12.3] maybe. Use FDA labels"
+    )
+    cleaned = CopilotAgent.clean_scratchpad_and_tools_from_text(raw_dirty_text)
+    assert "Need real?" not in cleaned
+    assert "Could use generic?" not in cleaned
+    assert "Need verified citations" not in cleaned
+    assert "Use FDA labels" not in cleaned
+    assert "Actually IMPROVE-IT" not in cleaned
+    assert "[PMID: 18449337]" in cleaned
+    assert "[FDA Label: Anastrozole §5.1]" in cleaned
+    assert "[FDA Label: Telmisartan §5.1]" in cleaned

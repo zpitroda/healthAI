@@ -46,7 +46,7 @@ SEED_CLINICAL_REFERENCE_DOSES_MG: Dict[str, float] = {
     "chembl754": 1.0,
 
     # Ergogenics, Nootropics & Stimulants
-    "caffeine": 200.0,        # 200 mg standard single dose
+    "caffeine": 200.0,        # 200 mg
     "theanine": 200.0,        # 200 mg
     "l_theanine": 200.0,
     "creatine": 5000.0,       # 5 g (5000 mg) maintenance dose
@@ -55,19 +55,51 @@ SEED_CLINICAL_REFERENCE_DOSES_MG: Dict[str, float] = {
     "citrulline": 6000.0,     # 6 g
     "l_citrulline": 6000.0,
     "citrulline_malate": 8000.0,
+    "l_carnitine": 2000.0,    # 2000 mg
+    "lcarnitine": 2000.0,
+    "carnitine": 2000.0,
+    "alcar": 1000.0,          # 1000 mg
+    "acetyl_l_carnitine": 1000.0,
+    "betaine": 2500.0,        # 2.5 g
+    "tmg": 2500.0,
+    "taurine": 1000.0,        # 1000 mg
+    "l_taurine": 1000.0,
     "alpha_gpc": 300.0,       # 300 mg
     "tyrosine": 1000.0,       # 1000 mg / 1 g
     "l_tyrosine": 1000.0,
     "ashwagandha": 600.0,     # 600 mg extract
     "rhodiola": 300.0,        # 300 mg
     "bacopa": 300.0,          # 300 mg
+    "ginkgo": 120.0,          # 120 mg
+    "panax_ginseng": 200.0,   # 200 mg
     "modafinil": 100.0,       # 100 mg
     "armodafinil": 150.0,     # 150 mg
     "nac": 600.0,             # 600 mg
     "n_acetylcysteine": 600.0,
     "acetylcysteine": 600.0,
-    "tudca": 500.0,           # 500 mg
+    "tudca": 500.0,           # 500 mg (or 250 mg)
     "glutathione": 500.0,     # 500 mg
+    "alpha_lipoic_acid": 300.0, # 300 mg (or 600 mg)
+    "ala": 300.0,
+    "r_ala": 300.0,
+    "astragalus": 1000.0,     # 1000 mg
+    "p5p": 100.0,             # 100 mg
+    "pyridoxal_5_phosphate": 100.0,
+    "coq10": 100.0,           # 100 mg
+    "ubiquinol": 100.0,
+    "curcumin": 500.0,        # 500 mg
+    "piperine": 5.0,          # 5 mg
+    "resveratrol": 250.0,     # 250 mg
+    "quercetin": 500.0,       # 500 mg
+    "sulforaphane": 20.0,     # 20 mg
+    "dhea": 25.0,             # 25 mg
+    "pregnenolone": 25.0,     # 25 mg
+    "zinc": 30.0,             # 30 mg
+    "zinc_picolinate": 30.0,
+    "magnesium": 300.0,       # 300 mg
+    "magnesium_glycinate": 300.0,
+    "fish_oil": 2000.0,       # 2000 mg
+    "omega_3": 2000.0,
 
     # RAAS & Blood Pressure
     "telmisartan": 40.0,      # 40 mg
@@ -105,6 +137,9 @@ SEED_CLINICAL_REFERENCE_DOSES_MG: Dict[str, float] = {
     "pitavastatincalcium": 2.0,
     "chembl1200547": 2.0,
     "ezetimibe": 10.0,        # 10 mg/day
+    "citrus_bergamot": 500.0, # 500 mg/day
+    "citrusbergamot": 500.0,
+    "bergamot": 500.0,
     "berberine": 500.0,       # 500 mg/day
 
     # Androgens, Endocrine & 5-AR
@@ -135,6 +170,7 @@ SEED_CLINICAL_REFERENCE_DOSES_MG: Dict[str, float] = {
     "boldenone_undecylenate": 200.0,    # 200 mg weekly/split
     "boldenone": 200.0,
     "equipoise": 200.0,
+    "drostanolone": 100.0,
     "drostanolone_propionate": 50.0,
     "masteron": 50.0,
     "drostanolone_enanthate": 150.0,
@@ -582,6 +618,124 @@ def get_default_compound_dose(
     }
 
 
+def calculate_individualized_dose(
+    compound_spec_or_key: Union[str, Dict[str, Any]],
+    biometrics: Optional[Dict[str, Any]] = None,
+    intent_or_risk: Union[str, float] = 1.0,
+) -> Dict[str, Any]:
+    """
+    Calculates an individualized dose tailored to the patient's weight, renal (eGFR)
+    and hepatic (ALT) clearance, and risk tolerance / potency factor.
+    """
+    biometrics = biometrics or {}
+    weight_kg = float(biometrics.get("weight_kg") or 75.0)
+    egfr = float(biometrics.get("egfr") or 95.0)
+    alt = float(biometrics.get("alt_u_l") or 25.0)
+    age = int(biometrics.get("age") or 30)
+
+    if isinstance(intent_or_risk, (int, float)):
+        risk_scale = float(intent_or_risk)
+    elif str(intent_or_risk).lower() in ("aggressive", "high", "performance"):
+        risk_scale = 1.25
+    elif str(intent_or_risk).lower() in ("conservative", "low", "cautious"):
+        risk_scale = 0.75
+    else:
+        risk_scale = 1.0
+
+    base_info = get_default_compound_dose(compound_spec_or_key, weight_kg=weight_kg)
+    base_mg = float(base_info.get("dose_mg") or 10.0)
+
+    sex = str(biometrics.get("sex") or biometrics.get("gender") or "unspecified").lower().strip()
+    is_female = sex in ("female", "f", "woman")
+
+    # Pharmacokinetic Clearance Scaling
+    # Cockcroft-Gault / MDRD female renal clearance factor (0.85)
+    sex_renal_factor = 0.85 if is_female else 1.0
+    renal_scale = (max(0.5, min(1.0, (egfr * sex_renal_factor) / 90.0))) if egfr < 60 else 1.0
+    hepatic_scale = max(0.6, min(1.0, 45.0 / alt)) if alt > 45 else 1.0
+    age_scale = 0.9 if age >= 65 else 1.0
+
+    # Extract target receptor families and pharmacological classification
+    target_blob = ""
+    drug_class_blob = ""
+    cyp_substrates: List[str] = []
+    cyp_inhibitors: List[str] = []
+
+    if isinstance(compound_spec_or_key, dict):
+        rec_targets = compound_spec_or_key.get("receptor_targets") or []
+        for t in rec_targets:
+            if isinstance(t, dict):
+                target_blob += f" {t.get('target', '')} {t.get('family', '')} {t.get('action', '')}"
+            else:
+                target_blob += f" {str(t)}"
+        drug_class_blob = f"{compound_spec_or_key.get('drug_class', '')} {compound_spec_or_key.get('categories', '')} {compound_spec_or_key.get('mechanism', '')}".lower()
+        cyp_info = compound_spec_or_key.get("cyp_enzymes") or {}
+        if isinstance(cyp_info, dict):
+            cyp_substrates = [str(s).upper() for s in (cyp_info.get("substrates") or [])]
+            cyp_inhibitors = [str(i).upper() for i in (cyp_info.get("inhibitors") or [])]
+    else:
+        target_blob = str(compound_spec_or_key).lower()
+        drug_class_blob = target_blob
+
+    combined_pharmacology = f"{target_blob} {drug_class_blob}".lower()
+
+    # Determine Biological Receptor Axis & Target Sensitivity Multiplier
+    # 1. Nuclear Androgen Receptor (AR / NR3C4) Axis:
+    # Female physiological testosterone production (0.25-0.5 mg/day, ~15-70 ng/dL serum) is ~8% of male (5-7 mg/day, ~300-1000 ng/dL serum).
+    is_ar_agonist = any(w in combined_pharmacology for w in ["androgen receptor", "ar / nr3c4", "nr3c4", "anabolic steroid", "androgen agonist", "testosterone", "androgenic"])
+    
+    # 2. Aromatase (CYP19A1) / Estrogen Axis:
+    # Females require physiological baseline estradiol (50-200 pg/mL); male baseline is 20-30 pg/mL. Excessive AI in females leads to severe hypoestrogenism.
+    is_aromatase_inhibitor = "cyp19a1" in cyp_inhibitors or any(w in combined_pharmacology for w in ["cyp19a1", "aromatase inhibitor", "estrogen synthesis"])
+
+    # 3. Adrenal Pro-hormone (DHEA / Neurosteroid):
+    is_adrenal_prohormone = any(w in combined_pharmacology for w in ["dhea", "dehydroepiandrosterone", "adrenal androgen"])
+
+    # 4. Intracellular Osmolyte / Biomolecule pool (scales with body weight / muscle volume):
+    is_osmolyte_substrate = any(w in combined_pharmacology for w in ["osmolyte", "guanidino", "amino acid", "carnitine", "creatine", "antioxidant", "flavonoid", "mineral", "essential mineral"])
+
+    # 5. Hemodynamic / RAAS / Vasodilator Axis:
+    is_cardiovascular_clearance = any(w in combined_pharmacology for w in ["angiotensin", "at1", "raas", "beta adrenergic", "antihypertensive", "calcium channel", "pde5"])
+
+    if is_female and is_ar_agonist:
+        # Dynamic female AR receptor occupancy scaling (~0.08x baseline)
+        final_mg = round(base_mg * 0.08 * risk_scale, 2)
+    elif is_female and is_aromatase_inhibitor:
+        # Dynamic female estradiol preservation scaling
+        final_mg = round(base_mg * 0.50 * risk_scale, 3)
+    elif is_female and is_adrenal_prohormone:
+        # Dynamic female adrenal pro-hormone physiological ceiling
+        final_mg = round(base_mg * 0.25 * risk_scale, 1)
+    elif is_osmolyte_substrate:
+        weight_factor = max(0.7, min(1.4, weight_kg / 75.0))
+        final_mg = round(base_mg * weight_factor * risk_scale)
+    elif is_cardiovascular_clearance:
+        final_mg = round(base_mg * renal_scale * hepatic_scale * age_scale * risk_scale, 1)
+        if final_mg == int(final_mg):
+            final_mg = int(final_mg)
+    else:
+        final_mg = round(base_mg * risk_scale, 2) if base_mg < 10 else round(base_mg * risk_scale)
+
+    if final_mg < 1.0:
+        val = round(final_mg * 1000.0, 2)
+        unit = "μg"
+    elif final_mg >= 1000.0 and (final_mg % 1000.0 == 0 or final_mg >= 3000.0):
+        val = round(final_mg / 1000.0, 2)
+        unit = "g"
+    else:
+        val = final_mg
+        unit = "mg"
+
+    return {
+        "dose_mg": final_mg,
+        "dose_val": val,
+        "dose_unit": unit,
+        "unit": unit,
+        "dose_display": f"{val:g} {unit}",
+        "basis": "individualized_biometric_calculation",
+    }
+
+
 DOSING_FREQUENCY_METADATA: Dict[str, Dict[str, Any]] = {
     "daily": {
         "key": "daily",
@@ -807,25 +961,36 @@ def get_frequency_interval_hours(frequency: Any) -> float:
 
 def infer_compound_route_and_frequency(key_or_name: str) -> Tuple[str, str]:
     """Infers standard clinical route and frequency based on compound pharmacokinetics and formulation."""
-    blob = str(key_or_name or "").lower()
+    blob = str(key_or_name or "").lower().replace("-", "_").replace(" ", "_")
     
     # Depot androgens and esters
     if any(e in blob for e in [
         "cypionate", "enanthate", "decanoate", "undecanoate", "isocaproate", "depot",
         "testc", "testcyp", "teste", "testenan", "delatestryl", "deca", "durabolin",
-        "equipoise", "primobolan", "masteron"
+        "equipoise", "boldenone", "primobolan", "masteron", "drostanolone",
+        "nandrolone", "trenbolone", "methenolone", "testosterone"
     ]):
+        if any(oral_term in blob for oral_term in ["oral_tren", "oral_methenolone", "primobolan_oral", "methenolone_acetate_oral", "methyltestosterone", "oral_testosterone"]):
+            return "oral", "daily"
         if "undecanoate" in blob or "nebido" in blob:
             return "intramuscular", "biweekly"
-        elif "propionate" in blob:
+        elif "propionate" in blob or "acetate" in blob:
             return "intramuscular", "every_other_day"
         return "intramuscular", "twice_weekly"
     
+    # 17-alpha alkylated or oral AAS
+    if any(o in blob for o in ["oxandrolone", "anavar", "stanozolol", "winstrol", "dianabol", "methandrostenolone", "anadrol", "oxymetholone", "superdrol", "turinabol"]):
+        return "oral", "daily"
+
     # Peptides & Incretins (typically SubQ weekly or daily)
     if any(p in blob for p in ["semaglutide", "tirzepatide", "retatrutide", "cagrilintide"]):
         return "subcutaneous", "weekly"
-    if any(p in blob for p in ["bpc_157", "bpc157", "tb_500", "tb500", "ghk_cu", "kpv", "ipamorelin", "cjc_1295", "sermorelin", "tesamorelin", "epitalon", "epithalon", "mots_c", "elamipretide", "ss31", "thymosin", "hcg"]):
-        return "subcutaneous", "daily" if ("bpc" in blob or "ipam" in blob) else "twice_weekly"
+    if any(p in blob for p in [
+        "bpc_157", "bpc157", "tb_500", "tb500", "ghk_cu", "kpv", "ipamorelin", "cjc_1295",
+        "sermorelin", "tesamorelin", "epitalon", "epithalon", "mots_c", "elamipretide",
+        "ss31", "thymosin", "hcg", "hgh", "growth_hormone", "somatropin", "kisspeptin", "dsip"
+    ]):
+        return "subcutaneous", "daily" if ("bpc" in blob or "ipam" in blob or "dsip" in blob or "semax" in blob or "selank" in blob) else "twice_weekly"
     
     # Aromatase Inhibitors (typically oral twice-weekly or as needed)
     if any(a in blob for a in ["anastrozole", "arimidex", "exemestane", "aromasin", "letrozole", "femara"]):

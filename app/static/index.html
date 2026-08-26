@@ -2721,42 +2721,46 @@
                 <div class="biomarker-field">
                   <label class="biomarker-label" for="bio-sex">Sex</label>
                   <select id="bio-sex" class="biomarker-input">
-                    <option value="" selected>Unspecified (Unknown)</option>
+                    <option value="" selected>Unspecified (Default: Reference)</option>
                     <option value="male">Male</option>
                     <option value="female">Female</option>
                   </select>
                 </div>
                 <div class="biomarker-field">
                   <label class="biomarker-label" for="bio-age">Age (Years)</label>
-                  <input type="number" id="bio-age" class="biomarker-input" placeholder="e.g. 30" min="1" max="120" />
+                  <input type="number" id="bio-age" class="biomarker-input" placeholder="e.g. 30 (Default: 30)" min="1" max="120" />
                 </div>
                 <div class="biomarker-field">
                   <label class="biomarker-label" for="bio-weight">Weight (kg)</label>
-                  <input type="number" id="bio-weight" class="biomarker-input" placeholder="e.g. 70" min="20" max="300" step="0.5" />
+                  <input type="number" id="bio-weight" class="biomarker-input" placeholder="e.g. 75 (Default: 75kg)" min="20" max="300" step="0.5" />
                 </div>
                 <div class="biomarker-field">
                   <label class="biomarker-label" for="bio-height">Height (cm)</label>
-                  <input type="number" id="bio-height" class="biomarker-input" placeholder="e.g. 175" min="100" max="250" />
+                  <input type="number" id="bio-height" class="biomarker-input" placeholder="e.g. 175 (Default: 175cm)" min="100" max="250" />
                 </div>
                 <div class="biomarker-field">
                   <label class="biomarker-label" for="bio-bodyfat">Body Fat (%)</label>
-                  <input type="number" id="bio-bodyfat" class="biomarker-input" placeholder="e.g. 15" min="2" max="60" step="0.5" />
+                  <input type="number" id="bio-bodyfat" class="biomarker-input" placeholder="e.g. 15 (Default: 15%)" min="2" max="60" step="0.5" />
                 </div>
                 <div class="biomarker-field">
                   <label class="biomarker-label" for="bio-bp">Blood Pressure (mmHg)</label>
-                  <input type="number" id="bio-bp" class="biomarker-input" value="120" min="80" max="220" />
+                  <input type="number" id="bio-bp" class="biomarker-input" placeholder="e.g. 120 (Default: 120)" min="80" max="220" />
                 </div>
                 <div class="biomarker-field">
-                  <label class="biomarker-label" for="bio-sleep">Sleep (Hours/Night)</label>
-                  <input type="number" id="bio-sleep" class="biomarker-input" value="7.5" step="0.5" min="3" max="12" />
+                  <label class="biomarker-label" for="bio-egfr">eGFR Renal (mL/min)</label>
+                  <input type="number" id="bio-egfr" class="biomarker-input" placeholder="e.g. 95 (Default: 95)" min="15" max="150" />
                 </div>
                 <div class="biomarker-field">
                   <label class="biomarker-label" for="bio-alt">ALT Liver Enzyme (U/L)</label>
-                  <input type="number" id="bio-alt" class="biomarker-input" value="25" min="10" max="300" />
+                  <input type="number" id="bio-alt" class="biomarker-input" placeholder="e.g. 25 (Default: 25)" min="10" max="300" />
+                </div>
+                <div class="biomarker-field">
+                  <label class="biomarker-label" for="bio-sleep">Sleep (Hours/Night)</label>
+                  <input type="number" id="bio-sleep" class="biomarker-input" placeholder="e.g. 7.5 (Default: 7.5h)" step="0.5" min="3" max="12" />
                 </div>
                 <div class="biomarker-field">
                   <label class="biomarker-label" for="bio-hematocrit">Hematocrit (%)</label>
-                  <input type="number" id="bio-hematocrit" class="biomarker-input" value="46" min="30" max="65" />
+                  <input type="number" id="bio-hematocrit" class="biomarker-input" placeholder="e.g. 46 (Default: 46%)" min="30" max="65" />
                 </div>
               </div>
             </div>
@@ -3223,10 +3227,10 @@
           weight_kg: null,
           height_cm: null,
           body_fat_pct: null,
-          blood_pressure: 120,
-          sleep_hours: 7.5,
-          alt_u_l: 25,
-          hematocrit_pct: 46,
+          blood_pressure: null,
+          sleep_hours: null,
+          alt_u_l: null,
+          hematocrit_pct: null,
         },
         analysis: null,
         activeTab: 'balance-tab',
@@ -3235,6 +3239,33 @@
         axesSort: 'priority',
         experienceMode: 'standard',
       };
+
+      function getBiometricsPayload() {
+        const bioAge = document.getElementById('bio-age')?.value;
+        const bioWeight = document.getElementById('bio-weight')?.value;
+        const bioEgfr = document.getElementById('bio-egfr')?.value;
+        const bioAlt = document.getElementById('bio-alt')?.value;
+        const bioBp = document.getElementById('bio-bp')?.value;
+        const bioBodyfat = document.getElementById('bio-bodyfat')?.value;
+        const bioSex = document.getElementById('bio-sex')?.value;
+        const bioHeight = document.getElementById('bio-height')?.value;
+        const bioSleep = document.getElementById('bio-sleep')?.value;
+        const bioHematocrit = document.getElementById('bio-hematocrit')?.value;
+
+        const biometrics = {};
+        if (bioAge && !isNaN(Number(bioAge))) biometrics.age = Number(bioAge);
+        if (bioWeight && !isNaN(Number(bioWeight))) biometrics.weight_kg = Number(bioWeight);
+        if (bioEgfr && !isNaN(Number(bioEgfr))) biometrics.egfr = Number(bioEgfr);
+        if (bioAlt && !isNaN(Number(bioAlt))) biometrics.alt_u_l = Number(bioAlt);
+        if (bioBp && !isNaN(Number(bioBp))) biometrics.blood_pressure = Number(bioBp);
+        if (bioBodyfat && !isNaN(Number(bioBodyfat))) biometrics.body_fat_pct = Number(bioBodyfat);
+        if (bioSex) biometrics.sex = bioSex;
+        if (bioHeight && !isNaN(Number(bioHeight))) biometrics.height_cm = Number(bioHeight);
+        if (bioSleep && !isNaN(Number(bioSleep))) biometrics.sleep_hours = Number(bioSleep);
+        if (bioHematocrit && !isNaN(Number(bioHematocrit))) biometrics.hematocrit_pct = Number(bioHematocrit);
+
+        return biometrics;
+      }
 
       // 6 SCIENTIFICALLY GROUNDED & POWERFUL PRESET PROTOCOLS
       const PRESET_STACKS = {
@@ -5037,10 +5068,15 @@
         text = text.replace(/\*\*(.*?)\*\*/g, '<strong style="color: var(--accent-cyan); font-weight: 700;">$1</strong>');
         text = text.replace(/\*(.*?)\*/g, '<em style="color: var(--text-primary);">$1</em>');
 
+        // 7b. Clean inline drafting self-talk & question marks inside/outside citations
+        text = text.replace(/\[([A-Za-z0-9\s:§\.\-_]+?)\s*\?\s*(?:Need real|Could use|Need verified|We need|Use known|Not sure|I think|maybe|Need not be|But should|Use FDA).*?\]/gi, '[$1]');
+        text = text.replace(/\[([A-Za-z0-9\s:§\.\-_]+?)\s*\?\]/g, '[$1]');
+        text = text.replace(/(?:\?\s*)?(?:Need real\?|Could use generic\?|Need verified citations\.?|We need citations\.?|Use known\?|Need avoid false\?|But prompt requires citations\.?|Not sure\.?|Actually IMPROVE-IT.*?I think yes\.?|Need not be perfect\?|But should be plausible\.?|Could use \[.*?\] maybe\.?|for testosterone\?|ChEMBL\d+ is testosterone\?|I think CHEMBL\d+ is testosterone\.?|Anastrozole CHEMBL\?|Maybe CHEMBL\d+\?|Use FDA labels\.?)/gi, '');
+
         // 8. Medical & Literature Citation Badging
         text = text.replace(/\[PMID:\s*(\d+)\]/gi, '<a href="https://pubmed.ncbi.nlm.nih.gov/$1/" target="_blank" rel="noopener noreferrer" class="copilot-citation-badge pmid-badge" title="View study on PubMed (PMID: $1)">📄 PMID: $1</a>');
         text = text.replace(/\[ChEMBL:\s*([A-Za-z0-9_]+)\]/gi, '<a href="https://www.ebi.ac.uk/chembl/target_report_card/$1/" target="_blank" rel="noopener noreferrer" class="copilot-citation-badge chembl-badge" title="View target in ChEMBL database">🔬 ChEMBL: $1</a>');
-        text = text.replace(/\[FDA Label:\s*([^\]]+)\]/gi, '<span class="copilot-citation-badge fda-badge" title="FDA Structured Product Labeling Standard">🏛️ FDA: $1</span>');
+        text = text.replace(/\[FDA(?:\s+Label)?:\s*([^\]]+)\]/gi, '<span class="copilot-citation-badge fda-badge" title="FDA Structured Product Labeling Standard">🏛️ FDA: $1</span>');
         text = text.replace(/\[NCT:\s*([A-Za-z0-9_]+)\]/gi, '<a href="https://clinicaltrials.gov/study/$1" target="_blank" rel="noopener noreferrer" class="copilot-citation-badge trial-badge" title="View Clinical Trial on ClinicalTrials.gov">🧪 NCT: $1</a>');
 
         // 9. Bullet lists
@@ -5137,14 +5173,7 @@
             return;
           }
           try {
-            const biometrics = {
-              age: Number(document.getElementById('bio-age')?.value) || 30,
-              weight_kg: Number(document.getElementById('bio-weight')?.value) || 75,
-              egfr: Number(document.getElementById('bio-egfr')?.value) || 95,
-              alt_u_l: Number(document.getElementById('bio-alt')?.value) || 25,
-              blood_pressure: Number(document.getElementById('bio-bp')?.value) || 120,
-              body_fat_pct: Number(document.getElementById('bio-bodyfat')?.value) || 15
-            };
+            const biometrics = getBiometricsPayload();
             const res = await fetch('/api/ai/infer-purpose', {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
@@ -5507,14 +5536,7 @@
         if (copilotSendBtn) copilotSendBtn.disabled = true;
 
         const compoundKeys = (state.stack || []).map(s => s.key || s.name || s.id).filter(Boolean);
-        const biometrics = {
-          age: Number(document.getElementById('bio-age')?.value) || state.biomarkers?.age || 30,
-          weight_kg: Number(document.getElementById('bio-weight')?.value) || state.biomarkers?.weight_kg || 75,
-          egfr: Number(document.getElementById('bio-egfr')?.value) || 95,
-          alt_u_l: Number(document.getElementById('bio-alt')?.value) || state.biomarkers?.alt_u_l || 25,
-          blood_pressure: Number(document.getElementById('bio-bp')?.value) || state.biomarkers?.blood_pressure || 120,
-          body_fat_pct: Number(document.getElementById('bio-bodyfat')?.value) || state.biomarkers?.body_fat_pct || 15
-        };
+        const biometrics = getBiometricsPayload();
 
         copilotState.abortController = new AbortController();
         let accumulatedContent = '';
@@ -5633,8 +5655,11 @@
                     console.debug('Card parse notice', e);
                   }
                 } else if (currentEvent === 'error') {
-                  accumulatedContent += `\n\n> ⚠️ **Error:** ${typeof dataVal === 'string' ? dataVal : JSON.stringify(dataVal)}`;
-                  if (bubble) bubble.innerHTML = renderMarkdownLite(accumulatedContent);
+                  console.warn('Copilot streaming notice:', dataVal);
+                  if (headerStatus) {
+                    headerStatus.innerHTML = '<span class="copilot-pulse-dot" style="background: var(--accent-orange); width: 6px; height: 6px;"></span> Calibrating Grounding...';
+                    headerStatus.style.color = 'var(--accent-orange)';
+                  }
                 }
               }
             }
@@ -5797,14 +5822,21 @@
 
       function syncBuilderBiometricsPreview() {
         if (!builderBioSummary) return;
-        const weight = Number(document.getElementById('bio-weight')?.value) || state.biomarkers?.weight_kg || 75;
-        const age = Number(document.getElementById('bio-age')?.value) || state.biomarkers?.age || 30;
-        const bp = Number(document.getElementById('bio-bp')?.value) || state.biomarkers?.blood_pressure || 120;
-        const egfr = Number(document.getElementById('bio-egfr')?.value) || 95;
-        const alt = Number(document.getElementById('bio-alt')?.value) || state.biomarkers?.alt_u_l || 25;
-        builderBioSummary.innerHTML = `
-          <strong>Weight:</strong> ${weight} kg &bull; <strong>Age:</strong> ${age} &bull; <strong>Resting BP:</strong> ${bp} mmHg &bull; <strong>eGFR:</strong> ${egfr} mL/min &bull; <strong>ALT:</strong> ${alt} U/L
-        `;
+        const bio = getBiometricsPayload();
+        const customItems = [];
+        if (bio.sex) customItems.push(`Sex: ${bio.sex.charAt(0).toUpperCase() + bio.sex.slice(1)}`);
+        if (bio.weight_kg !== undefined) customItems.push(`Weight: ${bio.weight_kg} kg`);
+        if (bio.age !== undefined) customItems.push(`Age: ${bio.age}`);
+        if (bio.blood_pressure !== undefined) customItems.push(`Resting BP: ${bio.blood_pressure} mmHg`);
+        if (bio.egfr !== undefined) customItems.push(`eGFR: ${bio.egfr} mL/min`);
+        if (bio.alt_u_l !== undefined) customItems.push(`ALT: ${bio.alt_u_l} U/L`);
+        if (bio.body_fat_pct !== undefined) customItems.push(`Body Fat: ${bio.body_fat_pct}%`);
+
+        if (customItems.length) {
+          builderBioSummary.innerHTML = `<strong>Customized:</strong> ${customItems.join(' &bull; ')} <span style="color: var(--text-muted); font-size: 0.72rem;">(Unentered metrics default to normal/average baseline)</span>`;
+        } else {
+          builderBioSummary.innerHTML = `<span style="color: var(--text-secondary); font-style: italic;">Standard normal/average adult population baseline assumed (75 kg, 30yo, BP 120, eGFR 95, ALT 25). Fill in any custom biometrics in Patient Biomarkers drawer if desired.</span>`;
+        }
       }
 
       function openAiStackBuilderModal() {

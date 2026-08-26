@@ -9,11 +9,21 @@ echo   healthAI - llama-server Launcher (RTX 5090 Optimized)
 echo ============================================================
 echo.
 
-:: Set default model path - Edit this line if your GGUF file is located elsewhere
-set "MODEL_PATH=C:\models\qwen3.8-27b-q6_k.gguf"
+:: Auto-detect Qwen 3.8 / 3.6 model path
+if exist "%~dp0models\qwen3.8-27b-q6_k.gguf" (
+    set "MODEL_PATH=%~dp0models\qwen3.8-27b-q6_k.gguf"
+) else if exist "%~dp0models\qwen3.6-27b-q6_k.gguf" (
+    set "MODEL_PATH=%~dp0models\qwen3.6-27b-q6_k.gguf"
+) else if exist "%~dp0models\qwen3.8-27b.gguf" (
+    set "MODEL_PATH=%~dp0models\qwen3.8-27b.gguf"
+) else if exist "%~dp0models\qwen3.6-27b.gguf" (
+    set "MODEL_PATH=%~dp0models\qwen3.6-27b.gguf"
+) else (
+    set "MODEL_PATH=%~dp0models\qwen3.8-27b-q6_k.gguf"
+)
 
 if not exist "%MODEL_PATH%" (
-    echo [!] Model file not found at: %MODEL_PATH%
+    echo [!] Model file not found at default locations.
     echo [*] Please edit start_llama_server.bat to set your MODEL_PATH,
     echo     or enter the full path to your .gguf file below:
     set /p "MODEL_PATH=Model GGUF Path: "

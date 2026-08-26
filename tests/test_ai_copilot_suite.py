@@ -735,3 +735,35 @@ def test_inline_drafting_self_talk_sanitization():
     assert "[PMID: 18449337]" in cleaned
     assert "[FDA Label: Anastrozole §5.1]" in cleaned
     assert "[FDA Label: Telmisartan §5.1]" in cleaned
+
+
+def test_chat_compound_mention_does_not_pollute_active_workbench_stack():
+    """
+    Verify that when a user asks to add a compound in chat (e.g. 'let's add 200mg trenbolone weekly'),
+    the active workbench stack section does not falsely claim the compound is already active in the stack,
+    while GraphRAG / background context still extracts the entity for knowledge enrichment.
+    """
+    messages = [
+        {"role": "user", "content": "I want to build a hypertrophy stack."},
+        {"role": "assistant", "content": "Here is an anabolic protocol with Testosterone Cypionate and Telmisartan."},
+        {"role": "user", "content": "let's add 200mg trenbolone weekly"}
+    ]
+    workbench_stack = ["testosterone_cypionate:200mg", "telmisartan:40mg"]
+
+    context = CopilotAgent.build_system_context(
+        persona="architect",
+        stack=workbench_stack,
+        biometrics={"age": 28, "weight_kg": 85},
+        messages=messages,
+        protocol_goal="anabolic_physique"
+    )
+
+    # Active stack must only contain the compounds actually in the workbench
+    assert "### ACTIVE WORKBENCH STACK (2 compounds):" in context
+    assert "Testosterone Cypionate" in context
+    assert "Telmisartan" in context
+    # Trenbolone must NOT be in the ACTIVE WORKBENCH STACK list
+    active_stack_part = context.split("### ACTIVE WORKBENCH STACK")[1].split("###")[0]
+    assert "Trenbolone" not in active_stack_part
+    assert "14.2857" not in active_stack_part
+

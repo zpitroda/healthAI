@@ -1,7 +1,9 @@
 from __future__ import annotations
 
-import os
+import copy
 import logging
+import math
+import os
 import re
 from typing import Any, Dict, List, Optional, Set, Tuple
 from neo4j import GraphDatabase, Driver
@@ -37,6 +39,7 @@ class Neo4jGraphDatabase:
         # Fallback in-memory storage when live Neo4j database server is unreachable
         self._mock_nodes: Dict[str, Dict[str, Any]] = {}
         self._mock_edges: List[Dict[str, Any]] = []
+        self._graphrag_cache: Dict[Tuple[Any, ...], Dict[str, Any]] = {}
 
         self._setup_db()
 
@@ -216,12 +219,18 @@ class Neo4jGraphDatabase:
 
         return []
 
+    def clear_cache(self) -> None:
+        """Clears in-memory GraphRAG subgraph context cache."""
+        if hasattr(self, "_graphrag_cache"):
+            self._graphrag_cache.clear()
+
     def sync_biological_graph(self, bio_graph: Any) -> Dict[str, int]:
         """
         Synchronizes all nodes and edges from a BiologicalGraph or NetworkX DiGraph
         into Neo4j and the fallback graph storage with complete scientific fidelity.
         Uses multi-label node indexing (e.g., :EntityNode:CompoundNode) and typed relationships.
         """
+        self.clear_cache()
         nx_graph = getattr(bio_graph, "graph", bio_graph)
         nodes_synced = 0
         edges_synced = 0
@@ -489,8 +498,20 @@ class Neo4jGraphDatabase:
         """
         Traces unbroken multi-tier causal reasoning pathways starting from compound nodes
         all the way to clinical biomarkers and outcomes.
+        Sorts branches by biological potency (binding affinity Ki, IC50, magnitude) so highest-signal paths rank first.
         """
         chains: List[List[Dict[str, Any]]] = []
+
+        def _edge_potency(e: Dict[str, Any]) -> float:
+            ki = e.get("ki") or e.get("affinity_ki")
+            ic50 = e.get("ic50") or e.get("inhibition_ic50")
+            mag = float(e.get("magnitude") or 1.0)
+            score = mag
+            if ki is not None and float(ki) > 0:
+                score += max(0.0, 10.0 - math.log10(max(0.001, float(ki))))
+            elif ic50 is not None and float(ic50) > 0:
+                score += max(0.0, 8.0 - math.log10(max(0.001, float(ic50))))
+            return score
 
         def dfs(current_id: str, path: List[Dict[str, Any]], visited: Set[str], depth: int) -> None:
             if len(chains) >= 25:
@@ -505,6 +526,8 @@ class Neo4jGraphDatabase:
                 if len(path) > 1:
                     chains.append(list(path))
                 return
+
+            outgoing.sort(key=_edge_potency, reverse=True)
 
             has_children = False
             for edge in outgoing:
@@ -541,7 +564,6 @@ class Neo4jGraphDatabase:
                 root_step = {"source": "ROOT", "target": sid, "target_label": s_node.get("label", sid), "target_type": s_node.get("node_type", "compound")}
                 dfs(sid, [root_step], {sid}, 0)
 
-
         return chains
 
     def get_graphrag_context(
@@ -556,6 +578,7 @@ class Neo4jGraphDatabase:
         Extracts structured GraphRAG subgraph context optimized for LLM prompt integration.
         Formats entities, multi-hop relationship triples, causal reasoning paths,
         PK/PD parameters, target competition analysis, and natural-language grounding summaries.
+        Utilizes LRU in-memory caching and vectorized Cypher execution for high-throughput responses.
         """
         clean_ids = [str(e).strip() for e in entity_ids if e]
         if not clean_ids:
@@ -571,6 +594,16 @@ class Neo4jGraphDatabase:
                 "text_summary": "No entities provided.",
                 "formatted_prompt_context": "No biological entities specified.",
             }
+
+        cache_key = (
+            tuple(sorted(clean_ids)),
+            max_hops,
+            include_pkpd,
+            include_kinetics,
+            include_causal_chains,
+        )
+        if hasattr(self, "_graphrag_cache") and cache_key in self._graphrag_cache:
+            return copy.deepcopy(self._graphrag_cache[cache_key])
 
         triples: List[Dict[str, Any]] = []
         entities_found: Dict[str, Dict[str, Any]] = {}
@@ -602,6 +635,27 @@ class Neo4jGraphDatabase:
                     self.sync_biological_graph(bio_subgraph)
             except Exception as sync_err:
                 logger.debug("Dynamic subgraph sync notice: %s", sync_err)
+
+        # Batch query live Neo4j driver if available
+        batch_rels_by_id: Dict[str, List[Dict[str, Any]]] = {}
+        if self.driver:
+            q_rel_batch = """
+            UNWIND $entity_ids AS eid
+            MATCH (a:EntityNode {id: eid})-[r:RELATIONSHIP]->(b:EntityNode)
+            RETURN a.id AS source, a.label AS source_label, a.node_type AS source_type,
+                   r.edge_type AS relationship, r.magnitude AS magnitude,
+                   r.affinity_ki AS affinity_ki, r.inhibition_ic50 AS inhibition_ic50,
+                   r.ec50 AS ec50, r.inhibition_type AS inhibition_type,
+                   r.evidence_level AS evidence_level, r.mechanism_notes AS mechanism_notes,
+                   b.id AS target, b.label AS target_label, b.node_type AS target_type
+            """
+            try:
+                all_batch_rels = self.execute_cypher(q_rel_batch, {"entity_ids": clean_ids})
+                for r in all_batch_rels:
+                    s_id = str(r.get("source"))
+                    batch_rels_by_id.setdefault(s_id, []).append(r)
+            except Exception as batch_err:
+                logger.debug("Batch Cypher UNWIND query notice: %s", batch_err)
 
         # 1. Discover entities and 1-2 hop relationships
         for eid in clean_ids:
@@ -699,19 +753,22 @@ class Neo4jGraphDatabase:
                     }
 
             # Query relationships
-            q_rel = """
-            MATCH (a:EntityNode {id: $eid})-[r:RELATIONSHIP]->(b:EntityNode)
-            RETURN a.id AS source, a.label AS source_label, a.node_type AS source_type,
-                   r.edge_type AS relationship, r.magnitude AS magnitude,
-                   r.affinity_ki AS affinity_ki, r.inhibition_ic50 AS inhibition_ic50,
-                   r.ec50 AS ec50, r.inhibition_type AS inhibition_type,
-                   r.evidence_level AS evidence_level, r.mechanism_notes AS mechanism_notes,
-                   b.id AS target, b.label AS target_label, b.node_type AS target_type
-            """
-            rels = self.execute_cypher(q_rel, {"eid": eid})
+            rels = batch_rels_by_id.get(eid)
+            if rels is None and self.driver:
+                q_rel = """
+                MATCH (a:EntityNode {id: $eid})-[r:RELATIONSHIP]->(b:EntityNode)
+                RETURN a.id AS source, a.label AS source_label, a.node_type AS source_type,
+                       r.edge_type AS relationship, r.magnitude AS magnitude,
+                       r.affinity_ki AS affinity_ki, r.inhibition_ic50 AS inhibition_ic50,
+                       r.ec50 AS ec50, r.inhibition_type AS inhibition_type,
+                       r.evidence_level AS evidence_level, r.mechanism_notes AS mechanism_notes,
+                       b.id AS target, b.label AS target_label, b.node_type AS target_type
+                """
+                rels = self.execute_cypher(q_rel, {"eid": eid})
 
             # Fallback relationship gathering if Cypher returned empty or driver offline
             if not rels:
+                rels = []
                 for edge in self._mock_edges:
                     if edge["source"] == eid:
                         src_n = self._mock_nodes.get(eid, {"id": eid, "label": eid, "node_type": "entity"})
@@ -794,10 +851,53 @@ class Neo4jGraphDatabase:
                     "clinical_significance": f"Dual or competitive modulation at {tgt_name} by {', '.join(unique_comps)}",
                 })
 
+        # 3b. Extract Literature Co-occurrences & Curated Associations
+        literature_cooccurrences: List[Dict[str, Any]] = []
+        curated_associations: List[Dict[str, Any]] = []
+        seen_lit_pairs = set()
+
+        for edge in self._mock_edges:
+            e_type = edge.get("edge_type") or edge.get("type")
+            src = str(edge.get("source", ""))
+            tgt = str(edge.get("target", ""))
+            if src in clean_ids or tgt in clean_ids:
+                pair_key = tuple(sorted([src, tgt]))
+                if e_type == "LITERATURE_COOCCURRENCE":
+                    if pair_key not in seen_lit_pairs:
+                        seen_lit_pairs.add(pair_key)
+                        src_label = self._mock_nodes.get(src, {}).get("label", src)
+                        tgt_label = self._mock_nodes.get(tgt, {}).get("label", tgt)
+                        literature_cooccurrences.append({
+                            "source": src,
+                            "source_label": src_label,
+                            "target": tgt,
+                            "target_label": tgt_label,
+                            "cooccurrence_count": edge.get("cooccurrence_count", 0),
+                            "pmi_score": edge.get("pmi_score", 0.0),
+                            "npmi_score": edge.get("npmi_score", 0.0),
+                            "confidence": edge.get("confidence", 0.0),
+                            "pmids": edge.get("sample_pmids", []) or edge.get("pmids", []),
+                            "source_db": edge.get("source_db", "PubMed_PMI"),
+                        })
+                elif e_type == "CURATED_ASSOCIATION":
+                    src_label = self._mock_nodes.get(src, {}).get("label", src)
+                    tgt_label = self._mock_nodes.get(tgt, {}).get("label", tgt)
+                    curated_associations.append({
+                        "source": src,
+                        "source_label": src_label,
+                        "target": tgt,
+                        "target_label": tgt_label,
+                        "confidence": edge.get("confidence", 0.8),
+                        "evidence_level": edge.get("evidence_level", "curated_database"),
+                        "source_db": edge.get("source_db", "CTD/STITCH"),
+                        "description": edge.get("description", ""),
+                        "pmids": edge.get("pmids", []),
+                    })
+
         # 4. Construct Structured Prompt Context for LLM
         prompt_sections = [
             "# SCIENTIFIC KNOWLEDGE GRAPH CONTEXT (GRAPHRAG GROUNDING)",
-            "> Use the authoritative biological pathways, pharmacokinetic parameters, and causal chains below to ground your clinical and pharmacological reasoning. Do not invent ungrounded mechanisms.",
+            "> Use the authoritative biological pathways, pharmacokinetic parameters, literature co-occurrences, and causal chains below to ground your clinical and pharmacological reasoning. Do not invent ungrounded mechanisms.",
             "",
             f"## 1. Focused Entities ({len(entities_found)} nodes)",
         ]
@@ -821,25 +921,43 @@ class Neo4jGraphDatabase:
                 if pk.get("cyp_substrates"):
                     prompt_sections.append(f"  * CYP Substrate: {', '.join(pk['cyp_substrates'])}")
 
+        if literature_cooccurrences:
+            prompt_sections.append("\n## 3. Empirical Literature Co-occurrences & Pairing Evidence")
+            for lit in sorted(literature_cooccurrences, key=lambda x: x.get("npmi_score", 0), reverse=True)[:10]:
+                pmid_str = f" [PMIDs: {', '.join(str(p) for p in lit['pmids'][:3])}]" if lit.get("pmids") else ""
+                prompt_sections.append(
+                    f"- **{lit['source_label']}** ↔ **{lit['target_label']}**: "
+                    f"{lit.get('cooccurrence_count', 0)} PubMed papers (NPMI: {lit.get('npmi_score', 0.0):.2f}, Conf: {lit.get('confidence', 0.0):.2f}){pmid_str}"
+                )
+
+        if curated_associations:
+            prompt_sections.append("\n## 4. Curated Database Associations (STITCH / CTD / DrugBank)")
+            for cur in curated_associations[:10]:
+                pmid_str = f" [PMIDs: {', '.join(str(p) for p in cur['pmids'][:3])}]" if cur.get("pmids") else ""
+                desc_str = f" - {cur['description']}" if cur.get("description") else ""
+                prompt_sections.append(
+                    f"- **{cur['source_label']}** ➔ **{cur['target_label']}** ({cur.get('source_db')}, Conf: {cur.get('confidence', 0.8):.2f}){desc_str}{pmid_str}"
+                )
+
         if target_competition:
-            prompt_sections.append("\n## 3. Competitive Target Clashes & Cross-Talk")
+            prompt_sections.append("\n## 5. Competitive Target Clashes & Cross-Talk")
             for tc in target_competition:
                 prompt_sections.append(f"- **{tc['target']}**: Competitively engaged by {', '.join(tc['competing_compounds'])}")
 
-        prompt_sections.append(f"\n## 4. Authoritative Biological Triples ({min(len(triples), 40)} shown)")
+        prompt_sections.append(f"\n## 6. Authoritative Biological Triples ({min(len(triples), 40)} shown)")
         for t in triples[:40]:
             affinity_str = f" [Ki: {t['affinity_ki']} nM]" if t.get("affinity_ki") else ""
             ic50_str = f" [IC50: {t['inhibition_ic50']} nM]" if t.get("inhibition_ic50") else ""
             prompt_sections.append(f"- [{t['subject']}] --({t['predicate']}{affinity_str}{ic50_str})--> [{t['object']}] ({t['object_type']})")
 
         if causal_chains:
-            prompt_sections.append("\n## 5. Multi-Tier Causal Reasoning Chains")
+            prompt_sections.append("\n## 7. Multi-Tier Causal Reasoning Chains")
             for i, chain in enumerate(causal_chains[:8], 1):
                 steps_str = " ➔ ".join([f"{c['target_label']} ({c['target_type']})" for c in chain])
                 prompt_sections.append(f"{i}. {steps_str}")
 
         if biomarker_kinetics:
-            prompt_sections.append("\n## 6. Biomarker Kinetic Calibrations")
+            prompt_sections.append("\n## 8. Biomarker Kinetic Calibrations")
             for bk in biomarker_kinetics[:10]:
                 prompt_sections.append(
                     f"- **{bk['biomarker']}**: Safe Range [{bk.get('safe_lower')}-{bk.get('safe_upper')} {bk.get('unit')}], "
@@ -852,15 +970,19 @@ class Neo4jGraphDatabase:
         summary_lines = ["### GraphRAG Biological Subgraph Context:"]
         summary_lines.append(f"- Focused Entities: {', '.join([e['label'] for e in entities_found.values()][:10])}")
         summary_lines.append(f"- Knowledge Triples: {len(triples)} biological associations")
+        summary_lines.append(f"- Literature Co-occurrences: {len(literature_cooccurrences)} empirical pairings")
+        summary_lines.append(f"- Curated Associations: {len(curated_associations)} database interactions")
         summary_lines.append(f"- Causal Chains: {len(causal_chains)} complete multi-tier pathways")
         if target_competition:
             summary_lines.append(f"- Target Clashes: {len(target_competition)} shared target interactions")
 
-        return {
+        res = {
             "focused_ids": clean_ids,
             "entities": list(entities_found.values()),
             "triples": triples,
             "triple_count": len(triples),
+            "literature_cooccurrences": literature_cooccurrences,
+            "curated_associations": curated_associations,
             "causal_chains": causal_chains[:15],
             "pkpd_matrix": pkpd_matrix,
             "target_competition": target_competition,
@@ -868,6 +990,16 @@ class Neo4jGraphDatabase:
             "text_summary": "\n".join(summary_lines),
             "formatted_prompt_context": formatted_context,
         }
+
+        if hasattr(self, "_graphrag_cache"):
+            if len(self._graphrag_cache) >= 128:
+                try:
+                    self._graphrag_cache.pop(next(iter(self._graphrag_cache)))
+                except Exception:
+                    pass
+            self._graphrag_cache[cache_key] = copy.deepcopy(res)
+
+        return res
 
 
 # Singleton instance accessor

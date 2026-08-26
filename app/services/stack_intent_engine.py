@@ -847,13 +847,13 @@ class StackIntentEngine:
                     "mechanism": "Increases hydrophilic bile acid ratio, promotes biliary clearance, and mitigates canalicular cholestatic stress."
                 })
 
-        # 5. Aromatization & Estrogen (E2) Management / AI Coverage
+        # 5. Aromatization & Estrogen (E2) Management
         if (features["has_androgens"] or features["has_aromatizable_substrate"]) and not features["has_aromatase_inhibitors"] and not features["has_serms"]:
             gaps.append({
-                "axis": "Aromatization & Estrogen (E2) Management / AI Coverage",
+                "axis": "Aromatization & Estrogen (E2) Management",
                 "severity": "HIGH",
-                "issue": "Aromatizable androgen present without an Aromatase Inhibitor (AI) or SERM. High risk of excessive CYP19A1 aromatization, gynecomastia, fluid retention, and blood pressure elevation.",
-                "recommended_cofactor": "Anastrozole (0.25–0.5 mg twice weekly) or Exemestane (12.5 mg twice weekly)",
+                "issue": "Aromatizable androgen present without active aromatase inhibition or estrogen receptor modulation. Risk of excessive CYP19A1 conversion to estradiol, gynecomastia, and fluid retention.",
+                "recommended_cofactor": "Aromatase Inhibitor (Anastrozole 0.25–0.5 mg twice weekly or Exemestane 12.5 mg twice weekly) or SERM (Raloxifene 30–60 mg/day) as indicated by sensitive E2 blood panels.",
                 "cofactor_search_terms": ["anastrozole", "exemestane", "letrozole", "raloxifene"],
                 "mechanism": "Inhibits CYP19A1 aromatase to control serum estradiol (E2) in the healthy target window and prevent estrogenic side effects."
             })
@@ -863,7 +863,7 @@ class StackIntentEngine:
             gaps.append({
                 "axis": "Estrogen Balance (E2 Preservation)",
                 "severity": "RULE",
-                "issue": "Suicidal/competitive AI is active; stacking additional secondary AIs risks severe hypoestrogenic crash.",
+                "issue": "Aromatase inhibitor is active; stacking additional secondary AIs risks severe hypoestrogenic crash.",
                 "recommended_cofactor": "Do NOT add secondary aromatase inhibitors. Maintain target E2: 20–30 pg/mL.",
                 "mechanism": "Preserves HDL synthesis, joint synovia, bone mineral density, and vascular compliance."
             })
@@ -938,16 +938,16 @@ class StackIntentEngine:
                 lines.append(f"  * ⚠️ **{g['axis']}**: {g['issue']}")
                 lines.append(f"    ➔ **Evidence-Based Solution**: {g['recommended_cofactor']} ({g['mechanism']})")
 
-        # Invariant Clinical Laws
-        lines.append("- **Mandatory Clinical Principles for this Protocol**:")
-        if features["has_androgens"]:
-            lines.append("  * **HPG Suppression Law**: Exogenous androgens completely suppress LH/FSH. NEVER suggest herbs or zinc to 'boost natural testosterone synthesis'.")
-            lines.append("  * **Depot Dosing & Scheduling Law**: Long-acting depot esters (Testosterone Cypionate/Enanthate, Deca, Boldenone) have 7–10 day elimination half-lives (t1/2 ~ 168–192h). They MUST be dosed as weekly or split twice-weekly injections (e.g., 350 mg/week total administered as 175 mg IM/SubQ twice weekly / every 3.5 days; NEVER 350 mg daily).")
-            if not features["has_aromatase_inhibitors"] and not features["has_serms"]:
-                lines.append("  * **Mandatory AI & Estrogen Balance Protocol**: Aromatizable androgens require an Aromatase Inhibitor (Anastrozole 0.25–0.5mg 2x/week or Exemestane 12.5mg 2x/week) or SERM (Raloxifene 30–60mg/day) on-hand, titrated to sensitive E2 blood panels (target: 20–30 pg/mL).")
-        if features["has_aromatase_inhibitors"]:
-            lines.append("  * **Estradiol Preservation Law**: Do NOT suggest secondary aromatase inhibitors. Avoid crashing E2 (<15 pg/mL).")
-        lines.append("  * **Sex-Specific Clinical Sensitivity**: For female patients, androgenic compounds carry high virilization risks. Always prioritize sub-clinical dosage thresholds and monitor SHBG/Free Androgen Index.")
+        # Pharmacokinetic & Mechanistic Protocol Principles
+        lines.append("- **Pharmacokinetic & Mechanistic Protocol Principles**:")
+        if features.get("has_depot_injectables"):
+            lines.append("  * **Depot Half-Life & Interval Dosing**: Long-acting depot formulations have extended elimination half-lives (t1/2 > 72h). Dose on appropriate weekly or split-weekly intervals (never as daily oral doses).")
+        if features.get("has_androgens"):
+            lines.append("  * **Hypothalamic-Pituitary-Gonadal (HPG) Feedback**: Exogenous androgens induce negative feedback inhibition on LH/FSH secretion.")
+            if not features.get("has_aromatase_inhibitors") and not features.get("has_serms") and features.get("has_aromatizable_substrate"):
+                lines.append("  * **Enzymatic CYP19A1 Aromatization**: Monitor estradiol (E2) balance and consider enzymatic or receptor countermeasures if aromatization signs or elevated serum E2 occur.")
+        if features.get("has_aromatase_inhibitors"):
+            lines.append("  * **Estradiol Preservation**: Maintain physiological estradiol levels (target 20–30 pg/mL) to preserve bone mineral density, lipid synthesis, and joint health.")
 
         if not modality_profile.get("daily_oral") and not modality_profile.get("depot_injections"):
             lines.append("- **SCRATCH PROTOCOL GENERATION MANDATE**:")
@@ -959,16 +959,111 @@ class StackIntentEngine:
         return "\n".join(lines)
 
     @classmethod
+    def _extract_user_exclusions(
+        cls,
+        custom_notes: Optional[str] = None,
+        preferences: Optional[Dict[str, Any]] = None,
+        exclusions: Optional[List[str]] = None,
+    ) -> List[str]:
+        """
+        Extracts structured negative compound and route exclusions from user parameters and instructions.
+        """
+        import re
+        collected: List[str] = []
+        if exclusions:
+            collected.extend([str(e).strip().lower() for e in exclusions if e])
+
+        prefs = preferences or {}
+        for k in ("exclusions", "exclude", "avoid", "omit", "disallowed_compounds"):
+            val = prefs.get(k)
+            if isinstance(val, list):
+                collected.extend([str(v).strip().lower() for v in val if v])
+            elif isinstance(val, str) and val.strip():
+                collected.extend([v.strip().lower() for v in val.split(",") if v.strip()])
+
+        notes_str = (custom_notes or "").strip()
+        if notes_str:
+            neg_patterns = [
+                r"(?:no|without|exclude|avoid|skip|omit|do not want|do not include|don't want|don't include|disallow|allergic to|intolerant to)\s+([a-zA-Z0-9_\-\s]{2,35})(?=[,\.;\n]|$)",
+                r"(?:no|without)\s+(oral|injectable|subq|im)\s+([a-zA-Z0-9_\-\s]{2,30})(?=[,\.;\n]|$)",
+            ]
+            for pat in neg_patterns:
+                for match in re.finditer(pat, notes_str, re.IGNORECASE):
+                    matched = match.group(0).strip().lower()
+                    collected.append(matched)
+
+        return list(dict.fromkeys(collected))
+
+    @classmethod
+    def _is_compound_excluded(
+        cls,
+        cand: Dict[str, Any],
+        exclusions: List[str],
+        catalog: Any = None,
+    ) -> bool:
+        """
+        Determines whether a candidate compound matches any user-requested exclusion,
+        evaluating keys, names, synonyms, and routes.
+        """
+        if not exclusions:
+            return False
+
+        c_key = str(cand.get("key") or "").lower().strip()
+        c_name = str(cand.get("name") or "").lower().strip()
+        c_route = str(cand.get("route") or "oral").lower().strip()
+        c_class = str(cand.get("drug_class") or "").lower().strip()
+        synonyms = set()
+
+        if catalog:
+            rec = catalog.get_compound(c_key, auto_enrich=False) or catalog.find_by_synonym(c_key)
+            if rec:
+                c_name = str(rec.get("name") or rec.get("canonical_name") or c_name).lower()
+                for syn in (rec.get("synonyms") or []):
+                    synonyms.add(str(syn).lower())
+
+        cand_tokens = {c_key, c_name, c_key.replace("_", " "), c_name.replace("-", " ")}
+        cand_tokens.update(synonyms)
+
+        for exc in exclusions:
+            exc_clean = exc.lower().strip()
+            # Strip leading exclusion prefix verbs
+            stripped_exc = re.sub(r"^(?:no|without|exclude|avoid|skip|omit|do not want|do not include|don't want|don't include|disallow|allergic to|intolerant to)\s+", "", exc_clean).strip()
+            
+            # Check route qualification
+            is_oral_exc = "oral" in stripped_exc
+            is_inj_exc = any(w in stripped_exc for w in ["injectable", "injection", "im", "subq"])
+
+            target_term = re.sub(r"\b(oral|injectable|injection|im|subq)\b", "", stripped_exc).strip()
+            if not target_term:
+                target_term = stripped_exc
+
+            # Check if target_term matches candidate tokens
+            matches_compound = any(
+                target_term in tok or tok in target_term or target_term.replace(" ", "_") == tok
+                for tok in cand_tokens if len(tok) >= 3 and len(target_term) >= 3
+            )
+
+            if matches_compound:
+                if is_oral_exc and c_route not in ("oral", "capsule", "tablet", "powder"):
+                    continue
+                if is_inj_exc and c_route not in ("intramuscular", "im", "subcutaneous", "subq", "injectable"):
+                    continue
+                return True
+
+        return False
+
+    @classmethod
     def build_scratch_stack_proposal(
         cls,
         goal_id: Optional[str] = None,
         biometrics: Optional[Dict[str, Any]] = None,
         preferences: Optional[Dict[str, Any]] = None,
         custom_notes: Optional[str] = None,
+        exclusions: Optional[List[str]] = None,
     ) -> Dict[str, Any]:
         """
         Dynamically discovers and calibrates a compound protocol from the pharmacological catalog
-        based on the user's inputted biometrics, clinical parameters, and preferences.
+        based on the user's inputted biometrics, clinical parameters, preferences, and exclusions.
         Dosages and cofactors are computed dynamically via DosingService and InteractionEngine.
         """
         from app.services.catalog_service import CatalogService
@@ -977,6 +1072,10 @@ class StackIntentEngine:
         biometrics = biometrics or {}
         preferences = preferences or {}
         custom_notes = (custom_notes or "").strip()
+
+        # Parse user negative exclusions
+        parsed_exclusions = cls._extract_user_exclusions(custom_notes=custom_notes, preferences=preferences, exclusions=exclusions)
+        applied_exclusions: List[str] = []
 
         target_goal = (goal_id or "cognitive_focus").lower().strip()
         if target_goal in ("auto", "custom", ""):
@@ -1181,16 +1280,24 @@ class StackIntentEngine:
             c_key = cand.get("key")
             if not c_key or c_key in seen_keys:
                 continue
-            seen_keys.add(c_key)
-
-            # Filter by natural_only
-            if natural_only and any(w in str(cand.get("target", "") + " " + c_key).lower() for w in ["steroid", "androgen", "prescription", "pharmaceutical"]):
-                continue
 
             # Route and frequency inference
             inf_route, inf_freq = infer_compound_route_and_frequency(c_key)
             c_route = cand.get("route") or inf_route
             c_freq = cand.get("frequency") or inf_freq
+
+            # Check explicit user compound / route exclusions
+            cand_check = dict(cand)
+            cand_check["route"] = c_route
+            if cls._is_compound_excluded(cand_check, parsed_exclusions, catalog):
+                applied_exclusions.append(f"{cand.get('name') or c_key} ({c_route})")
+                continue
+
+            seen_keys.add(c_key)
+
+            # Filter by natural_only
+            if natural_only and any(w in str(cand.get("target", "") + " " + c_key).lower() for w in ["steroid", "androgen", "prescription", "pharmaceutical"]):
+                continue
 
             # Filter by route preference
             if route_pref in ("oral_only", "capsules_only", "no_powders") and c_route in ("intramuscular", "subcutaneous"):
@@ -1260,9 +1367,16 @@ class StackIntentEngine:
 
             if found_rec and found_rec.get("key") not in seen_keys:
                 cofactor_key = found_rec.get("key")
+                co_route, co_freq = infer_compound_route_and_frequency(cofactor_key)
+
+                # Check if cofactor is excluded
+                co_check = {"key": cofactor_key, "name": found_rec.get("name"), "route": co_route}
+                if cls._is_compound_excluded(co_check, parsed_exclusions, catalog):
+                    applied_exclusions.append(f"{found_rec.get('name') or cofactor_key} ({co_route})")
+                    continue
+
                 seen_keys.add(cofactor_key)
                 co_dose_info = calculate_individualized_dose(found_rec, biometrics, risk_scale)
-                co_route, co_freq = infer_compound_route_and_frequency(cofactor_key)
 
                 co_dose_val = co_dose_info.get("dose_val", 10.0)
                 if isinstance(co_dose_val, float) and co_dose_val == int(co_dose_val):
@@ -1310,6 +1424,7 @@ class StackIntentEngine:
             "compounds": built_compounds,
             "schedule": schedule,
             "action_card": action_card_payload,
+            "applied_exclusions": list(dict.fromkeys(applied_exclusions)),
             "biometric_calibration": {
                 "weight_scale": round(weight_scale, 2),
                 "renal_scale": round(renal_scale, 2),
@@ -1326,5 +1441,6 @@ class StackIntentEngine:
                 "schedule_preference": schedule_pref,
                 "organ_priority": organ_pref,
                 "budget_tier": budget_pref,
+                "exclusions": list(dict.fromkeys(parsed_exclusions)),
             }
         }

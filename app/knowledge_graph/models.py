@@ -159,6 +159,8 @@ class EdgeType(str, Enum):
     MITIGATES_PHENOTYPE = "MITIGATES_PHENOTYPE"
     SYNERGIZES_WITH = "SYNERGIZES_WITH"
     CONTRAINDICATED_WITH = "CONTRAINDICATED_WITH"
+    LITERATURE_COOCCURRENCE = "LITERATURE_COOCCURRENCE"
+    CURATED_ASSOCIATION = "CURATED_ASSOCIATION"
 
 
 class EdgeData(BaseModel):
@@ -182,3 +184,8 @@ class EdgeData(BaseModel):
     description: Optional[str] = Field(default=None, description="Clinical or biochemical description of the interaction")
     mechanism_notes: Optional[str] = Field(default=None, description="Biophysical explanation of the mechanism")
     notes: Optional[str] = Field(default=None)
+    source_db: Optional[str] = Field(default=None, description="Source database for curated edges (STITCH, CTD, DrugBank, PubMed_PMI)")
+    cooccurrence_count: Optional[int] = Field(default=None, ge=0, description="Number of PubMed papers co-mentioning both entities")
+    pmi_score: Optional[float] = Field(default=None, description="Pointwise Mutual Information score from literature co-occurrence")
+    npmi_score: Optional[float] = Field(default=None, ge=-1.0, le=1.0, description="Normalized PMI score (-1 to +1)")
+    last_mined: Optional[str] = Field(default=None, description="ISO timestamp of when this edge was last mined/updated")

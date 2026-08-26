@@ -7,7 +7,11 @@ from typing import Any, Dict, List, Optional, Set, Tuple
 
 from app.services.catalog_service import CatalogService
 from app.services.dosing_service import get_default_compound_dose, parse_dose_string_or_spec
-from app.services.graph_service import parse_compound_spec
+from app.services.graph_service import (
+    is_aromatizable_androgen,
+    is_steroidal_androgen,
+    parse_compound_spec,
+)
 from app.services.interaction_engine import InteractionEngine
 
 logger = logging.getLogger("healthai.action_card_validator")
@@ -132,6 +136,26 @@ class ActionCardValidator:
 
         # Canonicalize compound record
         comp_record = catalog.get_compound(raw_key, auto_enrich=False) or catalog.find_by_synonym(raw_key)
+        if not comp_record:
+            spec = parse_compound_spec(raw_key)
+            spec_key = spec.get("key", raw_key)
+            comp_record = catalog.get_compound(spec_key, auto_enrich=False) or catalog.find_by_synonym(spec_key)
+
+        if not comp_record:
+            clean_k = re.sub(r"[^a-z0-9]", "", raw_key)
+            if clean_k:
+                for c in catalog.list_compounds():
+                    c_k = str(c.get("key", "")).lower()
+                    c_n = str(c.get("name", "")).lower()
+                    c_clean_k = re.sub(r"[^a-z0-9]", "", c_k)
+                    c_clean_n = re.sub(r"[^a-z0-9]", "", c_n)
+                    if clean_k == c_clean_k or clean_k == c_clean_n:
+                        comp_record = c
+                        break
+                    if clean_k.startswith("test") and "cyp" in clean_k and "cyp" in c_k:
+                        comp_record = c
+                        break
+
         canonical_key = comp_record.get("key", raw_key) if comp_record else raw_key
         canonical_name = comp_record.get("name", entry.get("name", raw_key.title())) if comp_record else entry.get("name", raw_key.title())
 
@@ -290,17 +314,17 @@ class ActionCardValidator:
         for comp in projected_stack:
             drug_class = str(comp.get("drug_class") or "").lower()
             key_name = str(comp.get("key") or comp.get("name") or "").lower()
+            mech = str(comp.get("mechanism") or "").lower()
+            targets = [str(t.get("target", "")).lower() if isinstance(t, dict) else str(t).lower() for t in (comp.get("receptor_targets") or [])]
             dose = float(comp.get("dose") or comp.get("dose_mg") or 0.0)
 
-            if "androgen" in drug_class or "anabolic" in drug_class or any(
-                k in key_name for k in ["testosterone", "nandrolone", "trenbolone", "dianabol", "anadrol", "winstrol", "anavar", "primobolan", "masteron", "boldenone"]
-            ):
+            if is_steroidal_androgen(comp) or "androgen" in drug_class or "anabolic" in drug_class:
                 total_androgen_dose += dose
-                if any(k in key_name for k in ["testosterone", "dianabol", "boldenone"]):
+                if is_aromatizable_androgen(comp):
                     has_aromatizable_androgen = True
-                if any(k in key_name for k in ["nandrolone", "trenbolone", "deca", "npp", "ment", "trestolone"]):
+                if any(w in key_name or w in mech for w in ["nandrolone", "trenbolone", "deca", "trestolone", "19-nor"]) or any("progesterone" in t or "pr" in t for t in targets):
                     has_19nor_androgen = True
-                if any(k in key_name for k in ["dianabol", "anadrol", "winstrol", "anavar", "oxandrolone", "turinabol"]):
+                if any(w in key_name or w in mech or w in drug_class for w in ["17aa", "17a-", "17-alpha", "methyl", "dianabol", "methandrostenolone", "stanozolol", "winstrol", "oxandrolone", "anavar", "oxymetholone", "anadrol", "fluoxymesterone", "halotestin", "turinabol"]):
                     has_17a_alkylated = True
 
         shield_active = False
@@ -308,7 +332,12 @@ class ActionCardValidator:
         if has_aromatizable_androgen:
             shield_active = True
             has_ai_or_serm = any(
-                k in stack_keys for k in ["anastrozole", "exemestane", "letrozole", "raloxifene", "tamoxifen", "arimidex", "aromasin"]
+                "aromatase" in str(c.get("mechanism", "")).lower()
+                or "cyp19a1" in str(c.get("mechanism", "")).lower()
+                or "serm" in str(c.get("drug_class", "")).lower()
+                or any("cyp19a1" in str(t).lower() or "esr1" in str(t).lower() for t in (c.get("receptor_targets") or []))
+                or k in stack_keys for k in ["anastrozole", "exemestane", "letrozole", "raloxifene", "tamoxifen", "arimidex", "aromasin"]
+                for c in projected_stack
             )
             if not has_ai_or_serm:
                 notes.append(
@@ -317,7 +346,12 @@ class ActionCardValidator:
 
         if has_19nor_androgen:
             shield_active = True
-            has_prolactin_support = any(k in stack_keys for k in ["p5p", "pyridoxal_5_phosphate", "cabergoline"])
+            has_prolactin_support = any(
+                "dopa" in str(c.get("mechanism", "")).lower()
+                or "dopamine" in str(c.get("mechanism", "")).lower()
+                or k in stack_keys for k in ["p5p", "pyridoxal_5_phosphate", "cabergoline"]
+                for c in projected_stack
+            )
             if not has_prolactin_support:
                 notes.append(
                     "🛡️ Harm-Reduction Recommendation: 19-nor progestogenic compound active; consider P-5-P (50-100mg bedtime) to maintain baseline pituitary prolactin control."
@@ -325,7 +359,13 @@ class ActionCardValidator:
 
         if has_17a_alkylated:
             shield_active = True
-            has_hepatic_shield = any(k in stack_keys for k in ["tudca", "nac", "glutathione"])
+            has_hepatic_shield = any(
+                "glutathione" in str(c.get("mechanism", "")).lower()
+                or "bile acid" in str(c.get("mechanism", "")).lower()
+                or "hepatoprotective" in str(c.get("drug_class", "")).lower()
+                or k in stack_keys for k in ["tudca", "nac", "glutathione"]
+                for c in projected_stack
+            )
             if not has_hepatic_shield:
                 notes.append(
                     "🛡️ Harm-Reduction Recommendation: Oral 17-alpha alkylated compound detected; pair with TUDCA (250-500mg) and NAC (600-1200mg) for hepatobiliary protection."
@@ -334,7 +374,14 @@ class ActionCardValidator:
         # Check for cardiovascular / RAAS / Lipid shielding on high-dose protocols
         if total_androgen_dose >= 250.0:
             shield_active = True
-            has_arb = any(k in stack_keys for k in ["telmisartan", "losartan", "valsartan"])
+            has_arb = any(
+                "angiotensin" in str(c.get("mechanism", "")).lower()
+                or "agtr1" in str(c.get("mechanism", "")).lower()
+                or "arb" in str(c.get("drug_class", "")).lower()
+                or any("agtr1" in str(t).lower() for t in (c.get("receptor_targets") or []))
+                or k in stack_keys for k in ["telmisartan", "losartan", "valsartan"]
+                for c in projected_stack
+            )
             if not has_arb:
                 notes.append(
                     "🛡️ Harm-Reduction Recommendation: Supraphysiological anabolic load (>=250mg); Telmisartan (20-40mg daily) strongly recommended for renal microcirculation and LVH prevention."

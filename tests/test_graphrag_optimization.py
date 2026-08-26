@@ -154,3 +154,63 @@ def test_api_cypher_endpoint(client):
     data = response.json()
     assert "results" in data
     assert "count" in data
+
+
+def test_graphrag_caching_and_invalidation():
+    """Verify that GraphRAG context extraction is cached in-memory and invalidated upon graph updates."""
+    db = get_graph_database()
+    db.clear_cache()
+
+    context1 = db.get_graphrag_context(["telmisartan"], max_hops=2)
+    assert len(db._graphrag_cache) == 1
+
+    # Second call should retrieve from cache
+    context2 = db.get_graphrag_context(["telmisartan"], max_hops=2)
+    assert context1["triple_count"] == context2["triple_count"]
+
+    # Invalidation
+    db.clear_cache()
+    assert len(db._graphrag_cache) == 0
+
+
+def test_affinity_weighted_causal_chain_ranking():
+    """Verify that causal reasoning paths prioritize high-affinity (low Ki) targets."""
+    graph = BiologicalGraph()
+    graph.add_node(CompoundNode(node_id="test_ligand", label="Test Ligand"))
+    graph.add_node(ReceptorNode(node_id="rec_low_affinity", label="Low Affinity Target"))
+    graph.add_node(ReceptorNode(node_id="rec_high_affinity", label="High Affinity Target"))
+    graph.add_node(PhysiologyNode(node_id="phys_effect", label="Downstream Effect"))
+
+    # Add low affinity edge (Ki = 500 nM)
+    graph.add_edge("test_ligand", "rec_low_affinity", EdgeType.AGONIZES, EdgeData(affinity_ki=500.0))
+    graph.add_edge("rec_low_affinity", "phys_effect", EdgeType.MODULATES, EdgeData())
+
+    # Add high affinity edge (Ki = 0.5 nM)
+    graph.add_edge("test_ligand", "rec_high_affinity", EdgeType.AGONIZES, EdgeData(affinity_ki=0.5))
+    graph.add_edge("rec_high_affinity", "phys_effect", EdgeType.MODULATES, EdgeData())
+
+    db = get_graph_database()
+    db.sync_biological_graph(graph)
+
+    chains = db.trace_causal_chains(["test_ligand"], max_depth=3)
+    assert len(chains) >= 2
+    # First ranked chain should traverse the high affinity target
+    first_chain_targets = [step["target"] for step in chains[0]]
+    assert "rec_high_affinity" in first_chain_targets
+
+
+def test_action_card_validator_fuzzy_resolution():
+    """Verify that action card validator resolves abbreviated compound keys to canonical catalog keys."""
+    from app.services.action_card_validator import ActionCardValidator
+
+    payload = {
+        "add": [
+            {"key": "testosterone_cyp", "dose": 200, "unit": "mg", "route": "intramuscular"},
+            {"key": "n-acetyl-cysteine", "dose": 600, "unit": "mg"},
+        ]
+    }
+    sanitized, notes = ActionCardValidator.validate_and_sanitize_card("stack_diff", payload)
+    added_keys = [item["key"] for item in sanitized.get("add", [])]
+    assert "testosterone_cypionate" in added_keys or "testosterone" in added_keys[0]
+    assert "nac" in added_keys or "n_acetylcysteine" in added_keys
+

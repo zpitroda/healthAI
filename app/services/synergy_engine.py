@@ -1,7 +1,10 @@
 from __future__ import annotations
 
+import logging
 import math
 from typing import Any, Dict, List, Optional, Tuple
+
+logger = logging.getLogger("healthai.synergy_engine")
 
 
 class SynergyEngine:
@@ -220,6 +223,58 @@ class SynergyEngine:
             synergy_boost = 0.14
             domain_note = "Longevity & Anti-Aging Stack: Convergence on AMPK activation, mTORC1 suppression, and SIRT1 deacetylase activation drives synergistic autophagy and cellular rejuvenation."
 
+        # 2b. Literature evidence integration — adjust synergy_boost based on
+        # LITERATURE_COOCCURRENCE and CURATED_ASSOCIATION edges in the graph
+        literature_evidence: List[Dict[str, Any]] = []
+        literature_boost = 0.0
+        try:
+            from app.knowledge_graph.graph_db import get_graph_database
+            gdb = get_graph_database()
+            compound_keys = [
+                str(c.get("key") or c.get("name") or "").lower().replace(" ", "_")
+                for c in compounds
+            ]
+            for i in range(len(compound_keys)):
+                for j in range(i + 1, len(compound_keys)):
+                    src, tgt = compound_keys[i], compound_keys[j]
+                    if not src or not tgt:
+                        continue
+                    # Query both literature edge types between this pair
+                    for edge in gdb._mock_edges:
+                        edge_type = str(edge.get("edge_type", ""))
+                        if edge_type not in ("LITERATURE_COOCCURRENCE", "CURATED_ASSOCIATION"):
+                            continue
+                        e_src = str(edge.get("source", ""))
+                        e_tgt = str(edge.get("target", ""))
+                        if (e_src == src and e_tgt == tgt) or (e_src == tgt and e_tgt == src):
+                            conf = float(edge.get("confidence", 0.0))
+                            literature_evidence.append({
+                                "compound_a": src,
+                                "compound_b": tgt,
+                                "edge_type": edge_type,
+                                "confidence": conf,
+                                "source_db": edge.get("source_db", ""),
+                                "cooccurrence_count": edge.get("cooccurrence_count"),
+                                "npmi_score": edge.get("npmi_score"),
+                                "description": edge.get("description", ""),
+                            })
+                            literature_boost = max(literature_boost, conf)
+
+            # Scale: high-confidence literature evidence (conf >= 0.7) adds up to +0.10 synergy boost
+            if literature_boost > 0 and len(compounds) >= 2:
+                scaled_boost = min(0.10, literature_boost * 0.12)
+                synergy_boost += scaled_boost
+                if not domain_note:
+                    domain_note = f"Literature-backed association: {len(literature_evidence)} evidence edge(s) found across curated databases and PubMed co-occurrence (max confidence: {literature_boost:.2f})."
+                else:
+                    domain_note += f" Literature reinforcement: {len(literature_evidence)} evidence edge(s), max confidence {literature_boost:.2f}."
+                logger.debug(
+                    "Literature synergy boost: +%.3f (from %d edges, max conf %.2f)",
+                    scaled_boost, len(literature_evidence), literature_boost,
+                )
+        except Exception as e:
+            logger.debug("Literature evidence lookup skipped: %s", e)
+
         prod_eff = 1.0
         for e in effects:
             prod_eff *= (1.0 - e)
@@ -271,4 +326,7 @@ class SynergyEngine:
             "polypharmacology_shared_targets": shared_targets,
             "shared_target_count": len(shared_targets),
             "domain_notes": domain_note or f"Evaluated synergy across {len(compounds)} compounds using Loewe Additivity and Bliss Independence models.",
+            "literature_evidence": literature_evidence,
+            "literature_evidence_count": len(literature_evidence),
+            "literature_max_confidence": round(literature_boost, 3),
         }

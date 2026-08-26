@@ -12,7 +12,12 @@ from app.knowledge_graph.graph_db import get_graph_database
 from app.services.ai_service import ask_local_llm, stream_local_llm_chat
 from app.services.catalog_service import CatalogService
 from app.services.dosing_service import get_default_compound_dose, parse_dose_string_or_spec
-from app.services.graph_service import parse_compound_spec, resolve_stack_to_catalog_keys
+from app.services.graph_service import (
+    is_aromatizable_androgen,
+    is_steroidal_androgen,
+    parse_compound_spec,
+    resolve_stack_to_catalog_keys,
+)
 from app.services.interaction_engine import InteractionEngine
 from app.services.pathway_service import PathwayService
 from app.services.pkpd_engine import PKPDEngine
@@ -26,60 +31,51 @@ PERSONA_SYSTEM_PROMPTS = {
     "architect": """You are the HealthAI Senior Protocol Architect & Clinical Chronobiologist.
 You specialize in designing synergistic, bio-individualized stacks, circadian timing schedules (Morning, Midday, Afternoon, Bedtime), half-life alignments, and protective co-factor pairings.
 
-### CLINICAL & SCIENTIFIC MANDATE (STRICT ZERO-BRO-SCIENCE STANDARD):
-- Reject anecdotal forum folklore, arbitrary megadoses, and unverified supplement tropes.
-- Base every protocol recommendation on quantitative pharmacokinetics (Cmax, Tmax, elimination t1/2, clearance routes) and molecular pharmacodynamics.
-- Formulate circadian schedules matching receptor expression rhythms, cortisol/melatonin diurnal cycles, and metabolic absorption windows.
-- CRITICAL DEPOT INJECTION SCHEDULING LAW: Long-acting depot esters (Testosterone Cypionate, Testosterone Enanthate, Nandrolone Decanoate, Boldenone Undecylenate) possess 7–10 day elimination half-lives (t1/2 ~ 168–192h). They MUST NEVER be scheduled as daily doses (e.g. NEVER "350mg daily", which would represent a lethal 2450mg/week). They MUST be scheduled as weekly or split-weekly intramuscular/subcutaneous injections (e.g., 350 mg/week total administered as 175 mg IM/SubQ twice weekly or every 3.5 days; or 100–200 mg/week for TRT). Depot injections must be placed under a dedicated 'Depot Injections (Weekly / Split Protocol)' header with route (IM/SubQ) and frequency (e.g. Twice Weekly / Mon & Thu), NEVER in the daily oral meal table.
-- MANDATORY AROMATASE INHIBITOR (AI) & ESTROGEN BALANCE COVERAGE: Any protocol containing aromatizable androgens (especially supraphysiological testosterone >= 200 mg/week) MUST comprehensively include an Aromatase Inhibitor (AI) (such as Anastrozole 0.25–0.5 mg oral twice weekly or Exemestane 12.5 mg oral twice weekly with meals) or SERM (Raloxifene 30–60 mg/day or Tamoxifen 10–20 mg/day) on-hand to mitigate aromatization, avoid gynecomastia, and prevent water retention/hypertension. AI dosing must be titrated to sensitive estradiol (E2 LC-MS/MS) blood panels with a target sweet spot of 20–30 pg/mL, avoiding over-suppression.
-- COMPREHENSIVE ORGAN SHIELDING: Pair androgenic stacks with multi-organ protection: Telmisartan (20–40 mg daily) for renal microcirculation & LVH prevention, Citrus Bergamot (500–1000 mg) / Ezetimibe (10 mg) for ApoB/lipid support, and NAC/TUDCA if oral 17-alpha alkylated compounds are present.
-- Address any identified therapeutic gaps or uncompensated organ burdens (renal, hepatic, cardiovascular, lipid) with evidence-graded clinical co-factors.
-- Prevent mono-target desensitization through intelligent cyclic scheduling and receptor up-regulation co-factors.
-- VERIFIED MEDICAL CITATIONS: Support clinical assertions with clean bracketed citations (e.g. [FDA Label: Testosterone Cypionate §12.3], [FDA Label: Anastrozole §5.1], [FDA Label: Telmisartan §5.1], [ChEMBL: CHEMBL213], [PMID: 18449337]).
-- STRICT ZERO META-TALK LAW: Output ONLY authoritative, publication-ready clinical protocol markdown. NEVER output stream-of-consciousness drafting, internal monologue, or questioning (NEVER write "Need real?", "Could use generic?", "Not sure", "Let's draft", "I think yes", "Need verified citations", "Use FDA labels"). Never speculate inline about citations. Write directly in finished clinical prose.
+### CLINICAL & SCIENTIFIC MANDATE:
+- Quantitative Grounding: Base every protocol recommendation on quantitative pharmacokinetics (Cmax, Tmax, elimination t1/2, clearance routes) and molecular pharmacodynamics.
+- Circadian Scheduling: Formulate schedules matching receptor expression rhythms, cortisol/melatonin diurnal cycles, and metabolic absorption windows.
+- Half-Life Timing Alignment: Schedule compounds according to elimination half-life (t1/2) and route. Long-acting depot formulations (t1/2 > 72h, e.g. testosterone esters, nandrolone) MUST be scheduled as weekly or split-weekly administration under a dedicated 'Depot Injections (Weekly / Split Protocol)' header with route (IM/SubQ) and frequency (e.g. Twice Weekly / Mon & Thu), never placed in the daily oral meal table. Short half-life oral compounds belong in the daily circadian meal table.
+- User Constraints & Exclusions: Strictly respect all user-specified exclusions (e.g. "no oral l-carnitine", "avoid stimulants"), route preferences, and pathway focus areas. User directives ALWAYS override default templates.
+- Organ Burden Offsetting: Address identified multi-organ burdens (renal, hepatic, cardiovascular, lipid) with evidence-graded clinical co-factors.
+- Publication-Ready Prose: Write directly in finished, authoritative clinical markdown. Do not write drafting questions, internal debates, or self-talk. Support assertions with clean bracketed citations (e.g. [FDA Label: Telmisartan §5.1], [PMID: 18449337]).
 
 ### RESPONSE FORMAT (200–350 WORDS, HIGH SIGNAL, CRISP MARKDOWN):
-1. **Executive Assessment**: 1–2 direct sentences on stack balance, safety, and core synergy vectors relative to the primary protocol objective.
+1. **Executive Assessment**: 1–2 direct sentences on stack balance, safety, and core synergy vectors relative to the primary protocol objective and user constraints.
 2. **Targeted Synergies & Co-Factors**: 2–4 high-yield bullet points with exact molecular rationale, target dosages, and timing.
 3. **Protocol Schedule**:
-   - If depot injectables exist, list under a brief **Depot Injections (Weekly / Split Protocol)** header.
+   - If depot injectables exist, list under a **Depot Injections (Weekly / Split Protocol)** header.
    - Then provide a compact **Daily Circadian Schedule Table**:
      | Window | Compound | Dose & Route | Pharmacokinetic & Chronobiological Rationale |
 4. **Clinical Titration & Notes**: 1–2 bullet points on titration milestones, safety monitoring, or co-ingestion rules.
 5. **Action Card**: If proposing protocol additions, titrations, or removals, provide **EXACTLY ONE consolidated `<action_card>` at the VERY END of the response**.
    Example:
    <action_card type="stack_diff">
-   {"add": [{"key": "telmisartan", "name": "Telmisartan", "dose": 40, "unit": "mg", "timing": "morning"}], "modify": [], "remove": []}
+   {"add": [{"key": "telmisartan", "name": "Telmisartan", "dose": 40, "unit": "mg", "timing": "morning", "frequency": "daily", "route": "oral"}], "modify": [], "remove": []}
    </action_card>
-
-### MANDATORY WRITING ORDER:
-- You MUST write sections 1, 2, 3, and 4 in clean markdown FIRST.
-- The <action_card> must be placed at the very end after the markdown text. NEVER output the <action_card> alone without the accompanying markdown explanation and schedule table.
 """,
     "auditor": """You are the HealthAI Clinical Risk Auditor & Toxicological Conflict Detective.
 Your role is to forensically red-team compound stacks, identifying drug-drug interactions (DDIs), CYP450 enzyme competition, Phase II and transporter saturation (P-gp, OATP1B1, BCRP), acute syndrome hazards (Serotonin Syndrome, QTc prolongation, Renal Triple Whammy), and hepatic/renal clearance bottlenecks.
 
-### CLINICAL & SCIENTIFIC MANDATE (STRICT ZERO-BRO-SCIENCE STANDARD):
+### CLINICAL & SCIENTIFIC MANDATE:
 - Quantify risk severity (MINIMAL, LOW, MODERATE, ELEVATED, SEVERE) referencing the deterministic collision matrix.
-- Explain specific clearance kinetics: competitive CYP inhibition vs mechanism-based inactivation (MBI), AUCR surges, and renal CrCl/eGFR impacts.
+- Explain clearance kinetics: competitive CYP inhibition vs mechanism-based inactivation (MBI), AUCR surges, and renal CrCl/eGFR impacts.
 - Detail acute receptor cross-talk and toxicological collisions.
 - Propose evidence-based pharmacological countermeasures with verified clinical safety and dosing.
-- STRICT USER FOCUS: Provide direct, actionable conflict audits and solutions. NEVER echo prompt context, scratchpads, or internal thoughts.
+- Provide direct, actionable conflict audits and solutions in finished prose.
 
 ### RESPONSE FORMAT (200–350 WORDS, OBJECTIVE & ACTIONABLE):
 1. **Risk Severity Classification**: Headline with risk level and cumulative score (e.g. `MODERATE RISK [Score: 32/100]` or `CRITICAL DDI ALERT`).
 2. **Identified Conflicts & Bottlenecks**: Bullet points detailing CYP450 competition, transporter clashes, receptor collisions, or organ burden convergence.
-3. **Protective Countermeasures**: Concrete clinical solutions (e.g., dose reduction, timing separation, or protective ancillaries like Telmisartan, Nebivolol, P5P, TUDCA, NAC, CoQ10).
+3. **Protective Countermeasures**: Concrete clinical solutions (e.g. dose reduction, timing separation, enzyme-specific mitigations, or targeted protective co-factors).
 4. **Action Card**: If proposing conflict resolution adjustments or compound removals, provide **EXACTLY ONE consolidated `<action_card>` at the VERY END of the response**.
 """,
     "tutor": """You are the HealthAI Molecular Pharmacology & Signal Transduction Specialist.
 You provide PhD-level molecular pharmacology explanations of receptor binding dynamics, allosteric modulations (PAM/NAM), enzyme kinetics, second messenger cascades, and downstream gene expression.
 
 ### BIOCHEMICAL & MOLECULAR MANDATE:
-- Quote exact quantitative binding affinities ($K_i, K_d, IC_{50}, EC_{50}$) and Hill coefficients whenever available in context.
+- Quote quantitative binding affinities ($K_i, K_d, IC_{50}, EC_{50}$) and Hill coefficients whenever available.
 - Detail specific receptor subtypes (e.g. 5-HT1A, 5-HT2A, alpha-1/beta-2 adrenergic, GABA-A alpha-1/alpha-2, CB1/CB2, Progesterone Receptor).
 - Trace intracellular signaling: G-protein coupling (Gs, Gi, Gq), second messengers (cAMP, IP3/DAG, Ca2+, PKA/PKC), and nuclear translocation/transcription factor activation (AMPK -> SIRT1 -> PGC-1alpha, Nrf2/ARE, NF-kB, CREB -> BDNF, mTORC1 -> p70S6K).
-- STRICT USER FOCUS: Provide clear, concise molecular mechanisms without scratchpad or context echoes.
 
 ### RESPONSE FORMAT (200–350 WORDS, HIGH SCIENTIFIC DENSITY):
 1. **Primary Molecular Targets & Binding Kinetics**: Specific receptors/enzymes, affinities, and agonist/antagonist/allosteric mode.
@@ -93,7 +89,6 @@ You interpret quantitative patient blood panels (Lipids, Hepatic transaminases, 
 - Correlate laboratory shifts with specific pharmacokinetic and metabolic burdens (e.g. 17alpha-alkylated hepatic clearance, eGFR renal clearance, HMGCR modulation, HPTA axis negative feedback).
 - Provide individual baseline comparisons against clinical reference ranges.
 - Propose exact titration offsets and targeted ancillary co-factors to normalize skewed laboratory parameters.
-- STRICT USER FOCUS: Output pure clinical lab evaluations and titration guidance without internal reasoning logs.
 
 ### RESPONSE FORMAT (200–350 WORDS, CLINICALLY FOCUSED):
 1. **Biomarker Profile & Impact Overview**: Assessment across Lipid (ApoB, LDL-C, Triglycerides), Hepatic (ALT, AST, Bilirubin), Renal (eGFR, Cr, K+), and Hormonal axes.
@@ -377,6 +372,16 @@ class CopilotAgent:
         """
         catalog = CatalogService()
         interaction_engine = InteractionEngine()
+
+        enriched_compounds = []
+        for c in compounds:
+            key = str(c.get("key") or "").lower()
+            cat_entry = catalog.get_compound(key) if key else None
+            if cat_entry:
+                enriched_compounds.append({**cat_entry, **c})
+            else:
+                enriched_compounds.append(c)
+        compounds = enriched_compounds
         existing_keys = {str(c.get("key") or c.get("name") or "").lower() for c in compounds}
 
         eval_res = interaction_engine.analyze_stack(compounds, profile={"labs": biometrics}) if compounds else {}
@@ -496,22 +501,20 @@ class CopilotAgent:
                 })
 
         # 5. Aromatase Inhibitors & Estrogen Balance (Aromatizable Androgens / Hypertrophy)
-        has_aromatizable = any(
-            any(w in str(c.get("key", "")).lower() or w in str(c.get("name", "")).lower()
-                for w in ["testosterone", "testc", "testcyp", "teste", "testenan", "dianabol", "dbol", "methandrostenolone", "boldenone", "equipoise"])
-            for c in compounds
-        )
-        has_any_androgen = any(
-            any(w in str(c.get("key", "")).lower() or w in str(c.get("name", "")).lower()
-                for w in ["testosterone", "trenbolone", "nandrolone", "deca", "anavar", "winstrol", "primobolan", "masteron", "dianabol", "anadrol"])
-            for c in compounds
-        )
+        has_aromatizable = any(is_aromatizable_androgen(c) for c in compounds)
+        has_any_androgen = any(is_steroidal_androgen(c) or "androgen" in str(c.get("drug_class", "")).lower() for c in compounds)
         has_ai = any(
-            any(w in str(c.get("key", "")).lower() or w in str(c.get("name", "")).lower()
-                for w in ["anastrozole", "arimidex", "exemestane", "aromasin", "letrozole", "femara"])
+            "aromatase inhibitor" in str(c.get("drug_class", "")).lower()
+            or "aromatase inhibitor" in str(c.get("mechanism", "")).lower()
+            or ("inhibitor" in str(c.get("mechanism", "")).lower() and "cyp19a1" in str(c.get("mechanism", "")).lower())
+            or any(
+                ("cyp19a1" in str(t).lower() or "aromatase" in str(t).lower())
+                and any(act in str(t).lower() for act in ["inhibitor", "inactivator", "antagonist", "blocker"])
+                for t in (c.get("receptor_targets") or [])
+            )
             for c in compounds
         )
-        if (has_aromatizable or has_any_androgen or active_goal == "anabolic_physique") and not has_ai:
+        if (has_aromatizable or (has_any_androgen and active_goal == "anabolic_physique")) and not has_ai:
             if "anastrozole" not in existing_keys:
                 candidate_pool.append({
                     "key": "anastrozole",
@@ -588,12 +591,86 @@ class CopilotAgent:
                     "interaction_safety": "Non-sedating, highly bioavailable chelate."
                 })
 
+        # 8. Literature-Mined & Curated Association Discovery from Knowledge Graph
+        try:
+            gdb = get_graph_database()
+            for edge in gdb._mock_edges:
+                e_type = edge.get("edge_type") or edge.get("type")
+                if e_type not in ("LITERATURE_COOCCURRENCE", "CURATED_ASSOCIATION", "SYNERGIZES_WITH"):
+                    continue
+                src = str(edge.get("source", "")).lower()
+                tgt = str(edge.get("target", "")).lower()
+
+                partner_key = None
+                primary_comp = None
+                if src in existing_keys and tgt not in existing_keys:
+                    partner_key = tgt
+                    primary_comp = src
+                elif tgt in existing_keys and src not in existing_keys:
+                    partner_key = src
+                    primary_comp = tgt
+
+                if partner_key and partner_key not in [c["key"] for c in candidate_pool]:
+                    partner_comp = catalog.get_compound(partner_key) or catalog.find_by_synonym(partner_key)
+                    if partner_comp:
+                        c_name = partner_comp.get("name") or partner_comp.get("canonical_name") or partner_key.title()
+                        p_name = primary_comp.title().replace("_", " ")
+                        
+                        if e_type == "LITERATURE_COOCCURRENCE":
+                            co_cnt = edge.get("cooccurrence_count", 0)
+                            npmi = edge.get("npmi_score", 0.0)
+                            pmid_list = edge.get("sample_pmids", [])
+                            pmid_txt = f" [PMIDs: {', '.join(str(p) for p in pmid_list[:2])}]" if pmid_list else ""
+                            candidate_pool.append({
+                                "key": partner_key,
+                                "name": c_name,
+                                "target": partner_comp.get("mechanism") or partner_comp.get("drug_class") or "Biological Modifier",
+                                "standard_dose": str(partner_comp.get("standard_dose") or "Per clinical titration"),
+                                "clinical_purpose": f"Empirical literature association: Frequently co-administered or co-studied with {p_name} in scientific publications ({co_cnt} papers, NPMI: {npmi:.2f}).{pmid_txt}",
+                                "solves_burden": f"Synergy / Co-administration Vector for {p_name}",
+                                "evidence_grade": f"PubMed Co-occurrence ({co_cnt} papers)",
+                                "interaction_safety": "Literature-grounded pairing.",
+                                "is_literature_derived": True,
+                            })
+                        elif e_type == "CURATED_ASSOCIATION":
+                            db_src = edge.get("source_db", "STITCH/CTD")
+                            desc = edge.get("description", "Curated biochemical interaction")
+                            candidate_pool.append({
+                                "key": partner_key,
+                                "name": c_name,
+                                "target": partner_comp.get("mechanism") or partner_comp.get("drug_class") or "Curated Target",
+                                "standard_dose": str(partner_comp.get("standard_dose") or "Per clinical titration"),
+                                "clinical_purpose": f"Curated database association ({db_src}): {desc} with {p_name}.",
+                                "solves_burden": f"Curated Mechanistic Synergy with {p_name}",
+                                "evidence_grade": f"{db_src} Curated Database",
+                                "interaction_safety": "Biochemically validated interaction.",
+                                "is_literature_derived": True,
+                            })
+        except Exception as lit_rec_err:
+            logger.debug("Literature-based candidate discovery notice: %s", lit_rec_err)
+
+        gap_search_terms = set()
+        for g in therapeutic_gaps:
+            for st in g.get("cofactor_search_terms", []):
+                gap_search_terms.add(str(st).lower())
+
+        # Sort candidate pool: gap-matched candidates first, then high-confidence literature
+        def _candidate_rank(c: Dict[str, Any]) -> int:
+            k = str(c.get("key", "")).lower()
+            if any(st in k for st in gap_search_terms):
+                return 0
+            if c.get("is_literature_derived"):
+                return 1
+            return 2
+
+        candidate_pool.sort(key=_candidate_rank)
+
         for cand in candidate_pool:
             cand_key = cand["key"]
-            if cand_key not in existing_keys:
+            if cand_key not in existing_keys and cand_key not in [r["key"] for r in recommendations]:
                 recommendations.append(cand)
 
-        return recommendations[:6]
+        return recommendations[:10]
 
     @classmethod
     def execute_tool(cls, tool_name: str, arguments: Dict[str, Any]) -> Dict[str, Any]:
@@ -823,11 +900,13 @@ class CopilotAgent:
             biometrics = arguments.get("biometrics", {})
             preferences = arguments.get("preferences", {})
             custom_notes = arguments.get("custom_notes") or arguments.get("custom_instructions") or arguments.get("constraints") or ""
+            exclusions = arguments.get("exclusions") or arguments.get("exclude")
             return StackIntentEngine.build_scratch_stack_proposal(
                 goal_id=goal,
                 biometrics=biometrics,
                 preferences=preferences,
                 custom_notes=custom_notes,
+                exclusions=exclusions,
             )
 
         elif tool_name in ("simulate_stack_diff", "simulate_diff", "what_if_simulation"):
@@ -888,11 +967,196 @@ class CopilotAgent:
             )
             return {
                 "action_card": "stack_diff",
+                "add": sanitized.get("add", []),
+                "modify": sanitized.get("modify", []),
+                "remove": sanitized.get("remove", []),
                 "additions": sanitized.get("add", []),
                 "modifications": sanitized.get("modify", []),
                 "removals": sanitized.get("remove", []),
-                "validation_meta": sanitized.get("validation_meta", {}),
+                "diff": sanitized,
+                "validation_notes": notes,
             }
+
+        elif tool_name == "find_candidate_pairings":
+            compound_key = str(arguments.get("compound_key") or arguments.get("compound") or "").strip().lower().replace(" ", "_")
+            min_confidence = float(arguments.get("min_confidence", 0.3))
+            limit = int(arguments.get("limit", 8))
+            category_filter = str(arguments.get("category") or "").strip().lower()
+
+            pairings = []
+            seen_partners = set()
+            for edge in graph_db._mock_edges:
+                e_type = edge.get("edge_type") or edge.get("type")
+                if e_type not in ("LITERATURE_COOCCURRENCE", "CURATED_ASSOCIATION", "SYNERGIZES_WITH"):
+                    continue
+                src = str(edge.get("source", "")).lower()
+                tgt = str(edge.get("target", "")).lower()
+                partner = None
+                if src == compound_key:
+                    partner = tgt
+                elif tgt == compound_key:
+                    partner = src
+
+                if partner and partner != compound_key and partner not in seen_partners:
+                    conf = float(edge.get("confidence", 0.5))
+                    if conf >= min_confidence:
+                        partner_rec = catalog.get_compound(partner) or catalog.find_by_synonym(partner)
+                        p_label = partner_rec.get("name") if partner_rec else partner.title().replace("_", " ")
+                        p_class = partner_rec.get("drug_class") if partner_rec else "Bioactive Agent"
+                        
+                        if category_filter and category_filter not in p_class.lower() and category_filter not in str(partner_rec).lower():
+                            continue
+
+                        seen_partners.add(partner)
+                        pairings.append({
+                            "partner_key": partner,
+                            "partner_name": p_label,
+                            "drug_class": p_class,
+                            "relationship_type": e_type,
+                            "confidence": round(conf, 3),
+                            "cooccurrence_count": edge.get("cooccurrence_count"),
+                            "npmi_score": edge.get("npmi_score"),
+                            "source_db": edge.get("source_db", "Knowledge Graph"),
+                            "sample_pmids": edge.get("sample_pmids", []) or edge.get("pmids", []),
+                            "description": edge.get("description", f"Empirical literature association with {compound_key}"),
+                        })
+
+            pairings.sort(key=lambda x: x.get("confidence", 0), reverse=True)
+            return {
+                "compound": compound_key,
+                "pairings_found": len(pairings),
+                "top_pairings": pairings[:limit],
+            }
+
+        elif tool_name == "query_compound_associations":
+            comp_a = str(arguments.get("compound_a") or arguments.get("compound_1") or "").strip().lower().replace(" ", "_")
+            comp_b = str(arguments.get("compound_b") or arguments.get("compound_2") or "").strip().lower().replace(" ", "_")
+
+            direct_edges = []
+            shared_targets = []
+
+            # 1. Search direct edges
+            for edge in graph_db._mock_edges:
+                src = str(edge.get("source", "")).lower()
+                tgt = str(edge.get("target", "")).lower()
+                if (src == comp_a and tgt == comp_b) or (src == comp_b and tgt == comp_a):
+                    direct_edges.append({
+                        "source": src,
+                        "target": tgt,
+                        "relationship": edge.get("edge_type") or edge.get("type"),
+                        "confidence": edge.get("confidence"),
+                        "cooccurrence_count": edge.get("cooccurrence_count"),
+                        "npmi_score": edge.get("npmi_score"),
+                        "source_db": edge.get("source_db"),
+                        "pmids": edge.get("sample_pmids", []) or edge.get("pmids", []),
+                        "description": edge.get("description"),
+                    })
+
+            # 2. Search shared targets / pathways
+            targets_a = set()
+            targets_b = set()
+            for edge in graph_db._mock_edges:
+                src = str(edge.get("source", "")).lower()
+                tgt = str(edge.get("target", "")).lower()
+                if src == comp_a:
+                    targets_a.add((tgt, edge.get("edge_type", "INTERACTS_WITH")))
+                elif src == comp_b:
+                    targets_b.add((tgt, edge.get("edge_type", "INTERACTS_WITH")))
+
+            targets_a_map = {t[0]: t[1] for t in targets_a}
+            targets_b_map = {t[0]: t[1] for t in targets_b}
+            common = set(targets_a_map.keys()).intersection(set(targets_b_map.keys()))
+            for tgt in common:
+                shared_targets.append({
+                    "target": tgt,
+                    "interaction_a": f"{comp_a} -[{targets_a_map[tgt]}]-> {tgt}",
+                    "interaction_b": f"{comp_b} -[{targets_b_map[tgt]}]-> {tgt}",
+                })
+
+            return {
+                "compound_a": comp_a,
+                "compound_b": comp_b,
+                "direct_associations": direct_edges,
+                "shared_molecular_targets": shared_targets,
+                "association_summary": (
+                    f"Found {len(direct_edges)} direct literature/curated edges and {len(shared_targets)} shared molecular targets."
+                    if direct_edges or shared_targets
+                    else "No direct 1-hop associations recorded in graph."
+                ),
+            }
+
+        elif tool_name == "trace_mechanism_pathway":
+            source_id = str(arguments.get("source_compound") or arguments.get("source") or "").strip().lower().replace(" ", "_")
+            target_id = str(arguments.get("target_biomarker") or arguments.get("target") or arguments.get("target_node") or "").strip().lower().replace(" ", "_")
+            max_depth = int(arguments.get("max_depth", 5))
+
+            if not any(e.get("source") == source_id for e in graph_db._mock_edges):
+                try:
+                    from app.services.graph_service import build_selected_compound_graph
+                    subgraph = build_selected_compound_graph([source_id], catalog_service=catalog)
+                    if subgraph:
+                        graph_db.sync_biological_graph(subgraph)
+                except Exception:
+                    pass
+
+            found_paths = []
+            visited = set()
+
+            def _dfs(current: str, path: List[Dict[str, Any]], depth: int):
+                if depth > max_depth or len(found_paths) >= 10:
+                    return
+                if current == target_id and len(path) > 0:
+                    found_paths.append(list(path))
+                    return
+
+                visited.add(current)
+                for edge in graph_db._mock_edges:
+                    src = str(edge.get("source", "")).lower()
+                    tgt = str(edge.get("target", "")).lower()
+                    if src == current and tgt not in visited:
+                        step = {
+                            "source": current,
+                            "target": tgt,
+                            "relationship": edge.get("edge_type") or edge.get("type", "MODULATES"),
+                            "description": edge.get("description", ""),
+                        }
+                        _dfs(tgt, path + [step], depth + 1)
+                visited.remove(current)
+
+            _dfs(source_id, [], 0)
+
+            formatted_chains = []
+            for p in found_paths:
+                chain_str = source_id + " " + " ➔ ".join([f"-({step['relationship']})-> {step['target']}" for step in p])
+                formatted_chains.append(chain_str)
+
+            return {
+                "source": source_id,
+                "target": target_id,
+                "paths_found_count": len(found_paths),
+                "pathways": formatted_chains if formatted_chains else ["No direct path found within depth limit."],
+            }
+
+        elif tool_name in ("execute_read_only_cypher", "query_cypher", "cypher_query"):
+            query = str(arguments.get("query") or "").strip()
+            params = arguments.get("params") or {}
+            
+            # Security guardrail: Enforce strictly read-only Cypher
+            q_upper = query.upper()
+            forbidden_keywords = ["CREATE", "MERGE", "DELETE", "DETACH", "SET", "REMOVE", "DROP", "CALL", "ALTER"]
+            for kw in forbidden_keywords:
+                if re.search(rf"\b{kw}\b", q_upper):
+                    return {"error": f"Security Violation: '{kw}' keyword is forbidden in read-only Cypher mode."}
+
+            try:
+                records = graph_db.execute_cypher(query, params)
+                return {
+                    "query": query,
+                    "record_count": len(records),
+                    "records": records[:25],
+                }
+            except Exception as cy_err:
+                return {"error": f"Cypher execution failed: {str(cy_err)}"}
 
         return {"error": f"Unknown tool: {tool_name}"}
 
@@ -928,13 +1192,6 @@ class CopilotAgent:
         synergy_engine = SynergyEngine()
 
         clean_stack_raw = [str(s).strip() for s in stack if s and str(s).strip()]
-        
-        # Also extract entities from recent messages if not in stack
-        if messages:
-            extracted_from_chat = cls.extract_entities_from_messages(messages)
-            for ext in extracted_from_chat:
-                if ext not in clean_stack_raw and not any(ext in s for s in clean_stack_raw):
-                    clean_stack_raw.append(ext)
 
         # 1. Canonicalize and extract structured compound records
         canonical_compounds: List[Dict[str, Any]] = []
@@ -1211,10 +1468,17 @@ class CopilotAgent:
 
         # 12. GraphRAG Context (Compact High-Signal Biological Network)
         graph_context = ""
-        if canonical_keys:
+        rag_entity_ids = list(canonical_keys)
+        if messages:
+            for ext in cls.extract_entities_from_messages(messages):
+                if ext not in rag_entity_ids:
+                    rag_entity_ids.append(ext)
+        rag_entity_ids = rag_entity_ids[:8]
+
+        if rag_entity_ids:
             try:
                 rag = graph_db.get_graphrag_context(
-                    entity_ids=canonical_keys[:4],
+                    entity_ids=rag_entity_ids,
                     max_hops=2,
                     include_pkpd=False,
                     include_kinetics=False,
@@ -1228,7 +1492,7 @@ class CopilotAgent:
                     parts.append(f"> {sum_txt[:250]}")
                 if overlaps:
                     parts.append(f"- **Target Overlaps**: {', '.join(overlaps[:3])}")
-                for c in chains[:3]:
+                for c in chains[:4]:
                     parts.append(f"- **Chain**: {c}")
                 if len(parts) > 1:
                     graph_context = "\n".join(parts)
@@ -1247,8 +1511,31 @@ class CopilotAgent:
             "\n### PATIENT BIOMETRICS & CLEARANCE PROFILE:",
             bio_summary,
             f"\n### ACTIVE WORKBENCH STACK ({len(canonical_compounds)} compounds):",
-            "\n".join(f"- {s}" for s in stack_display) if stack_display else "No active compounds loaded in workbench.",
+            ("\n".join(f"- {s}" for s in stack_display) if stack_display else "No active compounds loaded in workbench. (Note: If refining a protocol proposed earlier in the conversation history, use that proposed protocol as the baseline and incorporate the user's latest requested modifications.)"),
         ]
+
+        # 3b. Pre-calibrated Baseline Blueprint Grounding (Deterministic Evidence-Based Reference)
+        blueprint_sections = []
+        if (not canonical_compounds) or (protocol_goal and protocol_goal != "auto") or (custom_instructions and any(w in custom_instructions.lower() for w in ["build", "scratch", "protocol", "stack", "create", "start"])):
+            try:
+                target_g = protocol_goal if (protocol_goal and protocol_goal != "auto") else intent_analysis.get("active_goal_id", "cognitive_focus")
+                scratch_proposal = StackIntentEngine.build_scratch_stack_proposal(
+                    goal_id=target_g,
+                    biometrics=biometrics,
+                    custom_notes=custom_instructions,
+                )
+                if scratch_proposal and scratch_proposal.get("compounds"):
+                    blueprint_sections.append(f"### PRE-CALIBRATED EVIDENCE-BASED PROTOCOL BLUEPRINT ({scratch_proposal['goal_title']}):")
+                    blueprint_sections.append(f"> Calibrated baseline computed from patient biometrics (Weight={weight_kg}kg, eGFR={egfr}, ALT={alt_u_l}, BP={bp}) and clinical constraints:")
+                    for c in scratch_proposal.get("compounds", []):
+                        blueprint_sections.append(f"- **{c['name']}** ({c['dose']} {c['unit']} {c['route']}, {c['timing']}) — *{c.get('target', '')}*: {c.get('rationale', '')}")
+                    if scratch_proposal.get("applied_exclusions"):
+                        blueprint_sections.append(f"- ⚠️ **User-Requested Exclusions Applied**: {', '.join(scratch_proposal['applied_exclusions'])} (CRITICAL: Do NOT propose or include these excluded compounds).")
+            except Exception as bp_err:
+                logger.debug("Baseline blueprint grounding notice: %s", bp_err)
+
+        if blueprint_sections:
+            full_system_parts.append("\n" + "\n".join(blueprint_sections))
 
         if intent_grounding:
             full_system_parts.append("\n" + intent_grounding)
@@ -1284,25 +1571,22 @@ class CopilotAgent:
 ### DYNAMIC GRAPH REASONING, CLINICAL SCRATCHPAD & TOOL PROTOCOL:
 You have autonomous access to execute live graph traversals, pathway queries, pharmacokinetic simulations, literature searches, and virtual diff experiments:
 
-1. **Pharmacological Reasoning**: Think deeply through multi-hop biological mechanisms, receptor saturation kinetics ($K_d/K_i$), intracellular pathway cascades, CYP450 AUCR clearance, and organ protection co-factors. Formulate hypotheses and calculate exact chronobiological schedules.
-2. **Dynamic Tool Calling**: If you need additional graph data, emit `<tool_call name="tool_name">{"arg": "val"}</tool_call>`.
-   - `build_stack_from_scratch`: `{"goal": "cognitive_focus", "biometrics": {...}, "preferences": {...}}`
-   - `simulate_stack_diff`: `{"base_stack": ["c1"], "diff": {"add": [{"key": "c2", "dose": 40}], "remove": []}}`
-   - `search_pubmed_literature`: `{"query": "telmisartan endothelial LVH", "max_results": 3}`
-   - `search_clinical_trials`: `{"query": "hypertrophy resistance training", "max_results": 2}`
-   - `get_circadian_receptor_occupancy`: `{"compound_key": "caffeine", "dose_mg": 200}`
-   - `query_graphrag_subgraph`: `{"entity_ids": ["compound_or_target"], "max_hops": 2}`
-   - `query_pathway_cascade`: `{"target_id": "TARGET_SYMBOL_OR_NAME"}`
-   - `get_evidence_based_recommendations`: `{"compound_keys": ["c1", "c2"], "protocol_goal": "hypertrophy"}`
-   - `evaluate_multi_agent_synergy`: `{"compound_keys": ["c1", "c2"]}`
-   - `get_compound_details`: `{"compound_name": "name"}`
-   - `simulate_pkpd`: `{"compound_key": "c", "dose_mg": 100}`
-   - `calculate_individualized_dosing`: `{"compound_key": "c", "biometrics": {...}}`
-   - `search_fda_drug_label`: `{"query": "search query"}`
-3. **CRITICAL USER PRESENTATION & ACTION CARD MANDATE**:
-   - Synthesize your complete clinical protocol with structured headings, circadian schedule tables, and bracketed citations.
-   - STRICT ZERO META-TALK: NEVER output drafting questions, internal debates, or speculation about citations (e.g. NEVER output "Need real?", "Could use generic?", "Not sure", "Let's draft", "I think yes", "Use FDA labels"). Write in finished, publication-ready clinical markdown.
-   - Every protocol proposal or modification MUST conclude with the structured `<action_card type="stack_diff">{"add": [...], "modify": [...], "remove": [...]}</action_card>` at the very end.
+1. **Clinical Scratchpad & State Tracking (`<scratchpad>...</scratchpad>`)**:
+   - Use the scratchpad to track user directives, explicit compound exclusions (e.g. "no oral L-Carnitine", "avoid stimulants"), route preferences, and the evolving proposed stack.
+   - User constraints and exclusions ALWAYS override default templates.
+2. **ReAct Execution & Decision Heuristic (Low Latency / Zero Token Bloat)**:
+   - **Immediate Synthesis Rule**: If all required pharmacokinetic data, DDI matrices, and candidate co-factors are already present in the grounding context above, do NOT invoke tools. Immediately formulate the finished clinical response and `<action_card>`.
+   - **Targeted Tool Invocation**: If you need new information (e.g. simulating a custom stack diff, retrieving missing kinetics, tracing a specific biological pathway cascade requested by the user, or querying literature), invoke the relevant tool:
+     * `build_stack_from_scratch`: `{"goal": "anabolic_physique", "biometrics": {...}, "preferences": {...}, "custom_notes": "no oral l-carnitine"}`
+     * `simulate_stack_diff`: `{"base_stack": [...], "diff": {"add": [...], "remove": [...]}}`
+     * `check_cyp450_conflicts` / `analyze_stack_conflicts`: `{"compound_keys": [...], "biometrics": {...}}`
+     * `query_pathway_cascade`: `{"target_id": "TARGET_NAME"}`
+     * `trace_mechanism_pathway`: `{"source_compound": "caffeine", "target_biomarker": "bio_heart_rate"}`
+     * `simulate_pkpd`: `{"compound_key": "telmisartan", "dose_mg": 40}`
+     * `find_candidate_pairings`: `{"compound_key": "testosterone", "min_confidence": 0.4}`
+3. **Structured Response & Action Card Mandate**:
+   - Output clean, publication-ready clinical markdown without drafting monologue or inline questioning.
+   - Conclude with exactly ONE consolidated `<action_card type="stack_diff">` containing the final `add`, `modify`, `remove` directives.
 """
         full_system_parts.append(react_instructions)
 
@@ -1449,6 +1733,19 @@ You have autonomous access to execute live graph traversals, pathway queries, ph
             comps = obs.get("compounds", [])
             names = [c.get("name") for c in comps if isinstance(c, dict)]
             return f"Synthesized scratch stack for '{obs.get('goal_title', 'Protocol')}': {len(comps)} compounds ({', '.join(names)})."
+        elif tool_name == "find_candidate_pairings":
+            pairings = obs.get("top_pairings", [])
+            names = [p.get("partner_name") for p in pairings[:3] if isinstance(p, dict)]
+            return f"Discovered {obs.get('pairings_found', len(pairings))} candidate pairings from graph ({', '.join(names) if names else 'None'})."
+        elif tool_name == "query_compound_associations":
+            direct = len(obs.get("direct_associations", []))
+            shared = len(obs.get("shared_molecular_targets", []))
+            return f"Queried associations between {obs.get('compound_a')} & {obs.get('compound_b')}: {direct} direct edges, {shared} shared targets."
+        elif tool_name == "trace_mechanism_pathway":
+            paths = obs.get("paths_found_count", 0)
+            return f"Traced biological pathway: Found {paths} causal route(s) between {obs.get('source')} and {obs.get('target')}."
+        elif tool_name in ("execute_read_only_cypher", "query_cypher", "cypher_query"):
+            return f"Executed Cypher: Retrieved {obs.get('record_count', 0)} records from graph."
         elif tool_name in ("get_compound_details", "get_compound_info"):
             return f"Retrieved {obs.get('canonical_name', obs.get('name'))} (t1/2: {obs.get('half_life_hours')}h, Bioavailability: {obs.get('oral_bioavailability_pct')}%)."
         return f"Tool returned {len(obs)} fields."
@@ -1812,8 +2109,14 @@ You have autonomous access to execute live graph traversals, pathway queries, ph
                             except Exception as card_err:
                                 logger.debug("Action card parsing notice: %s", card_err)
                 
-                # If no action cards were emitted, but a protocol was generated or requested, guarantee action card emission
-                if not action_cards_emitted and (protocol_goal or any("build" in str(m.get("content", "")).lower() or "protocol" in str(m.get("content", "")).lower() for m in messages if m.get("role") == "user")):
+                # If no action cards were emitted by the model during an initial scratch build request, guarantee action card emission
+                user_msgs = [m for m in messages if m.get("role") == "user"]
+                last_user_content = str(user_msgs[-1].get("content", "")).lower() if user_msgs else ""
+                is_initial_scratch_build = len(user_msgs) <= 1 and (
+                    protocol_goal is not None or any(w in last_user_content for w in ["build", "scratch stack", "from scratch", "create protocol"])
+                )
+
+                if not action_cards_emitted and is_initial_scratch_build:
                     try:
                         active_goal = protocol_goal or "cognitive_focus"
                         proposal = StackIntentEngine.build_scratch_stack_proposal(

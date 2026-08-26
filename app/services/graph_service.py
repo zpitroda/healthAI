@@ -367,15 +367,17 @@ DEFAULT_THERAPEUTIC_DOSES_MG: Dict[str, float] = CLINICAL_REFERENCE_DOSES_MG
 
 
 def is_steroidal_androgen(compound: Dict[str, Any]) -> bool:
-    """Determine if a compound is a steroidal androgen from its drug class, mechanism, or structure."""
+    """Determine if a compound is a steroidal androgen from its drug class, mechanism, key/name, or structure."""
     drug_class = str(compound.get("drug_class") or "").lower()
     mech = str(compound.get("mechanism") or "").lower()
+    key = str(compound.get("key") or "").lower()
+    name = str(compound.get("name") or "").lower()
     cats = [str(c).lower() for c in (compound.get("categories") or [])]
-    all_text = f"{drug_class} {mech} {' '.join(cats)}"
+    all_text = f"{key} {name} {drug_class} {mech} {' '.join(cats)}"
     
     if any(k in all_text for k in ["aromatase inhibitor", "glucocorticoid", "mineralocorticoid", "corticosteroid", "estrogen receptor modulator", "serm"]):
         return False
-    if any(k in all_text for k in ["androgen", "anabolic", "androstan"]):
+    if any(k in all_text for k in ["androgen", "anabolic", "androstan", "testosterone", "nandrolone", "trenbolone", "drostanolone", "masteron", "primobolan", "methenolone", "boldenone", "oxandrolone", "anavar", "stanozolol", "winstrol", "superdrol", "dianabol", "anadrol"]):
         if any(k in all_text for k in ["non-steroidal", "sarm", "selective androgen receptor", "antiandrogen", "androgen receptor antagonist"]):
             return False
         return True
@@ -398,6 +400,9 @@ def is_aromatizable_androgen(compound: Dict[str, Any]) -> bool:
     
     drug_class = str(compound.get("drug_class") or "").lower()
     mech = str(compound.get("mechanism") or "").lower()
+    key = str(compound.get("key") or "").lower()
+    name = str(compound.get("name") or "").lower()
+    parent = str(compound.get("parent_compound_id") or "").lower()
     smiles = str(compound.get("smiles") or "")
     
     # 1. Check chemical classification / ATC taxonomy
@@ -405,6 +410,10 @@ def is_aromatizable_androgen(compound: Dict[str, Any]) -> bool:
         return False
     if "androstan" in mech or "dht derivative" in mech:
         return False
+    if any(k in key or k in name for k in ["drostanolone", "masteron", "primobolan", "methenolone", "oxandrolone", "anavar", "stanozolol", "winstrol", "superdrol", "trenbolone"]):
+        return False
+    if parent in ("testosterone", "boldenone", "dianabol", "methandrostenolone") or any(k in key or k in name for k in ["testosterone", "boldenone", "dianabol", "dbol", "methandrostenolone"]):
+        return True
     
     # 2. Check SMILES structural features for delta-4-3-one steroid ring
     if smiles:

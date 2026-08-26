@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import logging
+import os
 import re
 import urllib.parse
 from typing import Any, Dict, List, Optional
@@ -112,9 +113,49 @@ class PubMedService:
     Queries NCBI E-Utilities, Europe PMC, and ClinicalTrials.gov API v2.
     """
 
-    def __init__(self, timeout_seconds: float = 4.0):
+    def __init__(self, timeout_seconds: float = 4.0, api_key: Optional[str] = None):
         self.timeout = timeout_seconds
+        self.api_key = api_key or os.getenv("NCBI_API_KEY")
         self._cache: Dict[str, Any] = {}
+
+    def count_results(self, query: str) -> int:
+        """
+        Returns the count of PubMed results matching a query without fetching records.
+        Used for co-occurrence PMI calculations. Much faster than search_literature.
+        """
+        cleaned = query.strip()
+        if not cleaned:
+            return 0
+
+        cache_key = f"count:{cleaned}"
+        if cache_key in self._cache:
+            return self._cache[cache_key]
+        if cache_key in _GLOBAL_LITERATURE_CACHE:
+            return _GLOBAL_LITERATURE_CACHE[cache_key]
+
+        try:
+            url = "https://eutils.ncbi.nlm.nih.gov/entrez/eutils/esearch.fcgi"
+            params: Dict[str, Any] = {
+                "db": "pubmed",
+                "term": cleaned,
+                "rettype": "count",
+                "retmode": "json",
+            }
+            if self.api_key:
+                params["api_key"] = self.api_key
+
+            with httpx.Client(timeout=self.timeout) as client:
+                res = client.get(url, params=params)
+                if res.status_code == 200:
+                    data = res.json()
+                    count = int(data.get("esearchresult", {}).get("count", 0))
+                    self._cache[cache_key] = count
+                    _GLOBAL_LITERATURE_CACHE[cache_key] = count
+                    return count
+        except Exception as e:
+            logger.debug("PubMed count error for '%s': %s", cleaned, e)
+
+        return 0
 
     def search_literature(self, query: str, max_results: int = 4) -> List[Dict[str, Any]]:
         """
@@ -150,6 +191,8 @@ class PubMedService:
                 "retmax": max_results,
                 "sort": "relevance",
             }
+            if self.api_key:
+                params["api_key"] = self.api_key
             with httpx.Client(timeout=self.timeout) as client:
                 res = client.get(esearch_url, params=params)
                 if res.status_code == 200:

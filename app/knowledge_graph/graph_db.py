@@ -1411,6 +1411,236 @@ class Neo4jGraphDatabase:
 
         return claims
 
+    def ingest_citation(
+        self,
+        citation: Dict[str, Any],
+        entity_id: Optional[str] = None,
+        relationship: str = "SUPPORTED_BY",
+    ) -> Dict[str, Any]:
+        """
+        Dynamically ingests a verified citation into the graph database, connecting it
+        to an entity (compound/target/pathway) via a typed relationship edge.
+        """
+        pmid = str(citation.get("pmid") or "").strip()
+        if not pmid and not citation.get("doi"):
+            return citation
+
+        cid = f"pmid_{pmid}" if pmid else f"doi_{citation.get('doi')}"
+        title = str(citation.get("title") or "").rstrip(".")
+        journal = str(citation.get("journal") or "PubMed Literature")
+        pub_year_raw = str(citation.get("pub_year") or "")
+        pub_year = int(pub_year_raw) if pub_year_raw.isdigit() else 2020
+        doi = citation.get("doi")
+        authors = list(citation.get("authors") or [])
+        evidence_tier = str(citation.get("evidence_tier") or citation.get("evidence_type") or "clinical_trial")
+        key_findings = str(citation.get("clinical_finding") or citation.get("key_findings") or title)
+        url = str(citation.get("url") or (f"https://pubmed.ncbi.nlm.nih.gov/{pmid}/" if pmid else ""))
+
+        node_data = {
+            "id": cid,
+            "label": title[:60],
+            "node_type": "citation",
+            "pmid": pmid,
+            "doi": doi,
+            "title": title,
+            "authors": authors,
+            "journal": journal,
+            "pub_year": pub_year,
+            "pub_date": str(citation.get("pub_date", str(pub_year))),
+            "evidence_tier": evidence_tier,
+            "sample_size": citation.get("sample_size"),
+            "study_design": str(citation.get("evidence_type", "RCT / Observational")),
+            "key_findings": key_findings,
+            "url": url,
+        }
+
+        # 1. Update in-memory node store
+        self._mock_nodes[cid] = copy.deepcopy(node_data)
+
+        # 2. If entity_id is provided, connect entity -> citation
+        if entity_id:
+            eid = str(entity_id).strip().lower()
+            if eid not in self._mock_nodes:
+                self._mock_nodes[eid] = {
+                    "id": eid,
+                    "label": eid.replace("_", " ").title(),
+                    "node_type": "compound",
+                }
+            
+            # Check existing edge
+            edge_exists = False
+            for edge in self._mock_edges:
+                if edge.get("source") == eid and edge.get("target") == cid:
+                    edge["discovery_year"] = pub_year
+                    edge["mechanism_notes"] = key_findings
+                    edge_exists = True
+                    break
+            if not edge_exists:
+                self._mock_edges.append({
+                    "source": eid,
+                    "target": cid,
+                    "edge_type": relationship,
+                    "confidence": 0.95,
+                    "discovery_year": pub_year,
+                    "mechanism_notes": key_findings,
+                    "pmids": [pmid] if pmid else [],
+                })
+
+        # 3. If Neo4j driver connected, execute Cypher MERGE
+        if self.driver:
+            try:
+                with self.driver.session() as session:
+                    cypher = """
+                    MERGE (c:EntityNode:CitationNode {id: $id})
+                    SET c.pmid = $pmid, c.doi = $doi, c.title = $title,
+                        c.journal = $journal, c.pub_year = $pub_year,
+                        c.evidence_tier = $evidence_tier, c.key_findings = $key_findings,
+                        c.url = $url
+                    """
+                    session.run(cypher, node_data)
+                    if entity_id:
+                        rel_cypher = f"""
+                        MERGE (e:EntityNode {{id: $eid}})
+                        MERGE (c:CitationNode {{id: $cid}})
+                        MERGE (e)-[r:{relationship}]->(c)
+                        SET r.discovery_year = $pub_year, r.notes = $key_findings
+                        """
+                        session.run(rel_cypher, {"eid": str(entity_id).strip().lower(), "cid": cid, "pub_year": pub_year, "key_findings": key_findings})
+            except Exception as e:
+                logger.debug("Neo4j citation ingest notice: %s", e)
+
+        return node_data
+
+    def get_citations_for_entity(self, entity_id: str, max_results: int = 10) -> List[Dict[str, Any]]:
+        """
+        Queries the citation graph database for all :Citation nodes connected
+        to the specified entity.
+        """
+        eid = str(entity_id).strip().lower()
+        if not eid:
+            return []
+
+        cites: List[Dict[str, Any]] = []
+        seen_pmids: Set[str] = set()
+
+        # 1. Neo4j Cypher query if driver connected
+        if self.driver:
+            try:
+                with self.driver.session() as session:
+                    q = """
+                    MATCH (e:EntityNode {id: $eid})-[r]-(c:CitationNode)
+                    RETURN c.id as id, c.pmid as pmid, c.doi as doi, c.title as title,
+                           c.journal as journal, c.pub_year as pub_year, c.evidence_tier as evidence_tier,
+                           c.key_findings as key_findings, c.url as url, c.authors as authors
+                    ORDER BY c.pub_year DESC
+                    LIMIT $limit
+                    """
+                    res = session.run(q, {"eid": eid, "limit": max_results})
+                    for record in res:
+                        pmid = record.get("pmid")
+                        if pmid and pmid not in seen_pmids:
+                            seen_pmids.add(pmid)
+                            cites.append(dict(record))
+            except Exception as cy_err:
+                logger.debug("Neo4j get_citations error: %s", cy_err)
+
+        # 2. In-memory graph traversal
+        if not cites:
+            target_ids = {eid, eid.replace("_", ""), eid.replace("_", "-"), eid.replace("l_", "")}
+            for edge in self._mock_edges:
+                s = str(edge.get("source", "")).lower()
+                t = str(edge.get("target", "")).lower()
+                if s in target_ids or t in target_ids:
+                    other_id = edge.get("target") if s in target_ids else edge.get("source")
+                    if other_id in self._mock_nodes:
+                        node = self._mock_nodes[other_id]
+                        if node.get("node_type") in ("citation", "study"):
+                            pmid = str(node.get("pmid") or "")
+                            if pmid and pmid not in seen_pmids:
+                                seen_pmids.add(pmid)
+                                cites.append({
+                                    "id": node.get("id", f"pmid_{pmid}"),
+                                    "pmid": pmid,
+                                    "doi": node.get("doi"),
+                                    "title": node.get("title", ""),
+                                    "journal": node.get("journal", ""),
+                                    "pub_year": node.get("pub_year") or 2020,
+                                    "authors": node.get("authors", []),
+                                    "evidence_tier": node.get("evidence_tier", "clinical_trial"),
+                                    "clinical_finding": node.get("key_findings") or edge.get("mechanism_notes", ""),
+                                    "url": node.get("url") or f"https://pubmed.ncbi.nlm.nih.gov/{pmid}/",
+                                })
+
+            for nid, node in self._mock_nodes.items():
+                if node.get("node_type") in ("citation", "study"):
+                    nid_lower = nid.lower()
+                    title_lower = str(node.get("title", "")).lower()
+                    if any(tid in nid_lower for tid in target_ids) or (len(eid) >= 4 and eid in title_lower):
+                        pmid = str(node.get("pmid") or "")
+                        if pmid and pmid not in seen_pmids:
+                            seen_pmids.add(pmid)
+                            cites.append({
+                                "id": nid,
+                                "pmid": pmid,
+                                "doi": node.get("doi"),
+                                "title": node.get("title", ""),
+                                "journal": node.get("journal", ""),
+                                "pub_year": node.get("pub_year") or 2020,
+                                "authors": node.get("authors", []),
+                                "evidence_tier": node.get("evidence_tier", "clinical_trial"),
+                                "clinical_finding": node.get("key_findings", ""),
+                                "url": node.get("url") or f"https://pubmed.ncbi.nlm.nih.gov/{pmid}/",
+                            })
+
+        cites.sort(key=lambda c: int(c.get("pub_year") or 0), reverse=True)
+        return cites[:max_results]
+
+    def search_citations(self, query: str, max_results: int = 5) -> List[Dict[str, Any]]:
+        """
+        Searches the citation graph database for citations matching query keywords across
+        titles, key findings, journals, connected entities, or PMIDs.
+        """
+        cleaned = query.strip().lower()
+        if not cleaned:
+            return []
+
+        tokens = [t for t in re.split(r"[\s_,\-]+", cleaned) if len(t) >= 3]
+        if not tokens:
+            tokens = [cleaned]
+
+        matches: List[Tuple[int, Dict[str, Any]]] = []
+        seen_pmids: Set[str] = set()
+
+        for nid, node in self._mock_nodes.items():
+            if node.get("node_type") in ("citation", "study"):
+                pmid = str(node.get("pmid") or "")
+                if pmid in seen_pmids:
+                    continue
+                
+                title = str(node.get("title", "")).lower()
+                findings = str(node.get("key_findings", "")).lower()
+                journal = str(node.get("journal", "")).lower()
+                corpus = f"{nid} {pmid} {title} {findings} {journal}"
+                
+                score = sum(1 for t in tokens if t in corpus)
+                if score > 0:
+                    seen_pmids.add(pmid)
+                    matches.append((score, {
+                        "id": nid,
+                        "pmid": pmid,
+                        "doi": node.get("doi"),
+                        "title": node.get("title", ""),
+                        "journal": node.get("journal", ""),
+                        "pub_year": node.get("pub_year") or 2020,
+                        "authors": node.get("authors", []),
+                        "evidence_tier": node.get("evidence_tier", "clinical_trial"),
+                        "clinical_finding": node.get("key_findings", ""),
+                        "url": node.get("url") or f"https://pubmed.ncbi.nlm.nih.gov/{pmid}/",
+                    }))
+
+        matches.sort(key=lambda m: (m[0], int(m[1].get("pub_year") or 0)), reverse=True)
+        return [m[1] for m in matches[:max_results]]
+
 
 # Singleton instance accessor
 _GRAPH_DB_INSTANCE: Optional[Neo4jGraphDatabase] = None

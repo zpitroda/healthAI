@@ -24,8 +24,8 @@ client = TestClient(app)
 def test_citation_nodes_and_models():
     """Verify CitationNode, ClinicalTrialNode, and EvidenceClaimNode instantiation."""
     cite = CitationNode(
-        node_id="pmid_18449337",
-        pmid="18449337",
+        node_id="pmid_18378520",
+        pmid="18378520",
         doi="10.1056/NEJMoa0801317",
         title="Telmisartan, ramipril, or both in patients at high risk for vascular events (ONTARGET)",
         authors=["Yusuf S", "Teo KK", "Pogue J", "et al."],
@@ -35,10 +35,10 @@ def test_citation_nodes_and_models():
         evidence_tier="rct_landmark",
         sample_size=25620,
         key_findings="Demonstrates potent AT1 blockade and endothelial organ protection.",
-        url="https://pubmed.ncbi.nlm.nih.gov/18449337/",
+        url="https://pubmed.ncbi.nlm.nih.gov/18378520/",
     )
     assert cite.node_type == "citation"
-    assert cite.pmid == "18449337"
+    assert cite.pmid == "18378520"
     assert cite.pub_year == 2008
     assert cite.sample_size == 25620
 
@@ -91,7 +91,7 @@ def test_graph_database_sync_and_timeline():
     # Test chronological timeline retrieval
     timeline = gdb.get_chronological_evidence_timeline("telmisartan")
     assert len(timeline) >= 1
-    assert any(str(m.get("pmid")) == "18449337" for m in timeline)
+    assert any(str(m.get("pmid")) == "18378520" for m in timeline)
     assert all("year" in m for m in timeline)
 
     # Test temporal snapshot
@@ -178,7 +178,7 @@ def test_catalog_service_evidence_dossier():
     # Get citations
     cites = cat.get_citations_for_compound("nebivolol")
     assert len(cites) >= 1
-    assert any(str(c.get("pmid")) in ("99999999", "15749762") for c in cites)
+    assert any(str(c.get("pmid")) in ("99999999", "15587107", "15642700") for c in cites)
 
     # Compound evidence dossier
     dossier = cat.get_compound_evidence_dossier("telmisartan")
@@ -237,6 +237,6 @@ def test_copilot_agent_literature_tools():
     assert "milestone_count" in res_time
 
     # Tool: get_citation_details
-    res_cite = CopilotAgent.execute_tool("get_citation_details", {"pmid": "18449337"})
-    assert res_cite.get("pmid") == "18449337"
+    res_cite = CopilotAgent.execute_tool("get_citation_details", {"pmid": "18378520"})
+    assert res_cite.get("pmid") == "18378520"
     assert "ONTARGET" in res_cite.get("title", "")

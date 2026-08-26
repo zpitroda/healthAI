@@ -2964,45 +2964,54 @@ class CatalogService:
         return cid
 
     def get_citations_for_compound(self, compound_key: str) -> List[Dict[str, Any]]:
-        """Retrieves all peer-reviewed citations for a compound from SQLite and seed benchmarks."""
+        """Retrieves all peer-reviewed citations for a compound from the Citation Graph Database, SQLite, and PubMed."""
         ck = str(compound_key).strip().lower()
         results: List[Dict[str, Any]] = []
+        seen_pmids: Set[str] = set()
 
-        with self._connect() as conn:
-            rows = conn.execute("SELECT * FROM citations WHERE compound_key = ? ORDER BY pub_year DESC", (ck,)).fetchall()
-            for r in rows:
-                item = dict(r)
-                item["authors"] = self._deserialize(item.get("authors"), default=[])
-                item["mesh_terms"] = self._deserialize(item.get("mesh_terms"), default=[])
-                results.append(item)
-
-        # Merge seed literature if present
+        # 1. Query Citation Graph Database
         try:
-            from app.services.pubmed_service import SEED_LITERATURE_DB
-            seeds = SEED_LITERATURE_DB.get(ck, [])
-            seen_pmids = {str(r.get("pmid")) for r in results if r.get("pmid")}
-            for s in seeds:
-                if str(s.get("pmid")) not in seen_pmids:
-                    results.append({
-                        "id": f"pmid_{s['pmid']}",
-                        "pmid": s["pmid"],
-                        "doi": s.get("doi"),
-                        "title": s.get("title", ""),
-                        "authors": s.get("authors", []),
-                        "journal": s.get("journal", ""),
-                        "pub_year": int(s.get("pub_year", 2015)),
-                        "pub_date": s.get("pub_date"),
-                        "evidence_tier": s.get("evidence_tier", s.get("evidence_type", "clinical_trial")),
-                        "sample_size": s.get("sample_size"),
-                        "key_findings": s.get("clinical_finding", ""),
-                        "compound_key": ck,
-                        "url": s.get("url") or f"https://pubmed.ncbi.nlm.nih.gov/{s['pmid']}/",
-                    })
-                    seen_pmids.add(str(s["pmid"]))
+            from app.knowledge_graph.graph_db import get_graph_database
+            gdb = get_graph_database()
+            graph_cites = gdb.get_citations_for_entity(ck, max_results=10)
+            for gc in graph_cites:
+                p = str(gc.get("pmid") or "")
+                if p and p not in seen_pmids:
+                    seen_pmids.add(p)
+                    results.append(gc)
+        except Exception as g_err:
+            logger.debug("Graph DB citation retrieval notice: %s", g_err)
+
+        # 2. Query SQLite catalog citations table
+        try:
+            with self._connect() as conn:
+                rows = conn.execute("SELECT * FROM citations WHERE compound_key = ? ORDER BY pub_year DESC", (ck,)).fetchall()
+                for r in rows:
+                    item = dict(r)
+                    p = str(item.get("pmid") or "")
+                    if p and p not in seen_pmids:
+                        seen_pmids.add(p)
+                        item["authors"] = self._deserialize(item.get("authors"), default=[])
+                        item["mesh_terms"] = self._deserialize(item.get("mesh_terms"), default=[])
+                        results.append(item)
         except Exception:
             pass
 
-        results.sort(key=lambda x: (x.get("pub_year") or 0), reverse=True)
+        # 3. If empty, dynamically query PubMed and ingest into the Graph Database
+        if not results:
+            try:
+                from app.services.pubmed_service import PubMedService
+                p_svc = PubMedService()
+                live_cites = p_svc.search_literature(ck, max_results=3)
+                for lc in live_cites:
+                    p = str(lc.get("pmid") or "")
+                    if p and p not in seen_pmids:
+                        seen_pmids.add(p)
+                        results.append(lc)
+            except Exception:
+                pass
+
+        results.sort(key=lambda x: (int(x.get("pub_year") or 0)), reverse=True)
         return results
 
     def get_clinical_trials_for_compound(self, compound_key: str) -> List[Dict[str, Any]]:

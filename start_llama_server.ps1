@@ -31,7 +31,6 @@ if (-not $MODEL_PATH) {
 # --spec-draft-n-max 2    : Maximum 2 draft tokens per step
 # --jinja                 : Accurately renders Qwen chat templates without breaking
 # --reasoning-effort medium : Sets balanced reasoning effort level in chat template
-# --reasoning-budget 512  : Caps reasoning tokens to prevent runaway thinking loops
 # --reasoning-format deepseek : Cleanly separates reasoning thoughts from final content
 # --load-mode mlock       : Locks model weights in memory (prevents paging/swapping)
 # --port 8080             : Standard port (matches HealthAI OPENAI_BASE_URL default)
@@ -49,7 +48,6 @@ Set-Location $LlamaDir
     --spec-draft-n-max 2 `
     --jinja `
     --reasoning-effort medium `
-    --reasoning-budget 512 `
     --reasoning-format deepseek `
     --load-mode mlock `
     --port 8080

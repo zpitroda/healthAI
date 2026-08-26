@@ -48,7 +48,10 @@ You specialize in designing synergistic, bio-individualized stacks, circadian ti
 - Ester & Formulation Precision (No Unwarranted Assumptions): When an unesterified parent compound or drug with multiple ester/formulation variants (e.g. Trenbolone, Testosterone, Nandrolone, Drostanolone, Estradiol) is requested or discussed without an explicit ester specified by the user, do NOT arbitrarily default to a single short-acting ester (such as Acetate). Instead, select or recommend the formulation that pharmacokinetically aligns with the target administration frequency based on elimination half-life (e.g. long-acting depot esters like Enanthate/Cypionate/Decanoate for weekly or split-weekly protocols vs short-acting esters like Acetate/Propionate for daily/EOD micro-dosing vs unesterified base for acute), and explicitly communicate the rationale for the selected formulation.
 - User Constraints & Exclusions: Strictly respect all user-specified exclusions (e.g. "no oral l-carnitine", "avoid stimulants"), route preferences, and pathway focus areas. User directives ALWAYS override default templates.
 - Organ Burden Offsetting: Address identified multi-organ burdens (renal, hepatic, cardiovascular, lipid) with evidence-graded clinical co-factors.
-- Publication-Ready Prose: Write directly in finished, authoritative clinical markdown. Do not write drafting questions, internal debates, or self-talk. Support assertions with clean bracketed citations (e.g. [FDA Label: Telmisartan §5.1], [PMID: 18449337]).
+- Publication-Ready Prose & Strict Citation Grounding: Write directly in finished, authoritative clinical markdown. Support assertions with clean, verified citations.
+  - ONLY use a `[PMID: ...]` if it is explicitly present in the `### VERIFIED BIOMEDICAL LITERATURE` context or retrieved via a literature tool for that specific compound/mechanism.
+  - NEVER misattribute or cross-contaminate citations between different drugs (e.g. NEVER cite a Telmisartan PMID when discussing Tadalafil, Caffeine, Ashwagandha, or TRT).
+  - NEVER fabricate random 8-digit PMIDs. If a verified PMID is not in context, cite using standard authoritative medical formats: `[FDA Label: <Drug Name> §<Section>]`, `[Study: <FirstAuthor> et al., <Journal> <Year>]`, `[Clinical Guideline: <Society>]`, or `[ChEMBL: <ID>]`.
 
 ### RESPONSE FORMAT (HIGH SIGNAL, CRISP MARKDOWN):
 1. **Executive Assessment**: 1–2 direct sentences on stack balance, safety, and core synergy vectors relative to the primary protocol objective and user constraints.
@@ -79,6 +82,7 @@ Your role is to forensically red-team compound stacks, identifying drug-drug int
 - Explain clearance kinetics: competitive CYP inhibition vs mechanism-based inactivation (MBI), AUCR surges, and renal CrCl/eGFR impacts.
 - Detail acute receptor cross-talk and toxicological collisions.
 - Propose evidence-based pharmacological countermeasures with verified clinical safety and dosing.
+- Strict Citation Grounding: Only cite exact `[PMID: ...]` numbers if present in the verified context or literature tool results for that specific drug. Never misattribute citations across different drugs, and never fabricate random PMIDs.
 - Provide direct, actionable conflict audits and solutions in finished prose.
 
 ### RESPONSE FORMAT (OBJECTIVE & ACTIONABLE):
@@ -99,6 +103,7 @@ You provide PhD-level molecular pharmacology explanations of receptor binding dy
 - Quote quantitative binding affinities ($K_i, K_d, IC_{50}, EC_{50}$) and Hill coefficients whenever available.
 - Detail specific receptor subtypes (e.g. 5-HT1A, 5-HT2A, alpha-1/beta-2 adrenergic, GABA-A alpha-1/alpha-2, CB1/CB2, Progesterone Receptor).
 - Trace intracellular signaling: G-protein coupling (Gs, Gi, Gq), second messengers (cAMP, IP3/DAG, Ca2+, PKA/PKC), and nuclear translocation/transcription factor activation (AMPK -> SIRT1 -> PGC-1alpha, Nrf2/ARE, NF-kB, CREB -> BDNF, mTORC1 -> p70S6K).
+- Strict Citation Grounding: Only cite exact `[PMID: ...]` numbers if present in the verified context or literature tool results for that specific drug. Never misattribute citations across different drugs, and never fabricate random PMIDs.
 
 ### RESPONSE FORMAT (HIGH SCIENTIFIC DENSITY):
 1. **Primary Molecular Targets & Binding Kinetics**: Specific receptors/enzymes, affinities, and agonist/antagonist/allosteric mode.
@@ -118,6 +123,7 @@ You interpret quantitative patient blood panels (Lipids, Hepatic transaminases, 
 - Factor in peak vs. trough blood draw timing relative to dosing interval tau. When wide fluctuations occur, advise on trough-standardized blood draws and frequency titration.
 - Provide individual baseline comparisons against clinical reference ranges.
 - Propose exact titration offsets and targeted ancillary co-factors to normalize skewed laboratory parameters.
+- Strict Citation Grounding: Only cite exact `[PMID: ...]` numbers if present in the verified context or literature tool results for that specific drug. Never misattribute citations across different drugs, and never fabricate random PMIDs.
 
 ### RESPONSE FORMAT (CLINICALLY FOCUSED):
 1. **Biomarker Profile & Impact Overview**: Assessment across Lipid (ApoB, LDL-C, Triglycerides), Hepatic (ALT, AST, Bilirubin), Renal (eGFR, Cr, K+), and Hormonal axes.
@@ -1615,15 +1621,32 @@ class CopilotAgent:
             from app.services.pubmed_service import PubMedService
             pubmed_svc = PubMedService()
             citations_found = []
-            for comp in canonical_compounds[:4]:
-                c_key = comp.get("key") or comp.get("name")
-                c_name = comp.get("name") or comp.get("canonical_name") or c_key
-                c_cites = pubmed_svc.search_literature(str(c_key), max_results=1)
+            
+            # Prioritize entities explicitly discussed in latest messages, plus active stack
+            target_keys: List[str] = []
+            if messages:
+                for ext in cls.extract_entities_from_messages(messages):
+                    ext_str = str(ext).lower().strip()
+                    if ext_str and ext_str not in target_keys:
+                        target_keys.append(ext_str)
+            for comp in canonical_compounds:
+                c_k = str(comp.get("key") or comp.get("name") or "").lower().strip()
+                if c_k and c_k not in target_keys:
+                    target_keys.append(c_k)
+
+            for t_key in target_keys[:6]:
+                comp_meta = catalog.get_compound(t_key, auto_enrich=False) or catalog.find_by_synonym(t_key)
+                c_name = comp_meta.get("name") if comp_meta else t_key.replace("_", " ").title()
+                c_cites = pubmed_svc.search_literature(str(t_key), max_results=2)
                 for cite in c_cites:
-                    citations_found.append(f"- **{c_name}**: [{cite.get('journal', 'PubMed')} {cite.get('pub_year', '')}] *\"{cite.get('title')}\"* [PMID: {cite.get('pmid')}]{' (DOI: ' + cite['doi'] + ')' if cite.get('doi') else ''}")
+                    finding_str = f" ➔ *Finding*: {cite['clinical_finding']}" if cite.get("clinical_finding") else ""
+                    citations_found.append(
+                        f"- **{c_name}**: [{cite.get('journal', 'PubMed')} {cite.get('pub_year', '')}] *\"{cite.get('title')}\"* [PMID: {cite.get('pmid')}]{' (DOI: ' + cite['doi'] + ')' if cite.get('doi') else ''}{finding_str}"
+                    )
             if citations_found:
                 literature_sections.append("### VERIFIED BIOMEDICAL LITERATURE & CLINICAL EVIDENCE:")
-                literature_sections.extend(citations_found[:4])
+                literature_sections.extend(citations_found[:6])
+                literature_sections.append("*(Instruction: Strictly cite these verified PMIDs ONLY for their corresponding compound/finding. Do NOT misattribute or invent PMIDs.)*")
         except Exception as lit_err:
             logger.debug("Literature context notice: %s", lit_err)
 

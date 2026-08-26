@@ -1046,6 +1046,38 @@ class CopilotAgent:
             citations = pubmed_svc.search_literature(query, max_results=max_res)
             return {"query": query, "count": len(citations), "citations": citations}
 
+        elif tool_name in ("search_literature_and_conflicts", "get_scientific_controversies", "detect_literature_conflicts"):
+            from app.services.pubmed_service import PubMedService
+            compound_name = str(arguments.get("compound_name") or arguments.get("compound_key") or arguments.get("query") or "").strip().lower()
+            prop_name = str(arguments.get("property") or arguments.get("target_property") or "").strip()
+            pubmed_svc = PubMedService()
+            conflicts = pubmed_svc.detect_conflicts_for_compound(compound_name, property_name=prop_name if prop_name else None)
+            citations = pubmed_svc.search_literature_with_polarity(compound_name, max_results=4)
+            return {
+                "compound": compound_name,
+                "conflict_count": len(conflicts),
+                "conflicts": conflicts,
+                "recent_citations": citations,
+            }
+
+        elif tool_name in ("get_temporal_evidence_timeline", "get_discovery_timeline"):
+            entity_id = str(arguments.get("entity_id") or arguments.get("compound_key") or arguments.get("compound_name") or "").strip().lower()
+            timeline = graph_db.get_chronological_evidence_timeline(entity_id)
+            return {
+                "entity_id": entity_id,
+                "milestone_count": len(timeline),
+                "timeline": timeline,
+            }
+
+        elif tool_name in ("get_citation_details", "get_citation_metadata"):
+            from app.services.pubmed_service import PubMedService
+            pmid = str(arguments.get("pmid") or "").strip()
+            pubmed_svc = PubMedService()
+            meta = pubmed_svc.fetch_citation_metadata(pmid)
+            if not meta:
+                return {"error": f"Citation with PMID '{pmid}' not found."}
+            return meta
+
         elif tool_name in ("search_clinical_trials", "search_trials"):
             from app.services.pubmed_service import PubMedService
             query = str(arguments.get("query") or arguments.get("condition") or arguments.get("intervention") or "").strip()

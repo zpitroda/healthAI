@@ -119,8 +119,46 @@ def save_catalog_item(compound: Dict[str, Any]) -> Dict[str, Any]:
 def delete_catalog_item(compound_key: str) -> Dict[str, str]:
     """Delete a compound record from the active catalog."""
     service = get_catalog_service()
-    existing = service.get_compound(compound_key, auto_enrich=False)
-    if existing is None:
+    deleted = service.delete_compound(compound_key)
+    if not deleted:
         raise HTTPException(status_code=404, detail="Compound not found.")
-    service.delete_compound(compound_key)
     return {"deleted": compound_key}
+
+
+@router.get("/catalog/{compound_key}/citations")
+def get_compound_citations(compound_key: str) -> JSONResponse:
+    """Retrieve structured peer-reviewed citations for a specific compound."""
+    service = get_catalog_service()
+    citations = service.get_citations_for_compound(compound_key)
+    return JSONResponse(
+        {"compound_key": compound_key, "count": len(citations), "citations": citations},
+        headers=NO_CACHE_HEADERS,
+    )
+
+
+@router.get("/catalog/{compound_key}/trials")
+def get_compound_trials(compound_key: str) -> JSONResponse:
+    """Retrieve clinical trial registrations for a specific compound."""
+    service = get_catalog_service()
+    trials = service.get_clinical_trials_for_compound(compound_key)
+    return JSONResponse(
+        {"compound_key": compound_key, "count": len(trials), "trials": trials},
+        headers=NO_CACHE_HEADERS,
+    )
+
+
+@router.get("/catalog/{compound_key}/evidence-dossier")
+def get_compound_evidence_dossier_api(compound_key: str) -> JSONResponse:
+    """Retrieve comprehensive scientific evidence dossier (citations, trials, milestones, and controversies)."""
+    service = get_catalog_service()
+    dossier = service.get_compound_evidence_dossier(compound_key)
+    return JSONResponse(dossier, headers=NO_CACHE_HEADERS)
+
+
+@router.post("/catalog/{compound_key}/citations")
+def add_compound_citation(compound_key: str, payload: Dict[str, Any]) -> JSONResponse:
+    """Add a structured citation record to a compound."""
+    service = get_catalog_service()
+    payload["compound_key"] = compound_key.strip().lower()
+    cid = service.add_citation(payload)
+    return JSONResponse({"id": cid, "status": "saved"}, headers=NO_CACHE_HEADERS)

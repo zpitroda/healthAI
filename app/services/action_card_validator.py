@@ -304,14 +304,22 @@ class ActionCardValidator:
         if side-effect management countermeasures are active and sufficient.
         """
         notes: List[str] = []
-        stack_keys = {str(c.get("key", "")).lower() for c in projected_stack}
+        catalog = CatalogService()
+        enriched_stack: List[Dict[str, Any]] = []
+        for c in projected_stack:
+            k = str(c.get("key") or c.get("name") or "").strip().lower()
+            rec = dict(catalog.get_compound(k, auto_enrich=False) or {})
+            rec.update(c)
+            enriched_stack.append(rec)
+
+        stack_keys = {str(c.get("key", "")).lower() for c in enriched_stack}
 
         has_aromatizable_androgen = False
         has_19nor_androgen = False
         has_17a_alkylated = False
         total_androgen_dose = 0.0
 
-        for comp in projected_stack:
+        for comp in enriched_stack:
             drug_class = str(comp.get("drug_class") or "").lower()
             key_name = str(comp.get("key") or comp.get("name") or "").lower()
             mech = str(comp.get("mechanism") or "").lower()
@@ -332,12 +340,16 @@ class ActionCardValidator:
         if has_aromatizable_androgen:
             shield_active = True
             has_ai_or_serm = any(
-                "aromatase" in str(c.get("mechanism", "")).lower()
-                or "cyp19a1" in str(c.get("mechanism", "")).lower()
+                k in stack_keys for k in ["anastrozole", "exemestane", "letrozole", "raloxifene", "tamoxifen", "arimidex", "aromasin", "formestane", "aminoglutethimide"]
+            ) or any(
+                "aromatase inhibitor" in str(c.get("drug_class", "")).lower()
                 or "serm" in str(c.get("drug_class", "")).lower()
-                or any("cyp19a1" in str(t).lower() or "esr1" in str(t).lower() for t in (c.get("receptor_targets") or []))
-                or k in stack_keys for k in ["anastrozole", "exemestane", "letrozole", "raloxifene", "tamoxifen", "arimidex", "aromasin"]
-                for c in projected_stack
+                or any(
+                    ("cyp19a1" in str(t.get("target", "") if isinstance(t, dict) else str(t)).lower() or "aromatase" in str(t.get("target", "") if isinstance(t, dict) else str(t)).lower())
+                    and str(t.get("action", "") if isinstance(t, dict) else "").lower() in ["inhibitor", "antagonist", "blocker"]
+                    for t in (c.get("receptor_targets") or [])
+                )
+                for c in enriched_stack
             )
             if not has_ai_or_serm:
                 notes.append(
@@ -347,10 +359,10 @@ class ActionCardValidator:
         if has_19nor_androgen:
             shield_active = True
             has_prolactin_support = any(
-                "dopa" in str(c.get("mechanism", "")).lower()
-                or "dopamine" in str(c.get("mechanism", "")).lower()
-                or k in stack_keys for k in ["p5p", "pyridoxal_5_phosphate", "cabergoline"]
-                for c in projected_stack
+                k in stack_keys for k in ["p5p", "pyridoxal_5_phosphate", "cabergoline", "pramipexole"]
+            ) or any(
+                "dopamine agonist" in str(c.get("drug_class", "")).lower()
+                for c in enriched_stack
             )
             if not has_prolactin_support:
                 notes.append(
@@ -360,11 +372,12 @@ class ActionCardValidator:
         if has_17a_alkylated:
             shield_active = True
             has_hepatic_shield = any(
+                k in stack_keys for k in ["tudca", "nac", "glutathione", "udca"]
+            ) or any(
                 "glutathione" in str(c.get("mechanism", "")).lower()
                 or "bile acid" in str(c.get("mechanism", "")).lower()
                 or "hepatoprotective" in str(c.get("drug_class", "")).lower()
-                or k in stack_keys for k in ["tudca", "nac", "glutathione"]
-                for c in projected_stack
+                for c in enriched_stack
             )
             if not has_hepatic_shield:
                 notes.append(
@@ -375,12 +388,16 @@ class ActionCardValidator:
         if total_androgen_dose >= 250.0:
             shield_active = True
             has_arb = any(
-                "angiotensin" in str(c.get("mechanism", "")).lower()
-                or "agtr1" in str(c.get("mechanism", "")).lower()
+                k in stack_keys for k in ["telmisartan", "losartan", "valsartan", "candesartan", "irbesartan", "olmesartan"]
+            ) or any(
+                "angiotensin receptor blocker" in str(c.get("drug_class", "")).lower()
                 or "arb" in str(c.get("drug_class", "")).lower()
-                or any("agtr1" in str(t).lower() for t in (c.get("receptor_targets") or []))
-                or k in stack_keys for k in ["telmisartan", "losartan", "valsartan"]
-                for c in projected_stack
+                or any(
+                    ("agtr1" in str(t.get("target", "") if isinstance(t, dict) else str(t)).lower() or "angiotensin" in str(t.get("target", "") if isinstance(t, dict) else str(t)).lower())
+                    and str(t.get("action", "") if isinstance(t, dict) else "").lower() in ["antagonist", "inhibitor", "blocker"]
+                    for t in (c.get("receptor_targets") or [])
+                )
+                for c in enriched_stack
             )
             if not has_arb:
                 notes.append(

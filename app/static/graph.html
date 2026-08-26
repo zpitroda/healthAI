@@ -1673,6 +1673,12 @@
           <div class="graph-filter-matrix" id="domainFilters">
             <button class="filter-btn active" data-filter="all">All Interactions</button>
             <button class="filter-btn" data-filter="convergence" id="btnFilterConvergence" title="Show molecular targets with multiple compound inputs">⚔️ Converging Targets</button>
+            <button class="filter-btn" id="btnToggleControversies" title="Highlight scientifically debated relationships with low consensus scores">⚠️ Controversies Radar</button>
+            <div class="filter-btn" style="display:inline-flex; align-items:center; gap:6px; background:rgba(8,13,25,0.9); cursor:default;">
+              <span style="font-size:0.68rem; color:var(--text-secondary);">⏳ Discovery Horizon:</span>
+              <input type="range" id="temporalYearSlider" min="1990" max="2026" value="2026" style="width:70px; height:4px; accent-color:#00f2fe; cursor:pointer;" />
+              <strong id="temporalYearDisplay" style="color:#00f2fe; font-size:0.72rem; font-family:'JetBrains Mono';">2026</strong>
+            </div>
             <button class="filter-btn" data-filter="pd">⚡ Pharmacodynamics (PD)</button>
             <button class="filter-btn" data-filter="pk">💊 Pharmacokinetics (PK)</button>
             <button class="filter-btn" data-filter="outcomes">📊 Biomarkers & Outcomes</button>
@@ -1696,7 +1702,7 @@
         <!-- FLOATING INSPECTOR DRAWER 2.0 -->
         <aside class="inspector-drawer hidden" id="nodePanelContainer">
           <div class="inspector-header">
-            <span class="inspector-title">🧬 Node Inspector</span>
+            <span class="inspector-title" id="inspectorHeaderTitle">🧬 Node Inspector</span>
             <button id="inspectorCloseBtn" class="inspector-close-btn" title="Close drawer">&times;</button>
           </div>
           
@@ -1704,6 +1710,7 @@
             <div class="inspector-tab active" data-tab="overview">Overview</div>
             <div class="inspector-tab" data-tab="pharmacodynamics">Pharmacology</div>
             <div class="inspector-tab" data-tab="cascade">Cascades</div>
+            <div class="inspector-tab" data-tab="evidence">Evidence & Citations</div>
           </div>
 
           <div class="inspector-body" id="nodePanel">
@@ -2405,7 +2412,147 @@
               </div>
             </div>
           `;
+        } else if (state.selectedTab === 'evidence') {
+          // EVIDENCE & CITATIONS TAB
+          const entityId = node.id.toLowerCase();
+          nodePanel.innerHTML = `
+            <div>
+              <div class="node-hero-title">${node.label} Evidence Dossier</div>
+              <p style="color:var(--text-secondary); font-size:0.75rem; margin-top:4px;">Peer-reviewed literature, landmark clinical trials, and discovery timeline.</p>
+            </div>
+            <div id="graphEvidenceContent" style="display:flex; flex-direction:column; gap:10px; margin-top:10px;">
+              <div style="font-size:0.75rem; color:var(--text-muted);">Fetching authoritative citation network...</div>
+            </div>
+          `;
+
+          fetch(`/catalog/${encodeURIComponent(entityId)}/evidence-dossier`)
+            .then(res => res.json())
+            .then(dossier => {
+              const el = document.getElementById('graphEvidenceContent');
+              if (!el) return;
+              const cites = dossier.citations || [];
+              const trials = dossier.clinical_trials || [];
+              const timeline = dossier.chronological_timeline || [];
+              const conflicts = dossier.conflicts || [];
+
+              let outHtml = '';
+              if (conflicts.length > 0) {
+                outHtml += `<div style="background:rgba(245,158,11,0.08); border:1px solid rgba(245,158,11,0.3); border-radius:8px; padding:10px;">
+                  <div style="font-size:0.78rem; font-weight:800; color:#fbbf24;">⚠️ Active Scientific Controversies</div>`;
+                conflicts.forEach(cf => {
+                  outHtml += `
+                    <div style="font-size:0.72rem; color:var(--text-secondary); margin-top:6px; line-height:1.35;">
+                      <strong>${cf.topic || 'Pharmacological Debate'}</strong> (Consensus: ${Math.round((cf.consensus_score||0.6)*100)}%)
+                      <div style="color:var(--text-muted); font-size:0.68rem; margin-top:2px;">${cf.divergence_rationale || ''}</div>
+                    </div>
+                  `;
+                });
+                outHtml += `</div>`;
+              }
+
+              if (timeline.length > 0) {
+                outHtml += `<div>
+                  <div style="font-size:0.75rem; font-weight:700; color:#38bdf8; margin-bottom:6px;">⏳ Discovery Milestones</div>
+                  <div style="display:flex; flex-direction:column; gap:6px;">`;
+                timeline.forEach(m => {
+                  outHtml += `
+                    <div style="font-size:0.72rem; padding:6px 8px; background:rgba(8,13,25,0.7); border:1px solid var(--border-subtle); border-radius:6px;">
+                      <span style="color:#00f2fe; font-weight:700; font-family:'JetBrains Mono';">${m.year || 'Discovery'}:</span>
+                      <span style="color:var(--text-secondary); margin-left:4px;">${m.title || m.milestone}</span>
+                      ${m.pmid ? `<a href="https://pubmed.ncbi.nlm.nih.gov/${m.pmid}/" target="_blank" rel="noopener" style="color:#38bdf8; font-size:0.65rem; margin-left:4px;">[PMID: ${m.pmid}]</a>` : ''}
+                    </div>
+                  `;
+                });
+                outHtml += `</div></div>`;
+              }
+
+              if (cites.length > 0 || trials.length > 0) {
+                outHtml += `<div>
+                  <div style="font-size:0.75rem; font-weight:700; color:#10b981; margin-bottom:6px;">🔬 Peer-Reviewed Grounding (${cites.length + trials.length} Studies)</div>
+                  <div style="display:flex; flex-direction:column; gap:6px;">`;
+                cites.slice(0, 5).forEach(c => {
+                  outHtml += `
+                    <div style="font-size:0.72rem; padding:8px 10px; background:rgba(8,13,25,0.7); border:1px solid var(--border-subtle); border-radius:6px;">
+                      <div style="font-weight:700; color:#ffffff;">${c.title}</div>
+                      <div style="font-size:0.65rem; color:var(--text-muted); margin-top:2px;">${c.journal || 'Journal'} (${c.pub_year || 'N/A'}) &bull; ${c.evidence_tier || 'Study'}</div>
+                      ${c.key_findings ? `<div style="font-size:0.68rem; color:#94a3b8; margin-top:3px;">💡 ${c.key_findings}</div>` : ''}
+                      ${c.pmid ? `<div style="margin-top:4px;"><a href="https://pubmed.ncbi.nlm.nih.gov/${c.pmid}/" target="_blank" rel="noopener" style="color:#38bdf8; font-size:0.68rem; text-decoration:none;">PubMed: ${c.pmid} ↗</a></div>` : ''}
+                    </div>
+                  `;
+                });
+                outHtml += `</div></div>`;
+              }
+
+              el.innerHTML = outHtml || `<div style="font-size:0.75rem; color:var(--text-muted);">No direct literature citations found.</div>`;
+            })
+            .catch(() => {
+              const el = document.getElementById('graphEvidenceContent');
+              if (el) el.innerHTML = `<div style="font-size:0.75rem; color:var(--text-muted);">Live literature lookup active via PubMed API.</div>`;
+            });
         }
+      }
+
+      function renderEdgeInspector(edgeData) {
+        if (!edgeData) return;
+        const nodePanel = document.getElementById('nodePanel');
+        const nodePanelContainer = document.getElementById('nodePanelContainer');
+        const inspectorHeaderTitle = document.getElementById('inspectorHeaderTitle');
+
+        if (inspectorHeaderTitle) inspectorHeaderTitle.textContent = '⚡ Interaction Provenance';
+        if (nodePanelContainer) nodePanelContainer.classList.remove('hidden');
+
+        const src = edgeData.source;
+        const tgt = edgeData.target;
+        const eType = edgeData.type || edgeData.edge_type || 'MODULATES';
+        const ki = edgeData.affinity_ki ? `<div><strong>Ki (Affinity):</strong> ${edgeData.affinity_ki} nM</div>` : '';
+        const ic50 = edgeData.inhibition_ic50 ? `<div><strong>IC50:</strong> ${edgeData.inhibition_ic50} nM</div>` : '';
+        const discYear = edgeData.discovery_year ? `<div><strong>Discovery Year:</strong> ${edgeData.discovery_year}</div>` : '';
+        const consensus = edgeData.consensus_score !== undefined ? Math.round(Number(edgeData.consensus_score) * 100) : 100;
+        const pmids = edgeData.pmids || [];
+        const isConflict = edgeData.conflict_flag || consensus < 85;
+
+        let pmidHtml = '';
+        if (pmids.length > 0) {
+          pmidHtml = `
+            <div style="margin-top:8px;">
+              <span style="font-size:0.72rem; font-weight:700; color:#38bdf8;">Supporting Citations:</span>
+              <div style="display:flex; gap:6px; flex-wrap:wrap; margin-top:4px;">
+                ${pmids.map(p => `<a href="https://pubmed.ncbi.nlm.nih.gov/${p}/" target="_blank" rel="noopener" style="font-size:0.68rem; padding:2px 6px; background:rgba(56,189,248,0.1); border:1px solid rgba(56,189,248,0.3); border-radius:4px; color:#38bdf8; text-decoration:none;">PMID: ${p} ↗</a>`).join('')}
+              </div>
+            </div>
+          `;
+        }
+
+        let conflictHtml = '';
+        if (isConflict) {
+          conflictHtml = `
+            <div style="background:rgba(245,158,11,0.08); border:1px solid rgba(245,158,11,0.3); border-radius:8px; padding:10px; margin-top:8px;">
+              <div style="font-size:0.75rem; font-weight:800; color:#fbbf24;">⚠️ Disputed Relationship (Consensus: ${consensus}%)</div>
+              <div style="font-size:0.70rem; color:var(--text-secondary); margin-top:4px;">
+                ${edgeData.divergence_rationale || 'Published assays report variance across high-dose in vitro models vs human clinical trials.'}
+              </div>
+            </div>
+          `;
+        }
+
+        nodePanel.innerHTML = `
+          <div>
+            <div style="font-size:0.68rem; text-transform:uppercase; font-weight:800; color:#38bdf8; letter-spacing:0.5px;">Biological Interaction</div>
+            <div class="node-hero-title" style="font-size:1.1rem; margin-top:2px;">${src} ➔ ${tgt}</div>
+            <div style="display:inline-block; margin-top:6px; padding:2px 8px; border-radius:4px; font-size:0.72rem; font-weight:700; background:rgba(0,242,254,0.12); color:#00f2fe; border:1px solid rgba(0,242,254,0.3);">${eType}</div>
+          </div>
+
+          <div style="background:rgba(8,13,25,0.8); border:1px solid var(--border-subtle); border-radius:8px; padding:10px; margin-top:10px; font-size:0.74rem; color:var(--text-secondary); display:flex; flex-direction:column; gap:4px;">
+            ${ki}
+            ${ic50}
+            ${discYear}
+            <div><strong>Consensus Agreement:</strong> ${consensus}%</div>
+            <div><strong>Vector Magnitude:</strong> ${edgeData.vector_magnitude || 1.0}</div>
+          </div>
+
+          ${conflictHtml}
+          ${pmidHtml}
+        `;
       }
 
       // INSPECTOR TAB SWITCHING
@@ -2414,6 +2561,8 @@
           document.querySelectorAll('.inspector-tab').forEach(t => t.classList.remove('active'));
           tab.classList.add('active');
           state.selectedTab = tab.dataset.tab;
+          const inspectorHeaderTitle = document.getElementById('inspectorHeaderTitle');
+          if (inspectorHeaderTitle) inspectorHeaderTitle.textContent = '🧬 Node Inspector';
           renderNodePanel();
         });
       });
@@ -2779,7 +2928,15 @@
           }
 
           state.selectedNode = nodeId;
+          const inspectorHeaderTitle = document.getElementById('inspectorHeaderTitle');
+          if (inspectorHeaderTitle) inspectorHeaderTitle.textContent = '🧬 Node Inspector';
           renderNodePanel();
+        });
+
+        // EDGE PROVENANCE & CITATION TAP HANDLER
+        state.cy.on('tap', 'edge', event => {
+          const edgeData = event.target.data();
+          renderEdgeInspector(edgeData);
         });
 
         state.cy.on('tap', event => {
@@ -2789,6 +2946,57 @@
             state.cy.elements().removeClass('path-highlight');
           }
         });
+
+        // TEMPORAL SCRUBBER LISTENER
+        const temporalSlider = document.getElementById('temporalYearSlider');
+        const temporalDisplay = document.getElementById('temporalYearDisplay');
+        if (temporalSlider && temporalDisplay) {
+          temporalSlider.addEventListener('input', (e) => {
+            const yr = parseInt(e.target.value, 10);
+            temporalDisplay.textContent = yr;
+            if (state.cy) {
+              state.cy.batch(() => {
+                state.cy.edges().forEach(edge => {
+                  const dYr = edge.data('discovery_year');
+                  if (dYr && Number(dYr) > yr) {
+                    edge.style('opacity', 0.08);
+                  } else {
+                    edge.style('opacity', 1.0);
+                  }
+                });
+              });
+            }
+          });
+        }
+
+        // CONTROVERSY RADAR HIGHLIGHT TOGGLE
+        const btnControversies = document.getElementById('btnToggleControversies');
+        if (btnControversies) {
+          btnControversies.addEventListener('click', () => {
+            btnControversies.classList.toggle('active');
+            const isActive = btnControversies.classList.contains('active');
+            if (state.cy) {
+              state.cy.batch(() => {
+                state.cy.edges().forEach(edge => {
+                  const isDisputed = edge.data('conflict_flag') || (edge.data('consensus_score') !== undefined && Number(edge.data('consensus_score')) < 0.85);
+                  if (isActive) {
+                    if (isDisputed) {
+                      edge.style('line-color', '#fbbf24');
+                      edge.style('width', 4);
+                      edge.style('opacity', 1.0);
+                    } else {
+                      edge.style('opacity', 0.15);
+                    }
+                  } else {
+                    edge.removeStyle('line-color');
+                    edge.removeStyle('width');
+                    edge.removeStyle('opacity');
+                  }
+                });
+              });
+            }
+          });
+        }
 
         window.addEventListener('resize', () => {
           if (state.cy) {

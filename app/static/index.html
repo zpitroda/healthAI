@@ -2391,6 +2391,232 @@
         color: var(--text-muted);
       }
 
+      /* BIOMETRICS & DEMOGRAPHICS CHIPS & PANELS */
+      .bio-chip {
+        display: inline-flex;
+        align-items: center;
+        background: rgba(0, 242, 254, 0.12);
+        border: 1px solid rgba(0, 242, 254, 0.3);
+        border-radius: 4px;
+        padding: 2px 7px;
+        font-size: 0.72rem;
+        color: var(--accent-cyan);
+        font-weight: 700;
+      }
+      .bio-chip-sm {
+        display: inline-flex;
+        align-items: center;
+        background: rgba(0, 242, 254, 0.1);
+        border: 1px solid rgba(0, 242, 254, 0.22);
+        border-radius: 3px;
+        padding: 1px 5px;
+        font-size: 0.68rem;
+        color: var(--accent-cyan);
+        font-weight: 600;
+      }
+      .builder-bio-panel {
+        background: rgba(0, 242, 254, 0.04);
+        border: 1px solid rgba(0, 242, 254, 0.22);
+        border-radius: var(--radius-sm);
+        padding: 12px 14px;
+        display: flex;
+        flex-direction: column;
+        gap: 10px;
+      }
+      .builder-bio-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        gap: 8px;
+      }
+      .builder-bio-toggle-btn {
+        background: rgba(0, 242, 254, 0.12);
+        border: 1px solid rgba(0, 242, 254, 0.35);
+        color: var(--accent-cyan);
+        border-radius: var(--radius-sm);
+        padding: 4px 10px;
+        font-size: 0.74rem;
+        font-weight: 700;
+        cursor: pointer;
+        display: inline-flex;
+        align-items: center;
+        gap: 4px;
+        transition: all 0.15s ease;
+      }
+      .builder-bio-toggle-btn:hover {
+        background: rgba(0, 242, 254, 0.22);
+        border-color: var(--accent-cyan);
+        color: #fff;
+      }
+      .builder-bio-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+        gap: 8px;
+        padding-top: 8px;
+        border-top: 1px dashed rgba(0, 242, 254, 0.18);
+      }
+      .builder-bio-tip {
+        font-size: 0.71rem;
+        color: var(--text-secondary);
+        line-height: 1.35;
+        background: rgba(0, 0, 0, 0.3);
+        padding: 6px 10px;
+        border-radius: var(--radius-sm);
+        border-left: 3px solid var(--accent-cyan);
+      }
+
+      .copilot-demographics-bar {
+        padding: 6px 16px;
+        background: rgba(0, 242, 254, 0.03);
+        border-bottom: 1px solid var(--border-subtle);
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 8px;
+        font-size: 0.74rem;
+        flex-shrink: 0;
+      }
+      .copilot-demographics-summary {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+        flex: 1;
+      }
+      .copilot-bio-toggle-btn {
+        background: rgba(255, 255, 255, 0.04);
+        border: 1px solid var(--border-subtle);
+        border-radius: 4px;
+        color: var(--text-secondary);
+        font-size: 0.72rem;
+        font-weight: 700;
+        padding: 3px 8px;
+        cursor: pointer;
+        display: inline-flex;
+        align-items: center;
+        gap: 4px;
+        white-space: nowrap;
+        transition: all 0.15s ease;
+      }
+      .copilot-bio-toggle-btn:hover,
+      .copilot-bio-toggle-btn.active {
+        background: rgba(0, 242, 254, 0.12);
+        border-color: rgba(0, 242, 254, 0.35);
+        color: var(--accent-cyan);
+      }
+      .copilot-bio-drawer {
+        padding: 10px 16px 12px;
+        background: rgba(5, 12, 22, 0.95);
+        border-bottom: 1px solid var(--border);
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+        flex-shrink: 0;
+        animation: fadeIn 0.2s ease;
+      }
+      .copilot-bio-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(110px, 1fr));
+        gap: 6px;
+      }
+
+      /* FLAGSHIP AI STACK BUILDER HERO BANNER / BUTTON */
+      .ai-stack-builder-hero-banner {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        padding: 12px 14px;
+        margin-bottom: 12px;
+        background: linear-gradient(135deg, rgba(0, 242, 254, 0.16) 0%, rgba(79, 70, 229, 0.28) 50%, rgba(10, 22, 38, 0.9) 100%);
+        border: 1.5px solid rgba(0, 242, 254, 0.45);
+        border-radius: var(--radius-md);
+        box-shadow: 0 4px 20px rgba(0, 0, 0, 0.4), 0 0 16px rgba(0, 242, 254, 0.2), inset 0 1px 0 rgba(255, 255, 255, 0.12);
+        cursor: pointer;
+        user-select: none;
+        transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+        position: relative;
+        overflow: hidden;
+      }
+      .ai-stack-builder-hero-banner::before {
+        content: '';
+        position: absolute;
+        top: 0;
+        left: -100%;
+        width: 100%;
+        height: 100%;
+        background: linear-gradient(90deg, transparent, rgba(0, 242, 254, 0.2), transparent);
+        transition: 0.6s;
+      }
+      .ai-stack-builder-hero-banner:hover {
+        transform: translateY(-2px);
+        border-color: var(--accent-cyan);
+        box-shadow: 0 8px 26px rgba(0, 242, 254, 0.35), 0 0 28px rgba(79, 70, 229, 0.4);
+        background: linear-gradient(135deg, rgba(0, 242, 254, 0.26) 0%, rgba(79, 70, 229, 0.38) 50%, rgba(10, 24, 44, 0.96) 100%);
+      }
+      .ai-stack-builder-hero-banner:hover::before {
+        left: 100%;
+      }
+      .ai-stack-builder-hero-banner:focus-visible {
+        outline: 2px solid var(--accent-cyan);
+        outline-offset: 2px;
+      }
+      .hero-ai-spark-icon {
+        font-size: 1.4rem;
+        width: 38px;
+        height: 38px;
+        border-radius: var(--radius-sm);
+        background: linear-gradient(135deg, rgba(0, 242, 254, 0.3), rgba(79, 70, 229, 0.5));
+        border: 1px solid rgba(0, 242, 254, 0.5);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        flex-shrink: 0;
+        box-shadow: 0 0 12px rgba(0, 242, 254, 0.35);
+      }
+      .hero-ai-content {
+        display: flex;
+        flex-direction: column;
+        gap: 2px;
+        flex: 1;
+      }
+      .hero-ai-title {
+        font-size: 0.95rem;
+        font-weight: 800;
+        color: #ffffff;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        letter-spacing: 0.01em;
+      }
+      .hero-ai-badge {
+        font-size: 0.65rem;
+        font-weight: 800;
+        text-transform: uppercase;
+        letter-spacing: 0.06em;
+        background: linear-gradient(135deg, #00f2fe, #4f46e5);
+        color: #04151b;
+        padding: 2px 7px;
+        border-radius: 4px;
+        box-shadow: 0 0 8px rgba(0, 242, 254, 0.4);
+      }
+      .hero-ai-subtitle {
+        font-size: 0.72rem;
+        color: var(--text-secondary);
+        line-height: 1.3;
+      }
+      .hero-ai-arrow {
+        font-size: 1.05rem;
+        color: var(--accent-cyan);
+        font-weight: 800;
+        transition: transform 0.2s ease;
+      }
+      .ai-stack-builder-hero-banner:hover .hero-ai-arrow {
+        transform: translateX(4px);
+        color: #ffffff;
+      }
+
       /* ==========================================================================
          RESPONSIVE STYLES
          ========================================================================== */
@@ -2613,10 +2839,22 @@
             </h3>
           </div>
 
+          <!-- FLAGSHIP AI STACK BUILDER FEATURE HERO BANNER -->
+          <div class="ai-stack-builder-hero-banner" id="open-ai-stack-builder-btn" role="button" tabindex="0" title="Open AI Stack Builder: Design personalized protocols from scratch">
+            <div class="hero-ai-spark-icon">✨</div>
+            <div class="hero-ai-content">
+              <div class="hero-ai-title">
+                <span>AI Stack Builder</span>
+                <span class="hero-ai-badge">Flagship AI</span>
+              </div>
+              <div class="hero-ai-subtitle">Design complete, synergistic protocols from scratch calibrated to your demographics</div>
+            </div>
+            <div class="hero-ai-arrow">➔</div>
+          </div>
+
           <!-- 1-CLICK QUICK PRESETS STRIP -->
           <div class="workbench-presets-bar">
-            <button class="preset-chip-btn" id="open-ai-stack-builder-btn" style="background: linear-gradient(135deg, rgba(0,242,254,0.25), rgba(79,70,229,0.35)); border-color: var(--accent-cyan); color: #fff; font-weight: 800; box-shadow: 0 0 10px rgba(0,242,254,0.25);">✨ Build with AI</button>
-            <span style="font-size: 0.72rem; color: var(--text-muted); font-weight: 700; display: flex; align-items: center; gap: 4px; margin: 0 2px;">⚡ Presets:</span>
+            <span style="font-size: 0.72rem; color: var(--text-muted); font-weight: 700; display: flex; align-items: center; gap: 4px; margin: 0 2px;">⚡ Quick Presets:</span>
             <button class="preset-chip-btn" onclick="loadPreset('focus')">🧠 Focus</button>
             <button class="preset-chip-btn" onclick="loadPreset('cardio_shield')">🫀 Cardio</button>
             <button class="preset-chip-btn" onclick="loadPreset('trt_balance')">🛡️ TRT Balance</button>
@@ -2705,23 +2943,23 @@
           </div>
 
           <!-- BIOMARKER ACCORDION / PATIENT PROFILE -->
-          <div class="biomarker-card">
+          <div class="biomarker-card" style="border-color: rgba(0, 242, 254, 0.25); background: linear-gradient(180deg, rgba(10, 24, 44, 0.7) 0%, rgba(5, 12, 22, 0.85) 100%);">
             <div class="biomarker-header" onclick="toggleBiomarkerDrawer()">
               <div style="display: flex; align-items: center; gap: 6px;">
-                <span>👤 Patient Biomarkers & Modifiers</span>
+                <span>👤 Personal Demographics & AI Biometrics</span>
                 <span id="biomarker-toggle-icon" style="font-size: 0.75rem; color: var(--accent-cyan);">▼</span>
               </div>
-              <span style="font-size: 0.72rem; color: var(--accent-cyan);" id="biometric-sync-badge">Live Sync</span>
+              <span style="font-size: 0.7rem; background: rgba(0,242,254,0.12); border: 1px solid rgba(0,242,254,0.25); border-radius: 4px; padding: 1px 6px; color: var(--accent-cyan); font-weight: 700;" id="biometric-sync-badge">Live Sync</span>
             </div>
             <div id="biomarker-drawer" style="display: none;">
-              <div style="font-size: 0.72rem; color: var(--text-muted); margin: 8px 0 12px; line-height: 1.35;">
-                Biometrics calibrate clearance rates and individual organ vulnerability curves.
+              <div style="font-size: 0.72rem; color: var(--text-secondary); margin: 8px 0 10px; line-height: 1.4; border-left: 2px solid var(--accent-cyan); padding-left: 8px;">
+                Personal demographics & biometrics directly calibrate <strong>pharmacokinetic clearance</strong>, <strong>distribution volume</strong>, and <strong>AI Stack Builder</strong> protocols.
               </div>
               <div class="biomarker-grid">
                 <div class="biomarker-field">
                   <label class="biomarker-label" for="bio-sex">Sex</label>
                   <select id="bio-sex" class="biomarker-input">
-                    <option value="" selected>Unspecified (Default: Reference)</option>
+                    <option value="" selected>Unspecified (Reference)</option>
                     <option value="male">Male</option>
                     <option value="female">Female</option>
                   </select>
@@ -2763,6 +3001,9 @@
                   <input type="number" id="bio-hematocrit" class="biomarker-input" placeholder="e.g. 46 (Default: 46%)" min="30" max="65" />
                 </div>
               </div>
+              <button type="button" class="btn-primary" onclick="openAiStackBuilderModal()" style="width: 100%; margin-top: 10px; padding: 7px 10px; font-size: 0.76rem; font-weight: 800; display: flex; align-items: center; justify-content: center; gap: 6px; background: linear-gradient(135deg, rgba(0,242,254,0.25), rgba(79,70,229,0.35)); border: 1px solid var(--accent-cyan); color: #fff; cursor: pointer; border-radius: var(--radius-sm);">
+                <span>✨ Launch AI Stack Builder for this Profile</span>
+              </button>
             </div>
           </div>
 
@@ -2864,6 +3105,11 @@
             <div>
               <span class="modal-section-title">Clinical Mitigation Guidance</span>
               <div id="modal-recommendation" class="conflict-card-rec"></div>
+            </div>
+
+            <div id="modal-evidence-section" style="margin-top: 10px;">
+              <span class="modal-section-title">Scientific Provenance & Citations</span>
+              <div id="modal-citations-wrap" style="display:flex; flex-direction:column; gap:6px; margin-top:6px;"></div>
             </div>
           </div>
         </div>
@@ -3065,14 +3311,79 @@
               </div>
             </div>
 
-            <!-- BIOMETRIC CALIBRATION SUMMARY -->
-            <div style="background: rgba(0, 242, 254, 0.05); border: 1px solid rgba(0, 242, 254, 0.2); border-radius: var(--radius-sm); padding: 10px 12px;">
-              <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px;">
-                <span style="font-size: 0.76rem; font-weight: 800; color: var(--accent-cyan);">👤 Live Biometric Calibration</span>
-                <span style="font-size: 0.7rem; color: var(--text-muted);">Scaled automatically</span>
+            <!-- BIOMETRIC & DEMOGRAPHIC CALIBRATION PANEL (INTERACTIVE) -->
+            <div class="builder-bio-panel">
+              <div class="builder-bio-header">
+                <div>
+                  <div style="display: flex; align-items: center; gap: 6px;">
+                    <span style="font-size: 0.9rem;">👤</span>
+                    <span style="font-size: 0.82rem; font-weight: 800; color: #fff;">Personal Demographics & Baseline Metrics</span>
+                  </div>
+                  <div style="font-size: 0.7rem; color: var(--text-muted); margin-top: 1px;">
+                    Calibrates clearance half-lives, organ vulnerability curves, and tailored compound titration.
+                  </div>
+                </div>
+                <button type="button" class="builder-bio-toggle-btn" id="builder-bio-toggle-btn">
+                  <span id="builder-bio-toggle-icon">✏️</span> <span id="builder-bio-toggle-text">Edit Metrics</span>
+                </button>
               </div>
-              <div id="builder-bio-summary" style="font-size: 0.76rem; color: var(--text-secondary); line-height: 1.4;">
-                Weight: 75 kg | Age: 30 | Resting BP: 120 mmHg | eGFR: 95 mL/min | ALT: 25 U/L
+
+              <!-- Live Profile Summary Chips -->
+              <div id="builder-bio-summary" style="font-size: 0.76rem; color: var(--text-secondary); line-height: 1.45;">
+                <!-- Populated dynamically by syncAllBiometrics -->
+              </div>
+
+              <!-- Collapsible Inline Metrics Editor -->
+              <div id="builder-bio-editor" style="display: none; flex-direction: column; gap: 8px;">
+                <div class="builder-bio-tip">
+                  💡 <strong>How Demographics Shape AI Protocols:</strong> Weight & Age scale clearance rates; BP & eGFR auto-inject organ protection; ALT/Liver markers calibrate phase II clearance.
+                </div>
+                <div class="builder-bio-grid">
+                  <div class="biomarker-field">
+                    <label class="biomarker-label" for="builder-bio-sex">Sex</label>
+                    <select id="builder-bio-sex" class="biomarker-input" style="font-size: 0.78rem; padding: 5px 8px;">
+                      <option value="" selected>Unspecified</option>
+                      <option value="male">Male</option>
+                      <option value="female">Female</option>
+                    </select>
+                  </div>
+                  <div class="biomarker-field">
+                    <label class="biomarker-label" for="builder-bio-age">Age (Years)</label>
+                    <input type="number" id="builder-bio-age" class="biomarker-input" placeholder="e.g. 30" min="1" max="120" style="font-size: 0.78rem; padding: 5px 8px;" />
+                  </div>
+                  <div class="biomarker-field">
+                    <label class="biomarker-label" for="builder-bio-weight">Weight (kg)</label>
+                    <input type="number" id="builder-bio-weight" class="biomarker-input" placeholder="e.g. 75" min="20" max="300" step="0.5" style="font-size: 0.78rem; padding: 5px 8px;" />
+                  </div>
+                  <div class="biomarker-field">
+                    <label class="biomarker-label" for="builder-bio-height">Height (cm)</label>
+                    <input type="number" id="builder-bio-height" class="biomarker-input" placeholder="e.g. 175" min="100" max="250" style="font-size: 0.78rem; padding: 5px 8px;" />
+                  </div>
+                  <div class="biomarker-field">
+                    <label class="biomarker-label" for="builder-bio-bodyfat">Body Fat (%)</label>
+                    <input type="number" id="builder-bio-bodyfat" class="biomarker-input" placeholder="e.g. 15" min="2" max="60" step="0.5" style="font-size: 0.78rem; padding: 5px 8px;" />
+                  </div>
+                  <div class="biomarker-field">
+                    <label class="biomarker-label" for="builder-bio-bp">Blood Pressure (mmHg)</label>
+                    <input type="number" id="builder-bio-bp" class="biomarker-input" placeholder="e.g. 120" min="80" max="220" style="font-size: 0.78rem; padding: 5px 8px;" />
+                  </div>
+                  <div class="biomarker-field">
+                    <label class="biomarker-label" for="builder-bio-egfr">eGFR Renal (mL/min)</label>
+                    <input type="number" id="builder-bio-egfr" class="biomarker-input" placeholder="e.g. 95" min="15" max="150" style="font-size: 0.78rem; padding: 5px 8px;" />
+                  </div>
+                  <div class="biomarker-field">
+                    <label class="biomarker-label" for="builder-bio-alt">ALT Liver (U/L)</label>
+                    <input type="number" id="builder-bio-alt" class="biomarker-input" placeholder="e.g. 25" min="10" max="300" style="font-size: 0.78rem; padding: 5px 8px;" />
+                  </div>
+                  <div class="biomarker-field">
+                    <label class="biomarker-label" for="builder-bio-sleep">Sleep (Hours)</label>
+                    <input type="number" id="builder-bio-sleep" class="biomarker-input" placeholder="e.g. 7.5" step="0.5" min="3" max="12" style="font-size: 0.78rem; padding: 5px 8px;" />
+                  </div>
+                  <div class="biomarker-field">
+                    <label class="biomarker-label" for="builder-bio-hematocrit">Hematocrit (%)</label>
+                    <input type="number" id="builder-bio-hematocrit" class="biomarker-input" placeholder="e.g. 46" min="30" max="65" style="font-size: 0.78rem; padding: 5px 8px;" />
+                  </div>
+                </div>
               </div>
             </div>
 
@@ -3160,6 +3471,78 @@
           </div>
         </div>
 
+        <!-- DEMOGRAPHICS & BIOMETRICS BAR (COPILOT PROFILE) -->
+        <div class="copilot-demographics-bar" id="copilot-demographics-bar">
+          <div class="copilot-demographics-summary" id="copilot-bio-summary">
+            <span style="color: var(--text-muted);">👤 Profile: Reference (75kg, 30y)</span>
+          </div>
+          <button type="button" class="copilot-bio-toggle-btn" id="copilot-bio-toggle-btn" title="View / edit personal demographics and biometrics in Copilot">
+            <span id="copilot-bio-toggle-icon">✏️</span> <span id="copilot-bio-toggle-text">Set Metrics</span>
+          </button>
+        </div>
+
+        <!-- COLLAPSIBLE COPILOT BIOMETRICS QUICK-DRAWER -->
+        <div class="copilot-bio-drawer" id="copilot-bio-drawer" style="display: none;">
+          <div style="display: flex; justify-content: space-between; align-items: center;">
+            <span style="font-size: 0.76rem; font-weight: 800; color: #fff;">👤 Patient Demographics & Modifiers</span>
+            <span style="font-size: 0.68rem; color: var(--accent-cyan);">Live Sync to AI Engine</span>
+          </div>
+          <div style="font-size: 0.7rem; color: var(--text-muted); line-height: 1.35;">
+            Updates automatically calibrate Copilot clearance calculations, organ vulnerability alerts, and stack proposals.
+          </div>
+          <div class="copilot-bio-grid">
+            <div class="biomarker-field">
+              <label class="biomarker-label" for="copilot-bio-sex">Sex</label>
+              <select id="copilot-bio-sex" class="biomarker-input" style="font-size: 0.74rem; padding: 4px 6px;">
+                <option value="" selected>Unspecified</option>
+                <option value="male">Male</option>
+                <option value="female">Female</option>
+              </select>
+            </div>
+            <div class="biomarker-field">
+              <label class="biomarker-label" for="copilot-bio-age">Age (y)</label>
+              <input type="number" id="copilot-bio-age" class="biomarker-input" placeholder="30" min="1" max="120" style="font-size: 0.74rem; padding: 4px 6px;" />
+            </div>
+            <div class="biomarker-field">
+              <label class="biomarker-label" for="copilot-bio-weight">Weight (kg)</label>
+              <input type="number" id="copilot-bio-weight" class="biomarker-input" placeholder="75" min="20" max="300" step="0.5" style="font-size: 0.74rem; padding: 4px 6px;" />
+            </div>
+            <div class="biomarker-field">
+              <label class="biomarker-label" for="copilot-bio-height">Height (cm)</label>
+              <input type="number" id="copilot-bio-height" class="biomarker-input" placeholder="175" min="100" max="250" style="font-size: 0.74rem; padding: 4px 6px;" />
+            </div>
+            <div class="biomarker-field">
+              <label class="biomarker-label" for="copilot-bio-bodyfat">BF (%)</label>
+              <input type="number" id="copilot-bio-bodyfat" class="biomarker-input" placeholder="15" min="2" max="60" step="0.5" style="font-size: 0.74rem; padding: 4px 6px;" />
+            </div>
+            <div class="biomarker-field">
+              <label class="biomarker-label" for="copilot-bio-bp">BP (mmHg)</label>
+              <input type="number" id="copilot-bio-bp" class="biomarker-input" placeholder="120" min="80" max="220" style="font-size: 0.74rem; padding: 4px 6px;" />
+            </div>
+            <div class="biomarker-field">
+              <label class="biomarker-label" for="copilot-bio-egfr">eGFR (mL/min)</label>
+              <input type="number" id="copilot-bio-egfr" class="biomarker-input" placeholder="95" min="15" max="150" style="font-size: 0.74rem; padding: 4px 6px;" />
+            </div>
+            <div class="biomarker-field">
+              <label class="biomarker-label" for="copilot-bio-alt">ALT (U/L)</label>
+              <input type="number" id="copilot-bio-alt" class="biomarker-input" placeholder="25" min="10" max="300" style="font-size: 0.74rem; padding: 4px 6px;" />
+            </div>
+            <div class="biomarker-field">
+              <label class="biomarker-label" for="copilot-bio-sleep">Sleep (h)</label>
+              <input type="number" id="copilot-bio-sleep" class="biomarker-input" placeholder="7.5" step="0.5" min="3" max="12" style="font-size: 0.74rem; padding: 4px 6px;" />
+            </div>
+            <div class="biomarker-field">
+              <label class="biomarker-label" for="copilot-bio-hematocrit">HCT (%)</label>
+              <input type="number" id="copilot-bio-hematocrit" class="biomarker-input" placeholder="46" min="30" max="65" style="font-size: 0.74rem; padding: 4px 6px;" />
+            </div>
+          </div>
+          <div style="display: flex; gap: 8px; justify-content: flex-end; margin-top: 4px;">
+            <button type="button" class="btn-primary" onclick="openAiStackBuilderModal()" style="padding: 5px 12px; font-size: 0.74rem; font-weight: 800; display: inline-flex; align-items: center; gap: 4px; background: linear-gradient(135deg, rgba(0,242,254,0.25), rgba(79,70,229,0.35)); border: 1px solid var(--accent-cyan); color: #fff; cursor: pointer; border-radius: var(--radius-sm);">
+              <span>✨ Open Full AI Stack Builder Modal</span>
+            </button>
+          </div>
+        </div>
+
         <!-- PROTOCOL PURPOSE & INTENT SELECTOR -->
         <div class="copilot-goal-bar" id="copilot-goal-bar">
           <div class="copilot-goal-top">
@@ -3236,6 +3619,7 @@
           height_cm: null,
           body_fat_pct: null,
           blood_pressure: null,
+          egfr: null,
           sleep_hours: null,
           alt_u_l: null,
           hematocrit_pct: null,
@@ -3247,6 +3631,19 @@
         axesSort: 'priority',
         experienceMode: 'standard',
       };
+
+      const BIO_FIELDS = [
+        { key: 'sex', type: 'string' },
+        { key: 'age', type: 'int', default: 30 },
+        { key: 'weight', type: 'float', default: 75 },
+        { key: 'height', type: 'float', default: 175 },
+        { key: 'bodyfat', type: 'float', default: 15 },
+        { key: 'bp', type: 'float', default: 120 },
+        { key: 'egfr', type: 'float', default: 95 },
+        { key: 'alt', type: 'float', default: 25 },
+        { key: 'sleep', type: 'float', default: 7.5 },
+        { key: 'hematocrit', type: 'float', default: 46 }
+      ];
 
       function getBiometricsPayload() {
         const bioAge = document.getElementById('bio-age')?.value;
@@ -3273,6 +3670,92 @@
         if (bioHematocrit && !isNaN(Number(bioHematocrit))) biometrics.hematocrit_pct = Number(bioHematocrit);
 
         return biometrics;
+      }
+
+      function syncAllBiometrics(sourcePrefix = 'bio', shouldEvaluate = true) {
+        BIO_FIELDS.forEach(f => {
+          const srcEl = document.getElementById(`${sourcePrefix}-${f.key}`);
+          if (!srcEl) return;
+          const val = srcEl.value;
+
+          // Sync into state.biomarkers
+          if (f.key === 'sex') state.biomarkers.sex = val || null;
+          else if (f.key === 'age') state.biomarkers.age = parseInt(val) || null;
+          else if (f.key === 'weight') state.biomarkers.weight_kg = parseFloat(val) || null;
+          else if (f.key === 'height') state.biomarkers.height_cm = parseFloat(val) || null;
+          else if (f.key === 'bodyfat') state.biomarkers.body_fat_pct = parseFloat(val) || null;
+          else if (f.key === 'bp') state.biomarkers.blood_pressure = parseFloat(val) || (val === '' ? null : 120);
+          else if (f.key === 'egfr') state.biomarkers.egfr = parseFloat(val) || (val === '' ? null : 95);
+          else if (f.key === 'alt') state.biomarkers.alt_u_l = parseFloat(val) || (val === '' ? null : 25);
+          else if (f.key === 'sleep') state.biomarkers.sleep_hours = parseFloat(val) || (val === '' ? null : 7.5);
+          else if (f.key === 'hematocrit') state.biomarkers.hematocrit_pct = parseFloat(val) || (val === '' ? null : 46);
+
+          // Sync other two input sets
+          ['bio', 'builder-bio', 'copilot-bio'].forEach(prefix => {
+            if (prefix === sourcePrefix) return;
+            const targetEl = document.getElementById(`${prefix}-${f.key}`);
+            if (targetEl && targetEl.value !== val) {
+              targetEl.value = val;
+            }
+          });
+        });
+
+        updateBiometricsPreviews();
+
+        if (shouldEvaluate && typeof debouncedEvaluate === 'function') {
+          debouncedEvaluate();
+        }
+      }
+
+      function updateBiometricsPreviews() {
+        const bio = getBiometricsPayload();
+        const customItems = [];
+        if (bio.sex) customItems.push(`Sex: ${bio.sex.charAt(0).toUpperCase() + bio.sex.slice(1)}`);
+        if (bio.age !== undefined) customItems.push(`Age: ${bio.age}y`);
+        if (bio.weight_kg !== undefined) customItems.push(`Weight: ${bio.weight_kg}kg`);
+        if (bio.height_cm !== undefined) customItems.push(`Height: ${bio.height_cm}cm`);
+        if (bio.body_fat_pct !== undefined) customItems.push(`BF: ${bio.body_fat_pct}%`);
+        if (bio.blood_pressure !== undefined) customItems.push(`BP: ${bio.blood_pressure} mmHg`);
+        if (bio.egfr !== undefined) customItems.push(`eGFR: ${bio.egfr}`);
+        if (bio.alt_u_l !== undefined) customItems.push(`ALT: ${bio.alt_u_l} U/L`);
+        if (bio.sleep_hours !== undefined) customItems.push(`Sleep: ${bio.sleep_hours}h`);
+        if (bio.hematocrit_pct !== undefined) customItems.push(`HCT: ${bio.hematocrit_pct}%`);
+
+        // AI Stack Builder Modal Summary
+        const builderSummary = document.getElementById('builder-bio-summary');
+        if (builderSummary) {
+          if (customItems.length) {
+            builderSummary.innerHTML = `<span style="color: var(--accent-cyan); font-weight: 700;">Personalized Profile:</span> ${customItems.map(item => `<span class="bio-chip">${escapeHtml(item)}</span>`).join(' ')} <span style="color: var(--text-muted); font-size: 0.72rem;">(Auto-scales PK & Dosing)</span>`;
+          } else {
+            builderSummary.innerHTML = `<span style="color: var(--text-secondary); font-style: italic;">Standard reference baseline active (75 kg, 30y, BP 120, eGFR 95, ALT 25). Click <strong>"Edit Metrics"</strong> above to personalize dosing & organ shields.</span>`;
+          }
+        }
+
+        // Copilot Drawer Summary
+        const copilotSummary = document.getElementById('copilot-bio-summary');
+        if (copilotSummary) {
+          if (customItems.length) {
+            copilotSummary.innerHTML = `<span style="color: var(--accent-cyan); font-weight: 700;">👤 Profile:</span> ${customItems.slice(0, 4).map(item => `<span class="bio-chip-sm">${escapeHtml(item)}</span>`).join(' ')}${customItems.length > 4 ? ` <span style="color: var(--text-muted); font-size: 0.68rem;">+${customItems.length - 4} more</span>` : ''}`;
+          } else {
+            copilotSummary.innerHTML = `<span style="color: var(--text-muted);">👤 Profile: Reference Baseline (75kg, 30y)</span>`;
+          }
+        }
+
+        // Sidebar Live Sync Badge
+        const syncBadge = document.getElementById('biometric-sync-badge');
+        if (syncBadge) {
+          if (customItems.length) {
+            syncBadge.textContent = `${customItems.length} Custom Metrics`;
+            syncBadge.style.color = 'var(--accent-teal)';
+            syncBadge.style.borderColor = 'rgba(16, 185, 129, 0.35)';
+            syncBadge.style.background = 'rgba(16, 185, 129, 0.12)';
+          } else {
+            syncBadge.textContent = 'Reference Profile';
+            syncBadge.style.color = 'var(--accent-cyan)';
+            syncBadge.style.borderColor = 'rgba(0, 242, 254, 0.25)';
+            syncBadge.style.background = 'rgba(0, 242, 254, 0.12)';
+          }
+        }
       }
 
       // 6 SCIENTIFICALLY GROUNDED & POWERFUL PRESET PROTOCOLS
@@ -3957,25 +4440,17 @@
       window.renderStackList = renderStackList;
       window.evaluateStack = evaluateStack;
 
-      // BIOMARKER INPUT LISTENERS
-      ['bio-sex', 'bio-age', 'bio-weight', 'bio-height', 'bio-bodyfat', 'bio-bp', 'bio-sleep', 'bio-alt', 'bio-hematocrit'].forEach(id => {
-        const el = document.getElementById(id);
-        if (!el) return;
-        const handler = () => {
-          state.biomarkers.sex = document.getElementById('bio-sex')?.value || null;
-          state.biomarkers.age = parseInt(document.getElementById('bio-age')?.value) || null;
-          state.biomarkers.weight_kg = parseFloat(document.getElementById('bio-weight')?.value) || null;
-          state.biomarkers.height_cm = parseFloat(document.getElementById('bio-height')?.value) || null;
-          state.biomarkers.body_fat_pct = parseFloat(document.getElementById('bio-bodyfat')?.value) || null;
-          state.biomarkers.blood_pressure = parseFloat(document.getElementById('bio-bp')?.value) || 120;
-          state.biomarkers.sleep_hours = parseFloat(document.getElementById('bio-sleep')?.value) || 7.5;
-          state.biomarkers.alt_u_l = parseFloat(document.getElementById('bio-alt')?.value) || 25;
-          state.biomarkers.hematocrit_pct = parseFloat(document.getElementById('bio-hematocrit')?.value) || 46;
-
-          debouncedEvaluate();
-        };
-        el.addEventListener('input', handler);
-        el.addEventListener('change', handler);
+      // BIOMARKER & DEMOGRAPHICS INPUT LISTENERS (SIDEBAR, BUILDER MODAL, COPILOT DRAWER)
+      ['bio', 'builder-bio', 'copilot-bio'].forEach(prefix => {
+        BIO_FIELDS.forEach(f => {
+          const el = document.getElementById(`${prefix}-${f.key}`);
+          if (!el) return;
+          const handler = () => {
+            syncAllBiometrics(prefix, true);
+          };
+          el.addEventListener('input', handler);
+          el.addEventListener('change', handler);
+        });
       });
 
       document.getElementById('clear-stack-btn').addEventListener('click', () => {
@@ -4030,6 +4505,7 @@
             alt_u_l: state.biomarkers.alt_u_l,
             hematocrit_pct: state.biomarkers.hematocrit_pct,
             blood_pressure: state.biomarkers.blood_pressure,
+            egfr: state.biomarkers.egfr,
           },
         };
 
@@ -4812,6 +5288,41 @@
           targetsWrap.innerHTML = cell.affected_targets.map(t => `<span class="modal-chip">${escapeHtml(t)}</span>`).join('');
         } else {
           targetsSection.style.display = 'none';
+        }
+
+        const citationsWrap = document.getElementById('modal-citations-wrap');
+        const evidenceSection = document.getElementById('modal-evidence-section');
+        if (citationsWrap) {
+          const pmids = cell.pmids || [];
+          const cites = cell.citations || [];
+          const fdaRef = cell.fda_label_ref || (cell.conflict_types && cell.conflict_types.includes('CYP450') ? 'FDA Guidance on DDI & CYP450 Evaluation' : null);
+
+          let citeHtml = '';
+          if (fdaRef) {
+            citeHtml += `<div style="font-size:0.75rem; color:#38bdf8; padding:4px 8px; background:rgba(56,189,248,0.08); border-radius:4px; border:1px solid rgba(56,189,248,0.2);">🏛️ <strong>Regulatory:</strong> ${escapeHtml(fdaRef)}</div>`;
+          }
+          if (pmids.length > 0) {
+            citeHtml += `
+              <div style="font-size:0.72rem; color:var(--text-secondary); display:flex; align-items:center; gap:6px; flex-wrap:wrap;">
+                <span>🔬 <strong>PubMed Studies:</strong></span>
+                ${pmids.map(p => `<a href="https://pubmed.ncbi.nlm.nih.gov/${p}/" target="_blank" rel="noopener" style="color:#00f2fe; text-decoration:none; padding:2px 6px; background:rgba(0,242,254,0.1); border-radius:4px; border:1px solid rgba(0,242,254,0.3);">PMID: ${p} ↗</a>`).join('')}
+              </div>
+            `;
+          }
+          if (cites.length > 0) {
+            citeHtml += cites.slice(0, 2).map(c => `
+              <div style="font-size:0.72rem; color:var(--text-secondary); padding:4px 8px; background:rgba(8,13,25,0.6); border-radius:4px; border:1px solid var(--border-subtle);">
+                <div style="font-weight:600; color:#fff;">${escapeHtml(c.title || '')}</div>
+                <div style="font-size:0.65rem; color:var(--text-muted);">${escapeHtml(c.journal || '')} (${c.pub_year || ''}) &bull; ${escapeHtml(c.evidence_tier || 'Study')}</div>
+              </div>
+            `).join('');
+          }
+          if (!citeHtml) {
+            const compKeyA = (cell.source_key || '').toLowerCase();
+            const compKeyB = (cell.target_key || '').toLowerCase();
+            citeHtml = `<div style="font-size:0.72rem; color:var(--text-muted);">Grounded in catalog pharmacological profiles. Search literature for <a href="https://pubmed.ncbi.nlm.nih.gov/?term=${encodeURIComponent(compKeyA + ' ' + compKeyB)}" target="_blank" rel="noopener" style="color:#38bdf8;">${escapeHtml(cell.source_name || compKeyA)} + ${escapeHtml(cell.target_name || compKeyB)} on PubMed ↗</a></div>`;
+          }
+          citationsWrap.innerHTML = citeHtml;
         }
 
         inspectorModal.classList.add('open');
@@ -5831,30 +6342,39 @@
       const builderBudgetPref = document.getElementById('builder-budget-pref');
       const builderCustomNotes = document.getElementById('builder-custom-notes');
 
-      let selectedBuilderGoal = 'cognitive_focus';
+      const builderBioToggleBtn = document.getElementById('builder-bio-toggle-btn');
+      const builderBioEditor = document.getElementById('builder-bio-editor');
+      const builderBioToggleText = document.getElementById('builder-bio-toggle-text');
+      const builderBioToggleIcon = document.getElementById('builder-bio-toggle-icon');
+      const copilotBioToggleBtn = document.getElementById('copilot-bio-toggle-btn');
+      const copilotBioDrawer = document.getElementById('copilot-bio-drawer');
+      const copilotBioToggleIcon = document.getElementById('copilot-bio-toggle-icon');
+
+      if (builderBioToggleBtn && builderBioEditor) {
+        builderBioToggleBtn.addEventListener('click', () => {
+          const isHidden = builderBioEditor.style.display === 'none';
+          builderBioEditor.style.display = isHidden ? 'flex' : 'none';
+          if (builderBioToggleText) builderBioToggleText.textContent = isHidden ? 'Hide Metrics' : 'Edit Metrics';
+          if (builderBioToggleIcon) builderBioToggleIcon.textContent = isHidden ? '▲' : '✏️';
+        });
+      }
+
+      if (copilotBioToggleBtn && copilotBioDrawer) {
+        copilotBioToggleBtn.addEventListener('click', () => {
+          const isHidden = copilotBioDrawer.style.display === 'none';
+          copilotBioDrawer.style.display = isHidden ? 'flex' : 'none';
+          copilotBioToggleBtn.classList.toggle('active', isHidden);
+          if (copilotBioToggleIcon) copilotBioToggleIcon.textContent = isHidden ? '▲' : '✏️';
+        });
+      }
 
       function syncBuilderBiometricsPreview() {
-        if (!builderBioSummary) return;
-        const bio = getBiometricsPayload();
-        const customItems = [];
-        if (bio.sex) customItems.push(`Sex: ${bio.sex.charAt(0).toUpperCase() + bio.sex.slice(1)}`);
-        if (bio.weight_kg !== undefined) customItems.push(`Weight: ${bio.weight_kg} kg`);
-        if (bio.age !== undefined) customItems.push(`Age: ${bio.age}`);
-        if (bio.blood_pressure !== undefined) customItems.push(`Resting BP: ${bio.blood_pressure} mmHg`);
-        if (bio.egfr !== undefined) customItems.push(`eGFR: ${bio.egfr} mL/min`);
-        if (bio.alt_u_l !== undefined) customItems.push(`ALT: ${bio.alt_u_l} U/L`);
-        if (bio.body_fat_pct !== undefined) customItems.push(`Body Fat: ${bio.body_fat_pct}%`);
-
-        if (customItems.length) {
-          builderBioSummary.innerHTML = `<strong>Customized:</strong> ${customItems.join(' &bull; ')} <span style="color: var(--text-muted); font-size: 0.72rem;">(Unentered metrics default to normal/average baseline)</span>`;
-        } else {
-          builderBioSummary.innerHTML = `<span style="color: var(--text-secondary); font-style: italic;">Standard normal/average adult population baseline assumed (75 kg, 30yo, BP 120, eGFR 95, ALT 25). Fill in any custom biometrics in Patient Biomarkers drawer if desired.</span>`;
-        }
+        syncAllBiometrics('bio', false);
       }
 
       function openAiStackBuilderModal() {
         if (!aiBuilderModal) return;
-        syncBuilderBiometricsPreview();
+        syncAllBiometrics('bio', false);
         aiBuilderModal.classList.add('open');
       }
 
@@ -5863,7 +6383,15 @@
         aiBuilderModal.classList.remove('open');
       }
 
-      if (openAiBuilderBtn) openAiBuilderBtn.addEventListener('click', openAiStackBuilderModal);
+      if (openAiBuilderBtn) {
+        openAiBuilderBtn.addEventListener('click', openAiStackBuilderModal);
+        openAiBuilderBtn.addEventListener('keydown', (e) => {
+          if (e.key === 'Enter' || e.key === ' ') {
+            e.preventDefault();
+            openAiStackBuilderModal();
+          }
+        });
+      }
       if (emptyStateAiBuilderBtn) emptyStateAiBuilderBtn.addEventListener('click', openAiStackBuilderModal);
       if (aiBuilderCloseBtn) aiBuilderCloseBtn.addEventListener('click', closeAiStackBuilderModal);
       if (builderCancelBtn) builderCancelBtn.addEventListener('click', closeAiStackBuilderModal);
@@ -5872,6 +6400,8 @@
           if (e.target === aiBuilderModal) closeAiStackBuilderModal();
         });
       }
+
+      let selectedBuilderGoal = 'cognitive_focus';
 
       if (builderGoalsGrid) {
         builderGoalsGrid.querySelectorAll('.builder-goal-card').forEach(card => {
@@ -5999,6 +6529,7 @@
         });
       }
 
+      syncAllBiometrics('bio', false);
       renderStackList();
       if (state.stack.length) {
         evaluateStack();

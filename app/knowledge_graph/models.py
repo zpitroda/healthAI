@@ -10,7 +10,7 @@ class BaseNode(BaseModel):
     model_config = ConfigDict(extra="ignore")
 
     node_id: str = Field(..., description="Unique node identifier")
-    label: str = Field(..., description="Human-readable node label")
+    label: str = Field(default="", description="Human-readable node label")
     node_type: str = Field(..., description="Bio-ontology node class")
     category: Optional[str] = Field(default=None, description="Domain sub-category")
     description: Optional[str] = Field(default=None, description="Detailed biological summary")
@@ -133,6 +133,63 @@ class PhenotypeNode(BaseNode):
     mesh_id: Optional[str] = Field(default=None, description="Medical Subject Headings (MeSH) / MedDRA identifier")
 
 
+class CitationNode(BaseNode):
+    node_type: str = "citation"
+    pmid: Optional[str] = Field(default=None, description="PubMed ID")
+    doi: Optional[str] = Field(default=None, description="Digital Object Identifier")
+    title: str = Field(default="", description="Publication title")
+    authors: List[str] = Field(default_factory=list, description="Author list")
+    journal: Optional[str] = Field(default=None, description="Publishing journal name")
+    pub_year: Optional[int] = Field(default=None, description="Publication year (for chronological indexing)")
+    pub_date: Optional[str] = Field(default=None, description="ISO publication date (YYYY-MM-DD)")
+    evidence_tier: str = Field(
+        default="clinical_trial",
+        description="Evidence grade: rct_landmark, meta_analysis, systematic_review, cohort, in_vivo, in_vitro, fda_label, guideline",
+    )
+    sample_size: Optional[int] = Field(default=None, description="Clinical trial or cohort participant count (N)")
+    study_design: Optional[str] = Field(default=None, description="e.g. Double-blind RCT, Crossover, Observational Cohort, In Vitro Cell Culture")
+    mesh_terms: List[str] = Field(default_factory=list, description="MeSH heading terms")
+    key_findings: Optional[str] = Field(default=None, description="Structured summary of findings")
+    conflict_count: int = Field(default=0, description="Count of conflicting/opposing studies identified")
+    url: Optional[str] = Field(default=None, description="Direct URL to article (PubMed, DOI, or Europe PMC)")
+
+
+class ClinicalTrialNode(BaseNode):
+    node_type: str = "clinical_trial"
+    nct_id: str = Field(..., description="ClinicalTrials.gov identifier (e.g. NCT01234567)")
+    title: str = Field(default="", description="Brief trial title")
+    phase: Optional[str] = Field(default="Phase II/III", description="Phase I, II, III, IV, or Not Applicable")
+    status: Optional[str] = Field(default="COMPLETED", description="COMPLETED, RECRUITING, ACTIVE_NOT_RECRUITING, TERMINATED, WITHDRAWN")
+    sponsor: Optional[str] = Field(default=None, description="Primary sponsor organization or lead investigator")
+    enrollment: Optional[int] = Field(default=None, description="Target or actual patient enrollment")
+    conditions: List[str] = Field(default_factory=list, description="Target pathological conditions")
+    interventions: List[str] = Field(default_factory=list, description="Compounds, drugs, or modalities tested")
+    primary_outcomes: List[str] = Field(default_factory=list, description="Primary trial endpoint measurements")
+    start_year: Optional[int] = Field(default=None, description="Trial initiation year")
+    completion_year: Optional[int] = Field(default=None, description="Trial completion year")
+    url: Optional[str] = Field(default=None, description="Direct link to study record on ClinicalTrials.gov")
+
+
+class EvidenceClaimNode(BaseNode):
+    node_type: str = "evidence_claim"
+    claim_type: str = Field(
+        default="pharmacological_effect",
+        description="Type: binding_affinity, clearance_mechanism, drug_interaction, synergy, biomarker_shift, adverse_hazard, therapeutic_benefit",
+    )
+    subject_id: str = Field(..., description="Subject entity identifier (e.g. compound key)")
+    predicate: str = Field(..., description="Relationship predicate (e.g. INHIBITS, AGONIZES, SYNERGIZES_WITH)")
+    object_id: str = Field(..., description="Object entity identifier (e.g. target, enzyme, outcome)")
+    magnitude_value: Optional[float] = Field(default=None, description="Quantitative magnitude (e.g. Ki in nM, AUCR ratio, delta %)")
+    magnitude_unit: Optional[str] = Field(default=None, description="Unit of measurement (e.g. nM, %, fold-change)")
+    direction: Optional[str] = Field(default="neutral", description="increases, decreases, blocks, activates, neutral")
+    consensus_score: float = Field(default=1.0, ge=0.0, le=1.0, description="Literature consensus agreement ratio (1.0 = full consensus, <0.5 = contested)")
+    dispute_status: str = Field(default="consensus", description="consensus, debated, refuted, context_dependent")
+    contradiction_index: float = Field(default=0.0, ge=0.0, le=1.0, description="Divergence metric among published studies (0.0 = none, 1.0 = complete conflict)")
+    discovery_year: Optional[int] = Field(default=None, description="Year this claim was first reported in literature")
+    last_validated_year: Optional[int] = Field(default=None, description="Most recent study validating this claim")
+    conflicting_pmids: List[str] = Field(default_factory=list, description="PMIDs reporting contradictory or incompatible findings")
+
+
 class EdgeType(str, Enum):
     CONTAINS = "CONTAINS"
     BINDS_TO_CARRIER = "BINDS_TO_CARRIER"
@@ -163,6 +220,15 @@ class EdgeType(str, Enum):
     CONTRAINDICATED_WITH = "CONTRAINDICATED_WITH"
     LITERATURE_COOCCURRENCE = "LITERATURE_COOCCURRENCE"
     CURATED_ASSOCIATION = "CURATED_ASSOCIATION"
+    # Provenance, Temporal & Conflict Relationship Types
+    SUPPORTED_BY = "SUPPORTED_BY"
+    CONTRADICTED_BY = "CONTRADICTED_BY"
+    TESTED_IN = "TESTED_IN"
+    SUPERSEDES = "SUPERSEDES"
+    CORROBORATES = "CORROBORATES"
+    EVOLVED_TO = "EVOLVED_TO"
+    CONFLICTS_WITH = "CONFLICTS_WITH"
+    DISPUTES = "DISPUTES"
 
 
 class EdgeData(BaseModel):
@@ -180,13 +246,21 @@ class EdgeData(BaseModel):
         description="Directional magnitude of the biological effect",
     )
     confidence: Optional[float] = Field(default=1.0, ge=0.0, le=1.0, description="Confidence score for this biological association")
-    evidence_level: Optional[str] = Field(default="in_vitro", description="in_vitro, in_vivo, clinical_trial, meta_analysis, label_boxed")
+    evidence_level: Optional[str] = Field(default="in_vitro", description="in_vitro, in_vivo, clinical_trial, meta_analysis, label_boxed, guideline")
     pmids: List[str] = Field(default_factory=list, description="PubMed identifiers validating the interaction")
+    citations: List[Dict[str, Any]] = Field(default_factory=list, description="Structured citation references with PMIDs, DOIs, titles, years")
+    discovery_year: Optional[int] = Field(default=None, description="Earliest published study year demonstrating this interaction")
+    latest_study_year: Optional[int] = Field(default=None, description="Most recent study year validating or updating this interaction")
+    conflict_flag: bool = Field(default=False, description="Whether there are conflicting or disputed findings in literature for this edge")
+    consensus_score: Optional[float] = Field(default=1.0, ge=0.0, le=1.0, description="Consensus ratio among published studies (1.0 = unanimous agreement)")
+    contradiction_index: Optional[float] = Field(default=0.0, ge=0.0, le=1.0, description="Contradiction magnitude metric (0.0 = none, 1.0 = diametric conflict)")
+    conflicting_pmids: List[str] = Field(default_factory=list, description="PMIDs of studies reporting contradictory or conflicting data")
+    divergence_rationale: Optional[str] = Field(default=None, description="Scientific explanation of why conflicting data exists")
     is_bridge: bool = Field(default=False, description="Whether this edge represents an inter-cascade cross-talk bridge")
     description: Optional[str] = Field(default=None, description="Clinical or biochemical description of the interaction")
     mechanism_notes: Optional[str] = Field(default=None, description="Biophysical explanation of the mechanism")
     notes: Optional[str] = Field(default=None)
-    source_db: Optional[str] = Field(default=None, description="Source database for curated edges (STITCH, CTD, DrugBank, PubMed_PMI)")
+    source_db: Optional[str] = Field(default=None, description="Source database for curated edges (STITCH, CTD, DrugBank, PubMed_PMI, ChEMBL)")
     cooccurrence_count: Optional[int] = Field(default=None, ge=0, description="Number of PubMed papers co-mentioning both entities")
     pmi_score: Optional[float] = Field(default=None, description="Pointwise Mutual Information score from literature co-occurrence")
     npmi_score: Optional[float] = Field(default=None, ge=-1.0, le=1.0, description="Normalized PMI score (-1 to +1)")

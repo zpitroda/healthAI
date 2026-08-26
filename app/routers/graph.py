@@ -414,3 +414,50 @@ def get_graphrag_context_api(request: GraphRAGContextRequest) -> JSONResponse:
         return JSONResponse(context, headers=NO_CACHE_HEADERS)
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"GraphRAG context extraction error: {str(e)}")
+
+
+@router.get("/api/graph/evidence-timeline/{entity_id}")
+def get_evidence_timeline(entity_id: str) -> JSONResponse:
+    """Retrieve chronological discovery and clinical validation milestones for a biological entity."""
+    if not entity_id or not entity_id.strip():
+        raise HTTPException(status_code=400, detail="Entity ID is required.")
+
+    try:
+        db = get_graph_database()
+        timeline = db.get_chronological_evidence_timeline(entity_id.strip())
+        return JSONResponse(
+            {
+                "entity_id": entity_id,
+                "milestone_count": len(timeline),
+                "timeline": timeline,
+            },
+            headers=NO_CACHE_HEADERS,
+        )
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Evidence timeline error: {str(e)}")
+
+
+@router.get("/api/graph/conflicts")
+def get_graph_conflicts(
+    entity_ids: Optional[List[str]] = Query(default=None),
+) -> JSONResponse:
+    """Extract disputed biological edges, opposing PMIDs, and scientific controversies for specified entities."""
+    try:
+        db = get_graph_database()
+        res = db.get_conflicting_evidence_subgraph(entity_ids or [])
+        return JSONResponse(res, headers=NO_CACHE_HEADERS)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Conflict subgraph extraction error: {str(e)}")
+
+
+@router.get("/api/graph/temporal-snapshot")
+def get_temporal_snapshot(
+    year: int = Query(default=2026, ge=1950, le=2030, description="Snapshot year for historical literature cutoff"),
+) -> JSONResponse:
+    """Retrieve active nodes and edges in the scientific knowledge graph published on or before the specified year."""
+    try:
+        db = get_graph_database()
+        snapshot = db.get_temporal_graph_snapshot(year)
+        return JSONResponse(snapshot, headers=NO_CACHE_HEADERS)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Temporal snapshot extraction error: {str(e)}")

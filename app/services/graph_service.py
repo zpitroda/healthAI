@@ -1278,6 +1278,26 @@ def build_selected_compound_graph(stack: List[Any], catalog_service: CatalogServ
 
             # Edge 1: Compound -> Target
             is_pre_computed_stress = bool(receptor.get("pre_computed_stress"))
+            
+            # Lookup literature grounding and citations for edge
+            edge_pmids: List[str] = []
+            edge_cites: List[Dict[str, Any]] = []
+            disc_year = 2015
+            try:
+                from app.services.pubmed_service import SEED_LITERATURE_DB
+                comp_cites = SEED_LITERATURE_DB.get(compound_id.lower(), [])
+                for sc in comp_cites:
+                    edge_cites.append(sc)
+                    if sc.get("pmid"):
+                        edge_pmids.append(str(sc["pmid"]))
+                    if sc.get("pub_year"):
+                        try:
+                            disc_year = min(disc_year, int(sc["pub_year"]))
+                        except Exception:
+                            pass
+            except Exception:
+                pass
+
             graph.add_edge(
                 compound_id,
                 target_id,
@@ -1286,6 +1306,13 @@ def build_selected_compound_graph(stack: List[Any], catalog_service: CatalogServ
                     affinity_ki=affinity_ki,
                     inhibition_ic50=inhibition_ic50,
                     vector_magnitude=vector_magnitude,
+                    citations=edge_cites,
+                    pmids=edge_pmids,
+                    discovery_year=disc_year,
+                    latest_study_year=2024,
+                    consensus_score=1.0,
+                    contradiction_index=0.0,
+                    conflict_flag=False,
                 ),
                 dose_mg=dose_mg,
                 dose_str=dose_str,

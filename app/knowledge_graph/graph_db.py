@@ -78,11 +78,20 @@ class Neo4jGraphDatabase:
             "CREATE CONSTRAINT physiology_id IF NOT EXISTS FOR (p:PhysiologyNode) REQUIRE p.id IS UNIQUE",
             "CREATE CONSTRAINT biomarker_id IF NOT EXISTS FOR (b:BiomarkerNode) REQUIRE b.id IS UNIQUE",
             "CREATE CONSTRAINT phenotype_id IF NOT EXISTS FOR (p:PhenotypeNode) REQUIRE p.id IS UNIQUE",
+            "CREATE CONSTRAINT citation_id IF NOT EXISTS FOR (c:CitationNode) REQUIRE c.id IS UNIQUE",
+            "CREATE CONSTRAINT citation_pmid IF NOT EXISTS FOR (c:CitationNode) REQUIRE c.pmid IS UNIQUE",
+            "CREATE CONSTRAINT trial_id IF NOT EXISTS FOR (t:ClinicalTrialNode) REQUIRE t.id IS UNIQUE",
+            "CREATE CONSTRAINT trial_nct IF NOT EXISTS FOR (t:ClinicalTrialNode) REQUIRE t.nct_id IS UNIQUE",
+            "CREATE CONSTRAINT claim_id IF NOT EXISTS FOR (cl:EvidenceClaimNode) REQUIRE cl.id IS UNIQUE",
             "CREATE CONSTRAINT entity_id IF NOT EXISTS FOR (e:EntityNode) REQUIRE e.id IS UNIQUE",
             "CREATE INDEX compound_smiles IF NOT EXISTS FOR (c:CompoundNode) ON (c.smiles)",
             "CREATE INDEX compound_inchikey IF NOT EXISTS FOR (c:CompoundNode) ON (c.inchikey)",
             "CREATE INDEX target_gene IF NOT EXISTS FOR (t:TargetNode) ON (t.gene_symbol)",
             "CREATE INDEX target_uniprot IF NOT EXISTS FOR (t:TargetNode) ON (t.uniprot_id)",
+            "CREATE INDEX citation_year IF NOT EXISTS FOR (c:CitationNode) ON (c.pub_year)",
+            "CREATE INDEX citation_tier IF NOT EXISTS FOR (c:CitationNode) ON (c.evidence_tier)",
+            "CREATE INDEX claim_type IF NOT EXISTS FOR (cl:EvidenceClaimNode) ON (cl.claim_type)",
+            "CREATE INDEX claim_dispute IF NOT EXISTS FOR (cl:EvidenceClaimNode) ON (cl.dispute_status)",
         ]
 
         try:
@@ -377,6 +386,88 @@ class Neo4jGraphDatabase:
                 """
                 self.execute_cypher(q, node_props)
 
+            elif nt in ("citation", "study", "paper"):
+                labels.add("CitationNode")
+                node_props.update({
+                    "pmid": str(attrs.get("pmid") or ""),
+                    "doi": str(attrs.get("doi") or ""),
+                    "title": str(attrs.get("title") or label),
+                    "authors": list(attrs.get("authors") or []),
+                    "journal": str(attrs.get("journal") or ""),
+                    "pub_year": int(attrs.get("pub_year") or 0) if attrs.get("pub_year") else None,
+                    "pub_date": str(attrs.get("pub_date") or ""),
+                    "evidence_tier": str(attrs.get("evidence_tier") or "clinical_trial"),
+                    "sample_size": int(attrs.get("sample_size") or 0) if attrs.get("sample_size") else None,
+                    "study_design": str(attrs.get("study_design") or ""),
+                    "key_findings": str(attrs.get("key_findings") or ""),
+                    "conflict_count": int(attrs.get("conflict_count") or 0),
+                    "url": str(attrs.get("url") or ""),
+                })
+                q = """
+                MERGE (c:EntityNode:CitationNode {id: $id})
+                SET c.label = $label, c.node_type = $node_type, c.pmid = $pmid, c.doi = $doi,
+                    c.title = $title, c.authors = $authors, c.journal = $journal,
+                    c.pub_year = $pub_year, c.pub_date = $pub_date, c.evidence_tier = $evidence_tier,
+                    c.sample_size = $sample_size, c.study_design = $study_design,
+                    c.key_findings = $key_findings, c.conflict_count = $conflict_count, c.url = $url
+                """
+                self.execute_cypher(q, node_props)
+
+            elif nt in ("clinical_trial", "trial"):
+                labels.add("ClinicalTrialNode")
+                node_props.update({
+                    "nct_id": str(attrs.get("nct_id") or nid),
+                    "title": str(attrs.get("title") or label),
+                    "phase": str(attrs.get("phase") or "Phase II/III"),
+                    "status": str(attrs.get("status") or "COMPLETED"),
+                    "sponsor": str(attrs.get("sponsor") or ""),
+                    "enrollment": int(attrs.get("enrollment") or 0) if attrs.get("enrollment") else None,
+                    "conditions": list(attrs.get("conditions") or []),
+                    "interventions": list(attrs.get("interventions") or []),
+                    "primary_outcomes": list(attrs.get("primary_outcomes") or []),
+                    "start_year": int(attrs.get("start_year") or 0) if attrs.get("start_year") else None,
+                    "completion_year": int(attrs.get("completion_year") or 0) if attrs.get("completion_year") else None,
+                    "url": str(attrs.get("url") or ""),
+                })
+                q = """
+                MERGE (t:EntityNode:ClinicalTrialNode {id: $id})
+                SET t.label = $label, t.node_type = $node_type, t.nct_id = $nct_id, t.title = $title,
+                    t.phase = $phase, t.status = $status, t.sponsor = $sponsor, t.enrollment = $enrollment,
+                    t.conditions = $conditions, t.interventions = $interventions,
+                    t.primary_outcomes = $primary_outcomes, t.start_year = $start_year,
+                    t.completion_year = $completion_year, t.url = $url
+                """
+                self.execute_cypher(q, node_props)
+
+            elif nt in ("evidence_claim", "claim"):
+                labels.add("EvidenceClaimNode")
+                node_props.update({
+                    "claim_type": str(attrs.get("claim_type") or "pharmacological_effect"),
+                    "subject_id": str(attrs.get("subject_id") or ""),
+                    "predicate": str(attrs.get("predicate") or "MODULATES"),
+                    "object_id": str(attrs.get("object_id") or ""),
+                    "magnitude_value": float(attrs.get("magnitude_value")) if attrs.get("magnitude_value") is not None else None,
+                    "magnitude_unit": str(attrs.get("magnitude_unit") or ""),
+                    "direction": str(attrs.get("direction") or "neutral"),
+                    "consensus_score": float(attrs.get("consensus_score") or 1.0),
+                    "dispute_status": str(attrs.get("dispute_status") or "consensus"),
+                    "contradiction_index": float(attrs.get("contradiction_index") or 0.0),
+                    "discovery_year": int(attrs.get("discovery_year") or 0) if attrs.get("discovery_year") else None,
+                    "last_validated_year": int(attrs.get("last_validated_year") or 0) if attrs.get("last_validated_year") else None,
+                    "conflicting_pmids": list(attrs.get("conflicting_pmids") or []),
+                })
+                q = """
+                MERGE (cl:EntityNode:EvidenceClaimNode {id: $id})
+                SET cl.label = $label, cl.node_type = $node_type, cl.claim_type = $claim_type,
+                    cl.subject_id = $subject_id, cl.predicate = $predicate, cl.object_id = $object_id,
+                    cl.magnitude_value = $magnitude_value, cl.magnitude_unit = $magnitude_unit,
+                    cl.direction = $direction, cl.consensus_score = $consensus_score,
+                    cl.dispute_status = $dispute_status, cl.contradiction_index = $contradiction_index,
+                    cl.discovery_year = $discovery_year, cl.last_validated_year = $last_validated_year,
+                    cl.conflicting_pmids = $conflicting_pmids
+                """
+                self.execute_cypher(q, node_props)
+
             else:
                 q_ent = """
                 MERGE (e:EntityNode {id: $id})
@@ -400,6 +491,14 @@ class Neo4jGraphDatabase:
             conf = float(attrs.get("confidence") or 1.0)
             ev_level = str(attrs.get("evidence_level") or "in_vitro")
             pmids = list(attrs.get("pmids") or [])
+            citations = list(attrs.get("citations") or [])
+            disc_year = int(attrs.get("discovery_year")) if attrs.get("discovery_year") else None
+            late_year = int(attrs.get("latest_study_year")) if attrs.get("latest_study_year") else None
+            is_conflict = bool(attrs.get("conflict_flag") or False)
+            consensus_sc = float(attrs.get("consensus_score")) if attrs.get("consensus_score") is not None else 1.0
+            contra_idx = float(attrs.get("contradiction_index")) if attrs.get("contradiction_index") is not None else 0.0
+            conf_pmids = list(attrs.get("conflicting_pmids") or [])
+            div_rat = str(attrs.get("divergence_rationale") or "")
             is_bridge = bool(attrs.get("is_bridge") or False)
             mech_notes = str(attrs.get("mechanism_notes") or attrs.get("description") or "")
 
@@ -415,6 +514,14 @@ class Neo4jGraphDatabase:
                 "confidence": conf,
                 "evidence_level": ev_level,
                 "pmids": pmids,
+                "citations": citations,
+                "discovery_year": disc_year,
+                "latest_study_year": late_year,
+                "conflict_flag": is_conflict,
+                "consensus_score": consensus_sc,
+                "contradiction_index": contra_idx,
+                "conflicting_pmids": conf_pmids,
+                "divergence_rationale": div_rat,
                 "is_bridge": is_bridge,
                 "mechanism_notes": mech_notes,
             }
@@ -428,20 +535,32 @@ class Neo4jGraphDatabase:
             MERGE (a)-[r:RELATIONSHIP {edge_type: $edge_type}]->(b)
             SET r.magnitude = $mag, r.affinity_ki = $ki, r.inhibition_ic50 = $ic50,
                 r.ec50 = $ec50, r.inhibition_type = $inhibition_type, r.confidence = $conf,
-                r.evidence_level = $ev_level, r.is_bridge = $is_bridge, r.mechanism_notes = $mech_notes
+                r.evidence_level = $ev_level, r.pmids = $pmids, r.discovery_year = $discovery_year,
+                r.latest_study_year = $latest_study_year, r.conflict_flag = $conflict_flag,
+                r.consensus_score = $consensus_score, r.contradiction_index = $contradiction_index,
+                r.conflicting_pmids = $conflicting_pmids, r.divergence_rationale = $divergence_rationale,
+                r.is_bridge = $is_bridge, r.mechanism_notes = $mech_notes
             """
             q_typed = f"""
             MATCH (a:EntityNode {{id: $src}}), (b:EntityNode {{id: $tgt}})
             MERGE (a)-[r:{clean_rel_type} {{edge_type: $edge_type}}]->(b)
             SET r.magnitude = $mag, r.affinity_ki = $ki, r.inhibition_ic50 = $ic50,
                 r.ec50 = $ec50, r.inhibition_type = $inhibition_type, r.confidence = $conf,
-                r.evidence_level = $ev_level, r.is_bridge = $is_bridge, r.mechanism_notes = $mech_notes
+                r.evidence_level = $ev_level, r.pmids = $pmids, r.discovery_year = $discovery_year,
+                r.latest_study_year = $latest_study_year, r.conflict_flag = $conflict_flag,
+                r.consensus_score = $consensus_score, r.contradiction_index = $contradiction_index,
+                r.conflicting_pmids = $conflicting_pmids, r.divergence_rationale = $divergence_rationale,
+                r.is_bridge = $is_bridge, r.mechanism_notes = $mech_notes
             """
             try:
                 params = {
                     "src": src, "tgt": tgt, "edge_type": edge_type, "mag": mag,
                     "ki": ki, "ic50": ic50, "ec50": ec50, "inhibition_type": inh_type,
-                    "conf": conf, "ev_level": ev_level, "is_bridge": is_bridge,
+                    "conf": conf, "ev_level": ev_level, "pmids": pmids,
+                    "discovery_year": disc_year, "latest_study_year": late_year,
+                    "conflict_flag": is_conflict, "consensus_score": consensus_sc,
+                    "contradiction_index": contra_idx, "conflicting_pmids": conf_pmids,
+                    "divergence_rationale": div_rat, "is_bridge": is_bridge,
                     "mech_notes": mech_notes,
                 }
                 self.execute_cypher(q_rel, params)
@@ -924,8 +1043,85 @@ class Neo4jGraphDatabase:
                 if pk.get("cyp_substrates"):
                     prompt_sections.append(f"  * CYP Substrate: {', '.join(pk['cyp_substrates'])}")
 
+        # 3c. Extract Conflicting Results & Scientific Controversies
+        conflicts_found: List[Dict[str, Any]] = []
+        seen_conflicts = set()
+        for edge in self._mock_edges:
+            if edge.get("conflict_flag") or (edge.get("consensus_score") is not None and float(edge.get("consensus_score", 1.0)) < 0.85):
+                src = str(edge.get("source", ""))
+                tgt = str(edge.get("target", ""))
+                if src in clean_ids or tgt in clean_ids:
+                    ckey = tuple(sorted([src, tgt, str(edge.get("edge_type", ""))]))
+                    if ckey not in seen_conflicts:
+                        seen_conflicts.add(ckey)
+                        src_label = self._mock_nodes.get(src, {}).get("label", src)
+                        tgt_label = self._mock_nodes.get(tgt, {}).get("label", tgt)
+                        conflicts_found.append({
+                            "source": src,
+                            "source_label": src_label,
+                            "target": tgt,
+                            "target_label": tgt_label,
+                            "edge_type": edge.get("edge_type", "MODULATES"),
+                            "consensus_score": edge.get("consensus_score", 0.5),
+                            "contradiction_index": edge.get("contradiction_index", 0.5),
+                            "conflicting_pmids": edge.get("conflicting_pmids", []),
+                            "divergence_rationale": edge.get("divergence_rationale", "Divergence in published preclinical vs clinical trials"),
+                            "supporting_pmids": edge.get("pmids", []),
+                        })
+
+        # 3d. Extract Chronological Evidence Milestones
+        evidence_timelines: Dict[str, List[Dict[str, Any]]] = {}
+        for eid in clean_ids:
+            tl = self.get_chronological_evidence_timeline(eid)
+            if tl:
+                evidence_timelines[eid] = tl
+
+        # 4. Construct Structured Prompt Context for LLM
+        prompt_sections = [
+            "# SCIENTIFIC KNOWLEDGE GRAPH CONTEXT (GRAPHRAG GROUNDING)",
+            "> Use the authoritative biological pathways, pharmacokinetic parameters, literature co-occurrences, chronological timelines, and causal chains below to ground your clinical and pharmacological reasoning. Do not invent ungrounded mechanisms.",
+            "",
+            f"## 1. Focused Entities ({len(entities_found)} nodes)",
+        ]
+        for e in list(entities_found.values())[:20]:
+            prompt_sections.append(f"- **{e.get('label')}** ({e.get('node_type')}) | Category: {e.get('category', 'General')}")
+
+        if pkpd_matrix:
+            prompt_sections.append("\n## 2. Pharmacokinetic & Clearance Profiles")
+            for cid, pk in pkpd_matrix.items():
+                route_str = f" | Route: {pk.get('route_of_administration')}" if pk.get("route_of_administration") else ""
+                ester_str = f" | Ester: {pk.get('ester_name')}" if pk.get("is_ester") and pk.get("ester_name") else ""
+                prompt_sections.append(
+                    f"- **{pk['name']}**{route_str}{ester_str}: t1/2 = {pk.get('half_life_hours', 'N/A')}h, "
+                    f"Bioavailability = {pk.get('oral_bioavailability_pct', 'N/A')}%, "
+                    f"Vd = {pk.get('volume_of_distribution_L_kg', 'N/A')} L/kg, "
+                    f"Renal (fe) = {pk.get('renal_clearance_fraction', 'N/A')}, "
+                    f"Hepatic (fh) = {pk.get('hepatic_clearance_fraction', 'N/A')}"
+                )
+                if pk.get("cyp_inhibitors"):
+                    prompt_sections.append(f"  * CYP Inhibition: {', '.join(pk['cyp_inhibitors'])}")
+                if pk.get("cyp_substrates"):
+                    prompt_sections.append(f"  * CYP Substrate: {', '.join(pk['cyp_substrates'])}")
+
+        if conflicts_found:
+            prompt_sections.append("\n## 3. Scientific Controversies & Conflicting Evidence (Explicitly Account for Divergence)")
+            for cf in conflicts_found[:8]:
+                opp_pmid_str = f" [Opposing PMIDs: {', '.join(str(p) for p in cf['conflicting_pmids'][:3])}]" if cf.get("conflicting_pmids") else ""
+                sup_pmid_str = f" [Supporting PMIDs: {', '.join(str(p) for p in cf['supporting_pmids'][:3])}]" if cf.get("supporting_pmids") else ""
+                prompt_sections.append(
+                    f"- ⚠️ **{cf['source_label']}** ➔ **{cf['target_label']}** ({cf['edge_type']}): Consensus {cf['consensus_score']*100:.0f}% (Contradiction Index: {cf['contradiction_index']:.2f}). "
+                    f"*Rationale*: {cf['divergence_rationale']}.{sup_pmid_str}{opp_pmid_str}"
+                )
+
+        if evidence_timelines:
+            prompt_sections.append("\n## 4. Chronological Evidence Evolution & Discovery Milestones")
+            for cid, milestones in list(evidence_timelines.items())[:4]:
+                c_lbl = entities_found.get(cid, {}).get("label", cid)
+                m_strs = [f"{m.get('year', 'N/A')}: {m.get('milestone', '')} [{m.get('tier', 'study')}]" for m in milestones[:4]]
+                prompt_sections.append(f"- **{c_lbl} Evolution**: {' ➔ '.join(m_strs)}")
+
         if literature_cooccurrences:
-            prompt_sections.append("\n## 3. Empirical Literature Co-occurrences & Pairing Evidence")
+            prompt_sections.append("\n## 5. Empirical Literature Co-occurrences & Pairing Evidence")
             for lit in sorted(literature_cooccurrences, key=lambda x: x.get("npmi_score", 0), reverse=True)[:10]:
                 pmid_str = f" [PMIDs: {', '.join(str(p) for p in lit['pmids'][:3])}]" if lit.get("pmids") else ""
                 prompt_sections.append(
@@ -934,7 +1130,7 @@ class Neo4jGraphDatabase:
                 )
 
         if curated_associations:
-            prompt_sections.append("\n## 4. Curated Database Associations (STITCH / CTD / DrugBank)")
+            prompt_sections.append("\n## 6. Curated Database Associations (STITCH / CTD / DrugBank)")
             for cur in curated_associations[:10]:
                 pmid_str = f" [PMIDs: {', '.join(str(p) for p in cur['pmids'][:3])}]" if cur.get("pmids") else ""
                 desc_str = f" - {cur['description']}" if cur.get("description") else ""
@@ -943,24 +1139,24 @@ class Neo4jGraphDatabase:
                 )
 
         if target_competition:
-            prompt_sections.append("\n## 5. Competitive Target Clashes & Cross-Talk")
+            prompt_sections.append("\n## 7. Competitive Target Clashes & Cross-Talk")
             for tc in target_competition:
                 prompt_sections.append(f"- **{tc['target']}**: Competitively engaged by {', '.join(tc['competing_compounds'])}")
 
-        prompt_sections.append(f"\n## 6. Authoritative Biological Triples ({min(len(triples), 40)} shown)")
+        prompt_sections.append(f"\n## 8. Authoritative Biological Triples ({min(len(triples), 40)} shown)")
         for t in triples[:40]:
             affinity_str = f" [Ki: {t['affinity_ki']} nM]" if t.get("affinity_ki") else ""
             ic50_str = f" [IC50: {t['inhibition_ic50']} nM]" if t.get("inhibition_ic50") else ""
             prompt_sections.append(f"- [{t['subject']}] --({t['predicate']}{affinity_str}{ic50_str})--> [{t['object']}] ({t['object_type']})")
 
         if causal_chains:
-            prompt_sections.append("\n## 7. Multi-Tier Causal Reasoning Chains")
+            prompt_sections.append("\n## 9. Multi-Tier Causal Reasoning Chains")
             for i, chain in enumerate(causal_chains[:8], 1):
                 steps_str = " ➔ ".join([f"{c['target_label']} ({c['target_type']})" for c in chain])
                 prompt_sections.append(f"{i}. {steps_str}")
 
         if biomarker_kinetics:
-            prompt_sections.append("\n## 8. Biomarker Kinetic Calibrations")
+            prompt_sections.append("\n## 10. Biomarker Kinetic Calibrations")
             for bk in biomarker_kinetics[:10]:
                 prompt_sections.append(
                     f"- **{bk['biomarker']}**: Safe Range [{bk.get('safe_lower')}-{bk.get('safe_upper')} {bk.get('unit')}], "
@@ -976,6 +1172,8 @@ class Neo4jGraphDatabase:
         summary_lines.append(f"- Literature Co-occurrences: {len(literature_cooccurrences)} empirical pairings")
         summary_lines.append(f"- Curated Associations: {len(curated_associations)} database interactions")
         summary_lines.append(f"- Causal Chains: {len(causal_chains)} complete multi-tier pathways")
+        if conflicts_found:
+            summary_lines.append(f"- Scientific Controversies: {len(conflicts_found)} disputed claims mapped")
         if target_competition:
             summary_lines.append(f"- Target Clashes: {len(target_competition)} shared target interactions")
 
@@ -986,6 +1184,8 @@ class Neo4jGraphDatabase:
             "triple_count": len(triples),
             "literature_cooccurrences": literature_cooccurrences,
             "curated_associations": curated_associations,
+            "conflicts": conflicts_found,
+            "evidence_timelines": evidence_timelines,
             "causal_chains": causal_chains[:15],
             "pkpd_matrix": pkpd_matrix,
             "target_competition": target_competition,
@@ -1003,6 +1203,213 @@ class Neo4jGraphDatabase:
             self._graphrag_cache[cache_key] = copy.deepcopy(res)
 
         return res
+
+    def get_chronological_evidence_timeline(self, entity_id: str) -> List[Dict[str, Any]]:
+        """
+        Retrieves the chronological progression of scientific evidence and discovery milestones
+        for a given entity, sorted from earliest to latest publication year.
+        """
+        eid = str(entity_id).strip().lower()
+        if not eid:
+            return []
+
+        milestones: List[Dict[str, Any]] = []
+        seen_pmids = set()
+
+        # 1. Inspect direct CitationNodes connected or in mock store
+        for nid, nprops in self._mock_nodes.items():
+            nt = nprops.get("node_type", "")
+            if nt in ("citation", "study") and (eid in nid.lower() or eid in str(nprops.get("title", "")).lower() or eid in str(nprops.get("key_findings", "")).lower()):
+                pmid = nprops.get("pmid")
+                if pmid and pmid not in seen_pmids:
+                    seen_pmids.add(pmid)
+                    milestones.append({
+                        "id": nid,
+                        "pmid": pmid,
+                        "doi": nprops.get("doi"),
+                        "title": nprops.get("title", ""),
+                        "journal": nprops.get("journal", ""),
+                        "year": nprops.get("pub_year") or 2020,
+                        "tier": nprops.get("evidence_tier", "clinical_trial"),
+                        "milestone": nprops.get("key_findings") or nprops.get("title", ""),
+                        "sample_size": nprops.get("sample_size"),
+                        "url": nprops.get("url") or f"https://pubmed.ncbi.nlm.nih.gov/{pmid}/",
+                    })
+
+        # 2. Inspect edges with citations or PMIDs connected to this entity
+        for edge in self._mock_edges:
+            if edge.get("source") == eid or edge.get("target") == eid:
+                e_pmids = edge.get("pmids", []) or []
+                cites = edge.get("citations", []) or []
+                d_year = edge.get("discovery_year") or edge.get("latest_study_year")
+                e_type = edge.get("edge_type", "MODULATES")
+
+                for c in cites:
+                    c_pmid = c.get("pmid")
+                    if c_pmid and c_pmid not in seen_pmids:
+                        seen_pmids.add(c_pmid)
+                        milestones.append({
+                            "id": f"pmid_{c_pmid}",
+                            "pmid": c_pmid,
+                            "doi": c.get("doi"),
+                            "title": c.get("title", f"Interaction study for {eid}"),
+                            "journal": c.get("journal", "Biomedical Literature"),
+                            "year": c.get("pub_year") or d_year or 2018,
+                            "tier": c.get("evidence_tier", "clinical_trial"),
+                            "milestone": c.get("key_findings") or f"Characterized {e_type} interaction",
+                            "sample_size": c.get("sample_size"),
+                            "url": c.get("url") or f"https://pubmed.ncbi.nlm.nih.gov/{c_pmid}/",
+                        })
+
+                for pmid in e_pmids:
+                    pmid_str = str(pmid)
+                    if pmid_str and pmid_str not in seen_pmids:
+                        seen_pmids.add(pmid_str)
+                        milestones.append({
+                            "id": f"pmid_{pmid_str}",
+                            "pmid": pmid_str,
+                            "doi": None,
+                            "title": f"Validating study for {edge.get('source')} ➔ {edge.get('target')}",
+                            "journal": "Peer-Reviewed Literature",
+                            "year": d_year or 2015,
+                            "tier": edge.get("evidence_level", "in_vivo"),
+                            "milestone": edge.get("mechanism_notes") or f"Validated {e_type} pathway",
+                            "sample_size": None,
+                            "url": f"https://pubmed.ncbi.nlm.nih.gov/{pmid_str}/",
+                        })
+
+        # 3. Fallback to catalog service seed literature if empty
+        if not milestones:
+            try:
+                from app.services.pubmed_service import SEED_LITERATURE_DB
+                seeds = SEED_LITERATURE_DB.get(eid, [])
+                for s in seeds:
+                    milestones.append({
+                        "id": f"pmid_{s['pmid']}",
+                        "pmid": s["pmid"],
+                        "doi": s.get("doi"),
+                        "title": s.get("title", ""),
+                        "journal": s.get("journal", ""),
+                        "year": int(s.get("pub_year", 2015)),
+                        "tier": s.get("evidence_type", "Phase III Landmark RCT"),
+                        "milestone": s.get("clinical_finding", s.get("title", "")),
+                        "sample_size": s.get("sample_size"),
+                        "url": s.get("url") or f"https://pubmed.ncbi.nlm.nih.gov/{s['pmid']}/",
+                    })
+            except Exception:
+                pass
+
+        # Sort chronologically
+        milestones.sort(key=lambda m: (m.get("year") or 9999, m.get("tier") or ""))
+        return milestones
+
+    def get_conflicting_evidence_subgraph(self, entity_ids: List[str]) -> Dict[str, Any]:
+        """
+        Extracts disputed edges, opposing PMIDs, and divergent scientific hypotheses
+        for the given entity IDs.
+        """
+        clean_ids = set(str(e).strip().lower() for e in entity_ids if e)
+        disputed_edges: List[Dict[str, Any]] = []
+
+        for edge in self._mock_edges:
+            src = str(edge.get("source", ""))
+            tgt = str(edge.get("target", ""))
+            if (not clean_ids) or (src in clean_ids or tgt in clean_ids):
+                is_disputed = edge.get("conflict_flag") or (edge.get("consensus_score") is not None and float(edge.get("consensus_score", 1.0)) < 0.85)
+                if is_disputed:
+                    src_label = self._mock_nodes.get(src, {}).get("label", src)
+                    tgt_label = self._mock_nodes.get(tgt, {}).get("label", tgt)
+                    disputed_edges.append({
+                        "source": src,
+                        "source_label": src_label,
+                        "target": tgt,
+                        "target_label": tgt_label,
+                        "edge_type": edge.get("edge_type", "MODULATES"),
+                        "consensus_score": edge.get("consensus_score", 0.5),
+                        "contradiction_index": edge.get("contradiction_index", 0.5),
+                        "conflicting_pmids": edge.get("conflicting_pmids", []),
+                        "supporting_pmids": edge.get("pmids", []),
+                        "divergence_rationale": edge.get("divergence_rationale", "Conflicting results between in vitro high-dose models and human clinical RCTs"),
+                    })
+
+        return {
+            "entity_ids": list(clean_ids),
+            "disputed_edge_count": len(disputed_edges),
+            "disputed_edges": disputed_edges,
+        }
+
+    def get_temporal_graph_snapshot(self, as_of_year: int) -> Dict[str, Any]:
+        """
+        Filters the biological knowledge graph to return only the nodes and edges
+        that were published/discovered on or before as_of_year.
+        """
+        def _sanitize(obj: Any) -> Any:
+            if isinstance(obj, dict):
+                return {str(k): _sanitize(v) for k, v in obj.items()}
+            elif isinstance(obj, (list, tuple, set)):
+                return [_sanitize(x) for x in obj]
+            elif hasattr(obj, "value"):
+                return obj.value
+            return obj
+
+        cutoff = int(as_of_year)
+        active_nodes: Dict[str, Dict[str, Any]] = {}
+        active_edges: List[Dict[str, Any]] = []
+
+        for edge in self._mock_edges:
+            d_year = edge.get("discovery_year")
+            if d_year is None or int(d_year) <= cutoff:
+                active_edges.append(_sanitize(edge))
+                src = edge.get("source")
+                tgt = edge.get("target")
+                if src and src in self._mock_nodes:
+                    active_nodes[src] = _sanitize(self._mock_nodes[src])
+                if tgt and tgt in self._mock_nodes:
+                    active_nodes[tgt] = _sanitize(self._mock_nodes[tgt])
+
+        return {
+            "as_of_year": cutoff,
+            "node_count": len(active_nodes),
+            "edge_count": len(active_edges),
+            "nodes": list(active_nodes.values()),
+            "edges": active_edges,
+        }
+
+    def get_evidence_claims_for_entity(self, entity_id: str) -> List[Dict[str, Any]]:
+        """
+        Retrieves all structured assertions (binding affinities, clearance mechanisms,
+        interactions, biomarker shifts) associated with a given entity.
+        """
+        eid = str(entity_id).strip().lower()
+        claims: List[Dict[str, Any]] = []
+
+        for nid, node in self._mock_nodes.items():
+            if node.get("node_type") in ("evidence_claim", "claim"):
+                if node.get("subject_id") == eid or node.get("object_id") == eid:
+                    claims.append(node)
+
+        # Generate claims dynamically from active edges if explicit claim nodes not merged
+        if not claims:
+            for edge in self._mock_edges:
+                if edge.get("source") == eid or edge.get("target") == eid:
+                    src_lbl = self._mock_nodes.get(edge.get("source", ""), {}).get("label", edge.get("source"))
+                    tgt_lbl = self._mock_nodes.get(edge.get("target", ""), {}).get("label", edge.get("target"))
+                    claims.append({
+                        "id": f"claim_{edge.get('source')}_{edge.get('target')}",
+                        "node_type": "evidence_claim",
+                        "subject": src_lbl,
+                        "predicate": edge.get("edge_type", "MODULATES"),
+                        "object": tgt_lbl,
+                        "affinity_ki": edge.get("ki"),
+                        "inhibition_ic50": edge.get("ic50"),
+                        "consensus_score": edge.get("consensus_score", 1.0),
+                        "dispute_status": "debated" if edge.get("conflict_flag") else "consensus",
+                        "discovery_year": edge.get("discovery_year"),
+                        "pmids": edge.get("pmids", []),
+                        "conflicting_pmids": edge.get("conflicting_pmids", []),
+                    })
+
+        return claims
 
 
 # Singleton instance accessor

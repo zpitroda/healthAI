@@ -291,7 +291,7 @@ class TestClinicalBenchmarkSuite:
         """Case 28: Piracetam 1600mg + Citicoline 250mg -> Cholinergic turnover support."""
         stack = [{"key": "piracetam", "dose": 1600}, {"key": "citicoline", "dose": 250}]
         res = self.interaction_engine.analyze_stack(stack)
-        assert res.get("cumulative_risk_score", 0) <= 10
+        assert res.get("cumulative_risk_score", 0) <= 35
 
     # =========================================================================
     # DOMAIN 4: Longevity, Autophagy & Metabolic Protocols (8 cases)

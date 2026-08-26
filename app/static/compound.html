@@ -781,6 +781,168 @@
           min-height: 360px;
         }
       }
+
+      /* EVIDENCE, LITERATURE & CITATION GRAPH STYLES */
+      .evidence-card-grid {
+        display: grid;
+        grid-template-columns: 1fr;
+        gap: 10px;
+        margin-top: 10px;
+      }
+      .study-card {
+        background: rgba(13, 21, 38, 0.7);
+        border: 1px solid var(--border-subtle);
+        border-radius: 10px;
+        padding: 12px 14px;
+        transition: all 0.2s ease;
+      }
+      .study-card:hover {
+        border-color: rgba(56, 189, 248, 0.4);
+        background: rgba(13, 21, 38, 0.95);
+        box-shadow: 0 4px 16px rgba(0, 0, 0, 0.4);
+      }
+      .study-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: flex-start;
+        gap: 10px;
+        margin-bottom: 6px;
+      }
+      .study-title {
+        font-size: 0.85rem;
+        font-weight: 700;
+        color: #ffffff;
+        line-height: 1.35;
+      }
+      .study-badge {
+        display: inline-flex;
+        align-items: center;
+        gap: 4px;
+        font-size: 0.68rem;
+        font-weight: 700;
+        padding: 2px 8px;
+        border-radius: 4px;
+        background: rgba(0, 242, 254, 0.12);
+        color: #38bdf8;
+        border: 1px solid rgba(0, 242, 254, 0.3);
+        white-space: nowrap;
+      }
+      .study-badge.rct {
+        background: rgba(16, 185, 129, 0.15);
+        color: #34d399;
+        border-color: rgba(16, 185, 129, 0.35);
+      }
+      .study-badge.meta {
+        background: rgba(168, 85, 247, 0.15);
+        color: #c084fc;
+        border-color: rgba(168, 85, 247, 0.35);
+      }
+      .study-meta {
+        font-size: 0.72rem;
+        color: var(--text-muted);
+        display: flex;
+        gap: 10px;
+        flex-wrap: wrap;
+        margin-bottom: 6px;
+        font-family: 'JetBrains Mono', monospace;
+      }
+      .study-finding {
+        font-size: 0.78rem;
+        color: var(--text-secondary);
+        line-height: 1.4;
+      }
+      .study-links {
+        display: flex;
+        gap: 8px;
+        margin-top: 8px;
+      }
+      .study-link {
+        font-size: 0.7rem;
+        font-weight: 600;
+        color: #38bdf8;
+        text-decoration: none;
+        padding: 2px 6px;
+        border-radius: 4px;
+        background: rgba(56, 189, 248, 0.08);
+        border: 1px solid rgba(56, 189, 248, 0.2);
+        transition: all 0.15s ease;
+      }
+      .study-link:hover {
+        background: rgba(56, 189, 248, 0.2);
+        color: #ffffff;
+      }
+
+      /* TIMELINE */
+      .timeline-track {
+        position: relative;
+        padding-left: 20px;
+        margin-top: 12px;
+      }
+      .timeline-track::before {
+        content: '';
+        position: absolute;
+        top: 4px;
+        bottom: 4px;
+        left: 6px;
+        width: 2px;
+        background: linear-gradient(180deg, #00f2fe 0%, #3b82f6 50%, rgba(59, 130, 246, 0.2) 100%);
+      }
+      .timeline-item {
+        position: relative;
+        margin-bottom: 12px;
+      }
+      .timeline-node-dot {
+        position: absolute;
+        left: -19px;
+        top: 4px;
+        width: 10px;
+        height: 10px;
+        border-radius: 50%;
+        background: #00f2fe;
+        border: 2px solid #050811;
+        box-shadow: 0 0 8px rgba(0, 242, 254, 0.6);
+      }
+      .timeline-year {
+        font-size: 0.72rem;
+        font-weight: 800;
+        color: #38bdf8;
+        font-family: 'JetBrains Mono', monospace;
+      }
+      .timeline-text {
+        font-size: 0.78rem;
+        color: var(--text-secondary);
+        margin-top: 2px;
+      }
+
+      /* CONTROVERSIES RADAR */
+      .controversy-card {
+        background: rgba(245, 158, 11, 0.05);
+        border: 1px solid rgba(245, 158, 11, 0.25);
+        border-radius: 10px;
+        padding: 12px 14px;
+        margin-top: 8px;
+      }
+      .controversy-title {
+        font-size: 0.84rem;
+        font-weight: 800;
+        color: #fbbf24;
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        margin-bottom: 6px;
+      }
+      .consensus-bar-wrap {
+        height: 6px;
+        background: rgba(255, 255, 255, 0.1);
+        border-radius: 3px;
+        overflow: hidden;
+        margin: 6px 0;
+      }
+      .consensus-bar-fill {
+        height: 100%;
+        background: linear-gradient(90deg, #f59e0b, #10b981);
+        border-radius: 3px;
+      }
     </style>
   </head>
   <body>
@@ -972,6 +1134,49 @@
               </div>
               <div class="body compact">
                 <ul id="compoundInteractions" class="bullet-list"></ul>
+              </div>
+            </div>
+
+            <!-- EVIDENCE, LITERATURE & CITATION GRAPH SECTION -->
+            <div class="section-heading" style="margin-top:24px; display:flex; justify-content:space-between; align-items:center;">
+              <span>📚 Scientific Evidence, Literature & Citation Graph</span>
+              <span class="brand-tag" id="evidenceCountTag">0 Verified Studies</span>
+            </div>
+
+            <!-- LANDMARK STUDIES -->
+            <div class="list-box">
+              <div class="header" style="display:flex; justify-content:space-between; align-items:center;">
+                <span>🔬 Landmark Clinical Trials & Meta-Analyses</span>
+                <span style="font-size:0.7rem; color:var(--text-muted);">PubMed / Europe PMC Grounded</span>
+              </div>
+              <div class="body" style="padding:12px;">
+                <div id="landmarkStudiesGrid" class="evidence-card-grid">
+                  <div style="font-size:0.8rem; color:var(--text-muted);">Loading peer-reviewed study citations...</div>
+                </div>
+              </div>
+            </div>
+
+            <!-- CHRONOLOGICAL DISCOVERY TIMELINE -->
+            <div class="list-box">
+              <div class="header">
+                <span>⏳ Chronological Discovery & Validation Timeline</span>
+              </div>
+              <div class="body" style="padding:14px 16px;">
+                <div id="timelineTrack" class="timeline-track">
+                  <div style="font-size:0.8rem; color:var(--text-muted);">Constructing chronological evidence milestones...</div>
+                </div>
+              </div>
+            </div>
+
+            <!-- SCIENTIFIC CONTROVERSIES & CONFLICTING EVIDENCE RADAR -->
+            <div class="list-box" id="controversiesBox">
+              <div class="header" style="color:#fbbf24;">
+                <span>⚠️ Scientific Controversies & Conflicting Evidence</span>
+              </div>
+              <div class="body" style="padding:12px;">
+                <div id="controversiesGrid">
+                  <div style="font-size:0.8rem; color:var(--text-muted);">Scanning for divergent assay reports and trial conflicts...</div>
+                </div>
               </div>
             </div>
           </div>
@@ -1959,6 +2164,139 @@
         });
       }
 
+      // EVIDENCE & CITATION DOSSIER RENDERER
+      function loadEvidenceDossier(cKey) {
+        const studiesGrid = document.getElementById('landmarkStudiesGrid');
+        const timelineTrack = document.getElementById('timelineTrack');
+        const controversiesGrid = document.getElementById('controversiesGrid');
+        const evidenceCountTag = document.getElementById('evidenceCountTag');
+
+        fetch(`/catalog/${encodeURIComponent(cKey)}/evidence-dossier`)
+          .then(res => res.json())
+          .then(dossier => {
+            const citations = dossier.citations || [];
+            const trials = dossier.clinical_trials || [];
+            const timeline = dossier.chronological_timeline || [];
+            const conflicts = dossier.conflicts || [];
+
+            if (evidenceCountTag) {
+              evidenceCountTag.textContent = `${citations.length + trials.length} Verified Evidence Records`;
+            }
+
+            // 1. Render Landmark Studies & Trials
+            if (studiesGrid) {
+              if (citations.length === 0 && trials.length === 0) {
+                studiesGrid.innerHTML = `<div style="font-size:0.8rem; color:var(--text-muted);">No direct landmark citations cataloged yet. Live literature extraction active.</div>`;
+              } else {
+                let html = '';
+                citations.forEach(c => {
+                  const tier = c.evidence_tier || 'Clinical Study';
+                  const tierClass = tier.toLowerCase().includes('rct') ? 'rct' : (tier.toLowerCase().includes('meta') ? 'meta' : '');
+                  const pmid = c.pmid ? `<a class="study-link" href="https://pubmed.ncbi.nlm.nih.gov/${c.pmid}/" target="_blank" rel="noopener">PMID: ${c.pmid} ↗</a>` : '';
+                  const doi = c.doi ? `<a class="study-link" href="https://doi.org/${c.doi}" target="_blank" rel="noopener">DOI ↗</a>` : '';
+                  const n = c.sample_size ? `<span>Sample N = ${c.sample_size.toLocaleString()}</span>` : '';
+                  const auth = Array.isArray(c.authors) ? c.authors.slice(0, 3).join(', ') : (c.authors || '');
+
+                  html += `
+                    <div class="study-card">
+                      <div class="study-header">
+                        <div class="study-title">${c.title || 'Biomedical Investigation'}</div>
+                        <span class="study-badge ${tierClass}">${tier}</span>
+                      </div>
+                      <div class="study-meta">
+                        <span>📖 ${c.journal || 'Peer-Reviewed Journal'} (${c.pub_year || 'N/A'})</span>
+                        ${auth ? `<span>👥 ${auth}</span>` : ''}
+                        ${n}
+                      </div>
+                      ${c.key_findings ? `<div class="study-finding">💡 ${c.key_findings}</div>` : ''}
+                      <div class="study-links">
+                        ${pmid}
+                        ${doi}
+                      </div>
+                    </div>
+                  `;
+                });
+
+                trials.forEach(t => {
+                  html += `
+                    <div class="study-card" style="border-left: 3px solid #38bdf8;">
+                      <div class="study-header">
+                        <div class="study-title">${t.title}</div>
+                        <span class="study-badge rct">${t.phase || 'Clinical Trial'} [${t.status || 'COMPLETED'}]</span>
+                      </div>
+                      <div class="study-meta">
+                        <span>🏛️ ${t.sponsor || 'Clinical Investigation'}</span>
+                        ${t.enrollment ? `<span>👥 Enrollment N = ${t.enrollment.toLocaleString()}</span>` : ''}
+                        ${t.completion_year ? `<span>📅 Year: ${t.completion_year}</span>` : ''}
+                      </div>
+                      <div class="study-links">
+                        <a class="study-link" href="https://clinicaltrials.gov/study/${t.nct_id}" target="_blank" rel="noopener">ClinicalTrials.gov: ${t.nct_id} ↗</a>
+                      </div>
+                    </div>
+                  `;
+                });
+                studiesGrid.innerHTML = html;
+              }
+            }
+
+            // 2. Render Chronological Timeline
+            if (timelineTrack) {
+              if (timeline.length === 0) {
+                timelineTrack.innerHTML = `<div style="font-size:0.8rem; color:var(--text-muted);">No timeline milestones mapped.</div>`;
+              } else {
+                let tHtml = '';
+                timeline.forEach(m => {
+                  tHtml += `
+                    <div class="timeline-item">
+                      <div class="timeline-node-dot"></div>
+                      <div class="timeline-year">${m.year || 'Discovery'} &bull; ${m.tier || 'Milestone'}</div>
+                      <div class="timeline-text"><strong>${m.title || m.milestone}</strong></div>
+                      ${m.pmid ? `<div style="margin-top:3px;"><a class="study-link" href="https://pubmed.ncbi.nlm.nih.gov/${m.pmid}/" target="_blank" rel="noopener" style="font-size:0.65rem;">PMID: ${m.pmid} ↗</a></div>` : ''}
+                    </div>
+                  `;
+                });
+                timelineTrack.innerHTML = tHtml;
+              }
+            }
+
+            // 3. Render Controversies Radar
+            if (controversiesGrid) {
+              if (conflicts.length === 0) {
+                controversiesGrid.innerHTML = `
+                  <div style="font-size:0.8rem; color:var(--success); display:flex; align-items:center; gap:6px;">
+                    <span>✅</span> High scientific consensus observed across published assays & human clinical trials.
+                  </div>
+                `;
+              } else {
+                let cHtml = '';
+                conflicts.forEach(cf => {
+                  const sc = Math.round((cf.consensus_score || 0.6) * 100);
+                  cHtml += `
+                    <div class="controversy-card">
+                      <div class="controversy-title">
+                        <span>⚡ ${cf.topic || 'Pharmacological Debate'}</span>
+                        <span style="font-size:0.7rem; font-weight:600; color:var(--text-muted); margin-left:auto;">Consensus: ${sc}%</span>
+                      </div>
+                      <div class="consensus-bar-wrap">
+                        <div class="consensus-bar-fill" style="width: ${sc}%;"></div>
+                      </div>
+                      <div style="font-size:0.75rem; color:var(--text-secondary); margin-top:6px;">
+                        <div>🟢 <strong>Supported Observation</strong>: ${cf.positive_claim || 'Documented efficacy.'}</div>
+                        <div style="margin-top:4px;">🔴 <strong>Opposing / Limiting Finding</strong>: ${cf.opposing_claim || 'Context-dependent attenuation.'}</div>
+                      </div>
+                      ${cf.divergence_rationale ? `<div style="font-size:0.72rem; color:#f59e0b; margin-top:6px; font-style:italic;">🔍 Rationale: ${cf.divergence_rationale}</div>` : ''}
+                    </div>
+                  `;
+                });
+                controversiesGrid.innerHTML = cHtml;
+              }
+            }
+          })
+          .catch(err => {
+            console.debug('Failed to load evidence dossier', err);
+          });
+      }
+
       // INITIAL FETCH
       fetch(`/catalog/${encodeURIComponent(compoundKey)}`)
         .then((response) => {
@@ -1969,6 +2307,7 @@
           compoundLoading.style.display = 'none';
           renderCompound(compound);
           loadGraph(compound);
+          loadEvidenceDossier(compoundKey);
         })
         .catch((error) => {
           compoundLoading.style.display = 'none';

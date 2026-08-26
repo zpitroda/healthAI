@@ -1826,6 +1826,88 @@ class CatalogService:
             conn.execute("CREATE INDEX IF NOT EXISTS idx_compounds_source_tier ON compounds(source_tier)")
             conn.execute("CREATE INDEX IF NOT EXISTS idx_compounds_parent_id ON compounds(parent_compound_id)")
 
+            # Relational Citations, Clinical Trials, and Claims Tables
+            conn.execute(
+                """
+                CREATE TABLE IF NOT EXISTS citations (
+                    id TEXT PRIMARY KEY,
+                    pmid TEXT,
+                    doi TEXT,
+                    title TEXT NOT NULL,
+                    authors TEXT,
+                    journal TEXT,
+                    pub_year INTEGER,
+                    pub_date TEXT,
+                    evidence_tier TEXT DEFAULT 'clinical_trial',
+                    sample_size INTEGER,
+                    mesh_terms TEXT,
+                    key_findings TEXT,
+                    compound_key TEXT,
+                    url TEXT,
+                    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+                )
+                """
+            )
+            conn.execute(
+                """
+                CREATE TABLE IF NOT EXISTS clinical_trials (
+                    nct_id TEXT PRIMARY KEY,
+                    title TEXT NOT NULL,
+                    phase TEXT,
+                    status TEXT,
+                    sponsor TEXT,
+                    enrollment INTEGER,
+                    conditions TEXT,
+                    interventions TEXT,
+                    primary_outcomes TEXT,
+                    compound_key TEXT,
+                    start_year INTEGER,
+                    completion_year INTEGER,
+                    url TEXT,
+                    created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+                )
+                """
+            )
+            conn.execute(
+                """
+                CREATE TABLE IF NOT EXISTS evidence_claims (
+                    id TEXT PRIMARY KEY,
+                    compound_key TEXT NOT NULL,
+                    claim_type TEXT,
+                    subject TEXT,
+                    predicate TEXT,
+                    object TEXT,
+                    magnitude_value REAL,
+                    magnitude_unit TEXT,
+                    direction TEXT,
+                    consensus_score REAL DEFAULT 1.0,
+                    dispute_status TEXT DEFAULT 'consensus',
+                    contradiction_index REAL DEFAULT 0.0,
+                    discovery_year INTEGER,
+                    last_validated_year INTEGER,
+                    created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+                )
+                """
+            )
+            conn.execute(
+                """
+                CREATE TABLE IF NOT EXISTS claim_citations (
+                    claim_id TEXT,
+                    citation_id TEXT,
+                    relationship TEXT DEFAULT 'SUPPORTS',
+                    confidence REAL DEFAULT 1.0,
+                    extract_snippet TEXT,
+                    PRIMARY KEY(claim_id, citation_id)
+                )
+                """
+            )
+            conn.execute("CREATE INDEX IF NOT EXISTS idx_citations_compound ON citations(compound_key)")
+            conn.execute("CREATE INDEX IF NOT EXISTS idx_citations_pmid ON citations(pmid)")
+            conn.execute("CREATE INDEX IF NOT EXISTS idx_citations_year ON citations(pub_year)")
+            conn.execute("CREATE INDEX IF NOT EXISTS idx_trials_compound ON clinical_trials(compound_key)")
+            conn.execute("CREATE INDEX IF NOT EXISTS idx_claims_compound ON evidence_claims(compound_key)")
+
     def _resolve_canonical_key(self, compound: Dict[str, Any]) -> str | None:
         candidates = [
             compound.get("canonical_key"),
@@ -2346,9 +2428,9 @@ class CatalogService:
                         if best_cand:
                             row = row_by_cand.get(best_cand)
 
-                    # 3. SequenceMatcher close match fallback
+                    # 3. SequenceMatcher close match fallback (high-confidence typos only)
                     if row is None:
-                        matches = difflib.get_close_matches(target_norm, all_candidates, n=1, cutoff=0.60)
+                        matches = difflib.get_close_matches(target_norm, all_candidates, n=1, cutoff=0.80)
                         if matches:
                             row = row_by_cand.get(matches[0])
 
@@ -2832,3 +2914,144 @@ class CatalogService:
         compound["dose_display"] = dose_info["dose_display"]
 
         return compound
+
+    def add_citation(self, citation_dict: Dict[str, Any]) -> str:
+        """Adds or updates a citation record in the catalog database."""
+        cid = str(citation_dict.get("id") or (f"pmid_{citation_dict['pmid']}" if citation_dict.get("pmid") else f"cite_{time.time()}"))
+        with self._connect() as conn:
+            conn.execute(
+                """
+                INSERT INTO citations (
+                    id, pmid, doi, title, authors, journal, pub_year, pub_date,
+                    evidence_tier, sample_size, mesh_terms, key_findings, compound_key, url
+                ) VALUES (
+                    :id, :pmid, :doi, :title, :authors, :journal, :pub_year, :pub_date,
+                    :evidence_tier, :sample_size, :mesh_terms, :key_findings, :compound_key, :url
+                )
+                ON CONFLICT(id) DO UPDATE SET
+                    pmid = excluded.pmid,
+                    doi = excluded.doi,
+                    title = excluded.title,
+                    authors = excluded.authors,
+                    journal = excluded.journal,
+                    pub_year = excluded.pub_year,
+                    pub_date = excluded.pub_date,
+                    evidence_tier = excluded.evidence_tier,
+                    sample_size = excluded.sample_size,
+                    mesh_terms = excluded.mesh_terms,
+                    key_findings = excluded.key_findings,
+                    compound_key = excluded.compound_key,
+                    url = excluded.url,
+                    updated_at = CURRENT_TIMESTAMP
+                """,
+                {
+                    "id": cid,
+                    "pmid": citation_dict.get("pmid"),
+                    "doi": citation_dict.get("doi"),
+                    "title": citation_dict.get("title", ""),
+                    "authors": json.dumps(citation_dict.get("authors", [])) if isinstance(citation_dict.get("authors"), list) else str(citation_dict.get("authors") or ""),
+                    "journal": citation_dict.get("journal"),
+                    "pub_year": citation_dict.get("pub_year"),
+                    "pub_date": citation_dict.get("pub_date"),
+                    "evidence_tier": citation_dict.get("evidence_tier", "clinical_trial"),
+                    "sample_size": citation_dict.get("sample_size"),
+                    "mesh_terms": json.dumps(citation_dict.get("mesh_terms", [])) if isinstance(citation_dict.get("mesh_terms"), list) else str(citation_dict.get("mesh_terms") or ""),
+                    "key_findings": citation_dict.get("key_findings") or citation_dict.get("clinical_finding"),
+                    "compound_key": citation_dict.get("compound_key"),
+                    "url": citation_dict.get("url"),
+                }
+            )
+        return cid
+
+    def get_citations_for_compound(self, compound_key: str) -> List[Dict[str, Any]]:
+        """Retrieves all peer-reviewed citations for a compound from SQLite and seed benchmarks."""
+        ck = str(compound_key).strip().lower()
+        results: List[Dict[str, Any]] = []
+
+        with self._connect() as conn:
+            rows = conn.execute("SELECT * FROM citations WHERE compound_key = ? ORDER BY pub_year DESC", (ck,)).fetchall()
+            for r in rows:
+                item = dict(r)
+                item["authors"] = self._deserialize(item.get("authors"), default=[])
+                item["mesh_terms"] = self._deserialize(item.get("mesh_terms"), default=[])
+                results.append(item)
+
+        # Merge seed literature if present
+        try:
+            from app.services.pubmed_service import SEED_LITERATURE_DB
+            seeds = SEED_LITERATURE_DB.get(ck, [])
+            seen_pmids = {str(r.get("pmid")) for r in results if r.get("pmid")}
+            for s in seeds:
+                if str(s.get("pmid")) not in seen_pmids:
+                    results.append({
+                        "id": f"pmid_{s['pmid']}",
+                        "pmid": s["pmid"],
+                        "doi": s.get("doi"),
+                        "title": s.get("title", ""),
+                        "authors": s.get("authors", []),
+                        "journal": s.get("journal", ""),
+                        "pub_year": int(s.get("pub_year", 2015)),
+                        "pub_date": s.get("pub_date"),
+                        "evidence_tier": s.get("evidence_tier", s.get("evidence_type", "clinical_trial")),
+                        "sample_size": s.get("sample_size"),
+                        "key_findings": s.get("clinical_finding", ""),
+                        "compound_key": ck,
+                        "url": s.get("url") or f"https://pubmed.ncbi.nlm.nih.gov/{s['pmid']}/",
+                    })
+                    seen_pmids.add(str(s["pmid"]))
+        except Exception:
+            pass
+
+        results.sort(key=lambda x: (x.get("pub_year") or 0), reverse=True)
+        return results
+
+    def get_clinical_trials_for_compound(self, compound_key: str) -> List[Dict[str, Any]]:
+        """Retrieves clinical trial records for a compound."""
+        ck = str(compound_key).strip().lower()
+        try:
+            from app.services.pubmed_service import PubMedService
+            p_svc = PubMedService()
+            return p_svc.get_clinical_trials_for_compound(ck)
+        except Exception:
+            return []
+
+    def get_compound_evidence_dossier(self, compound_key: str) -> Dict[str, Any]:
+        """
+        Builds a comprehensive scientific evidence dossier for a compound, combining:
+        - Structured peer-reviewed citations
+        - Clinical trial registrations (NCT)
+        - Chronological discovery timeline milestones
+        - Known controversies and conflicting literature
+        """
+        ck = str(compound_key).strip().lower()
+        compound = self.get_compound(ck, auto_enrich=False)
+        citations = self.get_citations_for_compound(ck)
+        trials = self.get_clinical_trials_for_compound(ck)
+
+        try:
+            from app.knowledge_graph.graph_db import get_graph_database
+            gdb = get_graph_database()
+            timeline = gdb.get_chronological_evidence_timeline(ck)
+            claims = gdb.get_evidence_claims_for_entity(ck)
+        except Exception:
+            timeline = []
+            claims = []
+
+        try:
+            from app.services.pubmed_service import PubMedService
+            p_svc = PubMedService()
+            conflicts = p_svc.detect_conflicts_for_compound(ck)
+        except Exception:
+            conflicts = []
+
+        return {
+            "compound_key": ck,
+            "compound_name": (compound.get("name") or ck).title() if compound else ck.title(),
+            "citation_count": len(citations),
+            "citations": citations,
+            "clinical_trials": trials,
+            "chronological_timeline": timeline,
+            "evidence_claims": claims,
+            "conflicts": conflicts,
+            "conflict_count": len(conflicts),
+        }

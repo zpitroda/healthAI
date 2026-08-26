@@ -4,6 +4,7 @@ from unittest.mock import patch, AsyncMock
 from fastapi.testclient import TestClient
 
 from app.main import app
+from app.services.catalog_service import CatalogService
 from app.services.copilot_agent import CopilotAgent
 from app.services.stack_intent_engine import StackIntentEngine
 
@@ -766,4 +767,196 @@ def test_chat_compound_mention_does_not_pollute_active_workbench_stack():
     active_stack_part = context.split("### ACTIVE WORKBENCH STACK")[1].split("###")[0]
     assert "Trenbolone" not in active_stack_part
     assert "14.2857" not in active_stack_part
+
+
+def test_copilot_system_context_grounds_previously_proposed_unapplied_stack():
+    """
+    Verify that when previous turns proposed a protocol and the user hasn't clicked Apply Changes,
+    build_system_context includes the previously proposed unapplied compounds for grounding.
+    """
+    messages = [
+        {"role": "user", "content": "Build Cognitive Focus protocol from scratch"},
+        {
+            "role": "assistant",
+            "content": """### Focus Protocol
+- **Alpha-GPC** (300mg oral)
+- **L-Theanine** (200mg oral)
+- **Caffeine** (100mg oral)
+<action_card type="stack_diff">
+{"add": [{"key": "alpha_gpc", "name": "Alpha-GPC", "dose": 300, "unit": "mg"}, {"key": "l_theanine", "name": "L-Theanine", "dose": 200, "unit": "mg"}, {"key": "caffeine", "name": "Caffeine", "dose": 100, "unit": "mg"}], "modify": [], "remove": []}
+</action_card>
+"""
+        },
+        {"role": "user", "content": "Also add zinc 30mg"}
+    ]
+
+    context = CopilotAgent.build_system_context(
+        persona="architect",
+        stack=[],
+        biometrics={"age": 30, "weight_kg": 75},
+        messages=messages,
+        protocol_goal="cognitive_focus"
+    )
+
+    assert "### PREVIOUSLY PROPOSED PROTOCOL RECOMMENDATIONS (IN CONVERSATION):" in context
+    assert "Alpha-GPC" in context
+    assert "L-Theanine" in context
+    assert "Caffeine" in context
+    assert "CRITICAL MULTI-TURN CUMULATIVE DIRECTIVE" in context
+
+
+def test_copilot_fallback_multi_turn_cumulative_protocol_and_card():
+    """
+    Verify that deterministic fallback synthesis creates a complete cumulative protocol
+    and action card when user requests adding another compound in turn 2.
+    """
+    messages = [
+        {"role": "user", "content": "Build Cognitive Focus protocol from scratch"},
+        {
+            "role": "assistant",
+            "content": """### Focus Protocol
+- **Alpha-GPC** (300mg oral)
+- **L-Theanine** (200mg oral)
+- **Caffeine** (100mg oral)
+<action_card type="stack_diff">
+{"add": [{"key": "alpha_gpc", "name": "Alpha-GPC", "dose": 300, "unit": "mg"}, {"key": "l_theanine", "name": "L-Theanine", "dose": 200, "unit": "mg"}, {"key": "caffeine", "name": "Caffeine", "dose": 100, "unit": "mg"}], "modify": [], "remove": []}
+</action_card>
+"""
+        },
+        {"role": "user", "content": "Also add zinc 30mg"}
+    ]
+
+    md_text, action_card = CopilotAgent.synthesize_deterministic_fallback_response(
+        user_query="Also add zinc 30mg",
+        persona="architect",
+        stack_list=[],
+        biometrics={"age": 30, "weight_kg": 75},
+        protocol_goal="cognitive_focus",
+        messages=messages
+    )
+
+    assert action_card is not None
+    add_keys = {a["key"] for a in action_card.get("add", [])}
+    assert "zinc" in add_keys
+    assert "alpha_gpc" in add_keys
+    assert "l_theanine" in add_keys
+    assert "caffeine" in add_keys
+    assert "Zinc" in md_text
+    assert "Alpha-GPC" in md_text
+
+
+@pytest.mark.anyio
+async def test_copilot_stream_multi_turn_cumulative_action_card():
+    """
+    Verify streaming copilot turn emits a cumulative action card containing both previous recommendations
+    and the newly requested compound when changes have not been applied.
+    """
+    messages = [
+        {"role": "user", "content": "Build focus stack"},
+        {
+            "role": "assistant",
+            "content": """### Proposed Protocol
+- **Alpha-GPC** (300mg oral)
+- **L-Theanine** (200mg oral)
+- **Caffeine** (100mg oral)
+<action_card type="stack_diff">
+{"add": [{"key": "alpha_gpc", "name": "Alpha-GPC", "dose": 300, "unit": "mg"}, {"key": "l_theanine", "name": "L-Theanine", "dose": 200, "unit": "mg"}, {"key": "caffeine", "name": "Caffeine", "dose": 100, "unit": "mg"}], "modify": [], "remove": []}
+</action_card>
+"""
+        },
+        {"role": "user", "content": "Can we add Zinc 30mg?"}
+    ]
+
+    turn_2_output = """### Updated Focus Protocol
+I have added Zinc to the protocol.
+<action_card type="stack_diff">
+{"add": [{"key": "zinc", "name": "Zinc", "dose": 30, "unit": "mg", "timing": "morning", "route": "oral"}], "modify": [], "remove": []}
+</action_card>
+"""
+
+    async def mock_stream_llm(*args, **kwargs):
+        yield {"type": "content", "data": turn_2_output}
+        yield {"type": "done", "data": "[DONE]"}
+
+    with patch("app.services.copilot_agent.stream_local_llm_chat", side_effect=mock_stream_llm):
+        emitted_cards = []
+        async for evt in CopilotAgent.stream_copilot_turn(
+            messages=messages,
+            persona="architect",
+            stack=[],
+            protocol_goal="cognitive_focus"
+        ):
+            if evt.get("event") == "action_card":
+                emitted_cards.append(evt.get("data"))
+
+        assert len(emitted_cards) >= 1
+        final_card = emitted_cards[-1]
+        payload = final_card.get("payload", {})
+        add_keys = {a["key"] for a in payload.get("add", [])}
+        assert "zinc" in add_keys
+        assert "alpha_gpc" in add_keys
+        assert "l_theanine" in add_keys
+        assert "caffeine" in add_keys
+
+
+def test_catalog_service_get_variants():
+    """
+    Verify CatalogService.get_variants dynamically retrieves all ester/formulation variants
+    for parent compounds from the database with quantitative half-life and weight factor data.
+    """
+    catalog = CatalogService()
+    
+    # Test trenbolone variants
+    tren_variants = catalog.get_variants("trenbolone")
+    assert len(tren_variants) >= 3
+    tren_keys = {v["key"] for v in tren_variants}
+    assert "trenbolone_acetate" in tren_keys
+    assert "trenbolone_enanthate" in tren_keys
+    assert "trenbolone_hexahydrophenylcarbonate" in tren_keys
+    
+    ace = next(v for v in tren_variants if v["key"] == "trenbolone_acetate")
+    assert ace["ester_name"] == "Acetate"
+    assert ace["t_half_numeric"] == 36.0
+    
+    enan = next(v for v in tren_variants if v["key"] == "trenbolone_enanthate")
+    assert enan["ester_name"] == "Enanthate"
+    assert enan["t_half_numeric"] == 168.0
+
+    # Test testosterone variants
+    test_variants = catalog.get_variants("testosterone")
+    assert len(test_variants) >= 4
+    test_keys = {v["key"] for v in test_variants}
+    assert "testosterone_cypionate" in test_keys
+    assert "testosterone_enanthate" in test_keys
+    assert "testosterone_propionate" in test_keys
+    assert "testosterone_undecanoate" in test_keys
+
+
+def test_copilot_system_context_grounds_ester_pharmacokinetics_disambiguation():
+    """
+    Verify that when an unesterified parent compound (e.g. 'trenbolone') is mentioned in chat,
+    CopilotAgent.build_system_context dynamically includes the formulation & ester disambiguation
+    guidance with depot ester options and half-lives to prevent unwarranted ester assumptions.
+    """
+    messages = [
+        {"role": "user", "content": "can we add trenbolone? Maybe 200mg weekly?"}
+    ]
+    workbench_stack = ["testosterone_cypionate:175mg", "telmisartan:40mg"]
+
+    context = CopilotAgent.build_system_context(
+        persona="architect",
+        stack=workbench_stack,
+        biometrics={"age": 30, "weight_kg": 85},
+        messages=messages,
+        protocol_goal="anabolic_physique"
+    )
+
+    assert "### FORMULATION & ESTER PHARMACOKINETICS (DISAMBIGUATION):" in context
+    assert "Trenbolone" in context
+    assert "Trenbolone Acetate" in context
+    assert "Trenbolone Enanthate" in context
+    assert "elimination t1/2: 168" in context or "t1/2: 7-10 days" in context
+    assert "do NOT arbitrarily default to a single short-acting ester" in context
+
+
 

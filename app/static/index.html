@@ -5549,6 +5549,7 @@
         copilotState.abortController = new AbortController();
         let accumulatedContent = '';
         let accumulatedReasoning = '';
+        let lastActionCardPayload = null;
         let reasoningStartTime = Date.now();
         let reasoningCount = 0;
         let reasoningCompleted = false;
@@ -5657,6 +5658,7 @@
                 } else if (currentEvent === 'action_card') {
                   try {
                     const cardObj = typeof dataVal === 'string' ? JSON.parse(dataVal) : dataVal;
+                    lastActionCardPayload = cardObj.payload || cardObj;
                     renderActionCardInChat(actionCardsWrap, cardObj);
                     copilotChatContainer.scrollTop = copilotChatContainer.scrollHeight;
                   } catch (e) {
@@ -5695,8 +5697,11 @@
             if (bubble) bubble.innerHTML = renderMarkdownLite(accumulatedContent);
           }
 
-          // Save completed assistant message to history
-          copilotState.messages.push({ role: 'assistant', content: accumulatedContent });
+          // Save completed assistant message to history (including action card payload for cumulative multi-turn tracking)
+          const finalMsgContent = (lastActionCardPayload && !accumulatedContent.includes('<action_card'))
+            ? `${accumulatedContent}\n\n<action_card type="stack_diff">${JSON.stringify(lastActionCardPayload)}</action_card>`
+            : accumulatedContent;
+          copilotState.messages.push({ role: 'assistant', content: finalMsgContent });
 
           // Update header status
           if (headerStatus) {

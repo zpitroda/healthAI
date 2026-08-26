@@ -152,6 +152,9 @@ class StackDiffSimulator:
                     "tmax_h": round(sim.t_max_h, 1),
                     "effective_t12_h": round(sim.elimination_half_life_effective_h, 1),
                     "accumulation_ratio": round(sim.accumulation_ratio, 2),
+                    "fluctuation_pct": round(sim.fluctuation_pct, 1),
+                    "peak_to_trough_ratio": sim.peak_to_trough_ratio,
+                    "fluctuation_risk_level": sim.fluctuation_risk_level,
                     "time_in_therapeutic_window_pct": round(sim.time_in_therapeutic_window_pct, 1),
                 })
             except Exception as e:

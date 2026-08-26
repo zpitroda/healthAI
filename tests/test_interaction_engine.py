@@ -219,3 +219,70 @@ def test_beta_blocker_and_non_dhp_ccb_bradycardia_collision():
     result = engine.analyze_stack([metoprolol, verapamil])
     assert any("Bradycardia" in c["title"] or "AV Nodal" in c["title"] for c in result["breakdown"]["receptor_conflicts"])
     assert result["risk_band"] in {"MODERATE", "ELEVATED", "SEVERE"}
+
+
+def test_hormonal_fluctuation_uncompensated_risk_detected():
+    """Verify that an infrequently dosed hormonal compound triggers an uncompensated fluctuation risk factor."""
+    engine = InteractionEngine()
+    testosterone_enanthate_biweekly = {
+        "key": "testosterone_enanthate",
+        "name": "Testosterone Enanthate",
+        "drug_class": "Anabolic Steroid / Androgen Ester",
+        "categories": ["Androgen", "Hormone Replacement"],
+        "t_half_numeric": 108.0,  # 4.5 days
+        "frequency": "every 2 weeks",
+        "dose_mg": 250.0,
+        "route": "im",
+        "receptor_targets": [
+            {"target": "Androgen Receptor", "action": "agonist", "gene_symbol": "AR"}
+        ],
+    }
+
+    result = engine.analyze_stack([testosterone_enanthate_biweekly])
+    uncomp = result["breakdown"]["uncompensated_risks"]
+    assert any("Fluctuation" in r.get("title", "") for r in uncomp)
+    fluct_risk = next(r for r in uncomp if "Fluctuation" in r.get("title", ""))
+    assert fluct_risk["severity"] in ("HIGH_RISK", "MODERATE_RISK")
+    assert "micro-doses" in fluct_risk["clinical_recommendation"].lower() or "twice-weekly" in fluct_risk["clinical_recommendation"].lower()
+
+
+def test_split_dosing_mitigation_resolves_fluctuation_risk():
+    """Verify that splitting a hormonal dose into twice-weekly removes the risk and registers an active mitigation."""
+    engine = InteractionEngine()
+    testosterone_enanthate_split = {
+        "key": "testosterone_enanthate",
+        "name": "Testosterone Enanthate",
+        "drug_class": "Anabolic Steroid / Androgen Ester",
+        "categories": ["Androgen", "Hormone Replacement"],
+        "t_half_numeric": 108.0,  # 4.5 days
+        "frequency": "twice weekly",
+        "dose_mg": 60.0,
+        "route": "subq",
+        "receptor_targets": [
+            {"target": "Androgen Receptor", "action": "agonist", "gene_symbol": "AR"}
+        ],
+    }
+
+    result = engine.analyze_stack([testosterone_enanthate_split])
+    uncomp = result["breakdown"]["uncompensated_risks"]
+    assert not any("Fluctuation" in r.get("title", "") for r in uncomp)
+    mitigations = result["breakdown"]["active_mitigations"]
+    assert any("Stable Endocrine Micro-Dosing" in m.get("title", "") for m in mitigations)
+
+
+def test_non_hormonal_compound_does_not_falsely_trigger_endocrine_fluctuation():
+    """Verify that a non-hormonal supplement does not falsely trigger endocrine fluctuation alerts."""
+    engine = InteractionEngine()
+    theanine = {
+        "key": "l_theanine",
+        "name": "L-Theanine",
+        "drug_class": "Amino Acid Dietary Supplement",
+        "t_half_numeric": 3.0,
+        "frequency": "daily",
+        "dose_mg": 200.0,
+    }
+
+    result = engine.analyze_stack([theanine])
+    uncomp = result["breakdown"]["uncompensated_risks"]
+    assert not any("Fluctuation" in r.get("title", "") for r in uncomp)
+

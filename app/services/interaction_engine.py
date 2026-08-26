@@ -134,6 +134,16 @@ _TARGET_GENE_SYNONYMS: Dict[str, str] = {
     "ghsr": "GHSR", "ghrelin receptor": "GHSR", "growth hormone secretagogue receptor": "GHSR", "q92847": "GHSR",
     "pgr": "PGR", "progesterone receptor": "PGR", "p06401": "PGR",
     "nr3c1": "NR3C1", "glucocorticoid receptor": "NR3C1", "p04150": "NR3C1",
+    "esr1": "ESR1", "estrogen receptor alpha": "ESR1", "er-alpha": "ESR1", "p03372": "ESR1",
+    "esr2": "ESR2", "estrogen receptor beta": "ESR2", "er-beta": "ESR2", "q92731": "ESR2",
+    "thra": "THRA", "thyroid hormone receptor alpha": "THRA", "nr1a1": "THRA", "p10827": "THRA",
+    "thrb": "THRB", "thyroid hormone receptor beta": "THRB", "nr1a2": "THRB", "p10828": "THRB",
+    "cyp19a1": "CYP19A1", "aromatase": "CYP19A1", "p11511": "CYP19A1",
+    "srd5a1": "SRD5A1", "srd5a2": "SRD5A2", "5-alpha reductase": "SRD5A2",
+    "shbg": "SHBG", "sex hormone-binding globulin": "SHBG", "p04278": "SHBG",
+    "lhcgr": "LHCGR", "luteinizing hormone receptor": "LHCGR", "lh receptor": "LHCGR",
+    "fshr": "FSHR", "follicle stimulating hormone receptor": "FSHR",
+    "tshr": "TSHR", "thyrotropin receptor": "TSHR", "thyroid stimulating hormone receptor": "TSHR",
 }
 
 
@@ -197,9 +207,14 @@ def _get_target_gene_actions(comp: Dict[str, Any]) -> Dict[str, Set[ActionType]]
         # Resolve to standard gene symbol
         matched_gene: Optional[str] = None
         for syn, sym in _TARGET_GENE_SYNONYMS.items():
-            if syn in target_name or syn == target_id or syn in accessions:
-                matched_gene = sym
-                break
+            if len(syn) <= 3:
+                if re.search(r"\b" + re.escape(syn) + r"\b", target_name) or syn == target_id or syn == accessions:
+                    matched_gene = sym
+                    break
+            else:
+                if syn in target_name or syn == target_id or syn in accessions:
+                    matched_gene = sym
+                    break
 
         if not matched_gene and target_name:
             try:
@@ -660,6 +675,130 @@ def _is_sympathomimetic_stimulant(comp: Dict[str, Any]) -> tuple[bool, str]:
     return False, ""
 
 
+def _is_hormonal_or_endocrine_agent(comp: Dict[str, Any]) -> tuple[bool, str, str]:
+    """
+    Generalized, non-hardcoded classification of hormonal, endocrine, and steroidogenic agents.
+    Returns: (is_hormonal, category_description, primary_axis)
+    """
+    targets = _get_target_gene_actions(comp)
+    atc = _get_atc_prefixes(comp)
+    usan = _get_usan_stem(comp)
+    all_context = _get_compound_ontology_tags(comp)
+
+    is_botanical = any(w in str(comp.get("drug_class", "")).lower() for w in ["botanical", "adaptogen", "herbal", "dietary supplement"])
+    d_class = str(comp.get("drug_class", "")).lower()
+    is_non_endocrine_small_mol = any(w in d_class for w in ["sglt", "transporter", "biguanide", "diuretic", "statin", "antioxidant", "nsaid"])
+
+    # 1. Sex Steroids / HPG Axis
+    if not is_botanical and not is_non_endocrine_small_mol and bool({"AR", "ESR1", "ESR2", "PGR", "CYP19A1", "SRD5A1", "SRD5A2", "SHBG", "LHCGR", "FSHR", "GNRHR"} & set(targets.keys())):
+        return True, "Sex Hormone / HPG Axis Modulator", "HPG Endocrine Axis"
+    if bool(atc & {"G03", "G03A", "G03B", "G03C", "G03D", "G03E", "G03F", "G03G", "G03H", "G03X", "L02", "L02A", "L02B"}):
+        return True, "Sex Hormone / Endocrine Therapy", "HPG Endocrine Axis"
+
+    # 2. Pituitary, Hypothalamic & Somatotropic (GH / IGF-1) Axis
+    if not is_botanical and not is_non_endocrine_small_mol and bool({"GHR", "GHSR", "PRLR", "OXTR", "AVPR1A", "AVPR1B", "AVPR2", "CRHR1", "CRHR2", "MC2R"} & set(targets.keys())):
+        return True, "Pituitary / Somatotropic Modulator", "Pituitary-Somatotropic Axis"
+    if bool(atc & {"H01", "H01A", "H01B", "H01C", "H01AC"}):
+        return True, "Pituitary / Hypothalamic Hormone", "Pituitary-Hypothalamic Axis"
+
+    # 3. Thyroid Axis (HPT)
+    if not is_botanical and not is_non_endocrine_small_mol and bool({"THRA", "THRB", "TSHR", "TRHR"} & set(targets.keys())):
+        return True, "Thyroid Hormone / HPT Modulator", "Thyroid (HPT) Axis"
+    if bool(atc & {"H03", "H03A", "H03B", "H03C"}):
+        return True, "Thyroid Hormone Formulation", "Thyroid (HPT) Axis"
+
+    # 4. Adrenal & Corticosteroid Axis (HPA / Mineralocorticoid)
+    if not is_botanical and not is_non_endocrine_small_mol and (ActionType.AGONIST in targets.get("NR3C1", set()) or bool(atc & {"H02", "H02A", "H02B", "H02C"})):
+        return True, "Corticosteroid / Adrenal Steroid", "Adrenal (HPA) Axis"
+
+    # 5. Incretin / Metabolic Hormones
+    if not is_botanical and not is_non_endocrine_small_mol and bool({"GLP1R", "GIPR", "GCGR", "INSR", "IGF1R"} & set(targets.keys())):
+        return True, "Incretin / Metabolic Peptide Hormone", "Metabolic Endocrine Axis"
+    if bool(atc & {"A10A", "A10B", "A10BJ"}):
+        return True, "Incretin / Insulin Mimetic", "Metabolic Endocrine Axis"
+
+    # 6. USAN Stems
+    if usan and any(usan.endswith(s) or usan.startswith(s) for s in [
+        "ster", "olone", "asteride", "relin", "tropin", "gest", "andr", "estr", "stan", "bol", "dronate", "tide"
+    ]):
+        return True, "Endocrine / Peptide Hormone Derivative", "Endocrine System"
+
+    # 7. Pharmacology / Drug Class / Category Ontologies
+    if not is_botanical and not is_non_endocrine_small_mol:
+        core_context = " ".join([
+            str(comp.get("drug_class", "")),
+            str(comp.get("compound_class", "")),
+            " ".join(str(c) for c in comp.get("categories", [])),
+            str(comp.get("name", "")),
+            str(comp.get("canonical_name", "")),
+        ]).lower()
+        endocrine_keywords = [
+            "hormone replacement", "hormone therapy", "anabolic steroid", "androgenic steroid",
+            "androgen", "estrogen", "progestin", "progestogen", "corticosteroid", "glucocorticoid",
+            "thyroid hormone", "growth hormone", "gonadotropin", "serm", "sarm", "aromatase inhibitor",
+            "somatropin", "growth hormone secretagogue", "antiandrogen", "antiestrogen", "neurosteroid",
+            "testosterone", "estradiol", "nandrolone", "oxandrolone", "drostanolone", "trenbolone",
+            "boldenone", "stanozolol", "dhea", "pregnenolone", "liothyronine", "levothyroxine"
+        ]
+        if _has_any_ontology_match(core_context, endocrine_keywords):
+            return True, "Endocrine / Hormonal Compound", "Endocrine System"
+
+    return False, "", ""
+
+
+def _extract_dosing_interval_h(comp: Dict[str, Any]) -> tuple[float, str]:
+    """
+    Deterministically extracts or infers dosing interval tau in hours and human-readable frequency.
+    """
+    if comp.get("dosing_interval_h") is not None:
+        try:
+            val = float(comp["dosing_interval_h"])
+            if val > 0:
+                return val, f"tau={val:g}h"
+        except (ValueError, TypeError):
+            pass
+
+    freq_str = str(comp.get("frequency") or comp.get("timing") or comp.get("schedule") or comp.get("dose_str") or "").strip().lower()
+
+    if any(k in freq_str for k in ["twice daily", "bid", "2x/day", "q12h", "morning and evening", "morning & evening"]):
+        return 12.0, "twice daily (q12h)"
+    if any(k in freq_str for k in ["every 8 hours", "tid", "3x/day", "q8h"]):
+        return 8.0, "every 8 hours (tid)"
+    if any(k in freq_str for k in ["every 6 hours", "qid", "4x/day", "q6h"]):
+        return 6.0, "every 6 hours (qid)"
+    if any(k in freq_str for k in ["every other day", "eod", "q48h", "q2d", "alternate day"]):
+        return 48.0, "every other day (EOD / q48h)"
+    if any(k in freq_str for k in ["every 3 days", "q3d", "q72h"]):
+        return 72.0, "every 3 days (q72h)"
+    if any(k in freq_str for k in ["twice weekly", "biw", "2x/week", "2x weekly", "split", "mon & thu", "mon/thu", "tue/fri", "mon and thu"]):
+        return 84.0, "twice weekly (BIW / split protocol)"
+    if any(k in freq_str for k in ["every 10 days", "q10d"]):
+        return 240.0, "every 10 days (q240h)"
+    if any(k in freq_str for k in ["every 2 weeks", "every 14 days", "biweekly", "q2w", "q14d", "bi-weekly", "fortnightly"]):
+        return 336.0, "every 2 weeks (Q2W / q336h)"
+    if any(k in freq_str for k in ["weekly", "q1w", "once weekly", "1x/week", "1x weekly", "q7d", "q168h"]):
+        return 168.0, "once weekly (Q1W / q168h)"
+    if any(k in freq_str for k in ["monthly", "every 4 weeks", "q4w", "q28d", "q30d"]):
+        return 672.0, "monthly (Q4W / q672h)"
+
+    # Regex search for q<N>h or q<N>d
+    m_h = re.search(r"\bq(\d+)h\b", freq_str)
+    if m_h:
+        return float(m_h.group(1)), f"every {m_h.group(1)} hours"
+    m_d = re.search(r"\bq(\d+)d\b", freq_str)
+    if m_d:
+        d_val = float(m_d.group(1))
+        return d_val * 24.0, f"every {d_val:g} days"
+
+    # Route-based defaults for depot injections vs oral
+    route = str(comp.get("route", "oral")).strip().lower()
+    if route in ("im", "subq", "intramuscular", "subcutaneous", "depot"):
+        # If depot/ester mentioned but unspecified, standard once-weekly default
+        return 168.0, "weekly depot (default 168h)"
+
+    return 24.0, "daily (q24h)"
+
+
 class InteractionEngine:
     """
     Advanced Multi-Pathway Clinical Pharmacology Interaction Engine.
@@ -733,33 +872,50 @@ class InteractionEngine:
         profile_data = profile or {}
         labs = profile_data.get("labs", {}) or {}
 
+        def _get_val(primary_key: str, default: float, alt_keys: Optional[List[str]] = None) -> float:
+            keys = [primary_key] + (alt_keys or [])
+            for k in keys:
+                v = profile_data.get(k)
+                if v is not None:
+                    try:
+                        return float(v)
+                    except (ValueError, TypeError):
+                        pass
+                v_lab = labs.get(k)
+                if v_lab is not None:
+                    try:
+                        return float(v_lab)
+                    except (ValueError, TypeError):
+                        pass
+            return float(default)
+
         # Clinical Laboratory & Vital Sign Inputs
-        sleep_hours = profile_data.get("sleep_hours") if profile_data.get("sleep_hours") is not None else labs.get("sleep_hours", 7.5)
-        blood_pressure = profile_data.get("blood_pressure") or labs.get("blood_pressure") or 120
-        heart_rate = labs.get("heart_rate") or profile_data.get("heart_rate") or 72
-        qtc_ms = labs.get("qtc_ms") or 410
+        sleep_hours = _get_val("sleep_hours", 7.5)
+        blood_pressure = _get_val("blood_pressure", 120.0)
+        heart_rate = _get_val("heart_rate", 72.0)
+        qtc_ms = _get_val("qtc_ms", 410.0)
 
         # Renal Panel
-        egfr = labs.get("egfr") if labs.get("egfr") is not None else 95.0
-        creatinine_mg_dl = labs.get("creatinine_mg_dl") if labs.get("creatinine_mg_dl") is not None else 0.95
-        bun_mg_dl = labs.get("bun_mg_dl") if labs.get("bun_mg_dl") is not None else 14.0
+        egfr = _get_val("egfr", 95.0)
+        creatinine_mg_dl = _get_val("creatinine_mg_dl", 0.95)
+        bun_mg_dl = _get_val("bun_mg_dl", 14.0)
 
         # Hepatic Panel
-        alt_u_l = labs.get("alt_u_l") if labs.get("alt_u_l") is not None else 25.0
-        ast_u_l = labs.get("ast_u_l") if labs.get("ast_u_l") is not None else 22.0
-        total_bilirubin = labs.get("total_bilirubin_mg_dl") if labs.get("total_bilirubin_mg_dl") is not None else 0.8
-        serum_albumin = labs.get("serum_albumin_g_dl") if labs.get("serum_albumin_g_dl") is not None else 4.5
+        alt_u_l = _get_val("alt_u_l", 25.0)
+        ast_u_l = _get_val("ast_u_l", 22.0)
+        total_bilirubin = _get_val("total_bilirubin_mg_dl", 0.8, ["total_bilirubin"])
+        serum_albumin = _get_val("serum_albumin_g_dl", 4.5, ["serum_albumin"])
 
         # Electrolytes & Hematology
-        potassium_meq_l = labs.get("potassium_meq_l") if labs.get("potassium_meq_l") is not None else 4.2
-        sodium_meq_l = labs.get("sodium_meq_l") if labs.get("sodium_meq_l") is not None else 140.0
-        magnesium_mg_dl = labs.get("magnesium_mg_dl") if labs.get("magnesium_mg_dl") is not None else 2.1
-        hematocrit_pct = labs.get("hematocrit_pct") if labs.get("hematocrit_pct") is not None else 45.0
-        platelets_k_ul = labs.get("platelets_k_ul") if labs.get("platelets_k_ul") is not None else 250.0
+        potassium_meq_l = _get_val("potassium_meq_l", 4.2, ["potassium"])
+        sodium_meq_l = _get_val("sodium_meq_l", 140.0, ["sodium"])
+        magnesium_mg_dl = _get_val("magnesium_mg_dl", 2.1, ["magnesium"])
+        hematocrit_pct = _get_val("hematocrit_pct", 45.0, ["hematocrit"])
+        platelets_k_ul = _get_val("platelets_k_ul", 250.0, ["platelets"])
 
         # Lipids & Glycemia
-        ldl_mg_dl = labs.get("ldl_mg_dl") if labs.get("ldl_mg_dl") is not None else 100.0
-        hba1c_pct = labs.get("hba1c_pct") if labs.get("hba1c_pct") is not None else 5.2
+        ldl_mg_dl = _get_val("ldl_mg_dl", 100.0, ["ldl_c_mg_dl", "ldl"])
+        hba1c_pct = _get_val("hba1c_pct", 5.2, ["hba1c"])
 
         # ---------------------------------------------------------
         # 0. CANONICAL ENTITY RESOLUTION & DOSE AGGREGATION
@@ -878,7 +1034,11 @@ class InteractionEngine:
         # Discount cardiovascular organ burden for bioidentical testosterone when downstream end-effects (BP & lipids) are managed
         has_cv_mitigation = any(m.get("benefited_axis") in {"Blood Pressure", "Lipid Profile / Cardioprotective"} for m in active_mitigations)
         is_normotensive = blood_pressure <= 128
-        hdl_val_check = labs.get("hdl_c_mg_dl") if labs.get("hdl_c_mg_dl") is not None else labs.get("hdl")
+        hdl_raw = labs.get("hdl_c_mg_dl") if labs.get("hdl_c_mg_dl") is not None else labs.get("hdl")
+        try:
+            hdl_val_check = float(hdl_raw) if hdl_raw is not None else None
+        except (ValueError, TypeError):
+            hdl_val_check = None
         is_normolipidemic = hdl_val_check is None or hdl_val_check >= 40.0
 
         if (has_cv_mitigation or (is_normotensive and is_normolipidemic)):
@@ -1096,17 +1256,26 @@ class InteractionEngine:
             biomarker_warnings.append(warning)
 
         # 7. Atherogenic Lipid Disruption
-        hdl_val = labs.get("hdl_c_mg_dl") if labs.get("hdl_c_mg_dl") is not None else labs.get("hdl")
-        ldl_val = labs.get("ldl_mg_dl") if labs.get("ldl_mg_dl") is not None else labs.get("ldl_c_mg_dl")
+        hdl_raw = labs.get("hdl_c_mg_dl") if labs.get("hdl_c_mg_dl") is not None else labs.get("hdl")
+        ldl_raw = labs.get("ldl_mg_dl") if labs.get("ldl_mg_dl") is not None else labs.get("ldl_c_mg_dl")
+        try:
+            hdl_val = float(hdl_raw) if hdl_raw is not None else None
+        except (ValueError, TypeError):
+            hdl_val = None
+        try:
+            ldl_val = float(ldl_raw) if ldl_raw is not None else None
+        except (ValueError, TypeError):
+            ldl_val = None
+
         if (hdl_val is not None and hdl_val < 35.0) or (ldl_val is not None and ldl_val > 135.0):
             has_lipid_mitigation = any("Lipid" in m.get("title", "") for m in active_mitigations)
             if not has_lipid_mitigation:
                 warning = {
                     "biomarker": "Lipid Panel (HDL / LDL)",
-                    "value": f"HDL {hdl_val or 'N/A'} mg/dL, LDL {ldl_val or 'N/A'} mg/dL",
-                    "severity": "HIGH_RISK" if (hdl_val and hdl_val < 28) or (ldl_val and ldl_val > 160) else "MODERATE_RISK",
+                    "value": f"HDL {hdl_val if hdl_val is not None else 'N/A'} mg/dL, LDL {ldl_val if ldl_val is not None else 'N/A'} mg/dL",
+                    "severity": "HIGH_RISK" if ((hdl_val is not None and hdl_val < 28) or (ldl_val is not None and ldl_val > 160)) else "MODERATE_RISK",
                     "title": "Atherogenic Lipid Disruption & Cardio-Metabolic Strain",
-                    "description": f"Uncompensated atherogenic lipid shift (HDL {hdl_val or 'N/A'} mg/dL, LDL {ldl_val or 'N/A'} mg/dL) elevates cardiovascular endothelial risk.",
+                    "description": f"Uncompensated atherogenic lipid shift (HDL {hdl_val if hdl_val is not None else 'N/A'} mg/dL, LDL {ldl_val if ldl_val is not None else 'N/A'} mg/dL) elevates cardiovascular endothelial risk.",
                     "clinical_recommendation": "Incorporate lipid protection (Pitavastatin 2 mg daily or Ezetimibe) and optimize dietary fats.",
                 }
                 biomarker_warnings.append(warning)
@@ -1323,16 +1492,24 @@ class InteractionEngine:
         shifts_by_id = {b.get("biomarker_id"): b for b in cascade_results.get("biomarker_shifts", [])}
         processed_bio_ids: Set[str] = set()
 
+        def _to_float(v: Any, default: float = 0.0) -> float:
+            if v is None:
+                return float(default)
+            try:
+                return float(v)
+            except (ValueError, TypeError):
+                return float(default)
+
         # 1. ESTRADIOL (E2) / ENDOCRINE AXIS
         e2_shift = shifts_by_id.get("bio_estradiol")
         if e2_shift:
             processed_bio_ids.add("bio_estradiol")
-            baseline = float(e2_shift.get("baseline_value", 25.0))
-            est_val = float(e2_shift.get("estimated_value", baseline))
-            delta = float(e2_shift.get("estimated_delta", 0.0))
+            baseline = _to_float(e2_shift.get("baseline_value"), 25.0)
+            est_val = _to_float(e2_shift.get("estimated_value"), baseline)
+            delta = _to_float(e2_shift.get("estimated_delta"), 0.0)
             unit = str(e2_shift.get("unit", "pg/mL"))
-            safe_lower = float(e2_shift.get("safe_lower", 20.0))
-            safe_upper = float(e2_shift.get("safe_upper", 35.0))
+            safe_lower = _to_float(e2_shift.get("safe_lower"), 20.0)
+            safe_upper = _to_float(e2_shift.get("safe_upper"), 35.0)
 
             contributions = e2_shift.get("compound_contributions") or e2_shift.get("contributions") or []
             has_ai = (
@@ -1619,24 +1796,23 @@ class InteractionEngine:
                 for c in contributions
             ]
 
-            participating_labels = [c.get("compound_label") for c in contributions] or [c.get("name") for c in compounds if c.get("name")]
+            participating_dht_comps = [c.get("name") or c.get("key") for c in compounds if any(w in str(c.get("drug_class", "")).lower() or w in str(c.get("key", "")).lower() or w in str(c.get("name", "")).lower() for w in ["androgen", "5-alpha", "finasteride", "dutasteride", "testosterone"])]
 
-            if has_5ari and has_androgen and safe_lower <= est_val <= (safe_upper + 10.0):
+            if has_androgen and has_5ari and safe_lower <= est_val <= safe_upper:
                 status = "BALANCED_TARGET"
-                status_label = f"Balanced DHT Control ({est_val} {unit})"
+                status_label = f"Controlled 5AR Conversion ({est_val} {unit})"
                 status_color = "#10b981"
-                mitigation = {
-                    "title": "5-Alpha Reductase & DHT Modulation",
+                active_mitigations.append({
+                    "title": "5-Alpha Reductase & DHT Attenuation",
                     "description": (
-                        f"5-Alpha reductase inhibition successfully mitigates excess DHT accumulation from exogenous androgen substrate, "
-                        f"protecting scalp hair follicles and prostate tissue ({est_val} {unit})."
+                        f"5-alpha reductase inhibitor co-administration (Finasteride/Dutasteride) safely prevents supra-physiological "
+                        f"DHT conversion ({est_val} {unit}, target 30-85 {unit}), mitigating androgenic alopecia and benign prostatic hyperplasia."
                     ),
-                    "participating_compounds": participating_labels,
-                    "benefited_axis": "DHT / Follicular",
-                    "risk_reduction_points": 15.0,
-                }
-                active_mitigations.append(mitigation)
-            elif est_val > 95.0:
+                    "participating_compounds": participating_dht_comps,
+                    "benefited_axis": "Dihydrotestosterone (DHT) / 5AR",
+                    "risk_reduction_points": 20.0,
+                })
+            elif est_val > 85.0:
                 status = "ELEVATED_DHT"
                 status_label = f"Elevated DHT Load ({est_val} {unit})"
                 status_color = "#f59e0b"
@@ -1672,12 +1848,12 @@ class InteractionEngine:
             processed_bio_ids.add(hr_shift.get("biomarker_id"))
             processed_bio_ids.add("bio_resting_heart_rate")
             processed_bio_ids.add("bio_heart_rate")
-            baseline = float(hr_shift.get("baseline_value", labs.get("heart_rate") or 72.0))
-            est_val = float(hr_shift.get("estimated_value", baseline))
-            delta = float(hr_shift.get("estimated_delta", 0.0))
+            baseline = _to_float(hr_shift.get("baseline_value"), labs.get("heart_rate") or 72.0)
+            est_val = _to_float(hr_shift.get("estimated_value"), baseline)
+            delta = _to_float(hr_shift.get("estimated_delta"), 0.0)
             unit = str(hr_shift.get("unit", "bpm"))
-            safe_lower = float(hr_shift.get("safe_lower", 60.0))
-            safe_upper = float(hr_shift.get("safe_upper", 85.0))
+            safe_lower = _to_float(hr_shift.get("safe_lower"), 60.0)
+            safe_upper = _to_float(hr_shift.get("safe_upper"), 85.0)
 
             contributions = hr_shift.get("compound_contributions") or hr_shift.get("contributions") or []
             has_stim = any(c.get("contribution_mag", 0) > 0.05 for c in contributions)
@@ -1694,39 +1870,45 @@ class InteractionEngine:
                 for c in contributions
             ]
 
-            participating_labels = [c.get("compound_label") for c in contributions if abs(c.get("contribution_mag", 0)) > 0.03] or [c.get("name") for c in compounds if c.get("name")]
+            participating_hr_comps = [c.get("name") or c.get("key") for c in compounds if any(w in str(c.get("drug_class", "")).lower() or w in str(c.get("key", "")).lower() or w in str(c.get("name", "")).lower() for w in ["stimulant", "caffeine", "theanine", "ashwagandha", "beta blocker", "nebivolol", "propranolol"])]
 
-            if has_stim and has_calm and safe_lower <= est_val <= safe_upper and len(participating_labels) >= 2:
-                status = "BALANCED_EUCHRONIC"
-                status_label = f"Euchronic Balance ({est_val} {unit})"
+            if has_stim and has_calm and safe_lower <= est_val <= safe_upper:
+                status = "BALANCED_AUTONOMIC"
+                status_label = f"Autonomic Balance ({est_val} {unit})"
                 status_color = "#10b981"
-                mitigation = {
-                    "title": "Autonomic & Sympatholytic Modulation",
+                active_mitigations.append({
+                    "title": "Autonomic Buffering & Chronotropic Stability",
                     "description": (
-                        f"Calming / beta-blocking co-administration blunts sympathomimetic chronotropic spikes, "
-                        f"maintaining optimal resting heart rate ({est_val} {unit})."
+                        f"Sympathetic overdrive from CNS stimulants is actively cushioned by GABAergic/anxiolytic or cardioselective beta-blocker co-administration "
+                        f"(e.g., L-Theanine or Nebivolol), maintaining healthy resting heart rate ({est_val} {unit}, target 60-85 {unit})."
                     ),
-                    "participating_compounds": participating_labels,
-                    "benefited_axis": "Heart Rate",
+                    "participating_compounds": participating_hr_comps,
+                    "benefited_axis": "Resting Heart Rate / Chronotropic",
                     "risk_reduction_points": 15.0,
-                }
-                active_mitigations.append(mitigation)
-            elif est_val >= 90.0:
-                status = "TACHYCARDIA_STRAIN"
-                status_label = f"Resting Tachycardia ({est_val} {unit})"
+                })
+            elif est_val > 90.0:
+                status = "TACHYCARDIA_RISK"
+                status_label = f"Elevated Heart Rate ({est_val} {unit})"
                 status_color = "#ef4444"
-            elif est_val < 55.0:
-                status = "BRADYCARDIA_RISK"
-                status_label = f"Bradycardia Risk ({est_val} {unit})"
+                uncompensated_risks.append({
+                    "axis": "Resting Heart Rate",
+                    "severity": "HIGH_RISK",
+                    "title": "Uncompensated Tachycardia & Inotropic Load",
+                    "description": f"Stimulant load drives resting heart rate to {est_val} {unit} without sufficient autonomic buffering.",
+                    "clinical_recommendation": "Reduce stimulant dosage, avoid stacking sympathomimetics, and incorporate L-Theanine (200 mg) or cardioselective beta-blockade.",
+                })
+            elif est_val > safe_upper:
+                status = "SYMPATHETIC_DOMINANCE"
+                status_label = f"Borderline Heart Rate ({est_val} {unit})"
                 status_color = "#f59e0b"
             else:
-                status = "NORMAL_CHRONOTROPY"
-                status_label = f"Euchronic Baseline ({est_val} {unit})"
+                status = "NORMAL_PHYSIOLOGICAL"
+                status_label = f"Resting Heart Rate ({est_val} {unit})"
                 status_color = "#34d399"
 
             axes.append({
                 "name": "Autonomic & Chronotropic Axis",
-                "biomarker_id": hr_shift.get("biomarker_id", "bio_resting_heart_rate"),
+                "biomarker_id": "bio_resting_heart_rate",
                 "baseline": baseline,
                 "estimated_value": est_val,
                 "unit": unit,
@@ -1747,12 +1929,12 @@ class InteractionEngine:
             processed_bio_ids.add(k_shift.get("biomarker_id"))
             processed_bio_ids.add("bio_serum_potassium")
             processed_bio_ids.add("bio_potassium")
-            baseline = float(k_shift.get("baseline_value", labs.get("potassium_meq_l") or 4.2))
-            est_val = float(k_shift.get("estimated_value", baseline))
-            delta = float(k_shift.get("estimated_delta", 0.0))
+            baseline = _to_float(k_shift.get("baseline_value"), labs.get("potassium_meq_l") or 4.2)
+            est_val = _to_float(k_shift.get("estimated_value"), baseline)
+            delta = _to_float(k_shift.get("estimated_delta"), 0.0)
             unit = str(k_shift.get("unit", "mEq/L"))
-            safe_lower = float(k_shift.get("safe_lower", 3.5))
-            safe_upper = float(k_shift.get("safe_upper", 5.0))
+            safe_lower = _to_float(k_shift.get("safe_lower"), 3.5)
+            safe_upper = _to_float(k_shift.get("safe_upper"), 5.0)
 
             contributions = k_shift.get("contributions") or []
             comp_shares = [
@@ -1796,12 +1978,12 @@ class InteractionEngine:
             processed_bio_ids.add("bio_mda")
 
             is_gsh = bio_id == "bio_gsh_redox_ratio"
-            baseline = float(primary_redox.get("baseline_value") or labs.get("gsh_redox_ratio") or (100.0 if is_gsh else 1.2))
-            est_val = float(primary_redox.get("estimated_value", baseline))
-            delta = float(primary_redox.get("estimated_delta", 0.0))
+            baseline = _to_float(primary_redox.get("baseline_value"), labs.get("gsh_redox_ratio") or (100.0 if is_gsh else 1.2))
+            est_val = _to_float(primary_redox.get("estimated_value"), baseline)
+            delta = _to_float(primary_redox.get("estimated_delta"), 0.0)
             unit = str(primary_redox.get("unit", "ratio" if is_gsh else "μmol/L"))
-            safe_lower = float(primary_redox.get("safe_lower", 80.0 if is_gsh else 0.5))
-            safe_upper = float(primary_redox.get("safe_upper", 160.0 if is_gsh else 1.8))
+            safe_lower = _to_float(primary_redox.get("safe_lower"), 80.0 if is_gsh else 0.5)
+            safe_upper = _to_float(primary_redox.get("safe_upper"), 160.0 if is_gsh else 1.8)
             
             contributions = primary_redox.get("compound_contributions") or primary_redox.get("contributions") or []
             comp_shares = [
@@ -1873,12 +2055,12 @@ class InteractionEngine:
         crp_shift = shifts_by_id.get("bio_crp")
         if crp_shift:
             processed_bio_ids.add("bio_crp")
-            baseline = float(crp_shift.get("baseline_value", labs.get("crp_mg_l") or 0.5))
-            est_val = float(crp_shift.get("estimated_value", baseline))
-            delta = float(crp_shift.get("estimated_delta", 0.0))
+            baseline = _to_float(crp_shift.get("baseline_value"), labs.get("crp_mg_l") or 0.5)
+            est_val = _to_float(crp_shift.get("estimated_value"), baseline)
+            delta = _to_float(crp_shift.get("estimated_delta"), 0.0)
             unit = str(crp_shift.get("unit", "mg/L"))
-            safe_lower = float(crp_shift.get("safe_lower", 0.0))
-            safe_upper = float(crp_shift.get("safe_upper", 1.0))
+            safe_lower = _to_float(crp_shift.get("safe_lower"), 0.0)
+            safe_upper = _to_float(crp_shift.get("safe_upper"), 1.0)
 
             contributions = crp_shift.get("compound_contributions") or crp_shift.get("contributions") or []
             comp_shares = [
@@ -1963,8 +2145,10 @@ class InteractionEngine:
             elif bio_id == "bio_ldl_c":
                 processed_bio_ids.add("bio_ldl")
 
-            hdl_val = float(labs.get("hdl_c_mg_dl") if labs.get("hdl_c_mg_dl") is not None else (labs.get("hdl") or (hdl_shift.get("estimated_value") if hdl_shift else 50.0)))
-            ldl_val = float(labs.get("ldl_mg_dl") if labs.get("ldl_mg_dl") is not None else (labs.get("ldl_c_mg_dl") or labs.get("ldl") or (ldl_shift.get("estimated_value") if ldl_shift else 95.0)))
+            hdl_base = labs.get("hdl_c_mg_dl") if labs.get("hdl_c_mg_dl") is not None else labs.get("hdl")
+            hdl_val = _to_float(hdl_base, hdl_shift.get("estimated_value") if hdl_shift else 50.0)
+            ldl_base = labs.get("ldl_mg_dl") if labs.get("ldl_mg_dl") is not None else (labs.get("ldl_c_mg_dl") or labs.get("ldl"))
+            ldl_val = _to_float(ldl_base, ldl_shift.get("estimated_value") if ldl_shift else 95.0)
 
             has_lipid_protective = any(
                 any(w in str(comp.get("drug_class", "")).lower() or w in str(comp.get("name", "")).lower() or w in str(comp.get("key", "")).lower()
@@ -2045,10 +2229,13 @@ class InteractionEngine:
 
         # 9. SERUM TOTAL TESTOSTERONE / ENDOCRINE AXIS
         testo_shift = shifts_by_id.get("bio_testosterone")
-        if testo_shift or "bio_testosterone" in labs or "testosterone_ng_dl" in labs:
+        if testo_shift or (labs.get("bio_testosterone") is not None) or (labs.get("testosterone_ng_dl") is not None):
             processed_bio_ids.add("bio_testosterone")
-            baseline = float(testo_shift.get("baseline_value", labs.get("testosterone_ng_dl") or 650.0) if testo_shift else (labs.get("testosterone_ng_dl") or 650.0))
-            est_val = float(testo_shift.get("estimated_value", baseline) if testo_shift else baseline)
+            raw_testo = testo_shift.get("baseline_value") if testo_shift else None
+            if raw_testo is None:
+                raw_testo = labs.get("testosterone_ng_dl") or labs.get("bio_testosterone") or 650.0
+            baseline = _to_float(raw_testo, 650.0)
+            est_val = _to_float(testo_shift.get("estimated_value"), baseline) if testo_shift else baseline
             unit = "ng/dL"
             safe_lower = 300.0
             safe_upper = 1000.0
@@ -2090,12 +2277,12 @@ class InteractionEngine:
             if not bio_id or bio_id in processed_bio_ids:
                 continue
 
-            baseline = float(b.get("baseline_value", 0.0))
-            est_val = float(b.get("estimated_value", baseline))
-            delta = float(b.get("estimated_delta", 0.0))
+            baseline = _to_float(b.get("baseline_value"), 0.0)
+            est_val = _to_float(b.get("estimated_value"), baseline)
+            delta = _to_float(b.get("estimated_delta"), 0.0)
             unit = str(b.get("unit") or "")
-            safe_lower = float(b.get("safe_lower", baseline * 0.8 if baseline > 0 else -100.0))
-            safe_upper = float(b.get("safe_upper", baseline * 1.2 if baseline > 0 else 100.0))
+            safe_lower = _to_float(b.get("safe_lower"), baseline * 0.8 if baseline > 0 else -100.0)
+            safe_upper = _to_float(b.get("safe_upper"), baseline * 1.2 if baseline > 0 else 100.0)
             in_safe = bool(b.get("in_safe_range", safe_lower <= est_val <= safe_upper))
             label = str(b.get("label") or b.get("name") or bio_id.replace("bio_", "").replace("_", " ").title())
             panel = str(b.get("biomarker_panel") or "General Panel")
@@ -2183,6 +2370,102 @@ class InteractionEngine:
                 "panel": panel,
             })
             processed_bio_ids.add(bio_id)
+
+        # 4. Steady-State Pharmacokinetic & Hormonal Fluctuation Evaluation
+        for comp in compounds:
+            is_hormonal, hormone_type, primary_axis = _is_hormonal_or_endocrine_agent(comp)
+            if not is_hormonal:
+                continue
+
+            comp_name = str(comp.get("name") or comp.get("canonical_name") or comp.get("key") or "Hormonal Compound").strip().title()
+            tau_h, freq_desc = _extract_dosing_interval_h(comp)
+
+            # Determine effective elimination half-life
+            t_half = None
+            for th_key in ["t_half_numeric", "half_life_hours", "half_life_h", "apparent_t_half_h", "t_half"]:
+                if comp.get(th_key) is not None:
+                    try:
+                        th_val = float(str(comp[th_key]).replace("h", "").replace("hours", "").strip())
+                        if th_val > 0:
+                            t_half = th_val
+                            break
+                    except (ValueError, TypeError):
+                        pass
+
+            if t_half is None:
+                try:
+                    from app.services.pkpd_engine import PKPDEngine
+                    pk_params = PKPDEngine.extract_pk_parameters(comp)
+                    t_half = pk_params.t_half_h
+                except Exception:
+                    route = str(comp.get("route", "oral")).lower()
+                    if route in ("im", "subq", "depot"):
+                        t_half = 120.0  # standard depot default ~5 days
+                    else:
+                        t_half = 24.0
+
+            t_half = max(0.5, float(t_half or 24.0))
+            k_e = math.log(2.0) / t_half
+            tau_t_half_ratio = tau_h / t_half
+
+            # Steady-state multi-dose peak-to-trough fluctuation (PTF) and swing ratio
+            # Swing ratio = Cmax / Cmin = e^(ke * tau) = 2^(tau / t1/2)
+            # PTF = (Cmax - Cmin) / Cavg * 100 = ke * tau * 100 = ln(2) * (tau / t1/2) * 100
+            swing_ratio = round(math.exp(k_e * tau_h), 2)
+            ptf = round(k_e * tau_h * 100.0, 1)
+
+            # Check if fluctuation is significant
+            if tau_t_half_ratio >= 1.0 or ptf >= 70.0 or swing_ratio >= 2.0:
+                is_volatile = tau_t_half_ratio >= 1.4 or ptf >= 120.0 or swing_ratio >= 2.8
+                severity = "HIGH_RISK" if is_volatile else "MODERATE_RISK"
+
+                # Determine recommended split frequency
+                if tau_h >= 168.0:
+                    rec_freq = "Twice Weekly (BIW / Mon & Thu) or Every Other Day (EOD / SubQ)"
+                    split_action = "Split Weekly Depot to Twice-Weekly (BIW) or EOD"
+                elif tau_h >= 72.0:
+                    rec_freq = "Daily or Every Other Day (EOD)"
+                    split_action = "Split Dosing to EOD or Daily"
+                else:
+                    rec_freq = "Split into BID (Twice Daily) or Sustained-Release Delivery"
+                    split_action = "Split into Twice-Daily (BID) Dosing"
+
+                uncompensated_risks.append({
+                    "axis": primary_axis or "Endocrine & Hormonal Stability",
+                    "severity": severity,
+                    "title": f"Significant Steady-State Hormonal Fluctuation ({comp_name})",
+                    "description": (
+                        f"Dosing interval of {freq_desc} (tau={tau_h:g}h) relative to elimination half-life "
+                        f"(t1/2={t_half:g}h, ratio {tau_t_half_ratio:.2f}) produces wide steady-state peak-to-trough "
+                        f"swings (PTF: ~{ptf}%, swing ratio: ~{swing_ratio}x). In {hormone_type.lower()} pathways, "
+                        f"large peak surges drive excess aromatization/downstream conversions and receptor downregulation, "
+                        f"while deep trough crashes provoke symptom recurrence and axis instability."
+                    ),
+                    "clinical_recommendation": (
+                        f"Split administration of {comp_name} into more frequent micro-doses ({rec_freq}) "
+                        f"to flatten steady-state serum fluctuations (target PTF < 50%) while preserving identical "
+                        f"cumulative weekly exposure (AUC)."
+                    ),
+                })
+                dose_recommendations.append({
+                    "compound": comp_name,
+                    "action": split_action,
+                    "reason": f"Flatten peak-to-trough rollercoaster swings (PTF: {ptf}% -> <50%) and preserve steady-state hormonal equilibrium.",
+                })
+
+            elif tau_t_half_ratio <= 0.85 or ptf <= 60.0 or tau_h <= 84.0:
+                # Stable micro-dosed regimen
+                active_mitigations.append({
+                    "title": f"Stable Endocrine Micro-Dosing ({comp_name})",
+                    "description": (
+                        f"Frequent split-dosing schedule ({freq_desc}, tau={tau_h:g}h vs t1/2={t_half:g}h) "
+                        f"maintains tight steady-state peak-to-trough equilibrium (PTF: ~{ptf}%, swing ratio: ~{swing_ratio}x), "
+                        f"blunting supraphysiological peak surges and preventing trough withdrawal crashes."
+                    ),
+                    "participating_compounds": [comp_name],
+                    "benefited_axis": primary_axis or "Endocrine & Hormonal Stability",
+                    "risk_reduction_points": 15.0,
+                })
 
         # Calculate Overall Health Index & Equilibrium Status
         num_mitigations = len(active_mitigations)

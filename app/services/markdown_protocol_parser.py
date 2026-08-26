@@ -18,11 +18,111 @@ class MarkdownProtocolParser:
     """
 
     @classmethod
+    def extract_cumulative_proposals_from_history(
+        cls,
+        messages: Optional[List[Dict[str, Any]]] = None,
+        base_stack: Optional[List[Any]] = None,
+    ) -> List[Dict[str, Any]]:
+        """
+        Scans previous assistant messages in the conversation history and extracts
+        unapplied proposed compound recommendations that are not yet part of the active workbench stack.
+        """
+        if not messages or len(messages) <= 1:
+            return []
+
+        base_keys: Set[str] = set()
+        for s in (base_stack or []):
+            if isinstance(s, dict):
+                k = str(s.get("key") or s.get("name") or "").strip().lower()
+            else:
+                k = str(s).strip().lower()
+            if k:
+                base_keys.add(k)
+
+        # Check prior assistant messages (excluding the last message if user just sent one, or earlier assistant turns)
+        assistant_msgs = [m for m in messages[:-1] if m.get("role") == "assistant"]
+        if not assistant_msgs and messages and messages[-1].get("role") == "assistant":
+            assistant_msgs = [m for m in messages[:-1] if m.get("role") == "assistant"]
+
+        if not assistant_msgs:
+            return []
+
+        catalog = CatalogService()
+        proposed_compounds_map: Dict[str, Dict[str, Any]] = {}
+        removed_keys: Set[str] = set()
+
+        for msg in assistant_msgs:
+            content = str(msg.get("content", "")).strip()
+            if not content:
+                continue
+
+            # 1. Check for action card XML/JSON blocks
+            card_matches = re.findall(
+                r'<action_card(?:\s+type=[\'"]?([^\'">\s]+)[\'"]?)?\s*>(.*?)(?:</action_card>|$)',
+                content,
+                re.DOTALL | re.IGNORECASE,
+            )
+            parsed_any_card = False
+            for cm in card_matches:
+                body = cm[1].strip()
+                card_data = cls._extract_first_json_object(body)
+                if card_data and isinstance(card_data, dict):
+                    parsed_any_card = True
+                    for add_item in (card_data.get("add") or card_data.get("additions") or []):
+                        if isinstance(add_item, dict):
+                            raw_k = str(add_item.get("key") or add_item.get("name") or "").strip().lower()
+                            comp_rec = cls._resolve_compound(raw_k, catalog)
+                            k = comp_rec["key"] if comp_rec else raw_k.replace(" ", "_")
+                            if k and k not in base_keys:
+                                item_copy = dict(add_item)
+                                item_copy["key"] = k
+                                if comp_rec and not item_copy.get("name"):
+                                    item_copy["name"] = comp_rec.get("name")
+                                proposed_compounds_map[k] = item_copy
+                                removed_keys.discard(k)
+
+                    for mod_item in (card_data.get("modify") or card_data.get("modifications") or []):
+                        if isinstance(mod_item, dict):
+                            raw_k = str(mod_item.get("key") or mod_item.get("name") or "").strip().lower()
+                            comp_rec = cls._resolve_compound(raw_k, catalog)
+                            k = comp_rec["key"] if comp_rec else raw_k.replace(" ", "_")
+                            if k in proposed_compounds_map:
+                                proposed_compounds_map[k].update(mod_item)
+
+                    for rem_item in (card_data.get("remove") or card_data.get("removals") or []):
+                        rem_k = str(rem_item.get("key") if isinstance(rem_item, dict) else rem_item).strip().lower()
+                        comp_rec = cls._resolve_compound(rem_k, catalog)
+                        k = comp_rec["key"] if comp_rec else rem_k.replace(" ", "_")
+                        proposed_compounds_map.pop(k, None)
+                        removed_keys.add(k)
+
+            # 2. If no explicit action card in this message, extract from text
+            if not parsed_any_card:
+                extracted = cls.extract_from_text(content, base_stack=base_stack)
+                if extracted:
+                    for add_item in extracted.get("add", []):
+                        k = str(add_item.get("key", "")).lower()
+                        if k and k not in base_keys:
+                            proposed_compounds_map[k] = add_item
+                            removed_keys.discard(k)
+                    for mod_item in extracted.get("modify", []):
+                        k = str(mod_item.get("key", "")).lower()
+                        if k in proposed_compounds_map:
+                            proposed_compounds_map[k].update(mod_item)
+                    for rem_k in extracted.get("remove", []):
+                        k = str(rem_k).lower()
+                        proposed_compounds_map.pop(k, None)
+                        removed_keys.add(k)
+
+        return list(proposed_compounds_map.values())
+
+    @classmethod
     def extract_from_text(
         cls,
         text: str,
         base_stack: Optional[List[Any]] = None,
         biometrics: Optional[Dict[str, Any]] = None,
+        messages: Optional[List[Dict[str, Any]]] = None,
     ) -> Optional[Dict[str, Any]]:
         """
         Main extraction entrypoint: scans markdown text for:
@@ -60,6 +160,24 @@ class MarkdownProtocolParser:
                     current_stack=base_stack,
                     biometrics=biometrics,
                 )
+                if messages:
+                    prev_proposals = cls.extract_cumulative_proposals_from_history(messages, base_stack)
+                    if prev_proposals:
+                        current_adds = list(sanitized.get("add") or [])
+                        seen = {str(a.get("key", "")).lower() for a in current_adds if a.get("key")}
+                        current_rems = {str(r).lower() for r in (sanitized.get("remove") or [])}
+                        for prev_p in prev_proposals:
+                            pk = str(prev_p.get("key", "")).lower()
+                            if pk and pk not in seen and pk not in current_rems:
+                                seen.add(pk)
+                                current_adds.append(prev_p)
+                        sanitized["add"] = current_adds
+                        sanitized, _ = ActionCardValidator.validate_and_sanitize_card(
+                            card_type="stack_diff",
+                            payload=sanitized,
+                            current_stack=base_stack,
+                            biometrics=biometrics,
+                        )
                 if sanitized.get("add") or sanitized.get("modify") or sanitized.get("remove"):
                     return sanitized
 
@@ -77,6 +195,24 @@ class MarkdownProtocolParser:
                         current_stack=base_stack,
                         biometrics=biometrics,
                     )
+                    if messages:
+                        prev_proposals = cls.extract_cumulative_proposals_from_history(messages, base_stack)
+                        if prev_proposals:
+                            current_adds = list(sanitized.get("add") or [])
+                            seen = {str(a.get("key", "")).lower() for a in current_adds if a.get("key")}
+                            current_rems = {str(r).lower() for r in (sanitized.get("remove") or [])}
+                            for prev_p in prev_proposals:
+                                pk = str(prev_p.get("key", "")).lower()
+                                if pk and pk not in seen and pk not in current_rems:
+                                    seen.add(pk)
+                                    current_adds.append(prev_p)
+                            sanitized["add"] = current_adds
+                            sanitized, _ = ActionCardValidator.validate_and_sanitize_card(
+                                card_type="stack_diff",
+                                payload=sanitized,
+                                current_stack=base_stack,
+                                biometrics=biometrics,
+                            )
                     if sanitized.get("add") or sanitized.get("modify") or sanitized.get("remove"):
                         return sanitized
             except Exception:
@@ -123,6 +259,17 @@ class MarkdownProtocolParser:
                 seen_keys.add(c["key"])
                 extracted_additions.append(c)
 
+        # Step 3e: Incorporate unapplied previous proposals from conversation history if not explicitly removed
+        if messages:
+            prev_proposals = cls.extract_cumulative_proposals_from_history(messages, base_stack)
+            if prev_proposals:
+                removals_set = {str(r.get("key") if isinstance(r, dict) else r).strip().lower() for r in extracted_removals}
+                for prev_p in prev_proposals:
+                    k = str(prev_p.get("key", "")).lower()
+                    if k and k not in seen_keys and k not in removals_set:
+                        seen_keys.add(k)
+                        extracted_additions.append(prev_p)
+
         if not extracted_additions and not extracted_modifications and not extracted_removals:
             return None
 
@@ -149,25 +296,25 @@ class MarkdownProtocolParser:
         text: str,
         base_stack: Optional[List[Any]] = None,
         biometrics: Optional[Dict[str, Any]] = None,
+        messages: Optional[List[Dict[str, Any]]] = None,
     ) -> Dict[str, Any]:
         """
-        Reconciles an action card against the model's markdown text.
-        If the model's text specified a targeted protocol with particular compounds,
-        ensures that:
+        Reconciles an action card against the model's markdown text and conversation history.
+        Ensures that:
         1. All compounds mentioned in the text are present in the action card with matching dose & timing.
         2. Extraneous default blueprint compounds that were omitted by the model are pruned.
+        3. If the user is refining an unapplied proposed stack across multi-turn chat, previous recommendations
+           are preserved and merged with new additions.
         """
         if not isinstance(card_payload, dict):
             return card_payload
 
         catalog = CatalogService()
-        text_extracted = cls.extract_from_text(text, base_stack, biometrics)
-        if not text_extracted:
+        text_extracted = cls.extract_from_text(text, base_stack, biometrics, messages=None)
+        if not text_extracted and not messages:
             return card_payload
 
-        text_add_keys = {str(a.get("key", "")).lower(): a for a in text_extracted.get("add", []) if a.get("key")}
-        if not text_add_keys:
-            return card_payload
+        text_add_keys = {str(a.get("key", "")).lower(): a for a in text_extracted.get("add", []) if a.get("key")} if text_extracted else {}
 
         # Reconcile additions
         existing_adds = card_payload.get("add") or card_payload.get("additions") or []
@@ -182,7 +329,6 @@ class MarkdownProtocolParser:
 
         # 2. If the text only described an incremental change (e.g. adding 1 compound to an existing stack),
         # keep other valid card entries that don't conflict.
-        # But if the text described a full scratch protocol (e.g. 3+ compounds), drop unmentioned blueprint items.
         is_full_protocol_text = len(text_add_keys) >= 3 or ("schedule" in text.lower() and "|" in text)
         if not is_full_protocol_text:
             for a in existing_adds:
@@ -191,11 +337,23 @@ class MarkdownProtocolParser:
                     seen.add(k)
                     reconciled_adds.append(a)
 
+        # 3. Incorporate unapplied previous recommendations from conversation history
+        if messages:
+            prev_proposals = cls.extract_cumulative_proposals_from_history(messages, base_stack)
+            if prev_proposals:
+                current_removals = card_payload.get("remove") or card_payload.get("removals") or (text_extracted.get("remove") if text_extracted else [])
+                removals_set = {str(r.get("key") if isinstance(r, dict) else r).strip().lower() for r in current_removals}
+                for prev_p in prev_proposals:
+                    k = str(prev_p.get("key", "")).lower()
+                    if k and k not in seen and k not in removals_set:
+                        seen.add(k)
+                        reconciled_adds.append(prev_p)
+
         reconciled_payload = {
             "action_card": "stack_diff",
             "add": reconciled_adds,
-            "modify": card_payload.get("modify") or text_extracted.get("modify") or [],
-            "remove": card_payload.get("remove") or text_extracted.get("remove") or [],
+            "modify": card_payload.get("modify") or (text_extracted.get("modify") if text_extracted else []) or [],
+            "remove": card_payload.get("remove") or (text_extracted.get("remove") if text_extracted else []) or [],
         }
 
         from app.services.action_card_validator import ActionCardValidator

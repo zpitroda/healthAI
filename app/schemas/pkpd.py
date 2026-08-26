@@ -245,6 +245,9 @@ class PKPDSimulationResponse(BaseModel):
     auc_0_tau_ng_h_ml: float
     accumulation_ratio: float
     fluctuation_pct: float
+    peak_to_trough_ratio: Optional[float] = Field(default=None, description="Ratio of steady-state Cmax to Cmin (swing ratio)")
+    fluctuation_risk_level: Optional[str] = Field(default="STABLE", description="Steady-state peak-to-trough swing severity: STABLE, MODERATE, HIGH, VOLATILE")
+    fluctuation_warning: Optional[str] = Field(default=None, description="Clinical warning and micro-dosing recommendation when steady-state fluctuation is significant")
     elimination_half_life_effective_h: float
     total_clearance_l_h: float
 

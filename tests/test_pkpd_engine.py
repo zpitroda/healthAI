@@ -252,3 +252,43 @@ def test_time_resolved_dynamic_ddi_collisions():
 
     # Clearance should fluctuate over time as inhibitor concentration rises and falls
     assert min(clearances) < max(clearances)
+
+
+def test_steady_state_fluctuation_metrics():
+    """Verify PTF, peak-to-trough ratio, and fluctuation risk levels across dosing frequencies."""
+    testosterone_cypionate = {
+        "key": "testosterone_cypionate",
+        "name": "Testosterone Cypionate",
+        "t_half_numeric": 120.0,  # 5 days
+        "bioavailability_f": 1.0,
+        "volume_of_distribution_l_kg": 1.0,
+        "absorption_rate_ka": 0.05,
+    }
+
+    # Infrequent dosing (every 14 days / 336h or weekly 168h with short absorption) -> fluctuation
+    req_infrequent = PKPDSimulationRequest(
+        compound_key="testosterone_cypionate",
+        dose_mg=200.0,
+        dosing_interval_h=336.0,
+        simulation_duration_h=336.0,
+        steady_state=True,
+    )
+    res_infreq = PKPDEngine.simulate(testosterone_cypionate, req_infrequent)
+    assert res_infreq.fluctuation_pct > 80.0
+    assert res_infreq.peak_to_trough_ratio is not None and res_infreq.peak_to_trough_ratio > 2.0
+    assert res_infreq.fluctuation_risk_level in ("HIGH", "VOLATILE")
+    assert res_infreq.fluctuation_warning is not None
+
+    # Micro-dosed split schedule (every 3.5 days / 84h) -> stable
+    req_split = PKPDSimulationRequest(
+        compound_key="testosterone_cypionate",
+        dose_mg=50.0,
+        dosing_interval_h=84.0,
+        simulation_duration_h=168.0,
+        steady_state=True,
+    )
+    res_split = PKPDEngine.simulate(testosterone_cypionate, req_split)
+    assert res_split.fluctuation_pct < res_infreq.fluctuation_pct
+    assert res_split.peak_to_trough_ratio < res_infreq.peak_to_trough_ratio
+    assert res_split.fluctuation_risk_level in ("STABLE", "MODERATE")
+

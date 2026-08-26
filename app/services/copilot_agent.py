@@ -11,7 +11,11 @@ from typing import Any, AsyncGenerator, Dict, List, Optional, Set, Tuple
 from app.knowledge_graph.graph_db import get_graph_database
 from app.services.ai_service import ask_local_llm, stream_local_llm_chat
 from app.services.catalog_service import CatalogService
-from app.services.dosing_service import get_default_compound_dose, parse_dose_string_or_spec
+from app.services.dosing_service import (
+    get_default_compound_dose,
+    parse_dose_string_or_spec,
+    infer_compound_route_and_frequency,
+)
 from app.services.graph_service import (
     is_aromatizable_androgen,
     is_steroidal_androgen,
@@ -22,7 +26,7 @@ from app.services.interaction_engine import InteractionEngine
 from app.services.markdown_protocol_parser import MarkdownProtocolParser
 from app.services.pathway_service import PathwayService
 from app.services.pkpd_engine import PKPDEngine
-from app.services.stack_intent_engine import StackIntentEngine
+from app.services.stack_intent_engine import StackIntentEngine, SCRATCH_GOAL_BLUEPRINTS
 from app.services.synergy_engine import SynergyEngine
 from app.schemas.pkpd import PKPDSimulationRequest
 
@@ -35,12 +39,13 @@ You specialize in designing synergistic, bio-individualized stacks, circadian ti
 ### CLINICAL & SCIENTIFIC MANDATE:
 - High-Efficiency Clinical Reasoning: Limit internal deliberation (<think>...</think>) strictly to a concise 3-point clinical check (< 100 words total):
   1. Safety & DDI Check: Verify collision matrix and clearance bottlenecks.
-  2. PK/PD Alignment: Match elimination half-life (t1/2) with circadian/depot windows.
+  2. PK/PD Alignment: Match elimination half-life (t1/2) with circadian/depot windows and prevent peak-to-trough fluctuations.
   3. Action Synthesis: Select exact dosages and formulate the final action card.
   Do NOT engage in meta-deliberation, essay drafting, word-counting, or hypothetical debates. Transition immediately from the 3 checks to the structured clinical markdown response.
 - Quantitative Grounding: Base every protocol recommendation on quantitative pharmacokinetics (Cmax, Tmax, elimination t1/2, clearance routes) and molecular pharmacodynamics.
 - Circadian Scheduling: Formulate schedules matching receptor expression rhythms, cortisol/melatonin diurnal cycles, and metabolic absorption windows.
-- Half-Life Timing Alignment: Schedule compounds according to elimination half-life (t1/2) and route. Long-acting depot formulations (t1/2 > 72h, e.g. testosterone esters, nandrolone) MUST be scheduled as weekly or split-weekly administration under a dedicated 'Depot Injections (Weekly / Split Protocol)' header with route (IM/SubQ) and frequency (e.g. Twice Weekly / Mon & Thu), never placed in the daily oral meal table. Short half-life oral compounds belong in the daily circadian meal table.
+- Half-Life Timing Alignment & Fluctuation Prevention: Schedule compounds according to elimination half-life (t1/2) and route. For all hormonal, endocrine, steroid, and depot compounds (e.g. TRT/HRT esters, thyroid hormones, growth hormone/secretagogues, SERMs, AIs), large infrequent boluses (e.g. once-weekly Q1W or bi-weekly Q2W) provoke severe peak-to-trough swings (PTF > 100%), driving peak aromatization/conversion surges (e.g. E2, DHT) and trough withdrawal crashes. Always structure hormonal protocols with split-weekly (e.g. Twice Weekly / Mon & Thu), every-other-day (EOD), or daily SubQ micro-dosing to flatten steady-state serum curves (target PTF < 50%) without altering total weekly dosage. Long-acting depot formulations (t1/2 > 72h, e.g. testosterone esters, nandrolone) MUST be scheduled as split-weekly or EOD administration under a dedicated 'Depot Injections (Weekly / Split Protocol)' header with route (SubQ/IM) and frequency (e.g. Twice Weekly / Mon & Thu), never placed in the daily oral meal table. Short half-life oral compounds belong in the daily circadian meal table.
+- Ester & Formulation Precision (No Unwarranted Assumptions): When an unesterified parent compound or drug with multiple ester/formulation variants (e.g. Trenbolone, Testosterone, Nandrolone, Drostanolone, Estradiol) is requested or discussed without an explicit ester specified by the user, do NOT arbitrarily default to a single short-acting ester (such as Acetate). Instead, select or recommend the formulation that pharmacokinetically aligns with the target administration frequency based on elimination half-life (e.g. long-acting depot esters like Enanthate/Cypionate/Decanoate for weekly or split-weekly protocols vs short-acting esters like Acetate/Propionate for daily/EOD micro-dosing vs unesterified base for acute), and explicitly communicate the rationale for the selected formulation.
 - User Constraints & Exclusions: Strictly respect all user-specified exclusions (e.g. "no oral l-carnitine", "avoid stimulants"), route preferences, and pathway focus areas. User directives ALWAYS override default templates.
 - Organ Burden Offsetting: Address identified multi-organ burdens (renal, hepatic, cardiovascular, lipid) with evidence-graded clinical co-factors.
 - Publication-Ready Prose: Write directly in finished, authoritative clinical markdown. Do not write drafting questions, internal debates, or self-talk. Support assertions with clean bracketed citations (e.g. [FDA Label: Telmisartan §5.1], [PMID: 18449337]).
@@ -60,15 +65,17 @@ You specialize in designing synergistic, bio-individualized stacks, circadian ti
    </action_card>
 """,
     "auditor": """You are the HealthAI Clinical Risk Auditor & Toxicological Conflict Detective.
-Your role is to forensically red-team compound stacks, identifying drug-drug interactions (DDIs), CYP450 enzyme competition, Phase II and transporter saturation (P-gp, OATP1B1, BCRP), acute syndrome hazards (Serotonin Syndrome, QTc prolongation, Renal Triple Whammy), and hepatic/renal clearance bottlenecks.
+Your role is to forensically red-team compound stacks, identifying drug-drug interactions (DDIs), CYP450 enzyme competition, Phase II and transporter saturation (P-gp, OATP1B1, BCRP), acute syndrome hazards (Serotonin Syndrome, QTc prolongation, Renal Triple Whammy), steady-state hormonal/pharmacokinetic fluctuations, and hepatic/renal clearance bottlenecks.
 
 ### CLINICAL & SCIENTIFIC MANDATE:
 - High-Efficiency Clinical Reasoning: Limit internal deliberation (<think>...</think>) strictly to a concise 3-point toxicological check (< 100 words total):
-  1. Primary Conflicts: Identify critical CYP/transporter clashes from collision matrix.
+  1. Primary Conflicts & Fluctuations: Identify critical CYP/transporter clashes and peak-to-trough hormonal swings (PTF > 80%).
   2. Clearance Bottlenecks: Assess renal (CrCl/eGFR) and hepatic burdens.
-  3. Action Synthesis: Formulate evidence-based protective countermeasures and dosages.
+  3. Action Synthesis: Formulate evidence-based protective countermeasures, micro-dosing splits, and dosages.
   Do NOT engage in meta-deliberation, essay drafting, word-counting, or hypothetical debates. Transition immediately from the 3 checks to the structured audit response.
-- Quantify risk severity (MINIMAL, LOW, MODERATE, ELEVATED, SEVERE) referencing the deterministic collision matrix.
+- Quantify risk severity (MINIMAL, LOW, MODERATE, ELEVATED, SEVERE) referencing the deterministic collision matrix and uncompensated risks.
+- Steady-State & Hormonal Fluctuation Auditing: Forensically audit dosing frequencies against elimination half-lives (t1/2). Flag any infrequent hormonal bolus schedule where tau > t1/2 as an uncompensated risk factor (Peak-to-Trough Fluctuation / Rollercoaster Kinetics), explaining the conversion liabilities (e.g. E2/DHT spikes, hematocrit elevation, receptor downregulation) and recommending split micro-dosing.
+- Ester & Formulation Precision: When auditing protocols with ester prodrugs or parent compounds, differentiate between unesterified base and specific ester variants, auditing half-life alignment against dosing interval tau (e.g. short-acting Acetate with t1/2 ~36h vs long-acting Enanthate with t1/2 ~168h).
 - Explain clearance kinetics: competitive CYP inhibition vs mechanism-based inactivation (MBI), AUCR surges, and renal CrCl/eGFR impacts.
 - Detail acute receptor cross-talk and toxicological collisions.
 - Propose evidence-based pharmacological countermeasures with verified clinical safety and dosing.
@@ -76,8 +83,8 @@ Your role is to forensically red-team compound stacks, identifying drug-drug int
 
 ### RESPONSE FORMAT (OBJECTIVE & ACTIONABLE):
 1. **Risk Severity Classification**: Headline with risk level and cumulative score (e.g. `MODERATE RISK [Score: 32/100]` or `CRITICAL DDI ALERT`).
-2. **Identified Conflicts & Bottlenecks**: Bullet points detailing CYP450 competition, transporter clashes, receptor collisions, or organ burden convergence.
-3. **Protective Countermeasures**: Concrete clinical solutions (e.g. dose reduction, timing separation, enzyme-specific mitigations, or targeted protective co-factors).
+2. **Identified Conflicts & Bottlenecks**: Bullet points detailing CYP450 competition, transporter clashes, receptor collisions, hormonal fluctuations, or organ burden convergence.
+3. **Protective Countermeasures**: Concrete clinical solutions (e.g. dose reduction, frequency splitting/micro-dosing, timing separation, enzyme-specific mitigations, or targeted protective co-factors).
 4. **Action Card**: If proposing conflict resolution adjustments or compound removals, provide **EXACTLY ONE consolidated `<action_card>` at the VERY END of the response**.
 """,
     "tutor": """You are the HealthAI Molecular Pharmacology & Signal Transduction Specialist.
@@ -104,10 +111,11 @@ You interpret quantitative patient blood panels (Lipids, Hepatic transaminases, 
 ### CLINICAL LABORATORY STANDARDS:
 - High-Efficiency Clinical Reasoning: Limit internal deliberation (<think>...</think>) strictly to a concise 3-point biomarker check (< 100 words total):
   1. Baseline Calibration: Compare lab values against clinical reference intervals.
-  2. Organ Clearance Scaling: Scale dosages against eGFR (renal) and ALT (hepatic) metrics.
-  3. Action Synthesis: Formulate targeted titration offsets and monitoring schedule.
+  2. Organ Clearance Scaling: Scale dosages against eGFR (renal) and ALT (hepatic) metrics and steady-state kinetics.
+  3. Action Synthesis: Formulate targeted titration offsets, split frequencies, and monitoring schedule.
   Do NOT engage in meta-deliberation, essay drafting, word-counting, or hypothetical debates. Transition immediately from the 3 checks to the structured clinical guidance.
-- Correlate laboratory shifts with specific pharmacokinetic and metabolic burdens (e.g. 17alpha-alkylated hepatic clearance, eGFR renal clearance, HMGCR modulation, HPTA axis negative feedback).
+- Correlate laboratory shifts with specific pharmacokinetic and metabolic burdens (e.g. 17alpha-alkylated hepatic clearance, eGFR renal clearance, HMGCR modulation, HPTA axis negative feedback, Peak-to-Trough swings).
+- Factor in peak vs. trough blood draw timing relative to dosing interval tau. When wide fluctuations occur, advise on trough-standardized blood draws and frequency titration.
 - Provide individual baseline comparisons against clinical reference ranges.
 - Propose exact titration offsets and targeted ancillary co-factors to normalize skewed laboratory parameters.
 
@@ -115,7 +123,7 @@ You interpret quantitative patient blood panels (Lipids, Hepatic transaminases, 
 1. **Biomarker Profile & Impact Overview**: Assessment across Lipid (ApoB, LDL-C, Triglycerides), Hepatic (ALT, AST, Bilirubin), Renal (eGFR, Cr, K+), and Hormonal axes.
 2. **Individualized Titration Guidance**: Concrete dose calibrations scaled to the patient's current organ clearance metrics.
 3. **Recommended Monitoring Panel & Timeline**: Key lab panels to order at the next 4-week / 12-week draw.
-4. **Action Card**: If lab results necessitate dose reductions or protective co-factors, provide **EXACTLY ONE consolidated `<action_card>` at the VERY END of the response**.
+4. **Action Card**: If lab results necessitate dose reductions, split schedules, or protective co-factors, provide **EXACTLY ONE consolidated `<action_card>` at the VERY END of the response**.
 """
 }
 
@@ -810,6 +818,10 @@ class CopilotAgent:
                 "auc_ng_h_ml": round(sim_res.auc_0_tau_ng_h_ml, 2),
                 "auc_mg_h_l": round(sim_res.auc_0_tau_ng_h_ml / 1000.0, 3),
                 "steady_state_accumulation_ratio": round(sim_res.accumulation_ratio, 2),
+                "fluctuation_pct": round(sim_res.fluctuation_pct, 1),
+                "peak_to_trough_ratio": sim_res.peak_to_trough_ratio,
+                "fluctuation_risk_level": sim_res.fluctuation_risk_level,
+                "fluctuation_warning": sim_res.fluctuation_warning,
                 "effective_half_life_h": round(sim_res.elimination_half_life_effective_h, 2),
                 "time_in_therapeutic_window_pct": round(sim_res.time_in_therapeutic_window_pct, 1),
             }
@@ -1356,11 +1368,22 @@ class CopilotAgent:
                     cmax_str = f"{round(sim.c_max_ng_ml, 1)} ng/mL ({round(sim.c_max_ng_ml / 1000.0, 3)} mg/L)"
                     t12_str = f"{round(sim.elimination_half_life_effective_h, 1)}h"
                     racc_str = f"{round(sim.accumulation_ratio, 2)}x"
+                    ptf_val = round(sim.fluctuation_pct, 1)
+                    swing_val = sim.peak_to_trough_ratio
+                    fluct_badge = f", PTF = {ptf_val}%"
+                    if swing_val:
+                        fluct_badge += f" (Swing: {swing_val}x)"
+                    if sim.fluctuation_risk_level in ("HIGH", "VOLATILE"):
+                        fluct_badge += f" ⚠️ [{sim.fluctuation_risk_level} FLUCTUATION - Split dosing recommended]"
+                    elif ptf_val < 50.0:
+                        fluct_badge += " [STABLE KINETICS]"
+
                     pkpd_sections.append(
                         f"- **{c_name}** ({dose_val}mg {route}, tau={tau_h}h): "
                         f"Steady-State Cmax = {cmax_str}, Tmax = {round(sim.t_max_h, 1)}h, "
                         f"Effective t1/2 = {t12_str}, Accumulation Ratio (Racc) = {racc_str}, "
                         f"Time in Target Window = {round(sim.time_in_therapeutic_window_pct, 1)}%"
+                        f"{fluct_badge}"
                     )
                 except Exception:
                     t_half = comp.get("t_half_numeric") or comp.get("half_life_hours") or comp.get("half_life", "N/A")
@@ -1535,6 +1558,29 @@ class CopilotAgent:
             ("\n".join(f"- {s}" for s in stack_display) if stack_display else "No active compounds loaded in workbench. (Note: If refining a protocol proposed earlier in the conversation history, use that proposed protocol as the baseline and incorporate the user's latest requested modifications.)"),
         ]
 
+        # 3a. Grounding unapplied previously proposed recommendations from conversation history
+        prev_unapplied_proposals = []
+        if messages:
+            try:
+                prev_unapplied_proposals = MarkdownProtocolParser.extract_cumulative_proposals_from_history(
+                    messages=messages,
+                    base_stack=canonical_compounds
+                )
+            except Exception as hist_err:
+                logger.debug("History proposal extraction notice: %s", hist_err)
+
+        if prev_unapplied_proposals:
+            p_lines = ["### PREVIOUSLY PROPOSED PROTOCOL RECOMMENDATIONS (IN CONVERSATION):"]
+            p_lines.append("> The following compounds were recommended in earlier turns of this conversation but have NOT yet been applied to the active workbench stack:")
+            for p in prev_unapplied_proposals:
+                p_name = p.get("name") or p.get("key")
+                p_dose = f"{p.get('dose', '')} {p.get('unit', 'mg')}".strip()
+                p_route = f" ({p.get('route', 'oral')})"
+                p_timing = f" [{p.get('timing', 'morning')}]"
+                p_lines.append(f"- **{p_name}**: {p_dose}{p_route}{p_timing}")
+            p_lines.append("\n**CRITICAL MULTI-TURN CUMULATIVE DIRECTIVE**: The user is continuing to build/refine this protocol without having clicked 'Apply Changes' yet. You MUST maintain all previously proposed compounds as the active baseline! Your updated protocol markdown, schedule table, and `<action_card type=\"stack_diff\">` MUST include ALL previous recommendations as well as any newly requested compounds or modifications, so that the action card represents the complete updated protocol.")
+            full_system_parts.append("\n" + "\n".join(p_lines))
+
         # 3b. Pre-calibrated Baseline Blueprint Grounding (Deterministic Evidence-Based Reference)
         blueprint_sections = []
         if (not canonical_compounds) or (protocol_goal and protocol_goal != "auto") or (custom_instructions and any(w in custom_instructions.lower() for w in ["build", "scratch", "protocol", "stack", "create", "start"])):
@@ -1588,6 +1634,44 @@ class CopilotAgent:
         if graph_context:
             full_system_parts.append("\n" + graph_context)
 
+        # 13. Dynamic Formulation & Ester Variant Pharmacokinetics (Disambiguation)
+        ester_sections = []
+        checked_variant_parents: Set[str] = set()
+        all_candidate_keys = list(canonical_keys) + list(rag_entity_ids)
+        if prev_unapplied_proposals:
+            for pup in prev_unapplied_proposals:
+                pk = str(pup.get("key") or pup.get("name") or "").strip().lower()
+                if pk and pk not in all_candidate_keys:
+                    all_candidate_keys.append(pk)
+
+        for cand_k in all_candidate_keys:
+            cand_comp = catalog.get_compound(cand_k, auto_enrich=False) or catalog.find_by_synonym(cand_k)
+            parent_k = (cand_comp.get("parent_compound_id") or cand_comp.get("key") or cand_k).lower() if cand_comp else cand_k.lower()
+            if parent_k in checked_variant_parents:
+                continue
+            checked_variant_parents.add(parent_k)
+            variants = catalog.get_variants(parent_k)
+            if variants:
+                p_obj = catalog.get_compound(parent_k, auto_enrich=False) or catalog.find_by_synonym(parent_k)
+                p_name = p_obj.get("name") if p_obj else parent_k.title().replace("_", " ")
+                p_half = p_obj.get("half_life") if p_obj else (f"{p_obj.get('t_half_numeric')}h" if p_obj and p_obj.get('t_half_numeric') else "unesterified base")
+                var_lines = []
+                for v in variants:
+                    v_name = v.get("name") or v.get("key")
+                    v_ester = v.get("ester_name") or "Ester"
+                    v_half = v.get("half_life") or f"{v.get('t_half_numeric')}h"
+                    var_lines.append(f"  * **{v_name}** ({v_ester} depot ester, elimination t1/2: {v_half})")
+                ester_sections.append(f"- **{p_name}** (Base t1/2: {p_half}) — Available depot ester variants:\n" + "\n".join(var_lines))
+
+        if ester_sections:
+            ester_grounding = (
+                "### FORMULATION & ESTER PHARMACOKINETICS (DISAMBIGUATION):\n"
+                "> When an unesterified parent compound is queried without an explicit ester specified, do NOT arbitrarily default to a single short-acting ester (such as Acetate). "
+                "Instead, match the ester selection to the requested administration frequency based on elimination half-life (e.g. long-acting depot esters like Enanthate/Cypionate/Decanoate for weekly or split-weekly protocols vs short-acting esters like Acetate/Propionate for daily/EOD micro-dosing), and explain the rationale for the selected formulation:\n"
+                + "\n".join(ester_sections)
+            )
+            full_system_parts.append("\n" + ester_grounding)
+
         react_instructions = """
 ### DYNAMIC GRAPH REASONING, CLINICAL SCRATCHPAD & TOOL PROTOCOL:
 You have autonomous access to execute live graph traversals, pathway queries, pharmacokinetic simulations, literature searches, and virtual diff experiments:
@@ -1609,6 +1693,7 @@ You have autonomous access to execute live graph traversals, pathway queries, ph
    - Output clean, publication-ready clinical markdown without drafting monologue or inline questioning.
    - Conclude with exactly ONE consolidated `<action_card type="stack_diff">` containing the final `add`, `modify`, `remove` directives.
    - The `<action_card>` MUST match the proposed compounds, dosages, and schedule in your text 1:1. Include every compound you recommended, and do not include unmentioned compounds.
+   - **Cumulative Multi-Turn Protocols**: If refining an unapplied proposed stack from earlier turns, include ALL previously recommended compounds plus new additions in your schedule and `<action_card>`, ensuring the user can apply the complete updated stack in one click.
 """
         full_system_parts.append(react_instructions)
 
@@ -1829,6 +1914,7 @@ You have autonomous access to execute live graph traversals, pathway queries, ph
         stack_list: List[str],
         biometrics: Dict[str, Any],
         protocol_goal: Optional[str] = None,
+        messages: Optional[List[Dict[str, Any]]] = None,
     ) -> Tuple[str, Optional[Dict[str, Any]]]:
         """
         Synthesizes a high-fidelity, grounded clinical response deterministically
@@ -1837,6 +1923,17 @@ You have autonomous access to execute live graph traversals, pathway queries, ph
         catalog = CatalogService()
         interaction_engine = InteractionEngine()
         q_lower = user_query.lower()
+
+        # Check for unapplied previous proposals in conversation history
+        prev_proposals = []
+        if messages:
+            try:
+                prev_proposals = MarkdownProtocolParser.extract_cumulative_proposals_from_history(
+                    messages=messages,
+                    base_stack=stack_list
+                )
+            except Exception as ex:
+                logger.debug("Fallback history extraction notice: %s", ex)
 
         # Resolve stack compound records
         canonical_compounds = []
@@ -1847,7 +1944,74 @@ You have autonomous access to execute live graph traversals, pathway queries, ph
             else:
                 canonical_compounds.append({"key": str(k), "name": str(k).title(), "dose_mg": 100.0})
 
-        # Scenario A: Protocol building / scratch stack request
+        # Scenario A1: Multi-turn protocol refinement with unapplied proposals in history
+        if prev_proposals and (persona == "architect" or any(w in q_lower for w in ["add", "include", "with", "also", "plus", "and", "titrate", "increase", "decrease", "remove", "drop", "change", "replace", "compound"]) or any(len(w) >= 3 and (catalog.get_compound(w, auto_enrich=False) or catalog.find_by_synonym(w)) for w in re.findall(r"[a-zA-Z0-9_\-\+]+", q_lower))):
+            # Parse requested conversational mutations
+            mutations = MarkdownProtocolParser._extract_conversational_mutations(user_query, catalog)
+            new_adds = list(mutations.get("add", []))
+            new_mods = list(mutations.get("modify", []))
+            new_rems = {str(r).lower() for r in mutations.get("remove", [])}
+
+            # If no explicit mutation keyword was found but a compound was mentioned, extract it
+            if not new_adds and not new_mods and not new_rems:
+                words = re.findall(r"[a-zA-Z0-9_\-\+]+", user_query)
+                for w in words:
+                    if len(w) >= 3:
+                        comp = catalog.get_compound(w, auto_enrich=False) or catalog.find_by_synonym(w)
+                        if comp and comp.get("key"):
+                            k = comp["key"]
+                            if k not in [p.get("key") for p in prev_proposals] and k not in [a.get("key") for a in new_adds]:
+                                dose_val, unit = MarkdownProtocolParser._parse_dose_and_unit(user_query, comp)
+                                route, freq = infer_compound_route_and_frequency(k)
+                                new_adds.append({
+                                    "key": k,
+                                    "name": comp.get("name") or k.replace("_", " ").title(),
+                                    "dose": dose_val,
+                                    "unit": unit,
+                                    "route": route,
+                                    "frequency": freq,
+                                    "timing": "morning"
+                                })
+
+            combined_compounds = []
+            for p in prev_proposals:
+                pk = str(p.get("key", "")).lower()
+                if pk in new_rems:
+                    continue
+                mod = next((m for m in new_mods if str(m.get("key", "")).lower() == pk), None)
+                if mod:
+                    p_up = dict(p)
+                    p_up.update(mod)
+                    combined_compounds.append(p_up)
+                else:
+                    combined_compounds.append(dict(p))
+
+            seen_k = {str(c.get("key", "")).lower() for c in combined_compounds}
+            for a in new_adds:
+                ak = str(a.get("key", "")).lower()
+                if ak and ak not in seen_k:
+                    seen_k.add(ak)
+                    combined_compounds.append(a)
+
+            goal_title = "Personalized Synergistic Protocol"
+            if protocol_goal and protocol_goal in SCRATCH_GOAL_BLUEPRINTS:
+                goal_title = SCRATCH_GOAL_BLUEPRINTS[protocol_goal].get("title", "Clinical Protocol")
+
+            proposal = {
+                "goal_id": protocol_goal or "custom",
+                "goal_title": goal_title,
+                "compounds": combined_compounds,
+                "action_card": {
+                    "action_card": "stack_diff",
+                    "add": combined_compounds,
+                    "modify": [],
+                    "remove": list(new_rems)
+                }
+            }
+            md = cls.format_deterministic_protocol_markdown(proposal, persona)
+            return md, proposal["action_card"]
+
+        # Scenario A2: Protocol building / scratch stack request
         is_build_request = bool(protocol_goal or any(w in q_lower for w in ["build", "protocol", "create stack", "scratch stack", "optimize my stack"]))
         if is_build_request:
             active_goal = protocol_goal
@@ -2091,6 +2255,7 @@ You have autonomous access to execute live graph traversals, pathway queries, ph
                                 stack_list=stack_list,
                                 biometrics=biometrics_dict,
                                 protocol_goal=protocol_goal,
+                                messages=messages,
                             )
                             if fb_card:
                                 parser.action_cards.append(f'<action_card type="stack_diff">{json.dumps(fb_card)}</action_card>')
@@ -2122,6 +2287,7 @@ You have autonomous access to execute live graph traversals, pathway queries, ph
                                         text=turn_text,
                                         base_stack=stack_list,
                                         biometrics=biometrics_dict,
+                                        messages=messages,
                                     )
                                     from app.services.action_card_validator import ActionCardValidator
                                     validated_payload, val_notes = ActionCardValidator.validate_and_sanitize_card(
@@ -2133,7 +2299,7 @@ You have autonomous access to execute live graph traversals, pathway queries, ph
                                     yield {
                                         "event": "action_card",
                                         "data": {
-                                            "type": card_type,
+                                             "type": card_type,
                                             "payload": validated_payload
                                         }
                                     }
@@ -2146,6 +2312,7 @@ You have autonomous access to execute live graph traversals, pathway queries, ph
                         text=turn_text,
                         base_stack=stack_list,
                         biometrics=biometrics_dict,
+                        messages=messages,
                     )
                     if text_card and (text_card.get("add") or text_card.get("modify") or text_card.get("remove")):
                         action_cards_emitted.add("text_extracted")
@@ -2263,6 +2430,7 @@ You have autonomous access to execute live graph traversals, pathway queries, ph
                             stack_list=stack_list,
                             biometrics=biometrics_dict,
                             protocol_goal=protocol_goal,
+                            messages=messages,
                         )
                 break
 
@@ -2271,6 +2439,7 @@ You have autonomous access to execute live graph traversals, pathway queries, ph
             text=full_text,
             base_stack=stack_list,
             biometrics=biometrics_dict,
+            messages=messages,
         )
 
         suggested_actions = []

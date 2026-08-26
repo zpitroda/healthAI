@@ -518,10 +518,35 @@ class PKPDEngine:
         )
         c_avg_ss = max(0.01, auc_0_tau / tau)
         ptf = ((c_max - c_min) / c_avg_ss) * 100.0 if is_steady_state else 0.0
+        swing_ratio = round(c_max / max(0.001, c_min), 2) if is_steady_state and c_min > 0 else 1.0
 
         cl_effective_avg = (effective_active_dose_mg * f_route * 1000.0) / max(1.0, auc_0_tau)
         k_e_eff = max(0.0001, cl_effective_avg / v_d_total_l)
         t_half_effective_h = math.log(2.0) / k_e_eff
+
+        if not is_steady_state:
+            fluct_level = "STABLE"
+            fluct_warning = None
+        elif ptf >= 140.0 or swing_ratio >= 3.0:
+            fluct_level = "VOLATILE"
+            fluct_warning = (
+                f"Severe steady-state peak-to-trough swing detected (PTF: {round(ptf, 1)}%, Cmax/Cmin: {swing_ratio}x). "
+                f"Dosing interval tau={tau}h is wide relative to elimination t1/2 ({round(t_half_effective_h, 1)}h), "
+                f"creating peak surges and deep trough crashes. Consider splitting total dosage into more frequent "
+                f"administrations (e.g. twice-weekly, every-other-day, or daily) to stabilize circulating levels."
+            )
+        elif ptf >= 80.0 or swing_ratio >= 2.0:
+            fluct_level = "HIGH"
+            fluct_warning = (
+                f"Significant steady-state peak-to-trough swing detected (PTF: {round(ptf, 1)}%, Cmax/Cmin: {swing_ratio}x). "
+                f"Consider splitting the dose into higher frequency administrations to flatten peaks and elevate troughs."
+            )
+        elif ptf >= 50.0 or swing_ratio >= 1.5:
+            fluct_level = "MODERATE"
+            fluct_warning = f"Moderate steady-state fluctuation (PTF: {round(ptf, 1)}%, Cmax/Cmin: {swing_ratio}x)."
+        else:
+            fluct_level = "STABLE"
+            fluct_warning = None
 
         rac = 1.0 / (1.0 - math.exp(-k_e_eff * tau)) if is_steady_state else 1.0
 
@@ -601,6 +626,9 @@ class PKPDEngine:
             auc_0_tau_ng_h_ml=round(auc_0_tau, 2),
             accumulation_ratio=round(rac, 2),
             fluctuation_pct=round(ptf, 1),
+            peak_to_trough_ratio=swing_ratio if is_steady_state else None,
+            fluctuation_risk_level=fluct_level,
+            fluctuation_warning=fluct_warning,
             elimination_half_life_effective_h=round(t_half_effective_h, 2),
             total_clearance_l_h=round(cl_effective_avg, 2),
             tissue_partition_coefficients=kp_pbpk,

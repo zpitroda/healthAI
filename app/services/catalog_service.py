@@ -2292,6 +2292,14 @@ class CatalogService:
                         except (ValueError, ZeroDivisionError):
                             pass
 
+            db_path = self.database_path
+            variants_map = _CATALOG_VARIANTS.get(db_path)
+            if variants_map is None:
+                self._warm_cache()
+                variants_map = _CATALOG_VARIANTS.get(db_path, {})
+            if comp.get("key") and comp.get("key") in variants_map:
+                comp["variants"] = copy.deepcopy(variants_map[comp["key"]])
+
             for alias in [comp.get("key"), comp.get("name"), comp.get("canonical_name"), comp.get("canonical_key"), comp.get("inchikey"), key] + list(comp.get("synonyms") or []):
                 if alias:
                     _CATALOG_MEMORY_CACHE[(self.database_path, _normalize_compound_name(alias))] = comp
@@ -2412,6 +2420,30 @@ class CatalogService:
 
         return results
 
+    def get_variants(self, compound_key: str) -> List[Dict[str, Any]]:
+        """Returns available formulation and depot ester variants for a compound."""
+        if not compound_key:
+            return []
+        db_path = self.database_path
+        variants_map = _CATALOG_VARIANTS.get(db_path)
+        if variants_map is None:
+            self._warm_cache()
+            variants_map = _CATALOG_VARIANTS.get(db_path, {})
+        norm_k = _normalize_compound_name(compound_key)
+        if compound_key in variants_map:
+            return copy.deepcopy(variants_map[compound_key])
+        if norm_k in variants_map:
+            return copy.deepcopy(variants_map[norm_k])
+        comp = self.get_compound(compound_key, auto_enrich=False)
+        if comp:
+            k = comp.get("key")
+            if k and k in variants_map:
+                return copy.deepcopy(variants_map[k])
+            parent_id = comp.get("parent_compound_id")
+            if parent_id and parent_id in variants_map:
+                return copy.deepcopy(variants_map[parent_id])
+        return []
+
     def _enrich_ester_variant_metadata(self, compounds: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
         if not compounds:
             return compounds
@@ -2428,6 +2460,11 @@ class CatalogService:
 
     def search_compounds(self, query: str, limit: int = 20, auto_enrich: bool = False) -> List[Dict[str, Any]]:
         query_str = str(query or "").strip().lower()
+        try:
+            limit_int = int(limit) if limit is not None else 20
+        except (ValueError, TypeError):
+            limit_int = 20
+        limit = limit_int
         all_compounds = _CATALOG_ALL_COMPOUNDS.get(self.database_path)
         if all_compounds is None:
             all_compounds = self._warm_cache()

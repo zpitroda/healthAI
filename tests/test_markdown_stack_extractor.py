@@ -171,3 +171,131 @@ Pitavastatin 1 mg PM: HMGCR inhibition timed to nocturnal hepatic cholesterol sy
     assert "l_carnitine" not in add_keys
     assert "citrus_bergamot" not in add_keys
     assert "anastrozole" not in add_keys
+
+
+def test_extract_cumulative_proposals_from_history():
+    """
+    Test extracting unapplied previous protocol recommendations from assistant history.
+    """
+    messages = [
+        {"role": "user", "content": "Build Cognitive Focus protocol from scratch"},
+        {
+            "role": "assistant",
+            "content": """### Focus Protocol
+- **Alpha-GPC** (300mg oral): Choline precursor
+- **L-Theanine** (200mg oral): Calm focus
+- **Caffeine** (100mg oral): Adenosine antagonist
+
+<action_card type="stack_diff">
+{"add": [{"key": "alpha_gpc", "name": "Alpha-GPC", "dose": 300, "unit": "mg", "timing": "morning", "route": "oral"}, {"key": "l_theanine", "name": "L-Theanine", "dose": 200, "unit": "mg", "timing": "morning", "route": "oral"}, {"key": "caffeine", "name": "Caffeine", "dose": 100, "unit": "mg", "timing": "morning", "route": "oral"}], "modify": [], "remove": []}
+</action_card>
+"""
+        },
+        {"role": "user", "content": "Also add zinc 30mg"}
+    ]
+
+    unapplied = MarkdownProtocolParser.extract_cumulative_proposals_from_history(messages=messages, base_stack=[])
+    assert len(unapplied) == 3
+    keys = {p["key"] for p in unapplied}
+    assert keys == {"alpha_gpc", "l_theanine", "caffeine"}
+
+    # If caffeine was already in base_stack (applied), it should not be returned as unapplied
+    unapplied_partial = MarkdownProtocolParser.extract_cumulative_proposals_from_history(messages=messages, base_stack=["caffeine"])
+    assert len(unapplied_partial) == 2
+    assert {p["key"] for p in unapplied_partial} == {"alpha_gpc", "l_theanine"}
+
+
+def test_multi_turn_cumulative_proposed_modifications_without_applying():
+    """
+    Verify that when user requests adding another compound without applying previous changes,
+    the next proposed modifications card includes both previous recommendations and the new compound.
+    """
+    messages = [
+        {"role": "user", "content": "Build a focus stack"},
+        {
+            "role": "assistant",
+            "content": """### Proposed Protocol
+- **Alpha-GPC** (300mg oral)
+- **L-Theanine** (200mg oral)
+- **Caffeine** (100mg oral)
+
+<action_card type="stack_diff">
+{"add": [{"key": "alpha_gpc", "name": "Alpha-GPC", "dose": 300, "unit": "mg", "timing": "morning"}, {"key": "l_theanine", "name": "L-Theanine", "dose": 200, "unit": "mg", "timing": "morning"}, {"key": "caffeine", "name": "Caffeine", "dose": 100, "unit": "mg", "timing": "morning"}], "modify": [], "remove": []}
+</action_card>
+"""
+        },
+        {"role": "user", "content": "Please also add zinc 30mg"}
+    ]
+
+    # Model generates only the incremental addition in turn 2
+    turn_2_card = {
+        "action_card": "stack_diff",
+        "add": [{"key": "zinc", "name": "Zinc", "dose": 30, "unit": "mg", "timing": "morning", "route": "oral"}],
+        "modify": [],
+        "remove": []
+    }
+    turn_2_text = "I have updated the protocol to include Zinc (30mg oral daily in the morning) for neuro-immune support."
+
+    reconciled = MarkdownProtocolParser.reconcile_card_with_text(
+        card_payload=turn_2_card,
+        text=turn_2_text,
+        base_stack=[],
+        messages=messages
+    )
+
+    assert reconciled is not None
+    add_keys = {a["key"] for a in reconciled["add"]}
+    assert "zinc" in add_keys
+    assert "alpha_gpc" in add_keys
+    assert "l_theanine" in add_keys
+    assert "caffeine" in add_keys
+    assert len(reconciled["add"]) == 4
+
+
+def test_multi_turn_cumulative_with_removal_and_titration():
+    """
+    Verify that if the user modifies or removes a previous compound while adding a new one,
+    the cumulative card reflects the removal and titration properly.
+    """
+    messages = [
+        {"role": "user", "content": "Build a focus stack"},
+        {
+            "role": "assistant",
+            "content": """### Focus Stack
+- **Alpha-GPC** (300mg oral)
+- **L-Theanine** (200mg oral)
+- **Caffeine** (100mg oral)
+<action_card type="stack_diff">
+{"add": [{"key": "alpha_gpc", "name": "Alpha-GPC", "dose": 300, "unit": "mg"}, {"key": "l_theanine", "name": "L-Theanine", "dose": 200, "unit": "mg"}, {"key": "caffeine", "name": "Caffeine", "dose": 100, "unit": "mg"}], "modify": [], "remove": []}
+</action_card>
+"""
+        },
+        {"role": "user", "content": "Remove caffeine, increase Alpha-GPC to 400mg, and add Lion's Mane 500mg"}
+    ]
+
+    turn_2_card = {
+        "action_card": "stack_diff",
+        "add": [
+            {"key": "alpha_gpc", "name": "Alpha-GPC", "dose": 400, "unit": "mg", "timing": "morning"},
+            {"key": "lions_mane", "name": "Lion's Mane", "dose": 500, "unit": "mg", "timing": "morning"}
+        ],
+        "modify": [],
+        "remove": ["caffeine"]
+    }
+    turn_2_text = "Updated: removed Caffeine, increased Alpha-GPC to 400mg, and added Lion's Mane 500mg."
+
+    reconciled = MarkdownProtocolParser.reconcile_card_with_text(
+        card_payload=turn_2_card,
+        text=turn_2_text,
+        base_stack=[],
+        messages=messages
+    )
+
+    add_map = {a["key"]: a for a in reconciled["add"]}
+    assert "caffeine" not in add_map
+    assert "lions_mane" in add_map
+    assert "l_theanine" in add_map
+    assert "alpha_gpc" in add_map
+    assert add_map["alpha_gpc"]["dose"] == 400
+    assert "caffeine" in reconciled["remove"]
+

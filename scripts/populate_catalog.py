@@ -24,8 +24,8 @@ if str(ROOT) not in sys.path:
 from app.services.catalog_service import CatalogService, DEFAULT_CATALOG_DB_PATH
 
 PUBCHEM_URL = "https://pubchem.ncbi.nlm.nih.gov/rest/pug/compound/name/{name}/property/InChIKey,CanonicalSMILES,MF,MW,ExactMass/JSON"
-CHEMBL_URL = "https://www.ebi.ac.uk/chembl/api/data/compound/search?query={name}&limit=5"
-CHEMBL_BULK_URL = "https://www.ebi.ac.uk/chembl/api/data/compound?limit={limit}&offset={offset}"
+CHEMBL_URL = "https://www.ebi.ac.uk/chembl/api/data/molecule/search.json?query={name}&limit=5"
+CHEMBL_BULK_URL = "https://www.ebi.ac.uk/chembl/api/data/molecule.json?limit={limit}&offset={offset}"
 REACTOME_URL = "https://reactome.org/ContentService/data/query/{name}"
 
 
@@ -474,8 +474,12 @@ def fetch_chembl_full_catalog(limit: int = 1000) -> List[Dict[str, Any]]:
     collected: List[Dict[str, Any]] = []
     offset = 0
     while True:
-        payload = fetch_json(CHEMBL_BULK_URL.format(limit=limit, offset=offset))
-        compounds = payload.get("compounds") or []
+        try:
+            payload = fetch_json(CHEMBL_BULK_URL.format(limit=limit, offset=offset))
+        except Exception as e:
+            print(f"Notice: ChEMBL live API unreachable ({e}). Continuing with seed catalog.", file=sys.stderr)
+            break
+        compounds = payload.get("molecules") or payload.get("compounds") or []
         if not compounds:
             break
         collected.extend(compounds)

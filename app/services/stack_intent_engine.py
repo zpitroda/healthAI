@@ -999,7 +999,8 @@ class StackIntentEngine:
         exclusions: Optional[List[str]] = None,
     ) -> List[str]:
         """
-        Extracts structured negative compound and route exclusions from user parameters and instructions.
+        Extracts structured negative compound and route exclusions from user parameters and instructions,
+        resolving exact catalog database matches without fragile regex/semantic patterns.
         """
         import re
         collected: List[str] = []
@@ -1016,14 +1017,37 @@ class StackIntentEngine:
 
         notes_str = (custom_notes or "").strip()
         if notes_str:
-            neg_patterns = [
-                r"(?:no|without|exclude|avoid|skip|omit|do not want|do not include|don't want|don't include|disallow|allergic to|intolerant to)\s+([a-zA-Z0-9_\-\s]{2,35})(?=[,\.;\n]|$)",
-                r"(?:no|without)\s+(oral|injectable|subq|im)\s+([a-zA-Z0-9_\-\s]{2,30})(?=[,\.;\n]|$)",
-            ]
-            for pat in neg_patterns:
-                for match in re.finditer(pat, notes_str, re.IGNORECASE):
-                    matched = match.group(0).strip().lower()
-                    collected.append(matched)
+            # Tokenize and scan exact n-grams against catalog database
+            from app.services.catalog_service import CatalogService
+            cat = CatalogService()
+
+            words = re.findall(r"[a-zA-Z0-9_\-\+]+", notes_str)
+            negation_words = {"no", "without", "exclude", "avoid", "omit", "disallow", "skip", "allergic"}
+
+            for i in range(len(words)):
+                prev_word = words[i - 1].lower() if i > 0 else ""
+                prev_prev_word = words[i - 2].lower() if i > 1 else ""
+
+                is_negated = prev_word in negation_words or prev_prev_word in negation_words or "no" in prev_word or "avoid" in prev_word or "exclude" in prev_word or "without" in prev_word
+
+                if is_negated:
+                    # Check 1-gram, 2-gram, 3-gram
+                    for n in (3, 2, 1):
+                        if i + n <= len(words):
+                            ngram = " ".join(words[i:i + n])
+                            comp_rec = cat.get_compound(ngram, auto_enrich=False) or cat.find_by_synonym(ngram)
+                            if comp_rec:
+                                collected.append(comp_rec.get("key") or ngram.lower())
+                                break
+
+                    # Also capture route exclusions e.g. "no oral l-carnitine"
+                    if i + 1 < len(words):
+                        route_cand = words[i].lower()
+                        if route_cand in ("oral", "injectable", "subq", "im"):
+                            next_ngram = " ".join(words[i + 1:i + 3])
+                            comp_rec = cat.get_compound(next_ngram, auto_enrich=False) or cat.find_by_synonym(next_ngram) or cat.get_compound(words[i + 1], auto_enrich=False)
+                            if comp_rec:
+                                collected.append(f"no {route_cand} {comp_rec.get('key') or words[i + 1].lower()}")
 
         return list(dict.fromkeys(collected))
 
@@ -1091,12 +1115,12 @@ class StackIntentEngine:
         custom_notes: Optional[str] = None,
         preferences: Optional[Dict[str, Any]] = None,
         catalog: Any = None,
+        requested_compounds: Optional[List[str]] = None,
     ) -> List[Dict[str, Any]]:
         """
-        Dynamically extracts user-requested compounds from custom notes or preference parameters,
-        resolving canonical keys and metadata via CatalogService without hardcoding.
+        Dynamically extracts user-requested compounds from structured parameters or preference dictionaries,
+        resolving canonical keys and metadata via CatalogService without regex pattern scraping or hardcoding.
         """
-        import re
         from app.services.dosing_service import parse_dose_string_or_spec, infer_compound_route_and_frequency
 
         if catalog is None:
@@ -1106,8 +1130,11 @@ class StackIntentEngine:
         requested_specs: List[Dict[str, Any]] = []
         seen_keys: Set[str] = set()
 
+        req_inputs: List[Any] = []
+        if requested_compounds:
+            req_inputs.extend(requested_compounds)
+
         prefs = preferences or {}
-        req_inputs = []
         for k in ("requested_compounds", "requested", "include", "compounds", "user_compounds", "add"):
             val = prefs.get(k)
             if isinstance(val, list):
@@ -1117,15 +1144,29 @@ class StackIntentEngine:
 
         notes_str = (custom_notes or "").strip()
         if notes_str:
-            req_patterns = [
-                r"(?:include|add|want|with|using|take|please add|requesting|incorporate|stuck on)\s+([a-zA-Z0-9_\-\s]{2,40})(?=[,\.;\n]|$)",
-                r"([a-zA-Z0-9_\-\+]{3,35})\s+(?:cycle|stack|protocol|included|added)",
-            ]
-            for pat in req_patterns:
-                for match in re.finditer(pat, notes_str, re.IGNORECASE):
-                    chunk = match.group(1).strip()
-                    if chunk:
-                        req_inputs.append(chunk)
+            import re
+            words = re.findall(r"[a-zA-Z0-9_\-\+]+", notes_str)
+            inclusion_words = {"include", "add", "want", "with", "using", "take", "request", "incorporate"}
+            negation_words = {"no", "without", "exclude", "avoid", "omit", "disallow", "skip", "allergic"}
+
+            for i in range(len(words)):
+                prev_word = words[i - 1].lower() if i > 0 else ""
+                prev_prev_word = words[i - 2].lower() if i > 1 else ""
+
+                is_negated = prev_word in negation_words or prev_prev_word in negation_words
+                if is_negated:
+                    continue
+
+                is_included = prev_word in inclusion_words or prev_prev_word in inclusion_words or "include" in prev_word or "add" in prev_word or "want" in prev_word
+
+                if is_included:
+                    for n in (3, 2, 1):
+                        if i + n <= len(words):
+                            ngram = " ".join(words[i:i + n])
+                            comp_rec = catalog.get_compound(ngram, auto_enrich=False) or catalog.find_by_synonym(ngram)
+                            if comp_rec:
+                                req_inputs.append(comp_rec.get("key") or ngram.lower())
+                                break
 
         for item in req_inputs:
             item_str = str(item).strip()
@@ -1212,19 +1253,20 @@ class StackIntentEngine:
         """
         Dynamically queries CatalogService for experimental compounds / research chemicals
         with limited human data matching the biological mechanisms of target_goal.
-        Zero hardcoding.
+        Zero hardcoding of compound keys or brand names.
         """
         all_compounds = catalog.list_compounds() if hasattr(catalog, "list_compounds") else []
         experimental_cands: List[Dict[str, Any]] = []
 
-        goal_keywords = {
-            "cognitive_focus": ["nootropic", "cholinergic", "ampa", "peptidergic", "dopaminergic", "neuro", "semax", "selank", "noopept", "bromantane", "tak_653"],
-            "longevity_autophagy": ["geroprotective", "mitochondrial", "autophagy", "ampk", "sirt", "mots", "epithalon", "bpc", "elamipretide", "ss31"],
-            "anabolic_physique": ["gh_secretagogue", "sarm", "androgenic", "growth hormone", "hypertrophy", "mk_677", "ipamorelin", "cjc", "bpc", "rad140", "lgd"],
-            "fat_loss_metabolic": ["ppar", "lipolysis", "thermogenic", "cardarine", "gw501516", "sr9009", "retatrutide", "aod"],
-            "sleep_stress_recovery": ["gabaergic", "anxiolytic", "dsip", "selank"],
-        }
-        keywords = goal_keywords.get(target_goal, ["nootropic", "peptide", "experimental"])
+        # Derive pharmacological domain terms dynamically from target goal taxonomy
+        goal_tax = next((t for t in PROTOCOL_GOAL_TAXONOMY if t["id"] == target_goal), None)
+        domain_terms = set()
+        if goal_tax:
+            domain_terms.update(re.findall(r"[a-z0-9]+", goal_tax.get("name", "").lower()))
+            domain_terms.update(re.findall(r"[a-z0-9]+", goal_tax.get("description", "").lower()))
+        domain_terms.discard("and")
+        domain_terms.discard("the")
+        domain_terms.discard("for")
 
         for comp in all_compounds:
             meta = comp.get("metadata", {}) or {}
@@ -1244,7 +1286,7 @@ class StackIntentEngine:
                 continue
 
             text_blob = f"{comp.get('key', '')} {comp.get('name', '')} {comp.get('drug_class', '')} {comp.get('mechanism', '')} {' '.join(comp.get('categories') or [])}".lower()
-            if any(kw in text_blob for kw in keywords):
+            if any(kw in text_blob for kw in domain_terms if len(kw) >= 4):
                 experimental_cands.append(comp)
 
         return experimental_cands
@@ -1257,6 +1299,7 @@ class StackIntentEngine:
         preferences: Optional[Dict[str, Any]] = None,
         custom_notes: Optional[str] = None,
         exclusions: Optional[List[str]] = None,
+        requested_compounds: Optional[List[str]] = None,
     ) -> Dict[str, Any]:
         """
         Dynamically discovers and calibrates a compound protocol from the pharmacological catalog
@@ -1337,6 +1380,7 @@ class StackIntentEngine:
             custom_notes=custom_notes,
             preferences=preferences,
             catalog=catalog,
+            requested_compounds=requested_compounds,
         )
 
         # Collect candidate compounds from blueprint
@@ -1613,8 +1657,8 @@ class StackIntentEngine:
                 warn_reasons.append("Limited human clinical trial data (preclinical/in vitro evidence).")
             if is_high_risk or req.get("boxed_warning"):
                 warn_reasons.append(f"High risk profile / Boxed warning: {req.get('boxed_warning') or 'Requires strict monitoring.'}")
-            if req_key in ("clenbuterol", "yohimbine"):
-                warn_reasons.append("Sympathomimetic Beta-2 agonist / Alpha blocker drive carries cardiac strain and electrolyte depletion risks.")
+            if req.get("is_stimulant") or any(w in str(req.get("target", "") + " " + req.get("drug_class", "")).lower() for w in ["sympathomimetic", "adrenergic", "beta-2"]):
+                warn_reasons.append("Sympathomimetic / Adrenergic drive carries cardiac strain and electrolyte depletion risks.")
 
             warn_detail = " ".join(warn_reasons) if warn_reasons else "Monitor individual tolerance."
             warn_msg = f"⚠️ USER-REQUESTED COMPOUND [{req_name}]: Included as specifically requested regardless of baseline risk. {warn_detail}"

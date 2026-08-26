@@ -1027,12 +1027,14 @@ class CopilotAgent:
             preferences = arguments.get("preferences", {})
             custom_notes = arguments.get("custom_notes") or arguments.get("custom_instructions") or arguments.get("constraints") or ""
             exclusions = arguments.get("exclusions") or arguments.get("exclude")
+            requested_compounds = arguments.get("requested_compounds") or arguments.get("requested") or arguments.get("include")
             return StackIntentEngine.build_scratch_stack_proposal(
                 goal_id=goal,
                 biometrics=biometrics,
                 preferences=preferences,
                 custom_notes=custom_notes,
                 exclusions=exclusions,
+                requested_compounds=requested_compounds,
             )
 
         elif tool_name in ("simulate_stack_diff", "simulate_diff", "what_if_simulation"):

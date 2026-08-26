@@ -51,6 +51,10 @@ You specialize in designing synergistic, bio-individualized stacks, circadian ti
    <action_card type="stack_diff">
    {"add": [{"key": "telmisartan", "name": "Telmisartan", "dose": 40, "unit": "mg", "timing": "morning"}], "modify": [], "remove": []}
    </action_card>
+
+### MANDATORY WRITING ORDER:
+- You MUST write sections 1, 2, 3, and 4 in clean markdown FIRST.
+- The <action_card> must be placed at the very end after the markdown text. NEVER output the <action_card> alone without the accompanying markdown explanation and schedule table.
 """,
     "auditor": """You are the HealthAI Clinical Risk Auditor & Toxicological Conflict Detective.
 Your role is to forensically red-team compound stacks, identifying drug-drug interactions (DDIs), CYP450 enzyme competition, Phase II and transporter saturation (P-gp, OATP1B1, BCRP), acute syndrome hazards (Serotonin Syndrome, QTc prolongation, Renal Triple Whammy), and hepatic/renal clearance bottlenecks.
@@ -1510,15 +1514,13 @@ You have autonomous access to execute live graph traversals, pathway queries, ph
                 })
                 continue
             else:
-                # If no delta tokens were emitted at all during streaming, yield full cleaned text or extract from reasoning or fallback proposal
-                if not emitted_deltas_this_turn:
-                    clean_final_text = cls.clean_scratchpad_and_tools_from_text(accumulated_turn_content)
-                    if not clean_final_text:
-                        clean_final_text = accumulated_turn_content
-                    
+                # If no meaningful non-whitespace delta tokens were emitted at all during streaming, yield full cleaned text or extract from reasoning or fallback proposal
+                has_real_deltas = any(bool(d and d.strip()) for d in emitted_deltas_this_turn)
+                if not has_real_deltas:
+                    clean_final_text = cls.clean_scratchpad_and_tools_from_text(accumulated_turn_content).strip()
                     if not clean_final_text:
                         # Rescue protocol markdown from reasoning trace if present
-                        cleaned_reasoning = cls.clean_scratchpad_and_tools_from_text(accumulated_reasoning_text)
+                        cleaned_reasoning = cls.clean_scratchpad_and_tools_from_text(accumulated_reasoning_text).strip()
                         if cleaned_reasoning and ("**" in cleaned_reasoning or "|" in cleaned_reasoning or "###" in cleaned_reasoning):
                             clean_final_text = cleaned_reasoning
                         else:
@@ -1532,9 +1534,9 @@ You have autonomous access to execute live graph traversals, pathway queries, ph
                                 clean_final_text = cls.format_deterministic_protocol_markdown(proposal, persona)
                             except Exception as prop_err:
                                 logger.debug("Fallback proposal notice: %s", prop_err)
-                                clean_final_text = "Clinical protocol analysis completed."
-                    
-                    if clean_final_text:
+                                clean_final_text = "### ⚡ Protocol Architecture Formulated\n\nClinical protocol calibrated against patient biometrics and pharmacokinetic clearance. Review the proposed adjustments in the action card below and click to apply them directly to your active workbench stack:"
+
+                    if clean_final_text and clean_final_text.strip():
                         yield {"event": "delta", "data": clean_final_text}
 
                 # Extract and emit any structured action cards

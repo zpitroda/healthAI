@@ -5594,7 +5594,9 @@
                   }
 
                   accumulatedContent += (typeof dataVal === 'string' ? dataVal : JSON.stringify(dataVal));
-                  if (bubble) bubble.innerHTML = renderMarkdownLite(accumulatedContent);
+                  if (bubble && accumulatedContent.trim()) {
+                    bubble.innerHTML = renderMarkdownLite(accumulatedContent);
+                  }
                   if (headerStatus) {
                     headerStatus.innerHTML = '<span class="copilot-pulse-dot" style="width: 6px; height: 6px;"></span> Formulating protocol...';
                     headerStatus.style.color = 'var(--accent-cyan)';
@@ -5617,7 +5619,7 @@
                     }
                   }
 
-                  if (!accumulatedContent && headerStatus) {
+                  if ((!accumulatedContent || !accumulatedContent.trim()) && headerStatus) {
                     headerStatus.innerHTML = '<span class="copilot-pulse-dot" style="width: 6px; height: 6px;"></span> Deep Graph & PK/PD Reasoning...';
                     headerStatus.style.color = 'var(--accent-cyan)';
                   }
@@ -5650,7 +5652,7 @@
           }
 
           // Fallback if no content was yielded
-          if (!accumulatedContent) {
+          if (!accumulatedContent || !accumulatedContent.trim()) {
             const hasActionCards = actionCardsWrap && actionCardsWrap.children.length > 0;
             if (hasActionCards) {
               accumulatedContent = "### ⚡ Protocol Architecture Formulated\n\nClinical protocol calibrated against patient biometrics and pharmacokinetic clearance. Review the proposed adjustments in the action card below and click to apply them directly to your active workbench stack:";

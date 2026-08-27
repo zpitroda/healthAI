@@ -35,6 +35,7 @@ dist/
 *.obj
 *.exp
 LICENSE-LLVM-OpenMP
+llama.cpp/
 
 # Model Weights & Quantized GGUF Artifacts
 *.gguf

@@ -2187,6 +2187,16 @@
         color: #ffffff;
         transform: translateY(-1px);
       }
+      .copilot-citation-badge.doi-badge {
+        background: rgba(14, 165, 233, 0.15);
+        border: 1px solid rgba(14, 165, 233, 0.4);
+        color: #7dd3fc;
+      }
+      .copilot-citation-badge.doi-badge:hover {
+        background: rgba(14, 165, 233, 0.3);
+        color: #ffffff;
+        transform: translateY(-1px);
+      }
 
       .btn-apply-diff {
         background: linear-gradient(135deg, var(--accent-teal), #059669);
@@ -5592,8 +5602,12 @@
         text = text.replace(/\[([A-Za-z0-9\s:§\.\-_]+?)\s*\?\]/g, '[$1]');
         text = text.replace(/(?:\?\s*)?(?:Need real\?|Could use generic\?|Need verified citations\.?|We need citations\.?|Use known\?|Need avoid false\?|But prompt requires citations\.?|Not sure\.?|Actually IMPROVE-IT.*?I think yes\.?|Need not be perfect\?|But should be plausible\.?|Could use \[.*?\] maybe\.?|for testosterone\?|ChEMBL\d+ is testosterone\?|I think CHEMBL\d+ is testosterone\.?|Anastrozole CHEMBL\?|Maybe CHEMBL\d+\?|Use FDA labels\.?)/gi, '');
 
-        // 8. Medical & Literature Citation Badging
-        text = text.replace(/\[PMID:\s*(\d+)\]/gi, '<a href="https://pubmed.ncbi.nlm.nih.gov/$1/" target="_blank" rel="noopener noreferrer" class="copilot-citation-badge pmid-badge" title="View study on PubMed (PMID: $1)">📄 PMID: $1</a>');
+        // 8. Medical & Literature Citation Badging (Supports structured author/year & DOIs)
+        text = text.replace(/\[PMID:\s*(\d+)(?:\s*[-–—:]\s*([^\]]+))?\]/gi, (match, pmid, extra) => {
+          const label = extra ? `📄 PMID: ${pmid} (${extra.trim()})` : `📄 PMID: ${pmid}`;
+          return `<a href="https://pubmed.ncbi.nlm.nih.gov/${pmid}/" target="_blank" rel="noopener noreferrer" class="copilot-citation-badge pmid-badge" title="View study on PubMed (PMID: ${pmid})">${label}</a>`;
+        });
+        text = text.replace(/\[DOI:\s*([^\s\]]+)\]/gi, '<a href="https://doi.org/$1" target="_blank" rel="noopener noreferrer" class="copilot-citation-badge doi-badge" title="View DOI Publication">🌐 DOI: $1</a>');
         text = text.replace(/\[ChEMBL:\s*([A-Za-z0-9_]+)\]/gi, '<a href="https://www.ebi.ac.uk/chembl/target_report_card/$1/" target="_blank" rel="noopener noreferrer" class="copilot-citation-badge chembl-badge" title="View target in ChEMBL database">🔬 ChEMBL: $1</a>');
         text = text.replace(/\[FDA(?:\s+Label)?:\s*([^\]]+)\]/gi, '<span class="copilot-citation-badge fda-badge" title="FDA Structured Product Labeling Standard">🏛️ FDA: $1</span>');
         text = text.replace(/\[NCT:\s*([A-Za-z0-9_]+)\]/gi, '<a href="https://clinicaltrials.gov/study/$1" target="_blank" rel="noopener noreferrer" class="copilot-citation-badge trial-badge" title="View Clinical Trial on ClinicalTrials.gov">🧪 NCT: $1</a>');

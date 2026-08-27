@@ -59,6 +59,21 @@ Write-Host "  - Speculative MTP Decoding: $SpecMsg" -ForegroundColor White
 Write-Host "  - Port: 8080" -ForegroundColor White
 Write-Host ""
 
+$LlamaExe = Join-Path $LlamaDir "llama-server.exe"
+if (-not (Test-Path $LlamaExe)) {
+    $CommandCheck = Get-Command "llama-server.exe" -ErrorAction SilentlyContinue
+    if ($CommandCheck) {
+        $LlamaExe = "llama-server.exe"
+    } else {
+        Write-Host "[*] llama-server.exe was not found." -ForegroundColor Yellow
+        Write-Host "[*] Automatically downloading CUDA-accelerated llama.cpp for Windows..." -ForegroundColor Cyan
+        python (Join-Path $ScriptDir "scripts\setup_llama_cpp.py")
+        if (Test-Path (Join-Path $LlamaDir "llama-server.exe")) {
+            $LlamaExe = Join-Path $LlamaDir "llama-server.exe"
+        }
+    }
+}
+
 if (Test-Path $LlamaDir) { Set-Location $LlamaDir }
 
 $ServerArgs = @(
@@ -76,4 +91,4 @@ $ServerArgs = @(
     "--port", "8080"
 ) + $SpecArgs
 
-& "llama-server.exe" $ServerArgs
+& $LlamaExe $ServerArgs

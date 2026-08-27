@@ -2,12 +2,30 @@
 title healthAI - llama-server (RTX 5090 Optimized)
 setlocal
 
-cd /d "%~dp0llama.cpp"
-
 echo ============================================================
 echo   healthAI - llama-server Launcher (RTX 5090 Optimized)
 echo ============================================================
 echo.
+
+:: Auto-install CUDA llama.cpp binaries if not found
+set "LLAMA_EXE="
+if exist "%~dp0llama.cpp\llama-server.exe" (
+    set "LLAMA_EXE=%~dp0llama.cpp\llama-server.exe"
+    cd /d "%~dp0llama.cpp"
+) else (
+    where llama-server.exe >nul 2>&1
+    if %errorlevel% equ 0 (
+        set "LLAMA_EXE=llama-server.exe"
+    ) else (
+        echo [*] llama-server.exe was not found.
+        echo [*] Automatically downloading CUDA-accelerated llama.cpp for Windows...
+        python "%~dp0scripts\setup_llama_cpp.py"
+        if exist "%~dp0llama.cpp\llama-server.exe" (
+            set "LLAMA_EXE=%~dp0llama.cpp\llama-server.exe"
+            cd /d "%~dp0llama.cpp"
+        )
+    )
+)
 
 :: Auto-detect Qwen 3.8 / 3.6 model path (Unsloth Dynamic UD-Q6_K_M / UD-Q6_K / standard)
 if exist "%~dp0models\Qwen3.8-27B-UD-Q6_K_M.gguf" (
@@ -69,7 +87,7 @@ echo     - Speculative MTP Decoding: %SPEC_MSG%
 echo     - Memory Lock (--load-mode mlock)
 echo.
 
-llama-server.exe -m "%MODEL_PATH%" %SPEC_FLAGS% -ngl 99 -c %LLAMA_CTX% -b 2048 -ub 1024 -fa on -ctk q8_0 -ctv q8_0 --jinja --reasoning-format deepseek --load-mode mlock --port 8080
+"%LLAMA_EXE%" -m "%MODEL_PATH%" %SPEC_FLAGS% -ngl 99 -c %LLAMA_CTX% -b 2048 -ub 1024 -fa on -ctk q8_0 -ctv q8_0 --jinja --reasoning-format deepseek --load-mode mlock --port 8080
 
 if %errorlevel% neq 0 (
     echo.

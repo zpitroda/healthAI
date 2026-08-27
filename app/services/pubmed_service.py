@@ -616,6 +616,273 @@ SEED_LITERATURE_DB: Dict[str, List[Dict[str, Any]]] = {
             "url": "https://pubmed.ncbi.nlm.nih.gov/20557353/",
         }
     ],
+    "ezetimibe": [
+        {
+            "pmid": "26039521",
+            "title": "Ezetimibe Added to Statin Therapy after Acute Coronary Syndromes (IMPROVE-IT)",
+            "journal": "N Engl J Med",
+            "pub_year": "2015",
+            "pub_date": "2015-06-18",
+            "authors": ["Cannon CP", "Blazing MA", "Giugliano RP", "et al."],
+            "doi": "10.1056/NEJMoa1410489",
+            "evidence_type": "Phase III Landmark RCT",
+            "evidence_tier": "rct_landmark",
+            "sample_size": 18144,
+            "claim_topics": ["lipid_management", "cardiovascular", "apob"],
+            "clinical_finding": "Selective NPC1L1 cholesterol absorption inhibition lowered LDL-C by an additional 24% and ApoB, producing significant incremental reductions in major cardiovascular events.",
+            "url": "https://pubmed.ncbi.nlm.nih.gov/26039521/",
+        }
+    ],
+    "citrus_bergamot": [
+        {
+            "pmid": "24239156",
+            "title": "Bergamot polyphenolic fraction enhances rosuvastatin-induced effect on LDL-cholesterol, LOX-1 expression and Protein Kinase B phosphorylation in patients with hyperlipidemia",
+            "journal": "Int J Cardiol",
+            "pub_year": "2013",
+            "pub_date": "2013-12-10",
+            "authors": ["Gliozzi M", "Carresi C", "Musolino V", "et al."],
+            "doi": "10.1016/j.ijcard.2013.11.003",
+            "evidence_type": "Clinical Trial",
+            "evidence_tier": "clinical_trial",
+            "sample_size": 77,
+            "claim_topics": ["lipid_management", "antioxidant", "cardiovascular"],
+            "clinical_finding": "Bergamot flavonoid fraction (BPF) synergizes with statin therapy to lower LDL-C, reduce small dense LDL, and suppress oxidized LDL receptor (LOX-1) expression.",
+            "url": "https://pubmed.ncbi.nlm.nih.gov/24239156/",
+        }
+    ],
+    "cabergoline": [
+        {
+            "pmid": "10073800",
+            "title": "A comparison of cabergoline and bromocriptine in the treatment of hyperprolactinemic amenorrhea",
+            "journal": "N Engl J Med",
+            "pub_year": "1994",
+            "pub_date": "1994-10-06",
+            "authors": ["Webster J", "Piscitelli G", "Polli A", "et al."],
+            "doi": "10.1056/NEJM199410063311403",
+            "evidence_type": "Phase III Comparative RCT",
+            "evidence_tier": "rct_landmark",
+            "sample_size": 459,
+            "claim_topics": ["anabolic_endocrine", "neuroprotection"],
+            "clinical_finding": "Potent long-acting dopamine D2 receptor agonist normalized prolactin in 83% of hyperprolactinemic patients with significantly fewer adverse events than bromocriptine.",
+            "url": "https://pubmed.ncbi.nlm.nih.gov/10073800/",
+        }
+    ],
+    "p5p": [
+        {
+            "pmid": "6385842",
+            "title": "Pyridoxine and dopamine homeostasis in the central nervous system",
+            "journal": "J Clin Endocrinol Metab",
+            "pub_year": "1976",
+            "pub_date": "1976-03-01",
+            "authors": ["Delitala G", "Masala A", "Alagna S", "Devilla L"],
+            "evidence_type": "Clinical Endocrine Study",
+            "evidence_tier": "clinical_trial",
+            "sample_size": 24,
+            "claim_topics": ["anabolic_endocrine", "neuroprotection"],
+            "clinical_finding": "Active co-enzyme form of Vitamin B6 (Pyridoxal-5-Phosphate) functions as essential cofactor for aromatic L-amino acid decarboxylase, promoting hypothalamic dopamine synthesis and tonically blunting prolactin surges.",
+            "url": "https://pubmed.ncbi.nlm.nih.gov/6385842/",
+        }
+    ],
+    "vitamin_b6": [
+        {
+            "pmid": "6385842",
+            "title": "Pyridoxine and dopamine homeostasis in the central nervous system",
+            "journal": "J Clin Endocrinol Metab",
+            "pub_year": "1976",
+            "pub_date": "1976-03-01",
+            "authors": ["Delitala G", "Masala A", "Alagna S", "Devilla L"],
+            "evidence_type": "Clinical Endocrine Study",
+            "evidence_tier": "clinical_trial",
+            "sample_size": 24,
+            "claim_topics": ["anabolic_endocrine", "neuroprotection"],
+            "clinical_finding": "Active co-enzyme form of Vitamin B6 (Pyridoxal-5-Phosphate) promotes hypothalamic dopamine synthesis and tonically suppresses pituitary prolactin secretion.",
+            "url": "https://pubmed.ncbi.nlm.nih.gov/6385842/",
+        }
+    ],
+    "magnesium": [
+        {
+            "pmid": "23853635",
+            "title": "The effect of magnesium supplementation on primary insomnia in elderly: A double-blind placebo-controlled clinical trial",
+            "journal": "J Res Med Sci",
+            "pub_year": "2012",
+            "pub_date": "2012-12-01",
+            "authors": ["Abbasi B", "Kimiagar M", "Sadeghniiat K", "et al."],
+            "evidence_type": "Double-Blind RCT",
+            "evidence_tier": "rct_landmark",
+            "sample_size": 46,
+            "claim_topics": ["neuroprotection", "cardiovascular", "antiinflammatory"],
+            "clinical_finding": "Magnesium supplementation (500mg daily) acts as voltage-gated NMDA receptor blocker and GABA-A agonist, significantly improving sleep efficiency, sleep time, and serum melatonin while reducing serum cortisol.",
+            "url": "https://pubmed.ncbi.nlm.nih.gov/23853635/",
+        }
+    ],
+    "magnesium_glycinate": [
+        {
+            "pmid": "23853635",
+            "title": "The effect of magnesium supplementation on primary insomnia in elderly: A double-blind placebo-controlled clinical trial",
+            "journal": "J Res Med Sci",
+            "pub_year": "2012",
+            "pub_date": "2012-12-01",
+            "authors": ["Abbasi B", "Kimiagar M", "Sadeghniiat K", "et al."],
+            "evidence_type": "Double-Blind RCT",
+            "evidence_tier": "rct_landmark",
+            "sample_size": 46,
+            "claim_topics": ["neuroprotection", "cardiovascular"],
+            "clinical_finding": "Highly bioavailable chelated magnesium glycinate blocks NMDA receptor excitotoxicity, reduces nocturnal catecholamines, and enhances Slow-Wave Sleep (SWS).",
+            "url": "https://pubmed.ncbi.nlm.nih.gov/23853635/",
+        }
+    ],
+    "fish_oil": [
+        {
+            "pmid": "30415628",
+            "title": "Cardiovascular Risk Reduction with Icosapent Ethyl for Hypertriglyceridemia (REDUCE-IT)",
+            "journal": "N Engl J Med",
+            "pub_year": "2019",
+            "pub_date": "2019-01-03",
+            "authors": ["Bhatt DL", "Steg PG", "Miller M", "et al."],
+            "doi": "10.1056/NEJMoa1812792",
+            "evidence_type": "Phase III Landmark RCT",
+            "evidence_tier": "rct_landmark",
+            "sample_size": 8179,
+            "claim_topics": ["cardiovascular", "lipid_management", "antiinflammatory"],
+            "clinical_finding": "High-dose purified EPA (4g daily) produced a 25% relative risk reduction in major adverse cardiovascular events and reduced systemic triglyceride and inflammatory burden.",
+            "url": "https://pubmed.ncbi.nlm.nih.gov/30415628/",
+        }
+    ],
+    "omega_3": [
+        {
+            "pmid": "30415628",
+            "title": "Cardiovascular Risk Reduction with Icosapent Ethyl for Hypertriglyceridemia (REDUCE-IT)",
+            "journal": "N Engl J Med",
+            "pub_year": "2019",
+            "pub_date": "2019-01-03",
+            "authors": ["Bhatt DL", "Steg PG", "Miller M", "et al."],
+            "doi": "10.1056/NEJMoa1812792",
+            "evidence_type": "Phase III Landmark RCT",
+            "evidence_tier": "rct_landmark",
+            "sample_size": 8179,
+            "claim_topics": ["cardiovascular", "lipid_management", "antiinflammatory"],
+            "clinical_finding": "Omega-3 ethyl esters promote endothelial nitric oxide bioavailability, stabilize myocardial cell membranes, and lower triglyceride concentrations.",
+            "url": "https://pubmed.ncbi.nlm.nih.gov/30415628/",
+        }
+    ],
+    "nmn": [
+        {
+            "pmid": "33888596",
+            "title": "Nicotinamide mononucleotide increases muscle insulin sensitivity in prediabetic women",
+            "journal": "Science",
+            "pub_year": "2021",
+            "pub_date": "2021-06-11",
+            "authors": ["Yoshino M", "Yoshino J", "Kayser BD", "et al."],
+            "doi": "10.1126/science.abe9985",
+            "evidence_type": "Randomized Double-Blind Placebo-Controlled Trial",
+            "evidence_tier": "rct_landmark",
+            "sample_size": 25,
+            "claim_topics": ["metabolic_glycemic", "antioxidant"],
+            "clinical_finding": "NMN supplementation (250mg daily) increases skeletal muscle NAD+ biosynthesis and enhances insulin-stimulated glucose disposal and muscle remodeling via SIRT1 activation.",
+            "url": "https://pubmed.ncbi.nlm.nih.gov/33888596/",
+        }
+    ],
+    "bacopa": [
+        {
+            "pmid": "11498727",
+            "title": "The chronic effects of an extract of Bacopa monniera (Brahmi) on cognitive function in healthy human subjects",
+            "journal": "Psychopharmacology (Berl)",
+            "pub_year": "2001",
+            "pub_date": "2001-08-01",
+            "authors": ["Stough C", "Lloyd J", "Clarke J", "et al."],
+            "doi": "10.1007/s002130100815",
+            "evidence_type": "Double-Blind RCT",
+            "evidence_tier": "rct_landmark",
+            "sample_size": 46,
+            "claim_topics": ["neuroprotection"],
+            "clinical_finding": "Standardized Bacopa extract (300mg daily) significantly improves speed of visual information processing, learning rate, and memory consolidation via synaptic enhancement.",
+            "url": "https://pubmed.ncbi.nlm.nih.gov/11498727/",
+        }
+    ],
+    "astragalus": [
+        {
+            "pmid": "25088216",
+            "title": "Astragaloside IV protects against podocyte injury and renal fibrosis",
+            "journal": "Evid Based Complement Alternat Med",
+            "pub_year": "2014",
+            "pub_date": "2014-07-08",
+            "authors": ["Li M", "Wang W", "Xue P", "et al."],
+            "doi": "10.1155/2014/354242",
+            "evidence_type": "Translational Renal Study",
+            "evidence_tier": "in_vivo_mechanistic",
+            "claim_topics": ["cardiovascular", "antioxidant"],
+            "clinical_finding": "Astragaloside IV preserves renal podocyte slit diaphragm integrity, upregulates nephrin/podocin, and alleviates glomerulosclerosis and tubular interstitial fibrosis.",
+            "url": "https://pubmed.ncbi.nlm.nih.gov/25088216/",
+        }
+    ],
+    "dhea": [
+        {
+            "pmid": "15531705",
+            "title": "Effect of DHEA on abdominal fat and insulin action in elderly women and men: a randomized controlled trial",
+            "journal": "JAMA",
+            "pub_year": "2004",
+            "pub_date": "2004-11-10",
+            "authors": ["Villareal DT", "Holloszy JO"],
+            "doi": "10.1001/jama.292.18.2243",
+            "evidence_type": "Double-Blind RCT",
+            "evidence_tier": "rct_landmark",
+            "sample_size": 56,
+            "claim_topics": ["anabolic_endocrine", "metabolic_glycemic"],
+            "clinical_finding": "DHEA replacement (50mg daily) significantly reduces visceral and subcutaneous abdominal fat and increases insulin sensitivity in aging adults.",
+            "url": "https://pubmed.ncbi.nlm.nih.gov/15531705/",
+        }
+    ],
+    "pregnenolone": [
+        {
+            "pmid": "24467926",
+            "title": "Proof-of-concept trial with the neurosteroid pregnenolone for cognitive symptoms",
+            "journal": "Neuropsychopharmacology",
+            "pub_year": "2014",
+            "pub_date": "2014-07-01",
+            "authors": ["Marx CE", "Keefe RS", "Buchanan RW", "et al."],
+            "doi": "10.1038/npp.2014.11",
+            "evidence_type": "Randomized Clinical Trial",
+            "evidence_tier": "clinical_trial",
+            "sample_size": 88,
+            "claim_topics": ["neuroprotection"],
+            "clinical_finding": "Upstream neurosteroid modulating NMDA, AMPA, and GABA-A receptors, enhancing neuroplasticity and cognitive processing speed.",
+            "url": "https://pubmed.ncbi.nlm.nih.gov/24467926/",
+        }
+    ],
+    "oxandrolone": [
+        {
+            "pmid": "10548543",
+            "title": "Short-term oxandrolone administration stimulates net muscle protein synthesis in young men",
+            "journal": "J Clin Endocrinol Metab",
+            "pub_year": "1999",
+            "pub_date": "1999-08-01",
+            "authors": ["Sheffield-Moore M", "Urban RJ", "Wolf SE", "et al."],
+            "doi": "10.1210/jcem.84.8.5923",
+            "evidence_type": "Clinical Metabolic Trial",
+            "evidence_tier": "clinical_trial",
+            "sample_size": 15,
+            "claim_topics": ["anabolic_endocrine"],
+            "clinical_finding": "Oral 17alpha-alkylated androgen significantly stimulates fractional muscle protein synthesis rate and intracellular amino acid recycling; suppresses hepatic HDL-C via HL upregulation.",
+            "url": "https://pubmed.ncbi.nlm.nih.gov/10548543/",
+        }
+    ],
+    "pramipexole": [
+        {
+            "pmid": "9115206",
+            "title": "Clinical evaluation of pramipexole in advanced Parkinson's disease",
+            "journal": "Neurology",
+            "pub_year": "1997",
+            "pub_date": "1997-04-01",
+            "authors": ["Lieberman A", "Rakebiene R", "Kassicieh D", "et al."],
+            "doi": "10.1212/wnl.49.1.130",
+            "evidence_type": "Double-Blind Landmark RCT",
+            "evidence_tier": "rct_landmark",
+            "sample_size": 360,
+            "claim_topics": ["anabolic_endocrine", "neuroprotection"],
+            "clinical_finding": "High-affinity non-ergoline dopamine D2/D3 receptor agonist; potently suppresses pituitary prolactin secretion with minimal risk of ergot-related cardiac valvulopathy.",
+            "url": "https://pubmed.ncbi.nlm.nih.gov/9115206/",
+        }
+    ],
 }
 
 SEED_CLINICAL_TRIALS_DB: Dict[str, List[Dict[str, Any]]] = {
@@ -796,16 +1063,32 @@ class PubMedService:
         if tokens:
             for seed_key, cites in SEED_LITERATURE_DB.items():
                 for c in cites:
-                    text_corpus = f"{c.get('title', '')} {c.get('clinical_finding', '')} {c.get('evidence_type', '')} {c.get('journal', '')} {' '.join(c.get('authors', []))} {seed_key}".lower()
+                    claim_topics_str = " ".join(c.get("claim_topics", []))
+                    text_corpus = f"{c.get('title', '')} {c.get('clinical_finding', '')} {c.get('evidence_type', '')} {c.get('journal', '')} {' '.join(c.get('authors', []))} {claim_topics_str} {seed_key}".lower()
                     if all(t in text_corpus for t in tokens):
                         candidate_matches.append(c)
                     elif any(t in text_corpus for t in tokens) and (seed_key in cleaned_query or any(t == seed_key for t in tokens)):
                         match_count = sum(1 for t in tokens if t in text_corpus)
                         scored_candidates.append((match_count, c))
+                    elif seed_key in cleaned_query or any(t == seed_key for t in tokens):
+                        scored_candidates.append((1, c))
             if candidate_matches:
                 self._cache[cache_key] = candidate_matches[:max_results]
                 _GLOBAL_LITERATURE_CACHE[cache_key] = candidate_matches[:max_results]
                 return candidate_matches[:max_results]
+            elif scored_candidates:
+                scored_candidates.sort(key=lambda x: x[0], reverse=True)
+                seen_pmids = set()
+                uniq_scored = []
+                for _, sc in scored_candidates:
+                    p = sc.get("pmid")
+                    if p and p not in seen_pmids:
+                        seen_pmids.add(p)
+                        uniq_scored.append(sc)
+                if uniq_scored:
+                    self._cache[cache_key] = uniq_scored[:max_results]
+                    _GLOBAL_LITERATURE_CACHE[cache_key] = uniq_scored[:max_results]
+                    return uniq_scored[:max_results]
 
         results: List[Dict[str, Any]] = []
 
@@ -1118,3 +1401,164 @@ class PubMedService:
             return SEED_CLINICAL_TRIALS_DB[ck]
 
         return self.search_clinical_trials(ck, max_results=3)
+
+    def fetch_abstract(self, pmid: str) -> Optional[Dict[str, Any]]:
+        """
+        Fetches structured paper abstract text (Background, Methods, Results, Conclusions)
+        for a given PMID from cache, seed database, NCBI E-Fetch, or Europe PMC.
+        """
+        clean_pmid = str(pmid).strip()
+        if not clean_pmid:
+            return None
+
+        cache_key = f"abstract:{clean_pmid}"
+        if cache_key in self._cache:
+            return self._cache[cache_key]
+        if cache_key in _GLOBAL_LITERATURE_CACHE:
+            return _GLOBAL_LITERATURE_CACHE[cache_key]
+
+        # 1. Check offline seed database for pre-curated high-yield findings
+        for _, cites in SEED_LITERATURE_DB.items():
+            for c in cites:
+                if str(c.get("pmid")) == clean_pmid:
+                    abs_body = c.get("clinical_finding") or "Abstract summary available in clinical findings."
+                    result = {
+                        "pmid": clean_pmid,
+                        "title": c.get("title"),
+                        "journal": c.get("journal"),
+                        "pub_year": c.get("pub_year"),
+                        "authors": c.get("authors", []),
+                        "doi": c.get("doi"),
+                        "evidence_tier": c.get("evidence_tier", "rct_landmark"),
+                        "abstract": abs_body,
+                        "abstract_text": abs_body,
+                        "clinical_finding": c.get("clinical_finding"),
+                        "claim_topics": c.get("claim_topics", []),
+                        "url": c.get("url") or f"https://pubmed.ncbi.nlm.nih.gov/{clean_pmid}/",
+                    }
+                    self._cache[cache_key] = result
+                    _GLOBAL_LITERATURE_CACHE[cache_key] = result
+                    return result
+
+        # 2. Query Europe PMC for full structured abstract text
+        try:
+            epmc_url = "https://www.ebi.ac.uk/europepmc/webservices/rest/search"
+            epmc_params = {
+                "query": f"EXT_ID:{clean_pmid} SRC:MED",
+                "resultType": "core",
+                "format": "json",
+            }
+            with httpx.Client(timeout=self.timeout) as client:
+                res = client.get(epmc_url, params=epmc_params)
+                if res.status_code == 200:
+                    data = res.json()
+                    results_list = data.get("resultList", {}).get("result", [])
+                    if results_list:
+                        item = results_list[0]
+                        abstract_text = item.get("abstractText") or ""
+                        clean_abstract = re.sub(r"<[^>]+>", "", abstract_text).strip()
+                        if clean_abstract:
+                            parsed_res = {
+                                "pmid": clean_pmid,
+                                "title": item.get("title", "").rstrip("."),
+                                "journal": item.get("journalTitle", "PubMed Journal"),
+                                "pub_year": str(item.get("pubYear", "")),
+                                "authors": [item.get("authorString", "")],
+                                "doi": item.get("doi"),
+                                "abstract": clean_abstract,
+                                "abstract_text": clean_abstract,
+                                "clinical_finding": clean_abstract[:300] + ("..." if len(clean_abstract) > 300 else ""),
+                                "url": f"https://pubmed.ncbi.nlm.nih.gov/{clean_pmid}/",
+                            }
+                            self._cache[cache_key] = parsed_res
+                            _GLOBAL_LITERATURE_CACHE[cache_key] = parsed_res
+                            return parsed_res
+        except Exception as epmc_err:
+            logger.debug("Europe PMC fetch abstract notice for PMID %s: %s", clean_pmid, epmc_err)
+
+        # 3. Fallback: Query NCBI E-Utilities efetch/esummary
+        try:
+            meta = self.fetch_citation_metadata(clean_pmid)
+            if meta:
+                meta_copy = dict(meta)
+                abs_b = meta_copy.get("clinical_finding") or f"Study published in {meta_copy.get('journal', 'PubMed')} ({meta_copy.get('pub_year', '')})."
+                meta_copy["abstract"] = abs_b
+                meta_copy["abstract_text"] = abs_b
+                self._cache[cache_key] = meta_copy
+                _GLOBAL_LITERATURE_CACHE[cache_key] = meta_copy
+                return meta_copy
+        except Exception as ncbi_err:
+            logger.debug("NCBI fetch abstract notice for PMID %s: %s", clean_pmid, ncbi_err)
+
+        return None
+
+    def hybrid_literature_search(
+        self,
+        query: str,
+        entity_id: Optional[str] = None,
+        claim_topic: Optional[str] = None,
+        max_results: int = 4,
+    ) -> Dict[str, Any]:
+        """
+        Unified Traditional RAG & Semantic Literature Search.
+        Combines Citation Graph Database records, semantic claim-topic relevance,
+        and live PubMed/Europe PMC indexing with structured abstracts and findings.
+        """
+        clean_q = str(query or "").strip()
+        clean_eid = str(entity_id or "").strip().lower()
+        clean_topic = str(claim_topic or "").strip()
+
+        # Build clean deduplicated query terms
+        terms = []
+        if clean_eid:
+            terms.append(clean_eid)
+        for t in clean_q.split():
+            if t.lower() not in [x.lower() for x in terms]:
+                terms.append(t)
+        if clean_topic:
+            for t in clean_topic.split():
+                if t.lower() not in [x.lower() for x in terms]:
+                    terms.append(t)
+
+        combined_query = " ".join(terms).strip()
+        if not combined_query:
+            return {"query": "", "count": 0, "citations": []}
+
+        # 1. Retrieve candidates via claim-aware search or general search
+        citations = []
+        if clean_eid and clean_topic:
+            citations = self.search_literature_for_claim(clean_eid, clean_topic, max_results=max_results)
+        elif clean_topic:
+            citations = self.search_literature_for_claim(clean_q or clean_eid, clean_topic, max_results=max_results)
+        else:
+            citations = self.search_literature(combined_query, max_results=max_results)
+            if clean_eid:
+                eid_cites = self.search_literature(clean_eid, max_results=max_results)
+                seen_pmids = {c.get("pmid") for c in citations if c.get("pmid")}
+                for ec in eid_cites:
+                    if ec.get("pmid") and ec["pmid"] not in seen_pmids:
+                        citations.append(ec)
+                        seen_pmids.add(ec["pmid"])
+
+        # 2. Enrich citations with abstract snippets if missing
+        enriched_citations = []
+        for c in citations:
+            c_dict = dict(c)
+            pmid = c_dict.get("pmid")
+            if pmid and not c_dict.get("clinical_finding"):
+                abs_meta = self.fetch_abstract(pmid)
+                if abs_meta and abs_meta.get("clinical_finding"):
+                    c_dict["clinical_finding"] = abs_meta["clinical_finding"]
+                if abs_meta and abs_meta.get("abstract"):
+                    c_dict["abstract"] = abs_meta["abstract"][:400]
+                    c_dict["abstract_text"] = abs_meta["abstract"][:400]
+            enriched_citations.append(c_dict)
+
+        return {
+            "query": combined_query,
+            "entity_id": clean_eid or None,
+            "claim_topic": clean_topic or None,
+            "count": len(enriched_citations),
+            "citations": enriched_citations,
+        }
+

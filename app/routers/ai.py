@@ -271,3 +271,50 @@ def api_search_literature(request: LiteratureSearchRequest) -> Dict[str, Any]:
     except Exception as e:
         logger.error(f"Error searching biomedical literature: {e}")
         raise HTTPException(status_code=500, detail=str(e))
+
+
+class LiteratureAbstractRequest(BaseModel):
+    pmid: str = Field(..., description="PMID of the publication to fetch abstract for")
+
+
+class HybridLiteratureSearchRequest(BaseModel):
+    query: str = Field(..., description="Search query or therapeutic endpoint")
+    entity_ids: Optional[List[str]] = Field(default_factory=list, description="Target compound keys or entity IDs")
+    max_results: Optional[int] = Field(5, description="Max results")
+
+
+@router.post("/api/ai/literature/abstract")
+def api_fetch_abstract(request: LiteratureAbstractRequest) -> Dict[str, Any]:
+    """
+    Fetches the full structured abstract and publication metadata for a given PMID.
+    """
+    try:
+        from app.services.pubmed_service import PubMedService
+        pubmed_svc = PubMedService()
+        abstract_data = pubmed_svc.fetch_abstract(request.pmid)
+        if not abstract_data:
+            raise HTTPException(status_code=404, detail=f"Abstract for PMID '{request.pmid}' not found.")
+        return abstract_data
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error fetching paper abstract: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.post("/api/ai/literature/hybrid-search")
+def api_hybrid_literature_search(request: HybridLiteratureSearchRequest) -> Dict[str, Any]:
+    """
+    Unified Hybrid GraphRAG and literature search returning multi-hop causal chains and empirical citations.
+    """
+    try:
+        from app.knowledge_graph.graph_db import get_graph_database
+        graph_db = get_graph_database()
+        return graph_db.search_hybrid_graph_and_literature(
+            query=request.query,
+            entity_ids=request.entity_ids,
+            max_results=request.max_results or 5,
+        )
+    except Exception as e:
+        logger.error(f"Error executing hybrid literature search: {e}")
+        raise HTTPException(status_code=500, detail=str(e))

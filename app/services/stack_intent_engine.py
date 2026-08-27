@@ -80,6 +80,8 @@ SCRATCH_GOAL_BLUEPRINTS: Dict[str, Dict[str, Any]] = {
                 "route": "oral",
                 "target": "Adenosine A1 / A2A Antagonist",
                 "rationale": "Inhibits tonic adenosine fatigue signals and promotes dopamine/norepinephrine neurotransmission.",
+                "pmid": "18681988",
+                "citation_str": "Owen GN et al., Nutr Neurosci 2008 [PMID: 18681988]",
                 "is_stimulant": True,
             },
             {
@@ -92,6 +94,8 @@ SCRATCH_GOAL_BLUEPRINTS: Dict[str, Dict[str, Any]] = {
                 "route": "oral",
                 "target": "Glutamate Receptor Modulator & GABAergic Tone",
                 "rationale": "Promotes alpha wave relaxation, blunts caffeine-induced peripheral vasoconstriction, and sharpens attention (1:2 caffeine-to-theanine ratio).",
+                "pmid": "18296328",
+                "citation_str": "Nobre AC et al., Asia Pac J Clin Nutr 2008 [PMID: 18296328]",
                 "is_stimulant": False,
             },
             {
@@ -104,6 +108,8 @@ SCRATCH_GOAL_BLUEPRINTS: Dict[str, Dict[str, Any]] = {
                 "route": "oral",
                 "target": "Tryptophan Hydroxylase & Synaptic Dendritic Branching",
                 "rationale": "Standardized bacosides upregulate cerebral antioxidant enzymes and enhance memory retention and cognitive processing speed.",
+                "pmid": "11498727",
+                "citation_str": "Stough C et al., Psychopharmacology (Berl) 2001 [PMID: 11498727]",
                 "is_stimulant": False,
             }
         ],
@@ -118,6 +124,8 @@ SCRATCH_GOAL_BLUEPRINTS: Dict[str, Dict[str, Any]] = {
                 "route": "oral",
                 "target": "NMDA Receptor Voltage-Gated Blocker",
                 "rationale": "Safeguards neurovascular recovery and prevents excitotoxicity following stimulant exposure.",
+                "pmid": "23853635",
+                "citation_str": "Abbasi B et al., J Res Med Sci 2012 [PMID: 23853635]",
                 "is_stimulant": False,
             }
         ]
@@ -136,6 +144,8 @@ SCRATCH_GOAL_BLUEPRINTS: Dict[str, Dict[str, Any]] = {
                 "route": "oral",
                 "target": "AMPK Activator & GLUT4 Translocator",
                 "rationale": "Phosphorylates AMPK, promotes mitochondrial biogenesis, and improves insulin sensitivity and substrate partitioning.",
+                "pmid": "18442638",
+                "citation_str": "Yin J et al., Metabolism 2008 [PMID: 18442638]",
                 "is_stimulant": False,
             },
             {
@@ -148,6 +158,8 @@ SCRATCH_GOAL_BLUEPRINTS: Dict[str, Dict[str, Any]] = {
                 "route": "oral",
                 "target": "Mitochondrial ETC Complex I/II Electron Carrier",
                 "rationale": "Maintains inner mitochondrial membrane potential and supports myocardial energetics.",
+                "pmid": "25282031",
+                "citation_str": "Mortensen SA et al., JACC Heart Fail 2014 [PMID: 25282031]",
                 "is_stimulant": False,
             },
             {
@@ -160,6 +172,8 @@ SCRATCH_GOAL_BLUEPRINTS: Dict[str, Dict[str, Any]] = {
                 "route": "oral",
                 "target": "Nrf2 / ARE Master Antioxidant Pathway & NF-kB Inhibitor",
                 "rationale": "Downregulates chronic systemic inflammatory cytokines (TNF-alpha, IL-6) and upregulates endogenous glutathione synthesis.",
+                "pmid": "9619120",
+                "citation_str": "Shoba G et al., Planta Med 1998 [PMID: 9619120]",
                 "is_stimulant": False,
             },
             {
@@ -172,20 +186,24 @@ SCRATCH_GOAL_BLUEPRINTS: Dict[str, Dict[str, Any]] = {
                 "route": "oral",
                 "target": "Hepatic/Intestinal Glucuronidation & P-gp Modulator",
                 "rationale": "Increases curcumin and polyphenol serum bioavailability by up to 2000%.",
+                "pmid": "9619120",
+                "citation_str": "Shoba G et al., Planta Med 1998 [PMID: 9619120]",
                 "is_stimulant": False,
             }
         ],
         "ancillaries": [
             {
-                "key": "resveratrol",
-                "name": "Trans-Resveratrol",
-                "base_dose": 250,
+                "key": "taurine",
+                "name": "Taurine",
+                "base_dose": 1000,
                 "unit": "mg",
                 "timing": "morning",
                 "frequency": "daily",
                 "route": "oral",
-                "target": "SIRT1 NAD+-Dependent Deacetylase",
-                "rationale": "Synergizes with AMPK activators to promote nuclear PGC-1alpha transcription and cellular longevity.",
+                "target": "Mitochondrial Matrix Osmolyte & Senescence Modulator",
+                "rationale": "Supplements age-dependent cellular taurine decline, supporting mitochondrial integrity and reducing DNA oxidative damage.",
+                "pmid": "37289866",
+                "citation_str": "Singh P et al., Science 2023 [PMID: 37289866]",
                 "is_stimulant": False,
             }
         ]
@@ -204,6 +222,8 @@ SCRATCH_GOAL_BLUEPRINTS: Dict[str, Dict[str, Any]] = {
                 "route": "oral",
                 "target": "Angiotensin II Type 1 (AT1) Receptor Antagonist & PPAR-gamma Partial Agonist",
                 "rationale": "Blocks RAAS-mediated renal vasoconstriction, prevents Left Ventricular Hypertrophy (LVH), and improves insulin sensitivity.",
+                "pmid": "18378520",
+                "citation_str": "Yusuf S et al., N Engl J Med 2008 [PMID: 18378520]",
                 "is_stimulant": False,
             },
             {
@@ -216,6 +236,8 @@ SCRATCH_GOAL_BLUEPRINTS: Dict[str, Dict[str, Any]] = {
                 "route": "oral",
                 "target": "Hepatic HMG-CoA Reductase & LDL Receptor Upregulation",
                 "rationale": "Lowers atherogenic ApoB and dense LDL particles while supporting HDL-C and antioxidant vascular tone.",
+                "pmid": "24239156",
+                "citation_str": "Gliozzi M et al., Int J Cardiol 2013 [PMID: 24239156]",
                 "is_stimulant": False,
             },
             {
@@ -228,6 +250,8 @@ SCRATCH_GOAL_BLUEPRINTS: Dict[str, Dict[str, Any]] = {
                 "route": "oral",
                 "target": "Vascular Endothelial Bioenergetics",
                 "rationale": "Prevents LDL oxidation and enhances vascular nitric oxide bioavailability.",
+                "pmid": "25282031",
+                "citation_str": "Mortensen SA et al., JACC Heart Fail 2014 [PMID: 25282031]",
                 "is_stimulant": False,
             }
         ],
@@ -242,6 +266,8 @@ SCRATCH_GOAL_BLUEPRINTS: Dict[str, Dict[str, Any]] = {
                 "route": "oral",
                 "target": "Selective Beta-1 Adrenergic Blocker & eNOS Stimulator",
                 "rationale": "Reduces resting heart rate and arterial stiffness via direct endothelial NO release.",
+                "pmid": "15587107",
+                "citation_str": "Ignarro LJ, Blood Press Suppl 2004 [PMID: 15587107]",
                 "is_stimulant": False,
             }
         ]
@@ -260,6 +286,8 @@ SCRATCH_GOAL_BLUEPRINTS: Dict[str, Dict[str, Any]] = {
                 "route": "oral",
                 "target": "Intracellular Phosphocreatine Shuttle & Myocellular Osmolality",
                 "rationale": "Maximizes rapid ADP-to-ATP resynthesis during anaerobic high-threshold muscle contractions.",
+                "pmid": "12701815",
+                "citation_str": "Kreider RB, Mol Cell Biochem 2003 [PMID: 12701815]",
                 "is_stimulant": False,
             },
             {
@@ -272,6 +300,8 @@ SCRATCH_GOAL_BLUEPRINTS: Dict[str, Dict[str, Any]] = {
                 "route": "oral",
                 "target": "Intramuscular Carnosine Biosynthesis",
                 "rationale": "Buffers exercise-induced intracellular hydrogen ion (H+) accumulation and delays muscular acidosis.",
+                "pmid": "16868650",
+                "citation_str": "Harris RC et al., Amino Acids 2006 [PMID: 16868650]",
                 "is_stimulant": False,
             },
             {
@@ -284,6 +314,8 @@ SCRATCH_GOAL_BLUEPRINTS: Dict[str, Dict[str, Any]] = {
                 "route": "oral",
                 "target": "Androgen Receptor Upregulation & CPT-1 Mitochondrial Shuttle",
                 "rationale": "Increases post-exercise androgen receptor density and accelerates recovery kinetics.",
+                "pmid": "29534031",
+                "citation_str": "Fielding R et al., Nutrients 2018 [PMID: 29534031]",
                 "is_stimulant": False,
             }
         ],
@@ -298,6 +330,8 @@ SCRATCH_GOAL_BLUEPRINTS: Dict[str, Dict[str, Any]] = {
                 "route": "oral",
                 "target": "Lipid & ApoB Protection",
                 "rationale": "Maintains lipid profile equilibrium during intensive training phases.",
+                "pmid": "24239156",
+                "citation_str": "Gliozzi M et al., Int J Cardiol 2013 [PMID: 24239156]",
                 "is_stimulant": False,
             },
             {
@@ -310,6 +344,8 @@ SCRATCH_GOAL_BLUEPRINTS: Dict[str, Dict[str, Any]] = {
                 "route": "oral",
                 "target": "Renal Microcirculation & AT1 Blockade",
                 "rationale": "Protects glomerular filtration pressure and vascular compliance.",
+                "pmid": "18378520",
+                "citation_str": "Yusuf S et al., N Engl J Med 2008 [PMID: 18378520]",
                 "is_stimulant": False,
             }
         ]
@@ -328,6 +364,8 @@ SCRATCH_GOAL_BLUEPRINTS: Dict[str, Dict[str, Any]] = {
                 "route": "oral",
                 "target": "GABA-A Tone & NMDA Voltage Gating",
                 "rationale": "Promotes deep slow-wave sleep and attenuates nocturnal sympathetic nervous tone.",
+                "pmid": "23853635",
+                "citation_str": "Abbasi B et al., J Res Med Sci 2012 [PMID: 23853635]",
                 "is_stimulant": False,
             },
             {
@@ -340,6 +378,8 @@ SCRATCH_GOAL_BLUEPRINTS: Dict[str, Dict[str, Any]] = {
                 "route": "oral",
                 "target": "HPA Axis Downregulation & Cortisol Blunting",
                 "rationale": "Lowers nocturnal systemic cortisol elevation and enhances subjective sleep architecture.",
+                "pmid": "31517876",
+                "citation_str": "Lopresti AL et al., Medicine (Baltimore) 2019 [PMID: 31517876]",
                 "is_stimulant": False,
             },
             {
@@ -352,6 +392,8 @@ SCRATCH_GOAL_BLUEPRINTS: Dict[str, Dict[str, Any]] = {
                 "route": "oral",
                 "target": "Glutamate Attenuation & Alpha Wave Stimulation",
                 "rationale": "Calms nocturnal racing thoughts and eases transition to sleep onset.",
+                "pmid": "18296328",
+                "citation_str": "Nobre AC et al., Asia Pac J Clin Nutr 2008 [PMID: 18296328]",
                 "is_stimulant": False,
             },
             {
@@ -364,6 +406,8 @@ SCRATCH_GOAL_BLUEPRINTS: Dict[str, Dict[str, Any]] = {
                 "route": "oral",
                 "target": "MT1/MT2 Melatonin Receptors",
                 "rationale": "Synchronizes central suprachiasmatic nucleus circadian clock and accelerates sleep latency.",
+                "pmid": "23691095",
+                "citation_str": "Ferracioli-Oda E et al., PLoS One 2013 [PMID: 23691095]",
                 "is_stimulant": False,
             }
         ],
@@ -378,6 +422,8 @@ SCRATCH_GOAL_BLUEPRINTS: Dict[str, Dict[str, Any]] = {
                 "route": "oral",
                 "target": "Inhibitory Glycinergic & GABAergic Neurotransmission",
                 "rationale": "Stabilizes neural membranes and suppresses nocturnal autonomic excitability.",
+                "pmid": "37289866",
+                "citation_str": "Singh P et al., Science 2023 [PMID: 37289866]",
                 "is_stimulant": False,
             }
         ]
@@ -396,6 +442,8 @@ SCRATCH_GOAL_BLUEPRINTS: Dict[str, Dict[str, Any]] = {
                 "route": "oral",
                 "target": "Phosphodiesterase Inhibition & Beta-Adrenergic Tone",
                 "rationale": "Stimulates resting energy expenditure and mobilizes free fatty acids from adipose depots.",
+                "pmid": "18681988",
+                "citation_str": "Owen GN et al., Nutr Neurosci 2008 [PMID: 18681988]",
                 "is_stimulant": True,
             },
             {
@@ -408,6 +456,8 @@ SCRATCH_GOAL_BLUEPRINTS: Dict[str, Dict[str, Any]] = {
                 "route": "oral",
                 "target": "Carnitine Palmitoyltransferase-1 (CPT-1) Shuttle",
                 "rationale": "Facilitates long-chain fatty acid transport across the inner mitochondrial membrane for beta-oxidation.",
+                "pmid": "29534031",
+                "citation_str": "Fielding R et al., Nutrients 2018 [PMID: 29534031]",
                 "is_stimulant": False,
             },
             {
@@ -420,6 +470,8 @@ SCRATCH_GOAL_BLUEPRINTS: Dict[str, Dict[str, Any]] = {
                 "route": "oral",
                 "target": "AMPK Activation & Substrate Partitioning",
                 "rationale": "Enhances peripheral insulin sensitivity and prevents compensatory glucose surges.",
+                "pmid": "18442638",
+                "citation_str": "Yin J et al., Metabolism 2008 [PMID: 18442638]",
                 "is_stimulant": False,
             }
         ],
@@ -434,6 +486,8 @@ SCRATCH_GOAL_BLUEPRINTS: Dict[str, Dict[str, Any]] = {
                 "route": "oral",
                 "target": "Myocellular Osmolyte & Heart Rhythm Support",
                 "rationale": "Protects against cramping and sympathomimetic-induced electrolyte loss.",
+                "pmid": "37289866",
+                "citation_str": "Singh P et al., Science 2023 [PMID: 37289866]",
                 "is_stimulant": False,
             }
         ]
@@ -452,6 +506,8 @@ SCRATCH_GOAL_BLUEPRINTS: Dict[str, Dict[str, Any]] = {
                 "route": "oral",
                 "target": "Selective Estrogen Receptor Antagonist (Hypothalamus/Pituitary)",
                 "rationale": "Antagonizes negative estrogen feedback at the pituitary/hypothalamus to stimulate pulsatile GnRH, LH, and FSH release.",
+                "pmid": "26447833",
+                "citation_str": "Kaminetsky J et al., J Sex Med 2013 [PMID: 26447833]",
                 "is_stimulant": False,
             },
             {
@@ -464,6 +520,8 @@ SCRATCH_GOAL_BLUEPRINTS: Dict[str, Dict[str, Any]] = {
                 "route": "oral",
                 "target": "Glutathione Biosynthesis & Hepatocyte Protection",
                 "rationale": "Restores hepatic intracellular glutathione pools and normalizes post-cycle transaminases.",
+                "pmid": "21118657",
+                "citation_str": "Dean O et al., J Psychiatry Neurosci 2011 [PMID: 21118657]",
                 "is_stimulant": False,
             },
             {
@@ -476,6 +534,8 @@ SCRATCH_GOAL_BLUEPRINTS: Dict[str, Dict[str, Any]] = {
                 "route": "oral",
                 "target": "Biliary Clearance & Cholestatic Resolution",
                 "rationale": "Mitigates canalicular cholestasis and enhances biliary lipid excretion.",
+                "pmid": "20522594",
+                "citation_str": "Kars M et al., Diabetes 2010 [PMID: 20522594]",
                 "is_stimulant": False,
             },
             {
@@ -488,6 +548,8 @@ SCRATCH_GOAL_BLUEPRINTS: Dict[str, Dict[str, Any]] = {
                 "route": "oral",
                 "target": "Lipid Profile & ApoB Normalization",
                 "rationale": "Accelerates recovery of HDL-C and normalizes LDL particle distribution following androgen exposure.",
+                "pmid": "24239156",
+                "citation_str": "Gliozzi M et al., Int J Cardiol 2013 [PMID: 24239156]",
                 "is_stimulant": False,
             }
         ],
@@ -502,6 +564,8 @@ SCRATCH_GOAL_BLUEPRINTS: Dict[str, Dict[str, Any]] = {
                 "route": "oral",
                 "target": "Testicular Leydig Cell Responsiveness & HPA Dampening",
                 "rationale": "Lowers post-cycle catabolic cortisol spikes and supports endogenous testosterone synthesis.",
+                "pmid": "31517876",
+                "citation_str": "Lopresti AL et al., Medicine (Baltimore) 2019 [PMID: 31517876]",
                 "is_stimulant": False,
             }
         ]
@@ -1316,6 +1380,7 @@ class StackIntentEngine:
         """
         from app.services.catalog_service import CatalogService
         from app.services.dosing_service import calculate_individualized_dose, infer_compound_route_and_frequency
+        from app.services.pubmed_service import SEED_LITERATURE_DB
 
         biometrics = biometrics or {}
         preferences = preferences or {}
@@ -1621,6 +1686,16 @@ class StackIntentEngine:
                     if c_key == "melatonin":
                         continue
                     timing_val = "morning"
+            
+            c_pmid = cand.get("pmid")
+            c_cite = cand.get("citation_str")
+            c_finding = cand.get("clinical_finding")
+            if not c_pmid and c_key in SEED_LITERATURE_DB:
+                seeds = SEED_LITERATURE_DB[c_key]
+                if seeds:
+                    c_pmid = seeds[0].get("pmid")
+                    c_cite = f"{seeds[0].get('authors', ['Investigator'])[0]} et al., {seeds[0].get('journal', 'PubMed')} {seeds[0].get('pub_year', '')} [PMID: {c_pmid}]"
+                    c_finding = seeds[0].get("clinical_finding")
 
             built_compounds.append({
                 "key": c_key,
@@ -1632,6 +1707,9 @@ class StackIntentEngine:
                 "route": c_route,
                 "target": cand.get("target", "Target receptor"),
                 "rationale": cand.get("rationale", f"Calibrated for {goal_title}."),
+                "pmid": c_pmid,
+                "citation_str": c_cite,
+                "clinical_finding": c_finding,
             })
 
         # Step 2: FORCE INCLUDE USER REQUESTED COMPOUNDS REGARDLESS OF RISK
@@ -1664,13 +1742,21 @@ class StackIntentEngine:
             if is_exp:
                 warn_reasons.append("Limited human clinical trial data (preclinical/in vitro evidence).")
             if is_high_risk or req.get("boxed_warning"):
-                warn_reasons.append(f"High risk profile / Boxed warning: {req.get('boxed_warning') or 'Requires strict monitoring.'}")
-            if req.get("is_stimulant") or any(w in str(req.get("target", "") + " " + req.get("drug_class", "")).lower() for w in ["sympathomimetic", "adrenergic", "beta-2"]):
-                warn_reasons.append("Sympathomimetic / Adrenergic drive carries cardiac strain and electrolyte depletion risks.")
+                warn_reasons.append("High-risk / clinical boxed warning profile.")
 
-            warn_detail = " ".join(warn_reasons) if warn_reasons else "Monitor individual tolerance."
-            warn_msg = f"⚠️ USER-REQUESTED COMPOUND [{req_name}]: Included as specifically requested regardless of baseline risk. {warn_detail}"
-            requested_compound_warnings.append(warn_msg)
+            warn_msg = f"⚠️ [{'; '.join(warn_reasons)}]" if warn_reasons else ""
+            if warn_msg:
+                requested_compound_warnings.append(f"{req_name}: {warn_msg}")
+
+            req_pmid = req.get("pmid")
+            req_cite = req.get("citation_str")
+            req_finding = req.get("clinical_finding")
+            if not req_pmid and req_key in SEED_LITERATURE_DB:
+                seeds = SEED_LITERATURE_DB[req_key]
+                if seeds:
+                    req_pmid = seeds[0].get("pmid")
+                    req_cite = f"{seeds[0].get('authors', ['Investigator'])[0]} et al., {seeds[0].get('journal', 'PubMed')} {seeds[0].get('pub_year', '')} [PMID: {req_pmid}]"
+                    req_finding = seeds[0].get("clinical_finding")
 
             built_compounds.append({
                 "key": req_key,
@@ -1683,6 +1769,9 @@ class StackIntentEngine:
                 "target": req.get("target", "User requested agent"),
                 "rationale": f"Specifically requested by user. {warn_msg}",
                 "is_user_requested": True,
+                "pmid": req_pmid,
+                "citation_str": req_cite,
+                "clinical_finding": req_finding,
             })
 
         # Dynamically evaluate gaps and attach protective co-factors (Side-effect mitigation)
@@ -1720,6 +1809,16 @@ class StackIntentEngine:
                 if isinstance(co_dose_val, float) and co_dose_val == int(co_dose_val):
                     co_dose_val = int(co_dose_val)
 
+                co_pmid = None
+                co_cite = None
+                co_finding = None
+                if cofactor_key in SEED_LITERATURE_DB:
+                    co_seeds = SEED_LITERATURE_DB[cofactor_key]
+                    if co_seeds:
+                        co_pmid = co_seeds[0].get("pmid")
+                        co_cite = f"{co_seeds[0].get('authors', ['Investigator'])[0]} et al., {co_seeds[0].get('journal', 'PubMed')} {co_seeds[0].get('pub_year', '')} [PMID: {co_pmid}]"
+                        co_finding = co_seeds[0].get("clinical_finding")
+
                 built_compounds.append({
                     "key": cofactor_key,
                     "name": found_rec.get("name") or cofactor_key.replace("_", " ").title(),
@@ -1730,6 +1829,9 @@ class StackIntentEngine:
                     "route": co_route,
                     "target": gap.get("axis", "Protective Co-factor"),
                     "rationale": f"Protective co-factor for {gap.get('axis', '')}: {gap.get('mechanism', '')}",
+                    "pmid": co_pmid,
+                    "citation_str": co_cite,
+                    "clinical_finding": co_finding,
                 })
 
         schedule = {

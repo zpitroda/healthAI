@@ -1622,9 +1622,12 @@ class Neo4jGraphDatabase:
                 title = str(node.get("title", "")).lower()
                 findings = str(node.get("key_findings", "")).lower()
                 journal = str(node.get("journal", "")).lower()
-                corpus = f"{nid} {pmid} {title} {findings} {journal}"
+                topics = " ".join(node.get("claim_topics", []))
+                corpus = f"{nid} {pmid} {title} {findings} {journal} {topics}".lower()
                 
                 score = sum(1 for t in tokens if t in corpus)
+                if tokens and any(t in nid.lower() or t in title for t in tokens):
+                    score += 5
                 if score > 0:
                     seen_pmids.add(pmid)
                     matches.append((score, {
@@ -1765,6 +1768,53 @@ class Neo4jGraphDatabase:
             "shared_topics": list(shared_topics),
             "token_hits": token_hits,
             "divergence_warning": divergence_warning,
+        }
+
+    def search_hybrid_graph_and_literature(
+        self,
+        query: str,
+        entity_ids: Optional[List[str]] = None,
+        max_results: int = 5,
+    ) -> Dict[str, Any]:
+        """
+        Unified Hybrid RAG combining relational GraphRAG (knowledge graph triples,
+        causal chains, receptor kinetics) with text-based literature retrieval (traditional RAG).
+        """
+        clean_q = str(query or "").strip()
+        e_ids = [str(e).strip().lower() for e in (entity_ids or []) if e]
+
+        # 1. GraphRAG Relational Context
+        graph_rag_data = {}
+        if e_ids:
+            try:
+                graph_rag_data = self.get_graphrag_context(
+                    entity_ids=e_ids,
+                    max_hops=2,
+                    include_pkpd=True,
+                    include_kinetics=True,
+                    include_causal_chains=True,
+                )
+            except Exception as gr_err:
+                logger.debug("GraphRAG retrieval notice: %s", gr_err)
+
+        # 2. Traditional / Semantic Literature Retrieval
+        from app.services.pubmed_service import PubMedService
+        pubmed_svc = PubMedService()
+        lit_res = pubmed_svc.hybrid_literature_search(
+            query=clean_q,
+            entity_id=e_ids[0] if e_ids else None,
+            max_results=max_results,
+        )
+
+        return {
+            "query": clean_q,
+            "entity_ids": e_ids,
+            "causal_chains": graph_rag_data.get("causal_chains", []),
+            "target_competition": graph_rag_data.get("target_competition", []),
+            "pkpd_profiles": graph_rag_data.get("pkpd_matrix", {}),
+            "citations_found": lit_res.get("citations", []),
+            "citation_count": lit_res.get("count", 0),
+            "graph_summary": graph_rag_data.get("text_summary", ""),
         }
 
 

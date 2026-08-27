@@ -467,6 +467,18 @@ class CopilotAgent:
         grade = evidence_grade or catalog_comp.get("evidence_grade") or ("FDA Approved / Clinical Grade" if "Prescription" in (catalog_comp.get("categories") or []) else "Human Clinical Trials")
         safety = interaction_safety or catalog_comp.get("interaction_safety") or catalog_comp.get("safety_notes") or "Targeted physiological pairing."
 
+        from app.services.pubmed_service import SEED_LITERATURE_DB
+        pmid_val = None
+        cite_str = None
+        finding_val = None
+        if key in SEED_LITERATURE_DB:
+            seeds = SEED_LITERATURE_DB[key]
+            if seeds:
+                pmid_val = seeds[0].get("pmid")
+                first_author = seeds[0].get("authors", ["Investigator"])[0]
+                cite_str = f"{first_author} et al., {seeds[0].get('journal', 'PubMed')} {seeds[0].get('pub_year', '')} [PMID: {pmid_val}]"
+                finding_val = seeds[0].get("clinical_finding")
+
         return {
             "key": key,
             "name": name,
@@ -478,6 +490,9 @@ class CopilotAgent:
             "interaction_safety": safety,
             "is_target_derived": is_target_derived,
             "is_literature_derived": is_literature_derived,
+            "pmid": pmid_val,
+            "citation_str": cite_str,
+            "clinical_finding": finding_val,
         }
 
     @classmethod
@@ -1063,6 +1078,23 @@ class CopilotAgent:
                 return {"error": f"Citation with PMID '{pmid}' not found."}
             return meta
 
+        elif tool_name in ("fetch_paper_abstract", "read_paper_abstract", "get_paper_abstract", "read_study"):
+            from app.services.pubmed_service import PubMedService
+            pmid = str(arguments.get("pmid") or arguments.get("query") or "").strip()
+            pubmed_svc = PubMedService()
+            abstract_data = pubmed_svc.fetch_abstract(pmid)
+            if not abstract_data:
+                return {"error": f"Abstract for PMID '{pmid}' not found in PubMed or Europe PMC."}
+            return abstract_data
+
+        elif tool_name in ("hybrid_rag_search", "search_graphrag_and_literature", "hybrid_literature_search"):
+            query = str(arguments.get("query") or arguments.get("topic") or "").strip()
+            entity_ids = arguments.get("entity_ids") or arguments.get("compounds") or []
+            if isinstance(entity_ids, str):
+                entity_ids = [entity_ids]
+            max_res = int(arguments.get("max_results", 4))
+            return graph_db.search_hybrid_graph_and_literature(query=query, entity_ids=entity_ids, max_results=max_res)
+
         elif tool_name in ("search_clinical_trials", "search_trials"):
             from app.services.pubmed_service import PubMedService
             query = str(arguments.get("query") or arguments.get("condition") or arguments.get("intervention") or "").strip()
@@ -1505,10 +1537,12 @@ class CopilotAgent:
                 rec_sections.append("### EVIDENCE-BASED CANDIDATE ADJACENCIES & CO-FACTORS (GRAPH-DERIVED):")
                 rec_sections.append("> Use the clinically validated candidates below when proposing stack adjustments or protective additions:")
                 for r in evidence_recs:
+                    cite_tag = f" | Verified Study: [{r.get('citation_str') or ('PMID: ' + str(r['pmid']))}]" if r.get("pmid") else ""
+                    finding_tag = f" (Finding: {r['clinical_finding'][:120]}...)" if r.get("clinical_finding") else ""
                     rec_sections.append(
                         f"- **{r['name']}** [{r['standard_dose']}]: Target = {r['target']} | "
                         f"Clinical Rationale = {r['clinical_purpose']} (Compensates: {r['solves_burden']}) | "
-                        f"Evidence = {r['evidence_grade']} | Safety = {r['interaction_safety']}"
+                        f"Evidence = {r['evidence_grade']}{cite_tag}{finding_tag} | Safety = {r['interaction_safety']}"
                     )
         except Exception as rec_err:
             logger.debug("Evidence recommendations notice: %s", rec_err)
@@ -1561,7 +1595,7 @@ class CopilotAgent:
                 c_key = comp.get("key") or comp.get("name")
                 c_name = comp.get("name") or comp.get("canonical_name") or c_key
                 dose_val = float(comp.get("dose_mg") or comp.get("dose") or 100.0)
-                route = comp.get("route", "oral")
+                route = comp.get("route") or "oral"
                 try:
                     ro_data = PKPDEngine.calculate_circadian_receptor_occupancy(
                         compound=comp,
@@ -1601,7 +1635,7 @@ class CopilotAgent:
             pubmed_svc = PubMedService()
             citations_found = []
             
-            # Prioritize entities explicitly discussed in latest messages, plus active stack
+            # Prioritize entities explicitly discussed in latest messages, active stack, and candidate recommendations / blueprints
             target_keys: List[str] = []
             if messages:
                 for ext in cls.extract_entities_from_messages(messages):
@@ -1612,8 +1646,13 @@ class CopilotAgent:
                 c_k = str(comp.get("key") or comp.get("name") or "").lower().strip()
                 if c_k and c_k not in target_keys:
                     target_keys.append(c_k)
+            # Add top candidate recommendation keys
+            for r in evidence_recs[:4]:
+                rk = str(r.get("key", "")).lower().strip()
+                if rk and rk not in target_keys:
+                    target_keys.append(rk)
 
-            for t_key in target_keys[:6]:
+            for t_key in target_keys[:10]:
                 comp_meta = catalog.get_compound(t_key, auto_enrich=False) or catalog.find_by_synonym(t_key)
                 c_name = comp_meta.get("name") if comp_meta else t_key.replace("_", " ").title()
                 c_cites = pubmed_svc.search_literature(str(t_key), max_results=2)
@@ -1626,8 +1665,8 @@ class CopilotAgent:
                     )
             if citations_found:
                 literature_sections.append("### VERIFIED BIOMEDICAL LITERATURE & CLINICAL EVIDENCE:")
-                literature_sections.extend(citations_found[:6])
-                literature_sections.append("*(Mandate: Strictly cite a study ONLY when making a claim about that exact investigated topic/endpoint. If proposing an unstudied combination, synergy, or extrapolation, use transparent evidence tags such as [Pharmacological Rationale: <Mechanism>] rather than attaching an unrelated empirical study.)*")
+                literature_sections.extend(citations_found[:12])
+                literature_sections.append("*(Mandate: Ground your compound recommendations and answers in these verified studies. Strictly cite a study when discussing its target/findings using [PMID: <id> - Author et al., Year]. If proposing an unstudied combination or theoretical extrapolation, transparently label it with [Pharmacological Rationale: <Mechanism>].)*")
         except Exception as lit_err:
             logger.debug("Literature context notice: %s", lit_err)
 
@@ -1656,13 +1695,13 @@ class CopilotAgent:
                 if sum_txt:
                     parts.append(f"> {sum_txt[:250]}")
                 if overlaps:
-                    parts.append(f"- **Target Overlaps**: {', '.join(overlaps[:3])}")
-                for c in chains[:4]:
-                    parts.append(f"- **Chain**: {c}")
-                if len(parts) > 1:
-                    graph_context = "\n".join(parts)
-            except Exception as ex:
-                logger.debug("Graph context notice: %s", ex)
+                    parts.append(f"- **Target Overlaps**: {len(overlaps)} competitive receptor interactions")
+                if chains:
+                    for i, ch in enumerate(chains[:3], 1):
+                        parts.append(f"- Chain {i}: {' ➔ '.join([c['target_label'] for c in ch])}")
+                graph_context = "\n".join(parts)
+            except Exception as gr_err:
+                logger.debug("GraphRAG context notice: %s", gr_err)
 
         stack_display = []
         for c in canonical_compounds:
@@ -1806,6 +1845,10 @@ You have autonomous access to execute live graph traversals, pathway queries, ph
      * `build_stack_from_scratch`: `{"goal": "anabolic_physique", "biometrics": {...}, "preferences": {...}, "custom_notes": "no oral l-carnitine"}`
      * `simulate_stack_diff`: `{"base_stack": [...], "diff": {"add": [...], "remove": [...]}}`
      * `check_cyp450_conflicts` / `analyze_stack_conflicts`: `{"compound_keys": [...], "biometrics": {...}}`
+     * `search_biomedical_literature`: `{"query": "citrus bergamot lipid profile ApoB", "max_results": 4}`
+     * `search_literature_for_claim`: `{"entity_id": "ezetimibe", "claim_topic": "atherosclerotic_cvd"}`
+     * `fetch_paper_abstract`: `{"pmid": "26039521"}` (Reads title, author, journal, and full abstract text during thinking)
+     * `hybrid_rag_search`: `{"query": "metformin hypertrophy mTOR", "entity_ids": ["metformin"]}` (Combines causal chains with literature citations)
      * `query_pathway_cascade`: `{"target_id": "TARGET_NAME"}`
      * `trace_mechanism_pathway`: `{"source_compound": "caffeine", "target_biomarker": "bio_heart_rate"}`
      * `simulate_pkpd`: `{"compound_key": "telmisartan", "dose_mg": 40}`
@@ -1976,6 +2019,14 @@ You have autonomous access to execute live graph traversals, pathway queries, ph
             return f"Executed Cypher: Retrieved {obs.get('record_count', 0)} records from graph."
         elif tool_name in ("get_compound_details", "get_compound_info"):
             return f"Retrieved {obs.get('canonical_name', obs.get('name'))} (t1/2: {obs.get('half_life_hours')}h, Bioavailability: {obs.get('oral_bioavailability_pct')}%)."
+        elif tool_name in ("fetch_paper_abstract", "read_paper_abstract", "get_paper_abstract", "read_study"):
+            return f"Read study abstract [PMID: {obs.get('pmid')}]: \"{obs.get('title', '')[:80]}\" ({obs.get('journal', 'PubMed')} {obs.get('pub_year', '')}). Key Finding: {obs.get('clinical_finding', '')[:100]}..."
+        elif tool_name in ("hybrid_rag_search", "search_graphrag_and_literature", "hybrid_literature_search"):
+            return f"Hybrid RAG search for '{obs.get('query')}': {obs.get('citation_count', 0)} citations, {len(obs.get('causal_chains', []))} causal chains."
+        elif tool_name in ("search_pubmed_literature", "search_biomedical_literature", "search_pubmed", "search_literature_for_claim"):
+            cites = obs.get("citations", [])
+            pmids = [str(c.get("pmid")) for c in cites[:3] if c.get("pmid")]
+            return f"Literature search: Found {obs.get('count', len(cites))} papers [PMIDs: {', '.join(pmids)}]."
         return f"Tool returned {len(obs)} fields."
 
     @classmethod
@@ -2004,14 +2055,16 @@ You have autonomous access to execute live graph traversals, pathway queries, ph
                 route_disp = route_str
             freq_raw = c.get("frequency")
             freq_str = f", {freq_raw.replace('_', ' ')}" if freq_raw and freq_raw != "daily" else ""
-            md_lines.append(f"- **{c['name']}** ({c['dose']}{c.get('unit', 'mg')} {route_disp}{freq_str}): {c.get('target', '')} — {c.get('rationale', '')}")
+            cite_str = f" [{c['citation_str']}]" if c.get("citation_str") else (f" [PMID: {c['pmid']}]" if c.get("pmid") else "")
+            md_lines.append(f"- **{c['name']}** ({c['dose']}{c.get('unit', 'mg')} {route_disp}{freq_str}): {c.get('target', '')} — {c.get('rationale', '')}{cite_str}")
 
         if depots:
             md_lines.append("\n**Depot Injections (Weekly / Split Protocol)**:")
             for d in depots:
                 d_route = d.get("route", "intramuscular")
                 d_freq = str(d.get("frequency", "twice weekly")).replace("_", " ")
-                md_lines.append(f"- **{d['name']}**: {d['dose']}{d.get('unit', 'mg')} ({d_route}) {d_freq} (e.g. Mon / Thu split). Rationale: {d.get('target', 'Target receptor')}.")
+                d_cite = f" [{d['citation_str']}]" if d.get("citation_str") else (f" [PMID: {d['pmid']}]" if d.get("pmid") else "")
+                md_lines.append(f"- **{d['name']}**: {d['dose']}{d.get('unit', 'mg')} ({d_route}) {d_freq} (e.g. Mon / Thu split). Rationale: {d.get('target', 'Target receptor')}.{d_cite}")
 
         if daily_oral:
             md_lines.append("\n**Daily Circadian Administration Schedule**:")
@@ -2019,7 +2072,8 @@ You have autonomous access to execute live graph traversals, pathway queries, ph
             md_lines.append("|---|---|---|---|")
             for c in daily_oral:
                 c_route = c.get("route", "oral")
-                md_lines.append(f"| {str(c.get('timing', 'Morning')).title()} | {c['name']} | {c['dose']}{c.get('unit', 'mg')} ({c_route}) | {c.get('target', 'Target receptor')} |")
+                cite_cell = f" [{c['citation_str']}]" if c.get("citation_str") else (f" [PMID: {c['pmid']}]" if c.get("pmid") else "")
+                md_lines.append(f"| {str(c.get('timing', 'Morning')).title()} | {c['name']} | {c['dose']}{c.get('unit', 'mg')} ({c_route}) | {c.get('target', 'Target receptor')}{cite_cell} |")
 
         md_lines.append("\n**Clinical Titration & Safety Notes**:")
         md_lines.append("- Baseline & Follow-up Biomarkers: Re-assess comprehensive metabolic panel (CMP), lipid panel (ApoB/Triglycerides), and resting blood pressure at 4–8 week intervals.")

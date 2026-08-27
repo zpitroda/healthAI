@@ -2512,10 +2512,6 @@ class CatalogService:
         if not tgt_kw:
             return []
 
-        # Generic biological stopwords that should never trigger standalone loose word matches
-        generic_stopwords = {"receptor", "enzyme", "protein", "transporter", "channel", "factor", "pathway", "target", "complex", "system", "carrier"}
-        words = [w for w in tgt_kw.split() if len(w) >= 3 and w not in generic_stopwords]
-
         results: List[Dict[str, Any]] = []
         with sqlite3.connect(self.database_path) as conn:
             conn.row_factory = sqlite3.Row
@@ -2528,23 +2524,8 @@ class CatalogService:
                     t_str = str(t.get("target") or t.get("name") or "").lower()
                     t_act = str(t.get("action") or "").lower()
                     t_fam = str(t.get("family") or "").lower()
-                    t_ki = float(t.get("affinity_ki") or 0.0)
-
-                    # Ignore weak high-throughput screening hits (> 5 uM) when looking for targeted action
-                    if t_ki >= 5000.0 and (act_kw or t_fam == "chembl bioactivity assay"):
-                        continue
-
-                    combined_target_text = f"{t_str} {t_fam}"
-
-                    # Match either full substring OR all non-generic search terms
-                    text_matches = (
-                        tgt_kw in combined_target_text
-                        or (len(words) >= 2 and all(w in combined_target_text for w in words))
-                        or (len(words) == 1 and words[0] in combined_target_text)
-                    )
-
-                    if text_matches:
-                        if not act_kw or act_kw in t_act or (act_kw in ("inhibitor", "antagonist") and any(w in t_act for w in ["inhibitor", "antagonist", "blocker", "inactivator"])) or (act_kw == "agonist" and any(w in t_act for w in ["agonist", "activator", "stimulator"])):
+                    if (tgt_kw in t_str or tgt_kw in t_fam or any(w in t_str for w in tgt_kw.split() if len(w) >= 4)):
+                        if not act_kw or act_kw in t_act or (act_kw == "inhibitor" and any(w in t_act for w in ["inhibitor", "antagonist", "blocker", "inactivator"])):
                             matched = True
                             break
                 if matched and comp.get("key") not in [res["key"] for res in results]:

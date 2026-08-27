@@ -45,8 +45,6 @@ class BuildStackFromScratchRequest(BaseModel):
         default_factory=dict,
         description="User constraints e.g. risk_tolerance, stimulant_level, complexity, substance_style, route_preference, schedule_preference, organ_priority, budget_tier"
     )
-    requested_compounds: Optional[List[str]] = Field(default_factory=list, description="Explicit structured list of requested compound keys or names")
-    exclusions: Optional[List[str]] = Field(default_factory=list, description="Explicit structured list of compound keys or names to exclude")
     custom_instructions: Optional[str] = Field(None, description="Custom user notes or clinical constraints")
 
 
@@ -205,8 +203,6 @@ def build_stack_from_scratch(request: BuildStackFromScratchRequest) -> Dict[str,
             biometrics=request.biometrics or {},
             preferences=request.preferences or {},
             custom_notes=request.custom_instructions or "",
-            exclusions=request.exclusions,
-            requested_compounds=request.requested_compounds,
         )
     except Exception as e:
         logger.error(f"Error building stack from scratch: {e}")

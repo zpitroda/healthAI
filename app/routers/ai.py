@@ -29,6 +29,7 @@ class CopilotChatRequest(BaseModel):
     protocol_goal: Optional[str] = Field(None, description="User-selected or inferred protocol goal ID")
     protocol_objective: Optional[str] = Field(None, description="User's custom protocol objective or notes")
     custom_instructions: Optional[str] = Field(None, description="Custom prompt constraints or user notes")
+    max_exploration_steps: Optional[int] = Field(8, description="Maximum ReAct graph traversal & tool call exploration steps")
 
 
 class InferPurposeRequest(BaseModel):
@@ -132,6 +133,7 @@ async def stream_copilot_chat(request: CopilotChatRequest):
                 protocol_goal=request.protocol_goal,
                 protocol_objective=request.protocol_objective,
                 custom_instructions=request.custom_instructions,
+                max_exploration_steps=request.max_exploration_steps or 8,
             ):
                 event_name = event_obj.get("event", "delta")
                 data_val = event_obj.get("data")
@@ -179,6 +181,21 @@ async def copilot_chat(request: CopilotChatRequest):
         protocol_objective=request.protocol_objective,
     )
     return result
+
+
+@router.post("/api/ai/chat/reset")
+@router.post("/api/ai/reset")
+async def reset_copilot_chat() -> Dict[str, Any]:
+    """
+    Completely resets Copilot conversational context and model memory,
+    erasing local LLM KV cache slots, cached prompts, and session state.
+    """
+    try:
+        return await CopilotAgent.reset_session_context()
+    except Exception as e:
+        logger.error(f"Error resetting copilot context: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
 
 
 @router.post("/api/ai/tools/execute")

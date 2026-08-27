@@ -5908,7 +5908,7 @@
 
       // Clear chat
       if (copilotClearBtn) {
-        copilotClearBtn.addEventListener('click', () => {
+        copilotClearBtn.addEventListener('click', async () => {
           if (copilotState.abortController) {
             copilotState.abortController.abort();
             copilotState.abortController = null;
@@ -5916,6 +5916,17 @@
           copilotState.isStreaming = false;
           if (copilotSendBtn) copilotSendBtn.disabled = false;
           copilotState.messages = [];
+          copilotState.protocolObjective = '';
+          copilotState.inferredAnalysis = null;
+
+          if (copilotCustomNotes) {
+            copilotCustomNotes.value = '';
+          }
+          if (copilotInput) {
+            copilotInput.value = '';
+            copilotInput.style.height = 'auto';
+          }
+
           if (copilotChatContainer) {
             copilotChatContainer.innerHTML = `
               <div class="chat-msg assistant">
@@ -5924,12 +5935,20 @@
                   <span style="color: var(--accent-teal);">• Reset</span>
                 </div>
                 <div class="chat-msg-bubble">
-                  <p>Conversation history reset. Choose an expert persona or ask any question to begin.</p>
+                  <p>Conversation history and model context completely reset. Choose an expert persona or ask any question to begin.</p>
                 </div>
               </div>
             `;
           }
-          showToast('Copilot conversation cleared', '🗑️');
+
+          // Trigger backend LLM KV cache and slot context wipe
+          try {
+            await fetch('/api/ai/chat/reset', { method: 'POST' });
+          } catch (e) {
+            console.debug('Copilot model reset notice:', e);
+          }
+
+          showToast('Copilot chat and model context reset', '🗑️');
         });
       }
 

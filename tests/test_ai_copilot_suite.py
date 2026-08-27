@@ -657,7 +657,7 @@ def test_unspecified_and_partial_biometrics_fallback():
         biometrics={},
         protocol_goal="cognitive_focus"
     )
-    assert "assuming standard normal/average adult population baseline" in context_empty
+    assert "Patient Biometrics: None specified by user" in context_empty
 
     # 2. Partially specified biometrics
     context_partial = CopilotAgent.build_system_context(
@@ -668,7 +668,7 @@ def test_unspecified_and_partial_biometrics_fallback():
     )
     assert "Weight: 82 kg" in context_partial
     assert "eGFR: 105 mL/min" in context_partial
-    assert "Unspecified metrics defaulted to normal healthy adult baseline" in context_partial
+    assert "Patient Entered Parameters" in context_partial
 
     # 3. Dynamic scratch proposal with empty biometrics
     proposal = StackIntentEngine.build_scratch_stack_proposal(
@@ -957,6 +957,102 @@ def test_copilot_system_context_grounds_ester_pharmacokinetics_disambiguation():
     assert "Trenbolone Enanthate" in context
     assert "elimination t1/2: 168" in context or "t1/2: 7-10 days" in context
     assert "do NOT arbitrarily default to a single short-acting ester" in context
+
+
+def test_copilot_chat_reset_endpoints():
+    """Verify that POST /api/ai/chat/reset and POST /api/ai/reset return 200 with status ok."""
+    with patch("app.services.copilot_agent.CopilotAgent.reset_session_context", new_callable=AsyncMock) as mock_reset:
+        mock_reset.return_value = {
+            "status": "ok",
+            "message": "Copilot chat context and model memory reset successfully.",
+            "details": {"slots_erased": [0, 1], "cleared_caches": True}
+        }
+        res1 = client.post("/api/ai/chat/reset")
+        assert res1.status_code == 200
+        data1 = res1.json()
+        assert data1["status"] == "ok"
+        assert "reset successfully" in data1["message"]
+
+        res2 = client.post("/api/ai/reset")
+        assert res2.status_code == 200
+        data2 = res2.json()
+        assert data2["status"] == "ok"
+
+
+def test_reset_model_context_erases_slots():
+    """Verify that reset_model_context queries slots and issues erase/release calls to llama-server."""
+    import asyncio
+    import httpx
+    from typing import Any
+    from app.services.ai_service import reset_model_context
+
+    class MockResponse:
+        def __init__(self, status_code: int, json_data: Any):
+            self.status_code = status_code
+            self._json = json_data
+
+        def json(self):
+            return self._json
+
+    async def mock_get(url, *args, **kwargs):
+        if url.endswith("/slots"):
+            return MockResponse(200, [{"id": 0, "state": 0}, {"id": 1, "state": 1}])
+        if url.endswith("/models"):
+            return MockResponse(200, {"data": [{"id": "Qwen3.8-27B"}]})
+        return MockResponse(200, {})
+
+    async def mock_post(url, *args, **kwargs):
+        return MockResponse(200, {"status": "ok"})
+
+    async def run_test():
+        with patch.object(httpx.AsyncClient, "get", side_effect=mock_get), \
+             patch.object(httpx.AsyncClient, "post", side_effect=mock_post):
+            result = await reset_model_context()
+            assert result["status"] == "ok"
+            assert 0 in result["slots_erased"]
+            assert 1 in result["slots_erased"]
+            assert result["cleared_caches"] is True
+
+    asyncio.run(run_test())
+
+
+def test_copilot_context_isolation_after_reset():
+    """
+    Verify that after clearing history, a new single message does not retain
+    entities or context from previous messages.
+    """
+    # 1. Multi-turn conversation mentioning caffeine and tmao
+    old_messages = [
+        {"role": "user", "content": "How do I take caffeine?"},
+        {"role": "assistant", "content": "Take caffeine in the morning with L-theanine."},
+        {"role": "user", "content": "What about oral carnitine and TMAO?"},
+        {"role": "assistant", "content": "Oral carnitine converts to TMA via gut CntA."}
+    ]
+    old_entities = CopilotAgent.extract_entities_from_messages(old_messages)
+    assert "caffeine" in old_entities
+    assert "bio_tmao" in old_entities
+
+    # 2. Reset conversation (cleared to only new turn)
+    fresh_messages = [
+        {"role": "user", "content": "What is the optimal timing for ashwagandha?"}
+    ]
+    fresh_entities = CopilotAgent.extract_entities_from_messages(fresh_messages)
+    assert "caffeine" not in fresh_entities
+    assert "bio_tmao" not in fresh_entities
+    assert "ashwagandha" in fresh_entities
+
+    # 3. Verify system context only grounds the new prompt without prior conversation's biomarker/entity grounding
+    fresh_context = CopilotAgent.build_system_context(
+        persona="architect",
+        stack=["ashwagandha:300mg"],
+        biometrics={"age": 30},
+        messages=fresh_messages
+    )
+    assert "Ashwagandha" in fresh_context or "ashwagandha" in fresh_context
+    assert "bio_tmao" not in fresh_context.lower()
+    assert "tma lyase" not in fresh_context.lower()
+
+
 
 
 

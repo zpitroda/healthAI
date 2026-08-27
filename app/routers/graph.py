@@ -461,3 +461,76 @@ def get_temporal_snapshot(
         return JSONResponse(snapshot, headers=NO_CACHE_HEADERS)
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Temporal snapshot extraction error: {str(e)}")
+
+
+@router.get("/api/graph/cooccurrences/{compound_key}")
+def get_compound_cooccurrences(compound_key: str) -> JSONResponse:
+    """
+    Retrieves all literature co-occurrences, co-mention frequencies, and PMI scores
+    for a compound from the Knowledge Graph.
+    """
+    clean_k = str(compound_key or "").strip().lower().replace(" ", "_")
+    if not clean_k:
+        raise HTTPException(status_code=400, detail="Compound key is required.")
+
+    try:
+        db = get_graph_database()
+        cooccurrences = []
+        seen = set()
+
+        for edge in db._mock_edges:
+            e_type = edge.get("edge_type") or edge.get("type")
+            if e_type == "LITERATURE_COOCCURRENCE":
+                s = str(edge.get("source", "")).lower()
+                t = str(edge.get("target", "")).lower()
+                partner = None
+                if s == clean_k:
+                    partner = t
+                elif t == clean_k:
+                    partner = s
+
+                if partner and partner != clean_k and partner not in seen:
+                    seen.add(partner)
+                    cooccurrences.append({
+                        "compound": clean_k,
+                        "partner_compound": partner,
+                        "cooccurrence_count": edge.get("count_ab") or edge.get("cooccurrence_count") or 1,
+                        "pmi_score": round(float(edge.get("pmi", 0.0)), 3),
+                        "npmi_score": round(float(edge.get("npmi_score", 0.0) or edge.get("npmi", 0.0)), 3),
+                        "confidence": round(float(edge.get("confidence", 0.5)), 3),
+                        "evidence_level": edge.get("evidence_level", "literature_cooccurrence"),
+                    })
+
+        cooccurrences.sort(key=lambda x: (x.get("npmi_score", 0), x.get("cooccurrence_count", 0)), reverse=True)
+        return JSONResponse(
+            {
+                "compound_key": clean_k,
+                "cooccurrence_count": len(cooccurrences),
+                "cooccurrences": cooccurrences,
+            },
+            headers=NO_CACHE_HEADERS,
+        )
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to retrieve literature co-occurrences: {str(e)}")
+
+
+class MineCooccurrenceRequest(BaseModel):
+    compound_a: str = Field(..., description="First compound name or key")
+    compound_b: str = Field(..., description="Second compound name or key")
+
+
+@router.post("/api/graph/mine-cooccurrences")
+def mine_cooccurrences_endpoint(request: MineCooccurrenceRequest) -> JSONResponse:
+    """
+    Computes live PubMed co-occurrence frequency, PMI, and NPMI for a pair of compounds
+    and automatically ingests the relationship edge into the Knowledge Graph.
+    """
+    try:
+        from app.services.cooccurrence_miner import CooccurrenceMiner
+        miner = CooccurrenceMiner()
+        result = miner.compute_pmi(request.compound_a, request.compound_b)
+        miner.write_cooccurrences_to_graph([result])
+        return JSONResponse(result, headers=NO_CACHE_HEADERS)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error mining literature co-occurrence: {str(e)}")
+

@@ -9,7 +9,7 @@ import re
 from typing import Any, AsyncGenerator, Dict, List, Optional, Set, Tuple
 
 from app.knowledge_graph.graph_db import get_graph_database
-from app.services.ai_service import ask_local_llm, stream_local_llm_chat
+from app.services.ai_service import ask_local_llm, reset_model_context, stream_local_llm_chat
 from app.services.catalog_service import CatalogService
 from app.services.dosing_service import (
     get_default_compound_dose,
@@ -37,11 +37,7 @@ PERSONA_SYSTEM_PROMPTS = {
 You specialize in designing synergistic, bio-individualized stacks, circadian timing schedules (Morning, Midday, Afternoon, Bedtime), half-life alignments, and protective co-factor pairings.
 
 ### CLINICAL & SCIENTIFIC MANDATE:
-- High-Efficiency Clinical Reasoning: Limit internal deliberation (<think>...</think>) strictly to a concise 3-point clinical check (< 100 words total):
-  1. Safety & DDI Check: Verify collision matrix and clearance bottlenecks.
-  2. PK/PD Alignment: Match elimination half-life (t1/2) with circadian/depot windows and prevent peak-to-trough fluctuations.
-  3. Action Synthesis: Select exact dosages and formulate the final action card.
-  Do NOT engage in meta-deliberation, essay drafting, word-counting, or hypothetical debates. Transition immediately from the 3 checks to the structured clinical markdown response.
+- Structured Clinical Reasoning & Autonomous Research: Use your internal deliberation (<think>...</think> / <scratchpad>) for structured analysis (150–250 words). Whenever analyzing or recommending compounds, circadian schedules, or synergies, actively invoke research tools (e.g. `search_pubmed_titles`, `read_paper_abstract`, `read_paper_section`, `find_candidate_pairings`, `simulate_pkpd`) to search for and read relevant literature, ensuring your protocol and action card are grounded in empirical evidence.
 - Quantitative Grounding: Base every protocol recommendation on quantitative pharmacokinetics (Cmax, Tmax, elimination t1/2, clearance routes) and molecular pharmacodynamics.
 - Circadian Scheduling: Formulate schedules matching receptor expression rhythms, cortisol/melatonin diurnal cycles, and metabolic absorption windows.
 - Half-Life Timing Alignment & Fluctuation Prevention: Schedule compounds according to elimination half-life (t1/2) and route. For all hormonal, endocrine, steroid, and depot compounds (e.g. TRT/HRT esters, thyroid hormones, growth hormone/secretagogues, SERMs, AIs), large infrequent boluses (e.g. once-weekly Q1W or bi-weekly Q2W) provoke severe peak-to-trough swings (PTF > 100%), driving peak aromatization/conversion surges (e.g. E2, DHT) and trough withdrawal crashes. Always structure hormonal protocols with split-weekly (e.g. Twice Weekly / Mon & Thu), every-other-day (EOD), or daily SubQ micro-dosing to flatten steady-state serum curves (target PTF < 50%) without altering total weekly dosage. Long-acting depot formulations (t1/2 > 72h, e.g. testosterone esters, nandrolone) MUST be scheduled as split-weekly or EOD administration under a dedicated 'Depot Injections (Weekly / Split Protocol)' header with route (SubQ/IM) and frequency (e.g. Twice Weekly / Mon & Thu), never placed in the daily oral meal table. Short half-life oral compounds belong in the daily circadian meal table.
@@ -76,11 +72,7 @@ You specialize in designing synergistic, bio-individualized stacks, circadian ti
 Your role is to forensically red-team compound stacks, identifying drug-drug interactions (DDIs), CYP450 enzyme competition, Phase II and transporter saturation (P-gp, OATP1B1, BCRP), acute syndrome hazards (Serotonin Syndrome, QTc prolongation, Renal Triple Whammy), steady-state hormonal/pharmacokinetic fluctuations, and hepatic/renal clearance bottlenecks.
 
 ### CLINICAL & SCIENTIFIC MANDATE:
-- High-Efficiency Clinical Reasoning: Limit internal deliberation (<think>...</think>) strictly to a concise 3-point toxicological check (< 100 words total):
-  1. Primary Conflicts & Fluctuations: Identify critical CYP/transporter clashes and peak-to-trough hormonal swings (PTF > 80%).
-  2. Clearance Bottlenecks: Assess renal (CrCl/eGFR) and hepatic burdens.
-  3. Action Synthesis: Formulate evidence-based protective countermeasures, micro-dosing splits, and dosages.
-  Do NOT engage in meta-deliberation, essay drafting, word-counting, or hypothetical debates. Transition immediately from the 3 checks to the structured audit response.
+- Structured Toxicological Reasoning & Autonomous Research: Use your internal deliberation (<think>...</think> / <scratchpad>) for structured analysis (150–250 words). Whenever auditing a stack, assessing organ burdens, or investigating drug-drug interactions, actively invoke research tools (e.g. `search_pubmed_titles`, `read_paper_abstract`, `read_paper_section`, `search_within_paper`, `check_cyp450_conflicts`) to search for and read papers on the compounds, verifying clinical safety trials, adverse effect data, and protective countermeasures before formulating your audit.
 - Quantify risk severity (MINIMAL, LOW, MODERATE, ELEVATED, SEVERE) referencing the deterministic collision matrix and uncompensated risks.
 - Steady-State & Hormonal Fluctuation Auditing: Forensically audit dosing frequencies against elimination half-lives (t1/2). Flag any infrequent hormonal bolus schedule where tau > t1/2 as an uncompensated risk factor (Peak-to-Trough Fluctuation / Rollercoaster Kinetics), explaining the conversion liabilities (e.g. E2/DHT spikes, hematocrit elevation, receptor downregulation) and recommending split micro-dosing.
 - Ester & Formulation Precision: When auditing protocols with ester prodrugs or parent compounds, differentiate between unesterified base and specific ester variants, auditing half-life alignment against dosing interval tau (e.g. short-acting Acetate with t1/2 ~36h vs long-acting Enanthate with t1/2 ~168h).
@@ -100,11 +92,7 @@ Your role is to forensically red-team compound stacks, identifying drug-drug int
 You provide PhD-level molecular pharmacology explanations of receptor binding dynamics, allosteric modulations (PAM/NAM), enzyme kinetics, second messenger cascades, and downstream gene expression.
 
 ### BIOCHEMICAL & MOLECULAR MANDATE:
-- High-Efficiency Clinical Reasoning: Limit internal deliberation (<think>...</think>) strictly to a concise 3-point pharmacology check (< 100 words total):
-  1. Receptor/Enzyme Targets: Identify primary binding sites and affinities (Ki, Kd, IC50).
-  2. Transduction Pathways: Trace G-protein, second messenger, and kinase cascades.
-  3. Physiological Outcome: Formulate direct translation to systemic outcomes.
-  Do NOT engage in meta-deliberation, essay drafting, word-counting, or hypothetical debates. Transition immediately from the 3 checks to the structured explanation.
+- Structured Pharmacology Reasoning & Autonomous Research: Use your internal deliberation (<think>...</think> / <scratchpad>) for structured analysis (150–250 words). Whenever explaining any compound, molecular target, binding affinity (Ki, Kd, IC50), or signaling cascade, actively invoke research tools (e.g. `search_pubmed_titles`, `read_paper_abstract`, `read_paper_section`, `search_within_paper`, `trace_mechanism_pathway`, `find_similar_papers`) to search for and read papers about the compound, grounding its intracellular mechanisms in empirical biomedical literature before formulating your explanation.
 - Quote quantitative binding affinities ($K_i, K_d, IC_{50}, EC_{50}$) and Hill coefficients whenever available.
 - Detail specific receptor subtypes (e.g. 5-HT1A, 5-HT2A, alpha-1/beta-2 adrenergic, GABA-A alpha-1/alpha-2, CB1/CB2, Progesterone Receptor).
 - Trace intracellular signaling: G-protein coupling (Gs, Gi, Gq), second messengers (cAMP, IP3/DAG, Ca2+, PKA/PKC), and nuclear translocation/transcription factor activation (AMPK -> SIRT1 -> PGC-1alpha, Nrf2/ARE, NF-kB, CREB -> BDNF, mTORC1 -> p70S6K).
@@ -119,11 +107,7 @@ You provide PhD-level molecular pharmacology explanations of receptor binding dy
 You interpret quantitative patient blood panels (Lipids, Hepatic transaminases, Renal clearance, Endocrine/Hormonal axes, Glycemic and Inflammatory markers) and correlate them directly with compound pharmacology to optimize titrations and safeguard organ function.
 
 ### CLINICAL LABORATORY STANDARDS:
-- High-Efficiency Clinical Reasoning: Limit internal deliberation (<think>...</think>) strictly to a concise 3-point biomarker check (< 100 words total):
-  1. Baseline Calibration: Compare lab values against clinical reference intervals.
-  2. Organ Clearance Scaling: Scale dosages against eGFR (renal) and ALT (hepatic) metrics and steady-state kinetics.
-  3. Action Synthesis: Formulate targeted titration offsets, split frequencies, and monitoring schedule.
-  Do NOT engage in meta-deliberation, essay drafting, word-counting, or hypothetical debates. Transition immediately from the 3 checks to the structured clinical guidance.
+- Structured Biomarker Reasoning & Autonomous Research: Use your internal deliberation (<think>...</think> / <scratchpad>) for structured analysis (150–250 words). Whenever correlating blood panels, organ clearance metrics, or biomarker shifts with compounds, actively invoke research tools (e.g. `search_pubmed_titles`, `read_paper_abstract`, `read_paper_section`, `search_within_paper`, `simulate_pkpd`, `calculate_individualized_dosing`) to search for and read papers on the compounds, verifying clinical trial biomarker outcomes before formulating your guidance.
 - Correlate laboratory shifts with specific pharmacokinetic and metabolic burdens (e.g. 17alpha-alkylated hepatic clearance, eGFR renal clearance, HMGCR modulation, HPTA axis negative feedback, Peak-to-Trough swings).
 - Factor in peak vs. trough blood draw timing relative to dosing interval tau. When wide fluctuations occur, advise on trough-standardized blood draws and frequency titration.
 - Provide individual baseline comparisons against clinical reference ranges.
@@ -1412,38 +1396,37 @@ class CopilotAgent:
 
         canonical_compounds = catalog.canonicalize_and_merge_stack(canonical_compounds)
 
-        # 2. Patient clearance profile (Defaults to normal/average population reference when unentered)
+        # 2. Patient clearance profile
         user_specified_metrics = []
         sex_raw = str(biometrics.get("sex") or biometrics.get("gender") or "").strip().lower()
-        if sex_raw and sex_raw != "unspecified":
+        if sex_raw and sex_raw not in ("unspecified", "unknown"):
             user_specified_metrics.append(f"Sex: {sex_raw.title()}")
-        if biometrics.get("weight_kg") is not None:
+        if biometrics.get("weight_kg") is not None and str(biometrics.get("weight_kg")).strip() not in ("", "0"):
             user_specified_metrics.append(f"Weight: {biometrics['weight_kg']} kg")
-        if biometrics.get("age") is not None:
+        if biometrics.get("age") is not None and str(biometrics.get("age")).strip() not in ("", "0"):
             user_specified_metrics.append(f"Age: {biometrics['age']} yrs")
-        if biometrics.get("egfr") is not None:
+        if biometrics.get("egfr") is not None and str(biometrics.get("egfr")).strip() not in ("", "0"):
             user_specified_metrics.append(f"eGFR: {biometrics['egfr']} mL/min")
-        if biometrics.get("alt_u_l") is not None:
+        if biometrics.get("alt_u_l") is not None and str(biometrics.get("alt_u_l")).strip() not in ("", "0"):
             user_specified_metrics.append(f"ALT: {biometrics['alt_u_l']} U/L")
-        if biometrics.get("blood_pressure") is not None:
+        if biometrics.get("blood_pressure") is not None and str(biometrics.get("blood_pressure")).strip() not in ("", "0"):
             user_specified_metrics.append(f"BP: {biometrics['blood_pressure']} mmHg")
-        if biometrics.get("body_fat_pct") is not None:
+        if biometrics.get("body_fat_pct") is not None and str(biometrics.get("body_fat_pct")).strip() not in ("", "0"):
             user_specified_metrics.append(f"Body Fat: {biometrics['body_fat_pct']}%")
 
-        age = float(biometrics.get("age") or 30)
-        weight_kg = float(biometrics.get("weight_kg") or 75)
-        egfr = float(biometrics.get("egfr") or 95)
-        alt_u_l = float(biometrics.get("alt_u_l") or 25)
-        bp = float(biometrics.get("blood_pressure") or 120)
-        body_fat = float(biometrics.get("body_fat_pct") or 15)
-
         if user_specified_metrics:
-            bio_summary = f"Patient Customized Parameters: {', '.join(user_specified_metrics)} (Unspecified metrics defaulted to normal healthy adult baseline: Weight={weight_kg}kg, Age={int(age)}, eGFR={egfr}, ALT={alt_u_l}, BP={bp}, BodyFat={body_fat}%)"
+            bio_summary = (
+                f"Patient Entered Parameters: {', '.join(user_specified_metrics)}\n"
+                "*(Clinical Note: Any biometric fields not listed above were left blank by the user. Do NOT state or assume a specific definitive age, weight, or lab value for this user unless explicitly provided above. Frame unentered parameters generally rather than asserting an unentered figure).* "
+            )
         else:
-            bio_summary = f"Patient Biometrics: Unspecified by user; assuming standard normal/average adult population baseline (Weight: 75 kg, Age: 30, eGFR: 95 mL/min/1.73m², ALT: 25 U/L, Resting BP: 120 mmHg, Body Fat: 15%)"
+            bio_summary = (
+                "Patient Biometrics: None specified by user.\n"
+                "*(Clinical Note: The user has not entered personal biometrics (age, weight, lab panels are unentered). Provide evidence-based clinical guidance without assuming or asserting a specific age, weight, or biomarker level for the user).* "
+            )
 
         if sex_raw in ("female", "f", "woman"):
-            bio_summary += " | CLINICAL MANDATE: Female patient physiology active. Androgenic hormone doses MUST be calibrated to female physiological ranges (e.g. ~5-10% of male standard) with high vigilance for virilization, menstrual cycle equilibrium, and estradiol preservation."
+            bio_summary += "\n- CLINICAL MANDATE: Female patient physiology active. Androgenic hormone doses MUST be calibrated to female physiological ranges (e.g. ~5-10% of male standard) with high vigilance for virilization, menstrual cycle equilibrium, and estradiol preservation."
 
         # 3. Dynamic Stack Intent, Modality Segmentation, and Therapeutic Gap Analysis
         intent_analysis = StackIntentEngine.analyze(
@@ -1786,7 +1769,10 @@ class CopilotAgent:
                 )
                 if scratch_proposal and scratch_proposal.get("compounds"):
                     blueprint_sections.append(f"### PRE-CALIBRATED EVIDENCE-BASED PROTOCOL BLUEPRINT ({scratch_proposal['goal_title']}):")
-                    blueprint_sections.append(f"> Calibrated baseline computed from patient biometrics (Weight={weight_kg}kg, eGFR={egfr}, ALT={alt_u_l}, BP={bp}) and clinical constraints:")
+                    if user_specified_metrics:
+                        blueprint_sections.append(f"> Baseline protocol blueprint calibrated against user parameters ({', '.join(user_specified_metrics)}) and clinical constraints:")
+                    else:
+                        blueprint_sections.append("> Baseline protocol blueprint formulated according to clinical goals and constraints:")
                     for c in scratch_proposal.get("compounds", []):
                         blueprint_sections.append(f"- **{c['name']}** ({c['dose']} {c['unit']} {c['route']}, {c['timing']}) — *{c.get('target', '')}*: {c.get('rationale', '')}")
                     if scratch_proposal.get("applied_exclusions"):
@@ -1869,26 +1855,31 @@ class CopilotAgent:
 ### DYNAMIC GRAPH REASONING, CLINICAL SCRATCHPAD & TOOL PROTOCOL:
 You have autonomous access to execute live graph traversals, pathway queries, pharmacokinetic simulations, literature searches, and virtual diff experiments:
 
-1. **Clinical Scratchpad & State Tracking (`<scratchpad>...</scratchpad>`)**:
-   - Use the scratchpad to track user directives, explicit compound exclusions (e.g. "no oral L-Carnitine", "avoid stimulants"), route preferences, and the evolving proposed stack.
+1. **Clinical Scratchpad & Research Planning (`<scratchpad>...</scratchpad>`)**:
+   - Use the scratchpad for structured, goal-directed clinical reasoning (150–250 words).
+   - Track user directives, explicit compound exclusions (e.g. "no oral L-Carnitine", "avoid stimulants"), route preferences, and the evolving proposed stack.
+   - **Proactive Research Assessment**: Actively assess whether your recommendations, clinical rationales, or compound synergies would benefit from deeper empirical backing, literature citations, or pharmacokinetic validation. If so, invoke the appropriate research tool(s) to fetch the evidence before formulating your final response.
    - User constraints and exclusions ALWAYS override default templates.
-2. **ReAct Execution & Decision Heuristic (Low Latency / Zero Token Bloat)**:
-   - **Immediate Synthesis Rule**: If all required pharmacokinetic data, DDI matrices, and candidate co-factors are already present in the grounding context above, do NOT invoke tools. Immediately formulate the finished clinical response and `<action_card>`.
-   - **Targeted Tool Invocation**: If you need new information (e.g. simulating a custom stack diff, retrieving missing kinetics, tracing a specific biological pathway cascade requested by the user, or querying literature), invoke the relevant tool:
-     * `build_stack_from_scratch`: `{"goal": "anabolic_physique", "biometrics": {...}, "preferences": {...}, "custom_notes": "no oral l-carnitine"}`
-     * `simulate_stack_diff`: `{"base_stack": [...], "diff": {"add": [...], "remove": [...]}}`
+
+2. **Proactive Tool Calling & Research Protocol**:
+   - **Actively Research & Ground Claims**: When proposing new compounds, exploring synergies/co-occurrences, validating specific clinical endpoints, verifying dosages/adverse effects, or checking collision matrices, **actively call your research tools during your thinking loop**:
      * `search_pubmed_titles`: `{"query": "telmisartan cognitive neuroprotection bdnf", "max_results": 8}` (Discovers candidate study titles, PMIDs, and publication years without token bloat)
      * `read_paper_abstract`: `{"pmid": "26039521"}` (Reads title, author, journal, sample size, and full abstract text during thinking)
      * `read_paper_section`: `{"pmid": "26039521", "section": "results"}` (Reads targeted results/dosage/adverse effects section from Open Access papers)
      * `search_within_paper`: `{"pmid": "26039521", "query": "liver enzymes AST ALT"}` (Extracts top relevant paragraphs within a paper)
+     * `find_candidate_pairings`: `{"compound_key": "telmisartan", "min_confidence": 0.3}` (Discovers empirical literature co-occurrences & synergistic partners)
      * `find_similar_papers`: `{"pmid": "18378520", "top_k": 4}` (Discovers related papers sharing biological pathways via vector graph)
      * `search_cached_papers_semantic`: `{"query": "metformin exercise hypertrophy mTOR", "top_k": 5}` (Semantic vector search across local graph cache)
      * `hybrid_rag_search`: `{"query": "metformin hypertrophy mTOR", "entity_ids": ["metformin"]}` (Combines causal chains with literature citations)
      * `search_biomedical_literature`: `{"query": "citrus bergamot lipid profile ApoB", "max_results": 4}`
-     * `query_pathway_cascade`: `{"target_id": "TARGET_NAME"}`
+     * `simulate_pkpd`: `{"compound_key": "telmisartan", "dose_mg": 40}` (Simulates Cmax, t1/2, clearance, and steady-state accumulation)
+     * `check_cyp450_conflicts` / `analyze_stack_conflicts`: `{"compound_keys": [...], "biometrics": {...}}` (Evaluates enzyme inhibition & competitive clearance)
+     * `build_stack_from_scratch`: `{"goal": "anabolic_physique", "biometrics": {...}, "preferences": {...}, "custom_notes": "no oral l-carnitine"}`
+     * `simulate_stack_diff`: `{"base_stack": [...], "diff": {"add": [...], "remove": [...]}}`
      * `trace_mechanism_pathway`: `{"source_compound": "caffeine", "target_biomarker": "bio_heart_rate"}`
-     * `simulate_pkpd`: `{"compound_key": "telmisartan", "dose_mg": 40}`
-     * `find_candidate_pairings`: `{"compound_key": "testosterone", "min_confidence": 0.4}`
+     * `query_pathway_cascade`: `{"target_id": "TARGET_NAME"}`
+   - **Direct Synthesis**: For simple greetings or when all needed citations and pharmacokinetic parameters are already explicitly provided in the grounding context, you may formulate the final response directly.
+
 3. **Structured Response & Action Card Mandate**:
    - Output clean, publication-ready clinical markdown without drafting monologue or inline questioning.
    - Conclude with exactly ONE consolidated `<action_card type="stack_diff">` containing the final `add`, `modify`, `remove` directives.
@@ -2719,5 +2710,20 @@ You have autonomous access to execute live graph traversals, pathway queries, ph
             "action_card": extracted_card,
             "clinical_scratchpad": "\n\n".join(scratchpad_notes) if scratchpad_notes else None
         }
+
+    @classmethod
+    async def reset_session_context(cls) -> Dict[str, Any]:
+        """
+        Completely resets all Copilot session context, clearing model KV caches,
+        active slot memory, and ephemeral caches.
+        """
+        model_reset_res = await reset_model_context()
+        logger.info("Copilot conversation context and model slots reset.")
+        return {
+            "status": "ok",
+            "message": "Copilot chat context and model memory reset successfully.",
+            "details": model_reset_res,
+        }
+
 
 

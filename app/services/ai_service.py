@@ -40,11 +40,11 @@ def get_reasoning_params(base_url: str = "") -> Dict[str, Any]:
     has_explicit_max = raw_max is not None and bool(raw_max.strip())
     if raw_max and "#" in raw_max:
         raw_max = raw_max.split("#")[0]
-    raw_max = (raw_max or "512").strip().strip("'\"")
+    raw_max = (raw_max or "2048").strip().strip("'\"")
     try:
         max_tokens = int(raw_max)
     except (ValueError, TypeError):
-        max_tokens = 512
+        max_tokens = 2048
 
     active_base = (base_url or os.getenv("OPENAI_BASE_URL", "")).lower()
     is_openrouter = "openrouter.ai" in active_base
@@ -505,3 +505,73 @@ async def preload_and_warmup_model() -> None:
         logger.info(f"[*] AI model '{model_name}' active at {base_url}.")
     except Exception as e:
         logger.warning(f"AI model initialization notice: {e}")
+
+
+async def reset_model_context() -> Dict[str, Any]:
+    """
+    Completely resets local LLM KV cache slots and model context.
+    Erases cached tokens in llama-server slots if running locally,
+    clears internal endpoint/model caches, and ensures fresh stateless inference.
+    """
+    global _ACTIVE_MODEL_CACHE, _ACTIVE_ENDPOINT_CACHE, _LAST_ENDPOINT_CHECK
+    _ACTIVE_MODEL_CACHE.clear()
+    _ACTIVE_ENDPOINT_CACHE = None
+    _LAST_ENDPOINT_CHECK = 0.0
+
+    results: Dict[str, Any] = {
+        "status": "ok",
+        "slots_erased": [],
+        "endpoint": None,
+        "cleared_caches": True,
+    }
+
+    try:
+        base_url = await resolve_active_endpoint()
+        results["endpoint"] = base_url
+
+        # Determine server root URL (e.g. "http://127.0.0.1:8080" from "http://127.0.0.1:8080/v1")
+        root_url = base_url
+        if root_url.endswith("/v1"):
+            root_url = root_url[:-3]
+
+        headers = get_auth_headers()
+
+        # Attempt llama-server slots erasure
+        async with httpx.AsyncClient(timeout=httpx.Timeout(2.0, connect=0.5)) as client:
+            try:
+                res = await client.get(f"{root_url}/slots", headers=headers)
+                if res.status_code == 200:
+                    slots_data = res.json()
+                    if isinstance(slots_data, list):
+                        for slot in slots_data:
+                            slot_id = slot.get("id", 0)
+                            try:
+                                await client.post(f"{root_url}/slots/{slot_id}?action=erase", headers=headers)
+                                await client.post(f"{root_url}/slots/{slot_id}?action=release", headers=headers)
+                                results["slots_erased"].append(slot_id)
+                            except Exception as se:
+                                logger.debug(f"Slot {slot_id} erase notice: {se}")
+                    elif isinstance(slots_data, dict):
+                        for s_id in slots_data.keys():
+                            try:
+                                await client.post(f"{root_url}/slots/{s_id}?action=erase", headers=headers)
+                                await client.post(f"{root_url}/slots/{s_id}?action=release", headers=headers)
+                                results["slots_erased"].append(s_id)
+                            except Exception:
+                                pass
+                else:
+                    # Try general slot 0 erase/release as fallback
+                    try:
+                        await client.post(f"{root_url}/slots/0?action=erase", headers=headers)
+                        await client.post(f"{root_url}/slots/0?action=release", headers=headers)
+                        results["slots_erased"].append(0)
+                    except Exception:
+                        pass
+            except Exception as slot_ex:
+                logger.debug(f"LLM slot query/reset notice: {slot_ex}")
+    except Exception as ex:
+        logger.warning(f"Notice during model context reset: {ex}")
+        results["notice"] = str(ex)
+
+    return results
+

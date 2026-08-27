@@ -425,6 +425,59 @@ class CopilotAgent:
         return list(found_keys)
 
     @classmethod
+    def _build_candidate_entry(
+        cls,
+        catalog_comp: Dict[str, Any],
+        target_name: Optional[str] = None,
+        solves_burden: Optional[str] = None,
+        clinical_purpose: Optional[str] = None,
+        evidence_grade: Optional[str] = None,
+        interaction_safety: Optional[str] = None,
+        is_target_derived: bool = False,
+        is_literature_derived: bool = False,
+    ) -> Dict[str, Any]:
+        key = str(catalog_comp.get("key", "")).lower()
+        name = catalog_comp.get("name") or catalog_comp.get("canonical_name") or key.title()
+
+        # Dynamic standard dose resolution from catalog / dosing_service
+        std_dose = str(catalog_comp.get("standard_dose") or "").strip()
+        if not std_dose:
+            default_dosing = get_default_compound_dose(key)
+            route, freq = infer_compound_route_and_frequency(key)
+            if isinstance(default_dosing, dict) and default_dosing.get("dose_display"):
+                std_dose = f"{default_dosing['dose_display']} {route} {freq}".strip()
+            elif isinstance(default_dosing, (int, float)) and default_dosing > 0:
+                std_dose = f"{default_dosing:g} mg {route} {freq}".strip()
+            else:
+                std_dose = "Per clinical titration"
+
+        # Dynamic target resolution
+        target_str = target_name or catalog_comp.get("mechanism") or catalog_comp.get("drug_class") or "Biological Modifier"
+        if (not target_str or target_str == "Biological Modifier") and catalog_comp.get("receptor_targets"):
+            tgts = catalog_comp["receptor_targets"]
+            if isinstance(tgts, list) and len(tgts) > 0 and isinstance(tgts[0], dict):
+                t_first = tgts[0]
+                target_str = f"{t_first.get('target', 'Molecular Target')} ({t_first.get('action', 'modulator')})"
+
+        purpose = clinical_purpose or catalog_comp.get("clinical_notes") or catalog_comp.get("description") or f"Modulates {target_str} to support physiological homeostasis."
+        burden = solves_burden or f"Target {target_str} optimization"
+        grade = evidence_grade or catalog_comp.get("evidence_grade") or ("FDA Approved / Clinical Grade" if "Prescription" in (catalog_comp.get("categories") or []) else "Human Clinical Trials")
+        safety = interaction_safety or catalog_comp.get("interaction_safety") or catalog_comp.get("safety_notes") or "Targeted physiological pairing."
+
+        return {
+            "key": key,
+            "name": name,
+            "target": target_str,
+            "standard_dose": std_dose,
+            "clinical_purpose": purpose,
+            "solves_burden": burden,
+            "evidence_grade": grade,
+            "interaction_safety": safety,
+            "is_target_derived": is_target_derived,
+            "is_literature_derived": is_literature_derived,
+        }
+
+    @classmethod
     def get_evidence_based_recommendations(
         cls,
         compounds: List[Dict[str, Any]],
@@ -435,7 +488,7 @@ class CopilotAgent:
         """
         Dynamically derives clinical, evidence-graded stack adjustments and additions
         grounded in deterministic organ burden offsetting, therapeutic gap analysis,
-        and Loewe/Bliss synergy optimization without bro-science folklore.
+        and Loewe/Bliss synergy optimization without bro-science folklore or hardcoded triggers.
         """
         catalog = CatalogService()
         interaction_engine = InteractionEngine()
@@ -467,88 +520,54 @@ class CopilotAgent:
         recommendations: List[Dict[str, Any]] = []
         candidate_pool: List[Dict[str, Any]] = []
 
-        # 1. Renal / BP / RAAS Burden
+        # 1. Dynamic First-Principles Target-Complementarity & Enzymatic Countermeasure Discovery
+        try:
+            for c in compounds:
+                c_name = c.get("name") or c.get("key", "Compound")
+                targets = c.get("receptor_targets") or []
+                for tgt in targets:
+                    if not isinstance(tgt, dict):
+                        continue
+                    t_name = str(tgt.get("target") or tgt.get("name") or "").strip()
+                    t_act = str(tgt.get("action") or "").lower()
+                    t_fam = str(tgt.get("family") or "").lower()
+
+                    # Exclude host Phase I/II clearance enzymes and transporters (inhibition causes adverse DDI collisions)
+                    if any(cyp in t_name.lower() or cyp in t_fam for cyp in ["cyp", "ugt", "p-gp", "abcb1", "oatp", "oct", "mate", "bcrp", "solute carrier"]):
+                        continue
+
+                    # Match enzyme substrate cleavage / conversion to toxic or uncompensated products
+                    is_microbial_target = tgt.get("is_microbial") or "microbial" in t_fam or "tma" in t_name.lower()
+                    is_pathological_conversion = (
+                        ("aromatase" in t_name.lower() and is_aromatizable_androgen(c))
+                        or ("5-alpha" in t_name.lower() and is_steroidal_androgen(c))
+                    )
+
+                    if t_name and (is_microbial_target or is_pathological_conversion or "inducer" in t_act):
+                        matching_inhibitors = catalog.find_compounds_by_target(t_name, action="inhibitor")
+                        for inh in matching_inhibitors:
+                            inh_key = inh.get("key", "").lower()
+                            if inh_key and inh_key not in existing_keys and inh_key not in [cand["key"] for cand in candidate_pool]:
+                                candidate_pool.append(cls._build_candidate_entry(
+                                    catalog_comp=inh,
+                                    target_name=f"{t_name} Inhibitor",
+                                    solves_burden=f"Uncompensated {t_name} activity driven by {c_name}",
+                                    clinical_purpose=f"Mechanistic Countermeasure: Inhibits {t_name} to prevent uncompensated downstream metabolic conversion / activity from {c_name}.",
+                                    evidence_grade="Biochemical Target Complementarity",
+                                    interaction_safety="Targeted enzymatic mitigation pairing.",
+                                    is_target_derived=True,
+                                ))
+        except Exception as tc_err:
+            logger.debug("Target complementarity discovery notice: %s", tc_err)
+
+        # 2. Dynamic Organ Burden & Physiological Gap Mitigation via Catalog Target Discovery
         renal_score = organ_burdens.get("renal", {}).get("score", 0)
         cv_score = organ_burdens.get("cardiovascular", {}).get("score", 0)
-        bp_val = float(biometrics.get("blood_pressure", 120))
-        if (renal_score > 0 or cv_score > 0 or bp_val > 125 or any("cardio" in str(g).lower() or "blood pressure" in str(g).lower() for g in therapeutic_gaps) or active_goal == "anabolic_physique"):
-            if "telmisartan" not in existing_keys:
-                candidate_pool.append({
-                    "key": "telmisartan",
-                    "name": "Telmisartan",
-                    "target": "AT1 Receptor Antagonist (Ki=12 nM) & PPAR-gamma Partial Agonist",
-                    "standard_dose": "20-40 mg oral daily (Morning)",
-                    "clinical_purpose": "Blocks RAAS-mediated renal vasoconstriction, prevents Left Ventricular Hypertrophy (LVH), and improves insulin sensitivity via PPAR-gamma.",
-                    "solves_burden": "Renal & Cardiovascular Endothelial Strain",
-                    "evidence_grade": "FDA Approved / Phase III RCT",
-                    "interaction_safety": "Clean - Cleared by hepatic glucuronidation (UGT1A3), no CYP3A4 burden."
-                })
-            if "nebivolol" not in existing_keys and (cv_score >= 20 or bp_val > 130):
-                candidate_pool.append({
-                    "key": "nebivolol",
-                    "name": "Nebivolol",
-                    "target": "Highly Selective Beta-1 Adrenergic Antagonist & eNOS Stimulator (NO Release)",
-                    "standard_dose": "2.5-5 mg oral daily (Morning)",
-                    "clinical_purpose": "Reduces resting heart rate and arterial stiffness via endothelial nitric oxide release without Beta-2 bronchoconstriction or lipid worsening.",
-                    "solves_burden": "Sympathetic Hyper-activation & Tachycardia",
-                    "evidence_grade": "FDA Approved / Phase III Cardioprotective",
-                    "interaction_safety": "CYP2D6 substrate; titrate cautiously if taking strong 2D6 inhibitors."
-                })
-
-        # 2. Hepatic / Transaminase / Biliary Burden
         hepatic_score = organ_burdens.get("hepatic", {}).get("score", 0)
-        alt_val = float(biometrics.get("alt_u_l", 25))
-        if hepatic_score > 0 or alt_val > 40 or any("hepatic" in str(g).lower() or "liver" in str(g).lower() for g in therapeutic_gaps):
-            if "tudca" not in existing_keys:
-                candidate_pool.append({
-                    "key": "tudca",
-                    "name": "Tauroursodeoxycholic Acid (TUDCA)",
-                    "target": "Hydrophilic Bile Acid & Endoplasmic Reticulum (ER) Chaperone",
-                    "standard_dose": "250-500 mg oral twice daily with meals",
-                    "clinical_purpose": "Alleviates hepatocyte ER stress, promotes biliary flow, and lowers elevated AST/ALT.",
-                    "solves_burden": "Cholestasis & Hepatic Transaminase Elevation",
-                    "evidence_grade": "Clinical Grade / Hepatology Human Trials",
-                    "interaction_safety": "Zero CYP450 interaction; excellent pharmacokinetic safety profile."
-                })
-            if "nac" not in existing_keys:
-                candidate_pool.append({
-                    "key": "nac",
-                    "name": "N-Acetyl Cysteine (NAC)",
-                    "target": "Rate-Limiting Cysteine Donor for Glutathione Biosynthesis (GCL / Nrf2)",
-                    "standard_dose": "600-1200 mg oral daily (Morning/Midday)",
-                    "clinical_purpose": "Restores intracellular glutathione pools and protects hepatocytes and renal tubules from reactive metabolites.",
-                    "solves_burden": "Oxidative Stress & Phase II Conjugation Depletion",
-                    "evidence_grade": "USP Monograph / Extensive Clinical Validation",
-                    "interaction_safety": "Clean metabolic profile."
-                })
-
-        # 3. Lipid & Atherogenic Burden (ApoB / LDL / HDL suppression)
         lipid_score = organ_burdens.get("lipid", {}).get("score", 0)
-        if lipid_score > 0 or any("lipid" in str(g).lower() or "apob" in str(g).lower() for g in therapeutic_gaps) or active_goal == "anabolic_physique":
-            if "pitavastatin" not in existing_keys:
-                candidate_pool.append({
-                    "key": "pitavastatin",
-                    "name": "Pitavastatin",
-                    "target": "HMG-CoA Reductase Inhibitor (HMGCR)",
-                    "standard_dose": "1-2 mg oral daily (Bedtime)",
-                    "clinical_purpose": "Upregulates hepatic LDL receptors to clear atherogenic ApoB particles with minimal CYP3A4 competition and neutral glycemic profile.",
-                    "solves_burden": "Atherogenic Dyslipidemia & ApoB Surge",
-                    "evidence_grade": "Phase III / REAL-CAD Outcomes Trial",
-                    "interaction_safety": "Cleared predominantly by glucuronidation (UGT1A3/2B7) and OATP1B1; minimal CYP3A4 conflict."
-                })
-            if "ezetimibe" not in existing_keys:
-                candidate_pool.append({
-                    "key": "ezetimibe",
-                    "name": "Ezetimibe",
-                    "target": "Niemann-Pick C1-Like 1 (NPC1L1) Transporter Inhibitor",
-                    "standard_dose": "10 mg oral daily (Morning)",
-                    "clinical_purpose": "Selectively inhibits intestinal brush-border cholesterol absorption, lowering ApoB and LDL-C additively.",
-                    "solves_burden": "Atherogenic Lipid Burden",
-                    "evidence_grade": "IMPROVE-IT Trial / FDA Approved",
-                    "interaction_safety": "Independent of CYP450 enzymes."
-                })
+        bp_val = float(biometrics.get("blood_pressure", 120))
+        alt_val = float(biometrics.get("alt_u_l", 25))
 
-        # 4. Prolactin / Progestogenic Burden (19-nor steroids)
         has_19nor = any(
             any(w in set(re.findall(r"[a-z0-9]+", str(c.get("key", "") + " " + c.get("name", "")).lower()))
                 for w in ["trenbolone", "nandrolone", "durabolin", "trestolone", "ment", "npp", "parabolan"])
@@ -556,20 +575,6 @@ class CopilotAgent:
                 for w in ["nandrolone", "trenbolone", "trestolone", "19-nor", "19nor"])
             for c in compounds
         )
-        if has_19nor or (any("prolactin" in str(g).lower() for g in therapeutic_gaps) and any(is_steroidal_androgen(c) or "androgen" in str(c.get("drug_class", "")).lower() for c in compounds)):
-            if "p5p" not in existing_keys:
-                candidate_pool.append({
-                    "key": "p5p",
-                    "name": "Pyridoxal-5-Phosphate (P-5-P)",
-                    "target": "DOPA Decarboxylase Co-factor (Aromatic L-Amino Acid Decarboxylase)",
-                    "standard_dose": "50-100 mg oral daily (Bedtime)",
-                    "clinical_purpose": "Enhances endogenous dopamine synthesis in the tuberoinfundibular pathway to tonically inhibit pituitary prolactin secretion.",
-                    "solves_burden": "Hyperprolactinemia & Progestogenic Breast Tenderness",
-                    "evidence_grade": "Peer-Reviewed Clinical Endocrinology Studies",
-                    "interaction_safety": "Safe water-soluble co-factor."
-                })
-
-        # 5. Aromatase Inhibitors & Estrogen Balance (Aromatizable Androgens / Hypertrophy)
         has_aromatizable = any(is_aromatizable_androgen(c) for c in compounds)
         has_any_androgen = any(is_steroidal_androgen(c) or "androgen" in str(c.get("drug_class", "")).lower() for c in compounds)
         has_ai = any(
@@ -583,84 +588,6 @@ class CopilotAgent:
             )
             for c in compounds
         )
-        if (has_aromatizable or (has_any_androgen and active_goal == "anabolic_physique")) and not has_ai:
-            if "anastrozole" not in existing_keys:
-                candidate_pool.append({
-                    "key": "anastrozole",
-                    "name": "Anastrozole (Arimidex)",
-                    "target": "Selective Non-Steroidal Competitive Aromatase (CYP19A1) Inhibitor (IC50 = 15 nM)",
-                    "standard_dose": "0.25-0.5 mg oral twice weekly (titrated to E2 bloodwork)",
-                    "clinical_purpose": "Reversibly inhibits CYP19A1 aromatase to prevent excessive conversion of testosterone to estradiol, mitigating gynecomastia, fluid retention, and blood pressure elevation.",
-                    "solves_burden": "Aromatization & High Estradiol (E2) Burden",
-                    "evidence_grade": "FDA Approved / Clinical Endocrinology Gold Standard",
-                    "interaction_safety": "Titrate carefully with sensitive estradiol LC-MS/MS testing; maintain target E2 (20-30 pg/mL) to preserve bone mineral density and lipid synthesis."
-                })
-            if "exemestane" not in existing_keys:
-                candidate_pool.append({
-                    "key": "exemestane",
-                    "name": "Exemestane (Aromasin)",
-                    "target": "Type I Steroidal Irreversible (Suicidal) Aromatase Inactivator",
-                    "standard_dose": "12.5 mg oral twice weekly or every other day with a fat-containing meal",
-                    "clinical_purpose": "Permanently inactivates CYP19A1 aromatase without estrogen rebound upon cessation, with favorable lipid neutrality and slight androgenic IGF-1 boosting co-effects.",
-                    "solves_burden": "Aromatase Hyperactivity & Gynecomastia Risk",
-                    "evidence_grade": "FDA Approved / Phase III RCT",
-                    "interaction_safety": "CYP3A4 substrate; take with dietary lipids for optimal absorption."
-                })
-
-        # 6. Cognitive Focus / Stimulant Jitter / Neuroprotection
-        if active_goal in ("cognitive_focus", "cns_stimulation") or any(c.get("drug_class") == "CNS Stimulant" for c in compounds):
-            if "l_theanine" not in existing_keys and "theanine" not in existing_keys:
-                candidate_pool.append({
-                    "key": "l_theanine",
-                    "name": "L-Theanine",
-                    "target": "Glutamate Receptor (AMPA/Kainate) Modulator & GABAergic Enhancer",
-                    "standard_dose": "100-200 mg oral co-administered with stimulant",
-                    "clinical_purpose": "Crosses blood-brain barrier to attenuate peripheral sympathomimetic vasoconstriction and jitters while enhancing alpha brain waves (8-12 Hz) for calm focus.",
-                    "solves_burden": "Sympathomimetic Jitters & Cortical Excitotoxicity",
-                    "evidence_grade": "Human Double-Blind RCTs",
-                    "interaction_safety": "Zero CYP conflicts; synergistic Loewe CI with methylxanthines."
-                })
-            if "alpha_gpc" not in existing_keys and "citicoline" not in existing_keys:
-                candidate_pool.append({
-                    "key": "alpha_gpc",
-                    "name": "Alpha-GPC (L-Alpha Glycerylphosphorylcholine)",
-                    "target": "Acetylcholine Precursor & Phospholipid Biosynthesis Donor",
-                    "standard_dose": "300-600 mg oral daily (Morning)",
-                    "clinical_purpose": "Supplies bioavailable choline to maintain central acetylcholine pools during heightened cognitive demand.",
-                    "solves_burden": "Central Cholinergic Depletion",
-                    "evidence_grade": "Human Clinical Trials",
-                    "interaction_safety": "Clean metabolic profile."
-                })
-
-        # 6. Longevity / Metabolic / Autophagy
-        if active_goal == "longevity_autophagy" or any("longevity" in str(g).lower() or "ampk" in str(g).lower() for g in therapeutic_gaps):
-            if "metformin" not in existing_keys:
-                candidate_pool.append({
-                    "key": "metformin",
-                    "name": "Metformin",
-                    "target": "Mitochondrial Complex I Inhibitor (Mild) & AMPK Activator",
-                    "standard_dose": "500-1000 mg oral daily with dinner",
-                    "clinical_purpose": "Increases AMP/ATP ratio to stimulate AMPK -> PGC-1alpha and suppress mTORC1, enhancing cellular autophagy and insulin sensitivity.",
-                    "solves_burden": "Insulin Resistance & mTORC1 Hyper-activation",
-                    "evidence_grade": "TAME Trial / Extensive Longevity Cohorts",
-                    "interaction_safety": "Excreted unchanged by renal OCT2/MATE transporters; monitor eGFR."
-                })
-
-        # 7. Sleep Architecture / Recovery / Nocturnal Cortisol
-        if active_goal == "sleep_stress_recovery" or any("sleep" in str(g).lower() or "cortisol" in str(g).lower() for g in therapeutic_gaps):
-            if "magnesium_glycinate" not in existing_keys and "magnesium" not in existing_keys:
-                candidate_pool.append({
-                    "key": "magnesium_glycinate",
-                    "name": "Magnesium Bisglycinate",
-                    "target": "NMDA Receptor Voltage-Dependent Blocker & GABA-A Allosteric Facilitator",
-                    "standard_dose": "200-400 mg elemental Mg oral (Bedtime)",
-                    "clinical_purpose": "Promotes central nervous system down-regulation, blunts nocturnal catecholamines, and deepens Slow-Wave Sleep (SWS).",
-                    "solves_burden": "Nocturnal Hyperarousal & Muscle Hypertonicity",
-                    "evidence_grade": "Human Sleep Polysomnography Studies",
-                    "interaction_safety": "Non-sedating, highly bioavailable chelate."
-                })
-
-        # 8. Gut Microbiome & Microbial Metabolite Burden (TMAO / TMA-Lyase)
         has_oral_tma = any(
             (c.get("route", "oral") in ["oral", "po", "swallow", ""] or ":oral" in str(c.get("key", "")).lower())
             and (
@@ -669,51 +596,84 @@ class CopilotAgent:
             )
             for c in compounds
         )
-        has_tma_gap = any("tmao" in str(g).lower() or "microbial" in str(g).lower() for g in therapeutic_gaps)
-        if has_oral_tma or has_tma_gap:
-            if "allicin" not in existing_keys and "garlic" not in existing_keys:
-                candidate_pool.append({
-                    "key": "allicin",
-                    "name": "Allicin (Garlic Extract / Allium sativum)",
-                    "target": "Gut Microbiota Carnitine TMA-Lyase (CntA/CntB / yeaW/yeaX) Inhibitor (IC50 = 0.05 mg/mL)",
-                    "standard_dose": "10-20 mg allicin (or 600-1200 mg Aged Garlic Extract) oral daily with meals",
-                    "clinical_purpose": "Inactivates bacterial trimethylamine lyase enzymes in the gut lumen, blocking the cleavage of oral L-carnitine/choline into trimethylamine (TMA) and preventing downstream host hepatic FMO3 oxidation to atherogenic Trimethylamine N-Oxide (TMAO).",
-                    "solves_burden": "Gut Microbial TMA Conversion & Serum TMAO Elevation",
-                    "evidence_grade": "Clinical Human Trials & Microbiome Mechanistic Validation",
-                    "interaction_safety": "Safe natural botanical organosulfur; zero CYP3A4 burden, provides additive vascular eNOS stimulation and lipid support.",
-                })
 
-        # 9. Dynamic Target-Complementarity & Enzymatic Countermeasure Discovery (First Principles)
-        try:
-            for c in compounds:
-                c_name = c.get("name") or c.get("key", "Compound")
-                targets = c.get("receptor_targets") or []
-                for tgt in targets:
-                    if not isinstance(tgt, dict):
-                        continue
-                    t_name = str(tgt.get("target") or tgt.get("name") or "").strip()
-                    t_act = str(tgt.get("action") or "").lower()
-                    if t_name and ("substrate" in t_act or "inducer" in t_act or tgt.get("is_microbial")):
-                        matching_inhibitors = catalog.find_compounds_by_target(t_name, action="inhibitor")
-                        for inh in matching_inhibitors:
-                            inh_key = inh.get("key")
-                            if inh_key and inh_key not in existing_keys and inh_key not in [cand["key"] for cand in candidate_pool]:
-                                inh_name = inh.get("name") or inh.get("canonical_name") or inh_key.title()
-                                candidate_pool.append({
-                                    "key": inh_key,
-                                    "name": inh_name,
-                                    "target": f"{t_name} Inhibitor",
-                                    "standard_dose": str(inh.get("standard_dose") or "Per clinical titration"),
-                                    "clinical_purpose": f"Mechanistic Countermeasure: Inhibits {t_name} to prevent uncompensated downstream metabolic conversion from {c_name}.",
-                                    "solves_burden": f"Uncompensated {t_name} activity driven by {c_name}",
-                                    "evidence_grade": "Biochemical Target Complementarity",
-                                    "interaction_safety": "Targeted enzymatic mitigation pairing.",
-                                    "is_target_derived": True,
-                                })
-        except Exception as tc_err:
-            logger.debug("Target complementarity discovery notice: %s", tc_err)
+        physiological_axes = [
+            (
+                renal_score >= 20 or cv_score >= 30 or bp_val > 125 or any("cardio" in str(g).lower() or "blood pressure" in str(g).lower() for g in therapeutic_gaps) or active_goal == "anabolic_physique",
+                [("at1 receptor", "antagonist"), ("angiotensin receptor", "antagonist"), ("beta-1 adrenergic", "antagonist")],
+                "Renal & Cardiovascular Endothelial Strain",
+                "Blocks RAAS-mediated renal vasoconstriction, manages resting heart rate, and protects cardiovascular endothelium."
+            ),
+            (
+                hepatic_score >= 30 or alt_val > 40 or any("hepatic" in str(g).lower() or "liver" in str(g).lower() for g in therapeutic_gaps),
+                [("bile acid", None), ("glutathione synthesis", None), ("cysteine donor", None)],
+                "Cholestasis & Hepatic Transaminase Elevation",
+                "Alleviates hepatocyte ER stress, promotes biliary flow, and restores intracellular glutathione pools."
+            ),
+            (
+                lipid_score >= 20 or any("lipid" in str(g).lower() or "apob" in str(g).lower() for g in therapeutic_gaps) or active_goal == "anabolic_physique",
+                [("hmg-coa reductase", "inhibitor"), ("npc1l1", "inhibitor")],
+                "Atherogenic Dyslipidemia & ApoB Surge",
+                "Upregulates hepatic LDL receptors and suppresses intestinal cholesterol absorption to clear atherogenic ApoB particles."
+            ),
+            (
+                has_19nor or (any("prolactin" in str(g).lower() for g in therapeutic_gaps) and any(is_steroidal_androgen(c) or "androgen" in str(c.get("drug_class", "")).lower() for c in compounds)),
+                [("dopa decarboxylase", None), ("dopamine d2", "agonist")],
+                "Hyperprolactinemia & Progestogenic Breast Tenderness",
+                "Enhances endogenous dopamine synthesis in the tuberoinfundibular pathway to tonically inhibit pituitary prolactin secretion."
+            ),
+            (
+                (has_aromatizable or (has_any_androgen and active_goal == "anabolic_physique")) and not has_ai,
+                [("cyp19a1", "inhibitor"), ("aromatase", "inhibitor")],
+                "Aromatization & High Estradiol (E2) Burden",
+                "Inactivates CYP19A1 aromatase to prevent excessive conversion of testosterone to estradiol, mitigating gynecomastia and fluid retention."
+            ),
+            (
+                active_goal in ("cognitive_focus", "cns_stimulation") or any(c.get("drug_class") == "CNS Stimulant" for c in compounds),
+                [("glutamate receptor", None), ("acetylcholine precursor", None), ("gaba-a", None)],
+                "Sympathomimetic Jitters & Central Neurotransmitter Balance",
+                "Attenuates peripheral vasoconstriction, enhances alpha brain waves, and maintains central acetylcholine pools."
+            ),
+            (
+                active_goal == "longevity_autophagy" or any("longevity" in str(g).lower() or "ampk" in str(g).lower() for g in therapeutic_gaps),
+                [("ampk", "agonist"), ("complex i", "inhibitor")],
+                "Insulin Resistance & Cellular Senescence",
+                "Stimulates AMPK phosphorylation and suppresses mTORC1 to promote cellular autophagy."
+            ),
+            (
+                active_goal == "sleep_stress_recovery" or any("sleep" in str(g).lower() or "cortisol" in str(g).lower() for g in therapeutic_gaps),
+                [("nmda receptor", "antagonist"), ("gaba-a allosteric", None)],
+                "Nocturnal Hyperarousal & Recovery Deficit",
+                "Promotes central nervous system down-regulation, blunts nocturnal catecholamines, and deepens Slow-Wave Sleep (SWS)."
+            ),
+            (
+                has_oral_tma or float(biometrics.get("tmao", 0) or 0) > 6.2,
+                [("tma lyase", "inhibitor"), ("cnta", "inhibitor")],
+                "Gut Microbial TMA Conversion & Serum TMAO Elevation",
+                "Inactivates bacterial trimethylamine lyase enzymes in the gut lumen, blocking the cleavage of oral L-carnitine/choline into trimethylamine (TMA) and preventing downstream hepatic FMO3 oxidation to atherogenic TMAO."
+            ),
+        ]
 
-        # 10. Literature-Mined & Curated Association Discovery from Knowledge Graph
+        for condition_active, target_tuples, solves_burden_text, clinical_purpose_text in physiological_axes:
+            if not condition_active:
+                continue
+            for item in target_tuples:
+                if isinstance(item, tuple):
+                    kw, act = item
+                else:
+                    kw, act = item, None
+                matching_comps = catalog.find_compounds_by_target(kw, action=act)
+                for comp in matching_comps:
+                    c_key = comp.get("key", "").lower()
+                    if c_key and c_key not in existing_keys and c_key not in [cand["key"] for cand in candidate_pool]:
+                        candidate_pool.append(cls._build_candidate_entry(
+                            catalog_comp=comp,
+                            solves_burden=solves_burden_text,
+                            clinical_purpose=clinical_purpose_text,
+                            is_target_derived=True,
+                        ))
+
+        # 3. Literature-Mined & Curated Association Discovery from Knowledge Graph
         try:
             gdb = get_graph_database()
             for edge in gdb._mock_edges:
@@ -735,7 +695,6 @@ class CopilotAgent:
                 if partner_key and partner_key not in [c["key"] for c in candidate_pool]:
                     partner_comp = catalog.get_compound(partner_key) or catalog.find_by_synonym(partner_key)
                     if partner_comp:
-                        c_name = partner_comp.get("name") or partner_comp.get("canonical_name") or partner_key.title()
                         p_name = primary_comp.title().replace("_", " ")
                         
                         if e_type == "LITERATURE_COOCCURRENCE":
@@ -743,31 +702,23 @@ class CopilotAgent:
                             npmi = edge.get("npmi_score", 0.0)
                             pmid_list = edge.get("sample_pmids", [])
                             pmid_txt = f" [PMIDs: {', '.join(str(p) for p in pmid_list[:2])}]" if pmid_list else ""
-                            candidate_pool.append({
-                                "key": partner_key,
-                                "name": c_name,
-                                "target": partner_comp.get("mechanism") or partner_comp.get("drug_class") or "Biological Modifier",
-                                "standard_dose": str(partner_comp.get("standard_dose") or "Per clinical titration"),
-                                "clinical_purpose": f"Empirical literature association: Frequently co-administered or co-studied with {p_name} in scientific publications ({co_cnt} papers, NPMI: {npmi:.2f}).{pmid_txt}",
-                                "solves_burden": f"Synergy / Co-administration Vector for {p_name}",
-                                "evidence_grade": f"PubMed Co-occurrence ({co_cnt} papers)",
-                                "interaction_safety": "Literature-grounded pairing.",
-                                "is_literature_derived": True,
-                            })
+                            candidate_pool.append(cls._build_candidate_entry(
+                                catalog_comp=partner_comp,
+                                solves_burden=f"Synergy / Co-administration Vector for {p_name}",
+                                clinical_purpose=f"Empirical literature association: Frequently co-administered or co-studied with {p_name} in scientific publications ({co_cnt} papers, NPMI: {npmi:.2f}).{pmid_txt}",
+                                evidence_grade=f"PubMed Co-occurrence ({co_cnt} papers)",
+                                is_literature_derived=True,
+                            ))
                         elif e_type == "CURATED_ASSOCIATION":
                             db_src = edge.get("source_db", "STITCH/CTD")
                             desc = edge.get("description", "Curated biochemical interaction")
-                            candidate_pool.append({
-                                "key": partner_key,
-                                "name": c_name,
-                                "target": partner_comp.get("mechanism") or partner_comp.get("drug_class") or "Curated Target",
-                                "standard_dose": str(partner_comp.get("standard_dose") or "Per clinical titration"),
-                                "clinical_purpose": f"Curated database association ({db_src}): {desc} with {p_name}.",
-                                "solves_burden": f"Curated Mechanistic Synergy with {p_name}",
-                                "evidence_grade": f"{db_src} Curated Database",
-                                "interaction_safety": "Biochemically validated interaction.",
-                                "is_literature_derived": True,
-                            })
+                            candidate_pool.append(cls._build_candidate_entry(
+                                catalog_comp=partner_comp,
+                                solves_burden=f"Curated Mechanistic Synergy with {p_name}",
+                                clinical_purpose=f"Curated database association ({db_src}): {desc} with {p_name}.",
+                                evidence_grade=f"{db_src} Curated Database",
+                                is_literature_derived=True,
+                            ))
         except Exception as lit_rec_err:
             logger.debug("Literature-based candidate discovery notice: %s", lit_rec_err)
 
@@ -776,14 +727,16 @@ class CopilotAgent:
             for st in g.get("cofactor_search_terms", []):
                 gap_search_terms.add(str(st).lower())
 
-        # Sort candidate pool: gap-matched candidates first, then high-confidence literature
+        # Sort candidate pool: gap-matched candidates first, then target-derived, then literature
         def _candidate_rank(c: Dict[str, Any]) -> int:
             k = str(c.get("key", "")).lower()
             if any(st in k for st in gap_search_terms):
                 return 0
-            if c.get("is_literature_derived"):
+            if c.get("is_target_derived"):
                 return 1
-            return 2
+            if c.get("is_literature_derived"):
+                return 2
+            return 3
 
         candidate_pool.sort(key=_candidate_rank)
 

@@ -4,6 +4,8 @@ import logging
 import re
 from typing import Any, Dict, List, Optional, Tuple, Set
 
+from app.services.graph_service import is_steroidal_androgen, is_aromatizable_androgen
+
 logger = logging.getLogger("healthai.stack_intent_engine")
 
 PROTOCOL_GOAL_TAXONOMY = [
@@ -619,12 +621,17 @@ class StackIntentEngine:
                 features["has_depot_injectables"] = True
 
             # Androgen / AAS detection
-            if any(w in tokens for w in ["testosterone", "trenbolone", "nandrolone", "drostanolone", "masteron", "primobolan", "methenolone", "boldenone", "oxandrolone", "anavar", "stanozolol", "winstrol", "superdrol", "dianabol", "anadrol", "turinabol", "trestolone", "ment"]) or any(w in k or w in name for w in ["testosterone", "trenbolone", "nandrolone", "drostanolone", "masteron", "primobolan", "methenolone", "boldenone", "oxandrolone", "anavar", "stanozolol", "winstrol", "superdrol", "dianabol", "anadrol", "turinabol", "sarm", "rad140", "lgd4033", "ostarine"]):
+            is_androgen = (
+                is_steroidal_androgen(c)
+                or any(w in tokens for w in ["testosterone", "trenbolone", "nandrolone", "drostanolone", "masteron", "primobolan", "methenolone", "boldenone", "oxandrolone", "anavar", "stanozolol", "winstrol", "superdrol", "dianabol", "anadrol", "turinabol", "trestolone"])
+                or any(k == w or name == w for w in ["rad140", "lgd4033", "ostarine", "yk11", "s23", "s4"])
+            )
+            if is_androgen:
                 features["has_androgens"] = True
                 features["androgen_names"].append(c.get("name") or k.title())
 
             # 19-nor progestogenic
-            if any(w in tokens for w in ["trenbolone", "nandrolone", "durabolin", "trestolone", "ment", "npp", "parabolan"]) or any(w in k or w in name for w in ["nandrolone", "trenbolone", "trestolone", "19-nor", "19nor"]) or any("progesterone receptor" in t and any(act in t for act in ["agonist", "substrate", "cleaved"]) for t in targets):
+            if any(w in tokens for w in ["trenbolone", "nandrolone", "durabolin", "trestolone", "npp", "parabolan"]) or any(w in k or w in name for w in ["nandrolone", "trenbolone", "trestolone", "19-nor", "19nor"]):
                 features["has_19nor_progestogenic"] = True
 
             # Aromatase inhibitor (AI)
@@ -638,7 +645,7 @@ class StackIntentEngine:
                 features["protective_ancillary_names"].append(c.get("name") or k.title())
 
             # Aromatizable substrate
-            if any(w in tokens for w in ["testosterone", "testc", "testcyp", "teste", "testenan", "dianabol", "dbol", "methandrostenolone", "boldenone", "equipoise"]) or any(w in k or w in name for w in ["testosterone", "dianabol", "boldenone", "methandrostenolone"]):
+            if is_aromatizable_androgen(c) or any(w in tokens for w in ["testosterone", "testc", "testcyp", "teste", "testenan", "dianabol", "dbol", "methandrostenolone", "boldenone", "equipoise"]):
                 features["has_aromatizable_substrate"] = True
 
             # RAAS blockers
@@ -688,10 +695,11 @@ class StackIntentEngine:
             # Oral TMA precursors (e.g. oral L-carnitine, choline, betaine)
             is_oral_route = route in ("oral", "po", "swallow", "") or ":oral" in k
             is_parenteral = route in ("intramuscular", "im", "subcutaneous", "subq", "iv")
-            is_tma_substrate = any(
-                ("tma lyase" in t or "cnta" in t or "cntb" in t or "cutc" in t or "yeaw" in t)
-                for t in targets
-            ) or any(w in text_blob for w in ["carnitine", "alcar", "choline", "alpha_gpc", "alpha-gpc", "citicoline", "betaine"])
+            is_tma_substrate = (
+                any(("tma lyase" in t or "cnta" in t or "cntb" in t or "cutc" in t or "yeaw" in t) and "substrate" in t for t in targets)
+                or any(w in tokens for w in ["carnitine", "alcar", "acetylcarnitine", "choline", "alpha_gpc", "citicoline", "betaine", "trimethylglycine"])
+                or any(re.search(rf"\b{re.escape(w)}\b", f"{k} {name}") for w in ["l-carnitine", "carnitine", "alcar", "acetyl-l-carnitine", "choline", "alpha-gpc", "alpha_gpc", "citicoline", "cdp-choline", "betaine"])
+            )
             if is_oral_route and not is_parenteral and is_tma_substrate:
                 features["has_oral_tma_precursors"] = True
                 features["oral_tma_precursor_names"].append(c.get("name") or k.title())

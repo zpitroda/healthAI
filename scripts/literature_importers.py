@@ -87,7 +87,7 @@ class STITCHImporter:
                         
                         # Create/merge target node
                         self.gdb.execute_cypher(
-                            'MERGE (e:EntityNode:TargetNode {id: $id}) SET e.label = $label, e.node_type = $nt',
+                            'MERGE (e:EntityNode {id: $id}) SET e:TargetNode, e.label = $label, e.node_type = $nt',
                             {'id': target_id, 'label': target_name, 'nt': 'target'}
                         )
                         
@@ -175,7 +175,7 @@ class CTDImporter:
                             
                             # Create/merge target node
                             self.gdb.execute_cypher(
-                                'MERGE (e:EntityNode:TargetNode {id: $id}) SET e.label = $label, e.node_type = $nt',
+                                'MERGE (e:EntityNode {id: $id}) SET e:TargetNode, e.label = $label, e.node_type = $nt',
                                 {'id': target_id, 'label': gene_symbol, 'nt': 'target'}
                             )
                             

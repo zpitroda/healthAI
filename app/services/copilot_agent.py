@@ -1078,6 +1078,13 @@ class CopilotAgent:
                 return {"error": f"Citation with PMID '{pmid}' not found."}
             return meta
 
+        elif tool_name in ("search_pubmed_titles", "search_literature_titles", "search_paper_titles"):
+            from app.services.pubmed_service import PubMedService
+            query = str(arguments.get("query") or arguments.get("search_query") or "").strip()
+            max_res = int(arguments.get("max_results", 8))
+            pubmed_svc = PubMedService()
+            return {"query": query, "candidate_titles": pubmed_svc.search_pubmed_titles(query, max_results=max_res)}
+
         elif tool_name in ("fetch_paper_abstract", "read_paper_abstract", "get_paper_abstract", "read_study"):
             from app.services.pubmed_service import PubMedService
             pmid = str(arguments.get("pmid") or arguments.get("query") or "").strip()
@@ -1086,6 +1093,32 @@ class CopilotAgent:
             if not abstract_data:
                 return {"error": f"Abstract for PMID '{pmid}' not found in PubMed or Europe PMC."}
             return abstract_data
+
+        elif tool_name in ("read_paper_section", "fetch_paper_full_text_section", "read_full_text_section"):
+            from app.services.pubmed_service import PubMedService
+            pmid = str(arguments.get("pmid") or arguments.get("pmcid") or arguments.get("identifier") or "").strip()
+            section = str(arguments.get("section") or "results").strip()
+            pubmed_svc = PubMedService()
+            return pubmed_svc.fetch_paper_full_text_section(pmid, section=section)
+
+        elif tool_name in ("search_within_paper", "search_in_paper", "search_paper_passages"):
+            from app.services.pubmed_service import PubMedService
+            pmid = str(arguments.get("pmid") or arguments.get("pmcid") or arguments.get("identifier") or "").strip()
+            query = str(arguments.get("query") or arguments.get("passage_query") or "").strip()
+            pubmed_svc = PubMedService()
+            return pubmed_svc.search_within_paper(pmid, query=query)
+
+        elif tool_name in ("find_similar_papers", "find_similar_studies", "find_similar_citations"):
+            from app.services.pubmed_service import PubMedService
+            pmid = str(arguments.get("pmid") or "").strip()
+            top_k = int(arguments.get("top_k", 4))
+            pubmed_svc = PubMedService()
+            return {"pmid": pmid, "similar_papers": pubmed_svc.find_similar_papers(pmid, top_k=top_k)}
+
+        elif tool_name in ("search_cached_papers_semantic", "search_citations_semantic"):
+            query = str(arguments.get("query") or "").strip()
+            top_k = int(arguments.get("top_k", 5))
+            return {"query": query, "citations": graph_db.search_citations_semantic(query, top_k=top_k)}
 
         elif tool_name in ("hybrid_rag_search", "search_graphrag_and_literature", "hybrid_literature_search"):
             query = str(arguments.get("query") or arguments.get("topic") or "").strip()
@@ -1666,7 +1699,7 @@ class CopilotAgent:
             if citations_found:
                 literature_sections.append("### VERIFIED BIOMEDICAL LITERATURE & CLINICAL EVIDENCE:")
                 literature_sections.extend(citations_found[:12])
-                literature_sections.append("*(Mandate: Ground your compound recommendations and answers in these verified studies. Strictly cite a study when discussing its target/findings using [PMID: <id> - Author et al., Year]. If proposing an unstudied combination or theoretical extrapolation, transparently label it with [Pharmacological Rationale: <Mechanism>].)*")
+                literature_sections.append("*(Grounding Mandate: Ground your compound recommendations and answers in empirical biomedical literature. Strictly cite verified studies using [PMID: <id> - Author et al., Year] or [DOI: ...]. If you encounter an unfamiliar compound, novel therapeutic endpoint, or need specific dosage/adverse effect evidence not listed above, invoke `<tool_call name=\"search_pubmed_titles\">{\"query\": \"<compound> <endpoint>\"}</tool_call>` or `<tool_call name=\"read_paper_abstract\">{\"pmid\": \"<id>\"}</tool_call>` during your thinking scratchpad to autonomously research and read study abstracts before formulating your response.)*")
         except Exception as lit_err:
             logger.debug("Literature context notice: %s", lit_err)
 
@@ -1844,11 +1877,14 @@ You have autonomous access to execute live graph traversals, pathway queries, ph
    - **Targeted Tool Invocation**: If you need new information (e.g. simulating a custom stack diff, retrieving missing kinetics, tracing a specific biological pathway cascade requested by the user, or querying literature), invoke the relevant tool:
      * `build_stack_from_scratch`: `{"goal": "anabolic_physique", "biometrics": {...}, "preferences": {...}, "custom_notes": "no oral l-carnitine"}`
      * `simulate_stack_diff`: `{"base_stack": [...], "diff": {"add": [...], "remove": [...]}}`
-     * `check_cyp450_conflicts` / `analyze_stack_conflicts`: `{"compound_keys": [...], "biometrics": {...}}`
-     * `search_biomedical_literature`: `{"query": "citrus bergamot lipid profile ApoB", "max_results": 4}`
-     * `search_literature_for_claim`: `{"entity_id": "ezetimibe", "claim_topic": "atherosclerotic_cvd"}`
-     * `fetch_paper_abstract`: `{"pmid": "26039521"}` (Reads title, author, journal, and full abstract text during thinking)
+     * `search_pubmed_titles`: `{"query": "telmisartan cognitive neuroprotection bdnf", "max_results": 8}` (Discovers candidate study titles, PMIDs, and publication years without token bloat)
+     * `read_paper_abstract`: `{"pmid": "26039521"}` (Reads title, author, journal, sample size, and full abstract text during thinking)
+     * `read_paper_section`: `{"pmid": "26039521", "section": "results"}` (Reads targeted results/dosage/adverse effects section from Open Access papers)
+     * `search_within_paper`: `{"pmid": "26039521", "query": "liver enzymes AST ALT"}` (Extracts top relevant paragraphs within a paper)
+     * `find_similar_papers`: `{"pmid": "18378520", "top_k": 4}` (Discovers related papers sharing biological pathways via vector graph)
+     * `search_cached_papers_semantic`: `{"query": "metformin exercise hypertrophy mTOR", "top_k": 5}` (Semantic vector search across local graph cache)
      * `hybrid_rag_search`: `{"query": "metformin hypertrophy mTOR", "entity_ids": ["metformin"]}` (Combines causal chains with literature citations)
+     * `search_biomedical_literature`: `{"query": "citrus bergamot lipid profile ApoB", "max_results": 4}`
      * `query_pathway_cascade`: `{"target_id": "TARGET_NAME"}`
      * `trace_mechanism_pathway`: `{"source_compound": "caffeine", "target_biomarker": "bio_heart_rate"}`
      * `simulate_pkpd`: `{"compound_key": "telmisartan", "dose_mg": 40}`
@@ -2019,8 +2055,23 @@ You have autonomous access to execute live graph traversals, pathway queries, ph
             return f"Executed Cypher: Retrieved {obs.get('record_count', 0)} records from graph."
         elif tool_name in ("get_compound_details", "get_compound_info"):
             return f"Retrieved {obs.get('canonical_name', obs.get('name'))} (t1/2: {obs.get('half_life_hours')}h, Bioavailability: {obs.get('oral_bioavailability_pct')}%)."
+        elif tool_name in ("search_pubmed_titles", "search_literature_titles", "search_paper_titles"):
+            candidates = obs.get("candidate_titles", [])
+            pmids = [str(c.get("pmid")) for c in candidates[:4] if c.get("pmid")]
+            return f"Scanned PubMed titles for '{obs.get('query')}': Discovered {len(candidates)} candidate studies [PMIDs: {', '.join(pmids)}]."
         elif tool_name in ("fetch_paper_abstract", "read_paper_abstract", "get_paper_abstract", "read_study"):
             return f"Read study abstract [PMID: {obs.get('pmid')}]: \"{obs.get('title', '')[:80]}\" ({obs.get('journal', 'PubMed')} {obs.get('pub_year', '')}). Key Finding: {obs.get('clinical_finding', '')[:100]}..."
+        elif tool_name in ("read_paper_section", "fetch_paper_full_text_section", "read_full_text_section"):
+            return f"Read '{obs.get('section_requested', 'section')}' section for [{obs.get('pmid') or obs.get('pmcid')}]: {obs.get('word_count', 0)} words extracted (Open Access: {obs.get('is_open_access', False)})."
+        elif tool_name in ("search_within_paper", "search_in_paper", "search_paper_passages"):
+            return f"In-paper passage search for '{obs.get('query')}': Extracted {obs.get('passage_count', 0)} relevant clinical paragraphs."
+        elif tool_name in ("find_similar_papers", "find_similar_studies", "find_similar_citations"):
+            sim = obs.get("similar_papers", [])
+            pmids = [str(s.get("pmid")) for s in sim if s.get("pmid")]
+            return f"Similar paper finder for [PMID: {obs.get('pmid')}]: Found {len(sim)} mechanistically related studies [PMIDs: {', '.join(pmids)}]."
+        elif tool_name in ("search_cached_papers_semantic", "search_citations_semantic"):
+            cites = obs.get("citations", [])
+            return f"Semantic vector search: Retrieved {len(cites)} cached studies matching '{obs.get('query')}'."
         elif tool_name in ("hybrid_rag_search", "search_graphrag_and_literature", "hybrid_literature_search"):
             return f"Hybrid RAG search for '{obs.get('query')}': {obs.get('citation_count', 0)} citations, {len(obs.get('causal_chains', []))} causal chains."
         elif tool_name in ("search_pubmed_literature", "search_biomedical_literature", "search_pubmed", "search_literature_for_claim"):
@@ -2325,7 +2376,7 @@ You have autonomous access to execute live graph traversals, pathway queries, ph
         protocol_goal: Optional[str] = None,
         protocol_objective: Optional[str] = None,
         custom_instructions: Optional[str] = None,
-        max_exploration_steps: int = 3,
+        max_exploration_steps: int = 8,
     ) -> AsyncGenerator[Dict[str, Any], None]:
         """
         Async generator for streaming SSE events to the frontend with dynamic multi-step ReAct graph traversal.
@@ -2579,7 +2630,7 @@ You have autonomous access to execute live graph traversals, pathway queries, ph
         biometrics: Optional[Dict[str, Any]] = None,
         protocol_goal: Optional[str] = None,
         protocol_objective: Optional[str] = None,
-        max_exploration_steps: int = 3,
+        max_exploration_steps: int = 8,
     ) -> Dict[str, Any]:
         """
         Non-streaming execution supporting dynamic ReAct graph problem solving.

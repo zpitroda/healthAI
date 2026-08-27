@@ -1562,3 +1562,277 @@ class PubMedService:
             "citations": enriched_citations,
         }
 
+    def search_pubmed_titles(self, query: str, max_results: int = 8) -> List[Dict[str, Any]]:
+        """
+        Lightweight Title & Metadata Discovery for Agentic Reasoning.
+        Returns a token-efficient list of paper titles, publication years, study designs,
+        and PMIDs matching query, enabling the AI to scan candidates without context bloat.
+        """
+        cleaned_query = query.strip().lower()
+        if not cleaned_query:
+            return []
+
+        cache_key = f"titles:{cleaned_query}:{max_results}"
+        if cache_key in self._cache:
+            return self._cache[cache_key]
+        if cache_key in _GLOBAL_LITERATURE_CACHE:
+            return _GLOBAL_LITERATURE_CACHE[cache_key]
+
+        titles_list: List[Dict[str, Any]] = []
+        seen_pmids: Set[str] = set()
+
+        # 1. Check local seed database for instant matches
+        tokens = [t for t in re.split(r"[\s_,\-]+", cleaned_query) if len(t) >= 3]
+        if tokens:
+            for seed_key, cites in SEED_LITERATURE_DB.items():
+                for c in cites:
+                    p = str(c.get("pmid") or "")
+                    if p and p not in seen_pmids:
+                        text_corpus = f"{c.get('title', '')} {c.get('clinical_finding', '')} {seed_key}".lower()
+                        if any(t in text_corpus for t in tokens):
+                            seen_pmids.add(p)
+                            titles_list.append({
+                                "pmid": p,
+                                "title": c.get("title", ""),
+                                "journal": c.get("journal", ""),
+                                "pub_year": str(c.get("pub_year", "")),
+                                "authors": c.get("authors", [])[:2] + (["et al."] if len(c.get("authors", [])) > 2 else []),
+                                "doi": c.get("doi"),
+                                "evidence_type": c.get("evidence_type", "Clinical Trial"),
+                                "is_open_access": False,
+                                "pmcid": None,
+                            })
+
+        # 2. Query Europe PMC REST API (rich open access + title metadata)
+        try:
+            epmc_url = "https://www.ebi.ac.uk/europepmc/webservices/rest/search"
+            epmc_params = {
+                "query": f"{cleaned_query} (SRC:MED)",
+                "format": "json",
+                "pageSize": max_results,
+                "resultType": "core",
+            }
+            with httpx.Client(timeout=self.timeout) as client:
+                res = client.get(epmc_url, params=epmc_params)
+                if res.status_code == 200:
+                    data = res.json()
+                    for item in data.get("resultList", {}).get("result", []):
+                        p = str(item.get("pmid") or "")
+                        if p and p not in seen_pmids:
+                            seen_pmids.add(p)
+                            pmcid = item.get("pmcid")
+                            is_oa = item.get("isOpenAccess") == "Y" or bool(pmcid)
+                            author_str = item.get("authorString", "")
+                            authors = [a.strip() for a in author_str.split(",") if a.strip()][:2]
+                            if len(author_str.split(",")) > 2:
+                                authors.append("et al.")
+
+                            titles_list.append({
+                                "pmid": p,
+                                "title": item.get("title", "").rstrip("."),
+                                "journal": item.get("journalTitle", "Biomedical Journal"),
+                                "pub_year": str(item.get("pubYear", "2021")),
+                                "authors": authors,
+                                "doi": item.get("doi"),
+                                "pmcid": pmcid,
+                                "is_open_access": is_oa,
+                                "evidence_type": item.get("pubType", "Clinical Study"),
+                            })
+        except Exception as epmc_err:
+            logger.debug("Europe PMC title search notice: %s", epmc_err)
+
+        # 3. Fallback to NCBI E-Utilities if under capacity
+        if len(titles_list) < max_results:
+            try:
+                ncbi_cites = self.search_literature(cleaned_query, max_results=max_results)
+                for nc in ncbi_cites:
+                    p = str(nc.get("pmid") or "")
+                    if p and p not in seen_pmids:
+                        seen_pmids.add(p)
+                        titles_list.append({
+                            "pmid": p,
+                            "title": nc.get("title", ""),
+                            "journal": nc.get("journal", ""),
+                            "pub_year": str(nc.get("pub_year", "")),
+                            "authors": nc.get("authors", [])[:2] + (["et al."] if len(nc.get("authors", [])) > 2 else []),
+                            "doi": nc.get("doi"),
+                            "evidence_type": nc.get("evidence_type", "Clinical Trial"),
+                            "is_open_access": False,
+                            "pmcid": None,
+                        })
+            except Exception as ncbi_err:
+                logger.debug("NCBI title fallback notice: %s", ncbi_err)
+
+        final_titles = titles_list[:max_results]
+        self._cache[cache_key] = final_titles
+        _GLOBAL_LITERATURE_CACHE[cache_key] = final_titles
+        return final_titles
+
+    def fetch_paper_full_text_section(
+        self,
+        pmid_or_pmcid: str,
+        section: str = "results",
+        max_words: int = 600,
+    ) -> Dict[str, Any]:
+        """
+        Section-Targeted Full-Text Reader.
+        For Open Access (PMC / Europe PMC) papers, extracts targeted clinical sections
+        (e.g., 'results', 'methods', 'dosage', 'adverse_effects', 'discussion') capped
+        at max_words to strictly prevent context window bloat.
+        Falls back to structured abstract with clear paywall notice for closed-access papers.
+        """
+        clean_id = str(pmid_or_pmcid).strip()
+        if not clean_id:
+            return {"error": "PMID or PMCID is required."}
+
+        is_pmcid = clean_id.upper().startswith("PMC")
+        pmcid = clean_id if is_pmcid else None
+        pmid = None if is_pmcid else clean_id
+
+        # 1. Resolve PMCID if PMID provided
+        if not pmcid:
+            try:
+                epmc_url = "https://www.ebi.ac.uk/europepmc/webservices/rest/search"
+                epmc_params = {"query": f"EXT_ID:{pmid} SRC:MED", "resultType": "core", "format": "json"}
+                with httpx.Client(timeout=self.timeout) as client:
+                    res = client.get(epmc_url, params=epmc_params)
+                    if res.status_code == 200:
+                        data = res.json()
+                        results_list = data.get("resultList", {}).get("result", [])
+                        if results_list:
+                            pmcid = results_list[0].get("pmcid")
+            except Exception:
+                pass
+
+        # 2. If Open Access PMCID is available, fetch full-text XML
+        if pmcid:
+            try:
+                xml_url = f"https://www.ebi.ac.uk/europepmc/webservices/rest/{pmcid}/fullTextXML"
+                with httpx.Client(timeout=self.timeout + 2.0) as client:
+                    xml_res = client.get(xml_url)
+                    if xml_res.status_code == 200:
+                        raw_xml = xml_res.text
+                        clean_text = self._extract_section_from_xml(raw_xml, section, max_words=max_words)
+                        if clean_text:
+                            return {
+                                "pmid": pmid,
+                                "pmcid": pmcid,
+                                "is_open_access": True,
+                                "section_requested": section,
+                                "section_text": clean_text,
+                                "word_count": len(clean_text.split()),
+                                "full_text_available": True,
+                            }
+            except Exception as ft_err:
+                logger.debug("Full text XML retrieval notice for %s: %s", pmcid, ft_err)
+
+        # 3. Fallback: Closed Access / Paywalled paper -> Return structured abstract
+        abs_meta = self.fetch_abstract(pmid or clean_id)
+        if abs_meta:
+            abs_text = abs_meta.get("abstract") or abs_meta.get("clinical_finding") or "Abstract summary."
+            return {
+                "pmid": pmid or clean_id,
+                "pmcid": pmcid,
+                "is_open_access": False,
+                "section_requested": section,
+                "section_text": abs_text,
+                "word_count": len(abs_text.split()),
+                "full_text_available": False,
+                "paywall_notice": "Full-text article is behind a publisher paywall. Provided above is the complete structured abstract.",
+                "title": abs_meta.get("title"),
+                "journal": abs_meta.get("journal"),
+                "pub_year": abs_meta.get("pub_year"),
+                "url": abs_meta.get("url"),
+            }
+
+        return {
+            "pmid": pmid or clean_id,
+            "is_open_access": False,
+            "full_text_available": False,
+            "error": f"Unable to locate paper content for identifier '{clean_id}'.",
+        }
+
+    def _extract_section_from_xml(self, xml_content: str, section_target: str, max_words: int = 600) -> str:
+        """Parses full-text XML and isolates the target clinical section."""
+        sec_lower = section_target.lower()
+        if any(w in sec_lower for w in ["result", "finding", "outcome"]):
+            pattern = r"(?is)<sec[^>]*>.*?<title[^>]*>.*?(?:results|findings|outcomes).*?</title>(.*?)</sec>"
+        elif any(w in sec_lower for w in ["method", "dosage", "protocol", "intervention"]):
+            pattern = r"(?is)<sec[^>]*>.*?<title[^>]*>.*?(?:methods|materials and methods|dosage|study design|intervention).*?</title>(.*?)</sec>"
+        elif any(w in sec_lower for w in ["adverse", "safety", "toxic", "tolerab", "side effect"]):
+            pattern = r"(?is)<sec[^>]*>.*?<title[^>]*>.*?(?:adverse|safety|toxicity|tolerability|side effects).*?</title>(.*?)</sec>"
+        elif any(w in sec_lower for w in ["discuss", "conclus", "implicat"]):
+            pattern = r"(?is)<sec[^>]*>.*?<title[^>]*>.*?(?:discussion|conclusions|implications).*?</title>(.*?)</sec>"
+        else:
+            pattern = r"(?is)<body[^>]*>(.*?)</body>"
+
+        match = re.search(pattern, xml_content)
+        raw_body = match.group(1) if match else xml_content
+        # Strip XML tags
+        clean_text = re.sub(r"<[^>]+>", " ", raw_body)
+        clean_text = re.sub(r"\s+", " ", clean_text).strip()
+
+        words = clean_text.split()
+        if len(words) > max_words:
+            clean_text = " ".join(words[:max_words]) + f" ... [Section truncated at {max_words} words for token efficiency]"
+        return clean_text
+
+    def search_within_paper(
+        self,
+        pmid_or_pmcid: str,
+        query: str,
+        max_passages: int = 3,
+    ) -> Dict[str, Any]:
+        """
+        Passage-level semantic search within an individual paper.
+        Extracts only the top 2-3 most relevant paragraphs matching the query,
+        preventing whole-document context bloat.
+        """
+        clean_id = str(pmid_or_pmcid).strip()
+        clean_q = str(query or "").strip()
+        if not clean_id or not clean_q:
+            return {"error": "Paper identifier and query are required."}
+
+        # Fetch section text or full text
+        sec_res = self.fetch_paper_full_text_section(clean_id, section="results", max_words=1200)
+        body_text = sec_res.get("section_text", "")
+        if not body_text:
+            return {"error": f"No readable text available for paper '{clean_id}'."}
+
+        # Split into distinct paragraphs / sentences
+        paragraphs = [p.strip() for p in re.split(r"\n\s*\n|\.\s+(?=[A-Z])", body_text) if len(p.strip()) >= 50]
+        if not paragraphs:
+            paragraphs = [body_text]
+
+        from app.services.embedding_service import get_embedding_service
+        emb_svc = get_embedding_service()
+        ranked = emb_svc.rank_by_similarity(
+            query_text=clean_q,
+            candidates=[{"passage": p} for p in paragraphs],
+            text_extractor=lambda c: c["passage"],
+            top_k=max_passages,
+            min_similarity=0.10,
+        )
+
+        passages = [item["passage"] for _, item in ranked] or paragraphs[:max_passages]
+        return {
+            "pmid_or_pmcid": clean_id,
+            "query": clean_q,
+            "passage_count": len(passages),
+            "relevant_passages": passages,
+            "is_open_access": sec_res.get("is_open_access", False),
+        }
+
+    def find_similar_papers(self, pmid: str, top_k: int = 4) -> List[Dict[str, Any]]:
+        """Finds structurally and mechanistically related papers in the vector graph."""
+        clean_pmid = str(pmid or "").strip()
+        if not clean_pmid:
+            return []
+        try:
+            from app.knowledge_graph.graph_db import get_graph_database
+            gdb = get_graph_database()
+            return gdb.find_similar_citations(clean_pmid, top_k=top_k)
+        except Exception as sim_err:
+            logger.debug("Similar papers lookup notice for PMID %s: %s", clean_pmid, sim_err)
+            return []
+

@@ -176,7 +176,7 @@ class SystemDiagnostics:
         try:
             from app.knowledge_graph.graph_db import Neo4jGraphDatabase
             g_db = Neo4jGraphDatabase()
-            if getattr(g_db, "_driver", None):
+            if getattr(g_db, "driver", None) or (hasattr(g_db, "is_connected") and g_db.is_connected()):
                 neo4j_status = f"connected ({g_db.uri})"
         except Exception as e:
             neo4j_status = f"error: {str(e)}"

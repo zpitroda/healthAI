@@ -240,3 +240,48 @@ def test_copilot_agent_literature_tools():
     res_cite = CopilotAgent.execute_tool("get_citation_details", {"pmid": "18378520"})
     assert res_cite.get("pmid") == "18378520"
     assert "ONTARGET" in res_cite.get("title", "")
+
+
+def test_citation_ingestion_and_safe_multi_label_merges():
+    """Verify CitationNode ingestion stores authors and doesn't conflict during subsequent biological graph sync."""
+    gdb = get_graph_database()
+
+    # 1. Ingest citation with authors connected to an entity
+    cit_dict = {
+        "pmid": "99999991",
+        "title": "Novel mechanism of test compound",
+        "authors": ["Scientist A", "Scientist B"],
+        "journal": "J Test Med",
+        "pub_year": 2023,
+        "evidence_tier": "clinical_trial",
+        "key_findings": "High efficacy test finding",
+    }
+    ingested = gdb.ingest_citation(cit_dict, entity_id="test_substance_x")
+    assert ingested["id"] == "pmid_99999991"
+    assert ingested["authors"] == ["Scientist A", "Scientist B"]
+
+    # 2. Retrieve citations for entity
+    cites = gdb.get_citations_for_entity("test_substance_x")
+    assert len(cites) >= 1
+    assert any(c.get("pmid") == "99999991" for c in cites)
+    matched = next(c for c in cites if c.get("pmid") == "99999991")
+    assert "authors" in matched
+    assert matched["authors"] == ["Scientist A", "Scientist B"]
+
+    # 3. Ingest citation without pmid (None or empty)
+    cit_doi_only = {
+        "doi": "10.1234/test.doi.001",
+        "title": "DOI only paper without pmid",
+        "authors": ["Author X"],
+        "journal": "J DOI",
+        "pub_year": 2024,
+    }
+    ingested_doi = gdb.ingest_citation(cit_doi_only, entity_id="test_substance_x")
+    assert ingested_doi["pmid"] is None
+    assert ingested_doi["id"].startswith("doi_")
+
+    # 4. Now sync full biological graph for this compound to verify no MERGE label collision
+    bio_graph = build_selected_compound_graph(["telmisartan"])
+    sync_res = gdb.sync_biological_graph(bio_graph)
+    assert sync_res["nodes_synced"] > 0
+

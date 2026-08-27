@@ -72,6 +72,7 @@ class Neo4jGraphDatabase:
             return
 
         constraints_and_indexes = [
+            "CREATE CONSTRAINT entity_id IF NOT EXISTS FOR (e:EntityNode) REQUIRE e.id IS UNIQUE",
             "CREATE CONSTRAINT compound_id IF NOT EXISTS FOR (c:CompoundNode) REQUIRE c.id IS UNIQUE",
             "CREATE CONSTRAINT target_id IF NOT EXISTS FOR (t:TargetNode) REQUIRE t.id IS UNIQUE",
             "CREATE CONSTRAINT pathway_id IF NOT EXISTS FOR (p:PathwayNode) REQUIRE p.id IS UNIQUE",
@@ -79,19 +80,21 @@ class Neo4jGraphDatabase:
             "CREATE CONSTRAINT biomarker_id IF NOT EXISTS FOR (b:BiomarkerNode) REQUIRE b.id IS UNIQUE",
             "CREATE CONSTRAINT phenotype_id IF NOT EXISTS FOR (p:PhenotypeNode) REQUIRE p.id IS UNIQUE",
             "CREATE CONSTRAINT citation_id IF NOT EXISTS FOR (c:CitationNode) REQUIRE c.id IS UNIQUE",
-            "CREATE CONSTRAINT citation_pmid IF NOT EXISTS FOR (c:CitationNode) REQUIRE c.pmid IS UNIQUE",
             "CREATE CONSTRAINT trial_id IF NOT EXISTS FOR (t:ClinicalTrialNode) REQUIRE t.id IS UNIQUE",
-            "CREATE CONSTRAINT trial_nct IF NOT EXISTS FOR (t:ClinicalTrialNode) REQUIRE t.nct_id IS UNIQUE",
             "CREATE CONSTRAINT claim_id IF NOT EXISTS FOR (cl:EvidenceClaimNode) REQUIRE cl.id IS UNIQUE",
-            "CREATE CONSTRAINT entity_id IF NOT EXISTS FOR (e:EntityNode) REQUIRE e.id IS UNIQUE",
+            "DROP CONSTRAINT citation_pmid IF EXISTS",
+            "DROP CONSTRAINT trial_nct IF EXISTS",
             "CREATE INDEX compound_smiles IF NOT EXISTS FOR (c:CompoundNode) ON (c.smiles)",
             "CREATE INDEX compound_inchikey IF NOT EXISTS FOR (c:CompoundNode) ON (c.inchikey)",
             "CREATE INDEX target_gene IF NOT EXISTS FOR (t:TargetNode) ON (t.gene_symbol)",
             "CREATE INDEX target_uniprot IF NOT EXISTS FOR (t:TargetNode) ON (t.uniprot_id)",
+            "CREATE INDEX citation_pmid IF NOT EXISTS FOR (c:CitationNode) ON (c.pmid)",
             "CREATE INDEX citation_year IF NOT EXISTS FOR (c:CitationNode) ON (c.pub_year)",
             "CREATE INDEX citation_tier IF NOT EXISTS FOR (c:CitationNode) ON (c.evidence_tier)",
+            "CREATE INDEX trial_nct IF NOT EXISTS FOR (t:ClinicalTrialNode) ON (t.nct_id)",
             "CREATE INDEX claim_type IF NOT EXISTS FOR (cl:EvidenceClaimNode) ON (cl.claim_type)",
             "CREATE INDEX claim_dispute IF NOT EXISTS FOR (cl:EvidenceClaimNode) ON (cl.dispute_status)",
+            "MATCH (n) WHERE (n:CompoundNode OR n:TargetNode OR n:PathwayNode OR n:PhysiologyNode OR n:BiomarkerNode OR n:PhenotypeNode OR n:CitationNode OR n:ClinicalTrialNode OR n:EvidenceClaimNode) AND NOT n:EntityNode SET n:EntityNode",
         ]
 
         try:
@@ -103,6 +106,12 @@ class Neo4jGraphDatabase:
                         pass
         except Exception as e:
             logger.debug("Failed initializing Neo4j constraints: %s", e)
+
+    def is_connected(self) -> bool:
+        """Check if connected to live Neo4j database, attempting connection if not yet established."""
+        if self.driver is None:
+            self._setup_db()
+        return self.driver is not None
 
     def close(self) -> None:
         """Close Neo4j driver connection."""
@@ -135,6 +144,8 @@ class Neo4jGraphDatabase:
     def execute_cypher(self, query: str, params: Optional[Dict[str, Any]] = None) -> List[Dict[str, Any]]:
         """Executes a Cypher query against Neo4j or falls back to in-memory graph store."""
         params = params or {}
+        if not self.driver:
+            self._setup_db()
         if self.driver:
             try:
                 with self.driver.session() as session:
@@ -171,7 +182,7 @@ class Neo4jGraphDatabase:
             node_id = params.get("id") or params.get("src") or params.get("eid")
             if node_id:
                 node_id = str(node_id)
-                label_matches = re.findall(r":([a-zA-Z0-9_]+)", query.split("{")[0])
+                label_matches = re.findall(r":([a-zA-Z0-9_]+)", query.split("WHERE")[0].split("RETURN")[0])
                 node_type_labels = set(label_matches) if label_matches else {"EntityNode"}
 
                 if node_id not in self._mock_nodes:
@@ -285,8 +296,9 @@ class Neo4jGraphDatabase:
                     "cyp_inducers": list(attrs.get("cyp_inducers") or []),
                 })
                 q = """
-                MERGE (c:EntityNode:CompoundNode {id: $id})
-                SET c.label = $label, c.node_type = $node_type, c.canonical_name = $canonical_name,
+                MERGE (c:EntityNode {id: $id})
+                SET c:CompoundNode,
+                    c.label = $label, c.node_type = $node_type, c.canonical_name = $canonical_name,
                     c.smiles = $smiles, c.inchikey = $inchikey, c.pubchem_cid = $pubchem_cid,
                     c.chembl_id = $chembl_id, c.drug_class = $drug_class, c.logP = $logP,
                     c.tpsa = $tpsa, c.molecular_weight = $molecular_weight,
@@ -309,8 +321,9 @@ class Neo4jGraphDatabase:
                     "microbial_source": str(attrs.get("microbial_source") or ""),
                 })
                 q = """
-                MERGE (t:EntityNode:TargetNode {id: $id})
-                SET t.label = $label, t.node_type = $node_type, t.family = $family, t.category = $category,
+                MERGE (t:EntityNode {id: $id})
+                SET t:TargetNode,
+                    t.label = $label, t.node_type = $node_type, t.family = $family, t.category = $category,
                     t.uniprot_id = $uniprot_id, t.gene_symbol = $gene_symbol,
                     t.subcellular_location = $subcellular_location, t.direction = $direction,
                     t.is_microbial = $is_microbial, t.microbial_source = $microbial_source
@@ -325,8 +338,9 @@ class Neo4jGraphDatabase:
                     "pathway_category": str(attrs.get("pathway_category") or ""),
                 })
                 q = """
-                MERGE (p:EntityNode:PathwayNode {id: $id})
-                SET p.label = $label, p.node_type = $node_type, p.database = $database,
+                MERGE (p:EntityNode {id: $id})
+                SET p:PathwayNode,
+                    p.label = $label, p.node_type = $node_type, p.database = $database,
                     p.pathway_id = $pathway_id, p.pathway_category = $pathway_category
                 """
                 self.execute_cypher(q, node_props)
@@ -339,8 +353,9 @@ class Neo4jGraphDatabase:
                     "tissue_specificity": str(attrs.get("tissue_specificity") or ""),
                 })
                 q = """
-                MERGE (p:EntityNode:PhysiologyNode {id: $id})
-                SET p.label = $label, p.node_type = $node_type, p.organ_system = $organ_system,
+                MERGE (p:EntityNode {id: $id})
+                SET p:PhysiologyNode,
+                    p.label = $label, p.node_type = $node_type, p.organ_system = $organ_system,
                     p.physiological_function = $physiological_function, p.tissue_specificity = $tissue_specificity
                 """
                 self.execute_cypher(q, node_props)
@@ -361,8 +376,9 @@ class Neo4jGraphDatabase:
                     "kinetic_profile": str(attrs.get("kinetic_profile") or "direct_receptor"),
                 })
                 q = """
-                MERGE (b:EntityNode:BiomarkerNode {id: $id})
-                SET b.label = $label, b.node_type = $node_type, b.unit = $unit, b.panel = $panel,
+                MERGE (b:EntityNode {id: $id})
+                SET b:BiomarkerNode,
+                    b.label = $label, b.node_type = $node_type, b.unit = $unit, b.panel = $panel,
                     b.baseline = $baseline, b.safe_lower = $safe_lower, b.safe_upper = $safe_upper,
                     b.gain_up = $gain_up, b.gain_down = $gain_down, b.onset_days = $onset_days,
                     b.half_time_days = $half_time_days, b.time_to_steady_state_weeks = $time_to_steady_state_weeks,
@@ -379,8 +395,9 @@ class Neo4jGraphDatabase:
                     "mesh_id": str(attrs.get("mesh_id") or ""),
                 })
                 q = """
-                MERGE (ph:EntityNode:PhenotypeNode {id: $id})
-                SET ph.label = $label, ph.node_type = $node_type, ph.category = $category,
+                MERGE (ph:EntityNode {id: $id})
+                SET ph:PhenotypeNode,
+                    ph.label = $label, ph.node_type = $node_type, ph.category = $category,
                     ph.severity = $severity, ph.clinical_evidence_level = $clinical_evidence_level,
                     ph.mesh_id = $mesh_id
                 """
@@ -388,9 +405,11 @@ class Neo4jGraphDatabase:
 
             elif nt in ("citation", "study", "paper"):
                 labels.add("CitationNode")
+                raw_pmid = str(attrs.get("pmid") or "").strip()
+                raw_doi = str(attrs.get("doi") or "").strip()
                 node_props.update({
-                    "pmid": str(attrs.get("pmid") or ""),
-                    "doi": str(attrs.get("doi") or ""),
+                    "pmid": raw_pmid if raw_pmid else None,
+                    "doi": raw_doi if raw_doi else None,
                     "title": str(attrs.get("title") or label),
                     "authors": list(attrs.get("authors") or []),
                     "journal": str(attrs.get("journal") or ""),
@@ -404,8 +423,9 @@ class Neo4jGraphDatabase:
                     "url": str(attrs.get("url") or ""),
                 })
                 q = """
-                MERGE (c:EntityNode:CitationNode {id: $id})
-                SET c.label = $label, c.node_type = $node_type, c.pmid = $pmid, c.doi = $doi,
+                MERGE (c:EntityNode {id: $id})
+                SET c:CitationNode,
+                    c.label = $label, c.node_type = $node_type, c.pmid = $pmid, c.doi = $doi,
                     c.title = $title, c.authors = $authors, c.journal = $journal,
                     c.pub_year = $pub_year, c.pub_date = $pub_date, c.evidence_tier = $evidence_tier,
                     c.sample_size = $sample_size, c.study_design = $study_design,
@@ -430,8 +450,9 @@ class Neo4jGraphDatabase:
                     "url": str(attrs.get("url") or ""),
                 })
                 q = """
-                MERGE (t:EntityNode:ClinicalTrialNode {id: $id})
-                SET t.label = $label, t.node_type = $node_type, t.nct_id = $nct_id, t.title = $title,
+                MERGE (t:EntityNode {id: $id})
+                SET t:ClinicalTrialNode,
+                    t.label = $label, t.node_type = $node_type, t.nct_id = $nct_id, t.title = $title,
                     t.phase = $phase, t.status = $status, t.sponsor = $sponsor, t.enrollment = $enrollment,
                     t.conditions = $conditions, t.interventions = $interventions,
                     t.primary_outcomes = $primary_outcomes, t.start_year = $start_year,
@@ -457,8 +478,9 @@ class Neo4jGraphDatabase:
                     "conflicting_pmids": list(attrs.get("conflicting_pmids") or []),
                 })
                 q = """
-                MERGE (cl:EntityNode:EvidenceClaimNode {id: $id})
-                SET cl.label = $label, cl.node_type = $node_type, cl.claim_type = $claim_type,
+                MERGE (cl:EntityNode {id: $id})
+                SET cl:EvidenceClaimNode,
+                    cl.label = $label, cl.node_type = $node_type, cl.claim_type = $claim_type,
                     cl.subject_id = $subject_id, cl.predicate = $predicate, cl.object_id = $object_id,
                     cl.magnitude_value = $magnitude_value, cl.magnitude_unit = $magnitude_unit,
                     cl.direction = $direction, cl.consensus_score = $consensus_score,
@@ -1434,15 +1456,21 @@ class Neo4jGraphDatabase:
         authors = list(citation.get("authors") or [])
         evidence_tier = str(citation.get("evidence_tier") or citation.get("evidence_type") or "clinical_trial")
         key_findings = str(citation.get("clinical_finding") or citation.get("key_findings") or title)
+        abstract_text = str(citation.get("abstract") or citation.get("abstract_text") or "")
         url = str(citation.get("url") or (f"https://pubmed.ncbi.nlm.nih.gov/{pmid}/" if pmid else ""))
         claim_topics = citation.get("claim_topics") or self._extract_claim_topics(title, key_findings, journal)
+
+        # Compute dense semantic vector embedding for Title + Abstract
+        from app.services.embedding_service import get_embedding_service
+        emb_svc = get_embedding_service()
+        embedding = citation.get("embedding") or emb_svc.embed_citation(title=title, abstract=abstract_text, findings=key_findings)
 
         node_data = {
             "id": cid,
             "label": title[:60],
             "node_type": "citation",
-            "pmid": pmid,
-            "doi": doi,
+            "pmid": pmid or None,
+            "doi": doi or None,
             "title": title,
             "authors": authors,
             "journal": journal,
@@ -1452,8 +1480,10 @@ class Neo4jGraphDatabase:
             "sample_size": citation.get("sample_size"),
             "study_design": str(citation.get("evidence_type", "RCT / Observational")),
             "key_findings": key_findings,
+            "abstract": abstract_text or key_findings,
             "claim_topics": claim_topics,
             "url": url,
+            "embedding": embedding,
         }
 
         # 1. Update in-memory node store
@@ -1493,17 +1523,31 @@ class Neo4jGraphDatabase:
             try:
                 with self.driver.session() as session:
                     cypher = """
-                    MERGE (c:EntityNode:CitationNode {id: $id})
-                    SET c.pmid = $pmid, c.doi = $doi, c.title = $title,
-                        c.journal = $journal, c.pub_year = $pub_year,
-                        c.evidence_tier = $evidence_tier, c.key_findings = $key_findings,
+                    MERGE (c:EntityNode {id: $id})
+                    SET c:CitationNode,
+                        c.label = $label,
+                        c.node_type = $node_type,
+                        c.pmid = $pmid,
+                        c.doi = $doi,
+                        c.title = $title,
+                        c.authors = $authors,
+                        c.journal = $journal,
+                        c.pub_year = $pub_year,
+                        c.pub_date = $pub_date,
+                        c.evidence_tier = $evidence_tier,
+                        c.sample_size = $sample_size,
+                        c.study_design = $study_design,
+                        c.key_findings = $key_findings,
+                        c.abstract = $abstract,
+                        c.claim_topics = $claim_topics,
                         c.url = $url
                     """
-                    session.run(cypher, node_data)
+                    session.run(cypher, self._clean_neo4j_params(node_data))
                     if entity_id:
                         rel_cypher = f"""
                         MERGE (e:EntityNode {{id: $eid}})
-                        MERGE (c:CitationNode {{id: $cid}})
+                        MERGE (c:EntityNode {{id: $cid}})
+                        SET c:CitationNode
                         MERGE (e)-[r:{relationship}]->(c)
                         SET r.discovery_year = $pub_year, r.notes = $key_findings
                         """
@@ -1816,6 +1860,109 @@ class Neo4jGraphDatabase:
             "citation_count": lit_res.get("count", 0),
             "graph_summary": graph_rag_data.get("text_summary", ""),
         }
+
+    def search_citations_semantic(
+        self,
+        query: str,
+        top_k: int = 5,
+        min_similarity: float = 0.15,
+    ) -> List[Dict[str, Any]]:
+        """
+        Performs dense semantic vector similarity search across all cached citation nodes in the graph.
+        Returns top matching citations ranked by cosine similarity.
+        """
+        clean_q = str(query or "").strip()
+        if not clean_q:
+            return []
+
+        from app.services.embedding_service import get_embedding_service
+        emb_svc = get_embedding_service()
+
+        all_citations: List[Dict[str, Any]] = []
+        seen_pmids: Set[str] = set()
+
+        for nid, node in self._mock_nodes.items():
+            if node.get("node_type") in ("citation", "study"):
+                pmid = str(node.get("pmid") or "")
+                if pmid and pmid not in seen_pmids:
+                    seen_pmids.add(pmid)
+                    all_citations.append(dict(node))
+
+        ranked = emb_svc.rank_by_similarity(
+            query_text=clean_q,
+            candidates=all_citations,
+            top_k=top_k,
+            min_similarity=min_similarity,
+        )
+
+        results = []
+        for sim, c in ranked:
+            c_copy = copy.deepcopy(c)
+            c_copy["similarity_score"] = round(sim, 4)
+            results.append(c_copy)
+        return results
+
+    def find_similar_citations(
+        self,
+        pmid: str,
+        top_k: int = 4,
+        min_similarity: float = 0.20,
+    ) -> List[Dict[str, Any]]:
+        """
+        Finds structurally and mechanistically related studies in the knowledge graph
+        by computing cosine similarity against the target paper's vector embedding.
+        """
+        clean_pmid = str(pmid or "").strip()
+        if not clean_pmid:
+            return []
+
+        from app.services.embedding_service import get_embedding_service
+        emb_svc = get_embedding_service()
+
+        # Find target node
+        target_node = None
+        for nid, node in self._mock_nodes.items():
+            if node.get("node_type") in ("citation", "study") and str(node.get("pmid")) == clean_pmid:
+                target_node = node
+                break
+
+        if not target_node:
+            from app.services.pubmed_service import PubMedService
+            pubmed_svc = PubMedService()
+            meta = pubmed_svc.fetch_abstract(clean_pmid) or pubmed_svc.fetch_citation_metadata(clean_pmid)
+            if meta:
+                target_node = self.ingest_citation(meta)
+
+        if not target_node:
+            return []
+
+        target_emb = target_node.get("embedding")
+        if not target_emb:
+            title = target_node.get("title", "")
+            abstract = target_node.get("abstract", "") or target_node.get("key_findings", "")
+            target_emb = emb_svc.embed_citation(title, abstract)
+            target_node["embedding"] = target_emb
+
+        candidates: List[Dict[str, Any]] = []
+        seen_pmids: Set[str] = {clean_pmid}
+
+        for nid, node in self._mock_nodes.items():
+            if node.get("node_type") in ("citation", "study"):
+                p = str(node.get("pmid") or "")
+                if p and p not in seen_pmids:
+                    seen_pmids.add(p)
+                    node_emb = node.get("embedding")
+                    if not node_emb:
+                        node_emb = emb_svc.embed_citation(node.get("title", ""), node.get("abstract", "") or node.get("key_findings", ""))
+                        node["embedding"] = node_emb
+                    sim = emb_svc.cosine_similarity(target_emb, node_emb)
+                    if sim >= min_similarity:
+                        c_copy = copy.deepcopy(node)
+                        c_copy["similarity_score"] = round(sim, 4)
+                        candidates.append((sim, c_copy))
+
+        candidates.sort(key=lambda x: x[0], reverse=True)
+        return [c for _, c in candidates[:top_k]]
 
 
 # Singleton instance accessor

@@ -318,3 +318,112 @@ def api_hybrid_literature_search(request: HybridLiteratureSearchRequest) -> Dict
     except Exception as e:
         logger.error(f"Error executing hybrid literature search: {e}")
         raise HTTPException(status_code=500, detail=str(e))
+
+
+class LiteratureTitleSearchRequest(BaseModel):
+    query: str = Field(..., description="Query string for title discovery")
+    max_results: Optional[int] = Field(8, description="Maximum candidate titles to return")
+
+
+@router.post("/api/ai/literature/search-titles")
+def api_search_titles(request: LiteratureTitleSearchRequest) -> Dict[str, Any]:
+    """
+    Lightweight candidate title discovery for agentic reasoning and search autocomplete.
+    """
+    try:
+        from app.services.pubmed_service import PubMedService
+        pubmed_svc = PubMedService()
+        titles = pubmed_svc.search_pubmed_titles(request.query, max_results=request.max_results or 8)
+        return {"query": request.query, "count": len(titles), "candidate_titles": titles}
+    except Exception as e:
+        logger.error(f"Error searching paper titles: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+class FullTextSectionRequest(BaseModel):
+    pmid_or_pmcid: str = Field(..., description="PMID or PMCID of the study")
+    section: Optional[str] = Field("results", description="Target section: results, methods, dosage, adverse_effects, discussion")
+    max_words: Optional[int] = Field(600, description="Max word count for section truncation")
+
+
+@router.post("/api/ai/literature/full-text-section")
+def api_fetch_full_text_section(request: FullTextSectionRequest) -> Dict[str, Any]:
+    """
+    Section-targeted reader for Open Access PMC articles with paywall abstract fallback.
+    """
+    try:
+        from app.services.pubmed_service import PubMedService
+        pubmed_svc = PubMedService()
+        return pubmed_svc.fetch_paper_full_text_section(
+            request.pmid_or_pmcid,
+            section=request.section or "results",
+            max_words=request.max_words or 600,
+        )
+    except Exception as e:
+        logger.error(f"Error reading paper section: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+class SearchWithinPaperRequest(BaseModel):
+    pmid_or_pmcid: str = Field(..., description="PMID or PMCID")
+    query: str = Field(..., description="Target passage query")
+    max_passages: Optional[int] = Field(3, description="Max passages to return")
+
+
+@router.post("/api/ai/literature/search-within-paper")
+def api_search_within_paper(request: SearchWithinPaperRequest) -> Dict[str, Any]:
+    """
+    Passage-level semantic search within an individual study.
+    """
+    try:
+        from app.services.pubmed_service import PubMedService
+        pubmed_svc = PubMedService()
+        return pubmed_svc.search_within_paper(
+            request.pmid_or_pmcid,
+            query=request.query,
+            max_passages=request.max_passages or 3,
+        )
+    except Exception as e:
+        logger.error(f"Error searching within paper: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+class SimilarPapersRequest(BaseModel):
+    pmid: str = Field(..., description="Target study PMID")
+    top_k: Optional[int] = Field(4, description="Number of similar studies to retrieve")
+
+
+@router.post("/api/ai/literature/similar")
+def api_find_similar_papers(request: SimilarPapersRequest) -> Dict[str, Any]:
+    """
+    Finds structurally and mechanistically related studies using vector embeddings across the knowledge graph.
+    """
+    try:
+        from app.services.pubmed_service import PubMedService
+        pubmed_svc = PubMedService()
+        similar = pubmed_svc.find_similar_papers(request.pmid, top_k=request.top_k or 4)
+        return {"pmid": request.pmid, "count": len(similar), "similar_papers": similar}
+    except Exception as e:
+        logger.error(f"Error finding similar papers: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+class SemanticLiteratureSearchRequest(BaseModel):
+    query: str = Field(..., description="Semantic query text")
+    top_k: Optional[int] = Field(5, description="Max results")
+
+
+@router.post("/api/ai/literature/semantic-search")
+def api_semantic_literature_search(request: SemanticLiteratureSearchRequest) -> Dict[str, Any]:
+    """
+    Dense semantic vector search across all cached citation nodes in the graph database.
+    """
+    try:
+        from app.knowledge_graph.graph_db import get_graph_database
+        graph_db = get_graph_database()
+        results = graph_db.search_citations_semantic(request.query, top_k=request.top_k or 5)
+        return {"query": request.query, "count": len(results), "citations": results}
+    except Exception as e:
+        logger.error(f"Error in semantic literature search: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+

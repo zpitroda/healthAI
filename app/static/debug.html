@@ -1,0 +1,725 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>healthAI // Debug & Logging Workbench</title>
+    <style>
+        :root {
+            --bg-primary: #0a0e17;
+            --bg-secondary: #111827;
+            --bg-card: #1f2937;
+            --border-color: #374151;
+            --text-primary: #f9fafb;
+            --text-secondary: #9ca3af;
+            --accent-cyan: #06b6d4;
+            --accent-blue: #3b82f6;
+            --accent-green: #10b981;
+            --accent-yellow: #f59e0b;
+            --accent-red: #ef4444;
+            --accent-purple: #8b5cf6;
+            --font-mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            background-color: var(--bg-primary);
+            color: var(--text-primary);
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            line-height: 1.5;
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
+
+        /* Header */
+        header {
+            background-color: var(--bg-secondary);
+            border-bottom: 1px solid var(--border-color);
+            padding: 12px 24px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            flex-shrink: 0;
+        }
+
+        .header-title {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .header-title h1 {
+            font-size: 1.25rem;
+            font-weight: 700;
+            letter-spacing: -0.025em;
+            color: var(--accent-cyan);
+            font-family: var(--font-mono);
+        }
+
+        .status-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            font-size: 0.75rem;
+            padding: 4px 10px;
+            border-radius: 9999px;
+            background: rgba(16, 185, 129, 0.1);
+            color: var(--accent-green);
+            border: 1px solid rgba(16, 185, 129, 0.3);
+            font-weight: 600;
+        }
+
+        .status-badge.disconnected {
+            background: rgba(239, 68, 68, 0.1);
+            color: var(--accent-red);
+            border-color: rgba(239, 68, 68, 0.3);
+        }
+
+        .status-dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background-color: currentColor;
+        }
+
+        .nav-links {
+            display: flex;
+            gap: 16px;
+        }
+
+        .nav-links a {
+            color: var(--text-secondary);
+            text-decoration: none;
+            font-size: 0.875rem;
+            font-weight: 500;
+            transition: color 0.15s;
+        }
+
+        .nav-links a:hover, .nav-links a.active {
+            color: var(--accent-cyan);
+        }
+
+        /* Container Layout */
+        .main-container {
+            display: grid;
+            grid-template-columns: 320px 1fr;
+            flex: 1;
+            overflow: hidden;
+        }
+
+        /* Sidebar */
+        .sidebar {
+            background-color: var(--bg-secondary);
+            border-right: 1px solid var(--border-color);
+            padding: 16px;
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+            overflow-y: auto;
+        }
+
+        .section-title {
+            font-size: 0.75rem;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            color: var(--text-secondary);
+            margin-bottom: 10px;
+        }
+
+        .card {
+            background-color: var(--bg-card);
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            padding: 14px;
+        }
+
+        .info-group {
+            display: flex;
+            justify-content: space-between;
+            font-size: 0.825rem;
+            padding: 4px 0;
+            border-bottom: 1px dashed rgba(255, 255, 255, 0.05);
+        }
+
+        .info-group:last-child {
+            border-bottom: none;
+        }
+
+        .info-label {
+            color: var(--text-secondary);
+        }
+
+        .info-val {
+            font-family: var(--font-mono);
+            font-weight: 600;
+        }
+
+        /* Controls */
+        .control-group {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+
+        label {
+            font-size: 0.8rem;
+            color: var(--text-secondary);
+        }
+
+        select, input, textarea, button {
+            background-color: var(--bg-primary);
+            color: var(--text-primary);
+            border: 1px solid var(--border-color);
+            border-radius: 6px;
+            padding: 8px 12px;
+            font-size: 0.875rem;
+            font-family: inherit;
+            outline: none;
+        }
+
+        select:focus, input:focus, textarea:focus {
+            border-color: var(--accent-cyan);
+        }
+
+        button {
+            background-color: var(--accent-blue);
+            color: #fff;
+            border: none;
+            font-weight: 600;
+            cursor: pointer;
+            transition: opacity 0.15s;
+        }
+
+        button:hover {
+            opacity: 0.9;
+        }
+
+        button.btn-danger {
+            background-color: var(--accent-red);
+        }
+
+        button.btn-secondary {
+            background-color: var(--bg-card);
+            border: 1px solid var(--border-color);
+            color: var(--text-primary);
+        }
+
+        /* Main Workspace */
+        .workspace {
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
+
+        /* Tabs */
+        .tabs {
+            display: flex;
+            background-color: var(--bg-secondary);
+            border-bottom: 1px solid var(--border-color);
+            padding: 0 16px;
+        }
+
+        .tab {
+            padding: 12px 20px;
+            font-size: 0.875rem;
+            font-weight: 600;
+            color: var(--text-secondary);
+            cursor: pointer;
+            border-bottom: 2px solid transparent;
+            transition: all 0.15s;
+        }
+
+        .tab:hover {
+            color: var(--text-primary);
+        }
+
+        .tab.active {
+            color: var(--accent-cyan);
+            border-bottom-color: var(--accent-cyan);
+        }
+
+        .tab-content {
+            display: none;
+            flex: 1;
+            flex-direction: column;
+            overflow: hidden;
+            padding: 16px;
+        }
+
+        .tab-content.active {
+            display: flex;
+        }
+
+        /* Log Stream View */
+        .log-toolbar {
+            display: flex;
+            gap: 12px;
+            margin-bottom: 12px;
+            align-items: center;
+        }
+
+        .log-toolbar input {
+            flex: 1;
+        }
+
+        .log-container {
+            background-color: #050811;
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            flex: 1;
+            overflow-y: auto;
+            font-family: var(--font-mono);
+            font-size: 0.8rem;
+            padding: 12px;
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+        }
+
+        .log-row {
+            display: flex;
+            gap: 10px;
+            line-height: 1.4;
+            word-break: break-all;
+            padding: 2px 4px;
+            border-radius: 4px;
+        }
+
+        .log-row:hover {
+            background-color: rgba(255, 255, 255, 0.03);
+        }
+
+        .log-time {
+            color: #6b7280;
+            white-space: nowrap;
+        }
+
+        .log-level {
+            font-weight: 700;
+            width: 70px;
+            white-space: nowrap;
+        }
+
+        .log-level.DEBUG { color: #9ca3af; }
+        .log-level.INFO { color: var(--accent-cyan); }
+        .log-level.WARNING { color: var(--accent-yellow); }
+        .log-level.ERROR { color: var(--accent-red); }
+        .log-level.CRITICAL { color: #f43f5e; background: rgba(244, 63, 94, 0.1); }
+
+        .log-logger {
+            color: var(--accent-purple);
+            font-weight: 600;
+            white-space: nowrap;
+        }
+
+        .log-msg {
+            color: #e5e7eb;
+            flex: 1;
+        }
+
+        .log-trace {
+            margin-top: 4px;
+            padding: 8px;
+            background: rgba(239, 68, 68, 0.05);
+            border-left: 2px solid var(--accent-red);
+            color: #fca5a5;
+            white-space: pre-wrap;
+        }
+
+        /* Eval Sandbox */
+        .sandbox-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 16px;
+            flex: 1;
+            overflow: hidden;
+        }
+
+        .sandbox-pane {
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+        }
+
+        .sandbox-pane textarea {
+            flex: 1;
+            font-family: var(--font-mono);
+            font-size: 0.85rem;
+            resize: none;
+            background-color: #050811;
+        }
+
+        .result-box {
+            background-color: #050811;
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            flex: 1;
+            padding: 12px;
+            font-family: var(--font-mono);
+            font-size: 0.85rem;
+            overflow-y: auto;
+            white-space: pre-wrap;
+            color: #a7f3d0;
+        }
+    </style>
+</head>
+<body>
+    <header>
+        <div class="header-title">
+            <h1>healthAI // Debug & Logging</h1>
+            <div id="ws-status" class="status-badge disconnected">
+                <span class="status-dot"></span>
+                <span id="ws-status-text">Disconnected</span>
+            </div>
+        </div>
+        <nav class="nav-links">
+            <a href="/">Lab</a>
+            <a href="/graph">Graph</a>
+            <a href="/admin">Admin</a>
+            <a href="/debug" class="active">Debug</a>
+        </nav>
+    </header>
+
+    <div class="main-container">
+        <!-- Sidebar -->
+        <div class="sidebar">
+            <div>
+                <div class="section-title">System Health & Telemetry</div>
+                <div class="card">
+                    <div class="info-group">
+                        <span class="info-label">RAM (RSS):</span>
+                        <span id="sys-ram" class="info-val">-- MB</span>
+                    </div>
+                    <div class="info-group">
+                        <span class="info-label">SQLite:</span>
+                        <span id="sys-sqlite" class="info-val">--</span>
+                    </div>
+                    <div class="info-group">
+                        <span class="info-label">Neo4j:</span>
+                        <span id="sys-neo4j" class="info-val">--</span>
+                    </div>
+                    <div class="info-group">
+                        <span class="info-label">Buffered Logs:</span>
+                        <span id="sys-log-count" class="info-val">0</span>
+                    </div>
+                </div>
+            </div>
+
+            <div>
+                <div class="section-title">Logger Level Controller</div>
+                <div class="card control-group">
+                    <label for="logger-select">Select Logger:</label>
+                    <select id="logger-select">
+                        <option value="root">root (Global)</option>
+                    </select>
+
+                    <label for="logger-level-select">New Log Level:</label>
+                    <select id="logger-level-select">
+                        <option value="DEBUG">DEBUG</option>
+                        <option value="INFO">INFO</option>
+                        <option value="WARNING">WARNING</option>
+                        <option value="ERROR">ERROR</option>
+                        <option value="CRITICAL">CRITICAL</option>
+                    </select>
+
+                    <button id="btn-apply-level">Apply Level</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Main Workspace -->
+        <div class="workspace">
+            <div class="tabs">
+                <div class="tab active" data-tab="tab-logs">Live Log Stream</div>
+                <div class="tab" data-tab="tab-eval">Interactive Eval Sandbox</div>
+            </div>
+
+            <!-- Tab 1: Logs -->
+            <div id="tab-logs" class="tab-content active">
+                <div class="log-toolbar">
+                    <select id="filter-level" style="width: 130px;">
+                        <option value="">All Levels</option>
+                        <option value="DEBUG">DEBUG</option>
+                        <option value="INFO">INFO</option>
+                        <option value="WARNING">WARNING</option>
+                        <option value="ERROR">ERROR</option>
+                        <option value="CRITICAL">CRITICAL</option>
+                    </select>
+                    <input type="text" id="filter-search" placeholder="Search log text or logger name...">
+                    <button id="btn-refresh-logs" class="btn-secondary">Refresh</button>
+                    <button id="btn-clear-logs" class="btn-danger">Clear Buffer</button>
+                </div>
+                <div id="log-container" class="log-container">
+                    <div style="color: #6b7280;">Connecting to log stream...</div>
+                </div>
+            </div>
+
+            <!-- Tab 2: Interactive Eval Sandbox -->
+            <div id="tab-eval" class="tab-content">
+                <div style="margin-bottom: 12px; display: flex; gap: 12px; align-items: center;">
+                    <label for="eval-type-select" style="font-weight: 600;">Eval Target Engine:</label>
+                    <select id="eval-type-select" style="width: 220px;">
+                        <option value="collision">Collision Matrix</option>
+                        <option value="pkpd">PBPK / ODE Simulation</option>
+                        <option value="catalog">Catalog Compound Search</option>
+                        <option value="graph">Neo4j / Cypher Query</option>
+                        <option value="snippet">Python Code Sandbox</option>
+                    </select>
+                    <button id="btn-run-eval">Execute Eval</button>
+                </div>
+
+                <div class="sandbox-grid">
+                    <div class="sandbox-pane">
+                        <label id="eval-input-label">Payload Input (JSON / Code):</label>
+                        <textarea id="eval-input-code" spellcheck="false"></textarea>
+                    </div>
+                    <div class="sandbox-pane">
+                        <label>Execution Output & Response:</label>
+                        <div id="eval-result-output" class="result-box">Ready to execute.</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // State
+        let ws = null;
+        let autoScroll = true;
+
+        const defaultPayloads = {
+            collision: JSON.stringify({
+                eval_type: "collision",
+                stack: [
+                    { compound_key: "telmisartan", dose_mg: 40, route: "oral", frequency: "daily" },
+                    { compound_key: "enzalutamide", dose_mg: 160, route: "oral", frequency: "daily" }
+                ]
+            }, null, 2),
+            pkpd: JSON.stringify({
+                eval_type: "pkpd",
+                compound_key: "telmisartan",
+                dose_mg: 40,
+                duration_h: 24
+            }, null, 2),
+            catalog: JSON.stringify({
+                eval_type: "catalog",
+                query: "caffeine"
+            }, null, 2),
+            graph: JSON.stringify({
+                eval_type: "graph",
+                cypher: "MATCH (c:Compound)-[r]->(t:Target) RETURN c.name, type(r), t.name LIMIT 10"
+            }, null, 2),
+            snippet: JSON.stringify({
+                eval_type: "snippet",
+                code: "cat = CatalogService()\nkeys = cat.list_all_keys()\nprint('Total catalog keys:', len(keys))\nresult = {'total_compounds': len(keys)}"
+            }, null, 2)
+        };
+
+        // DOM elements
+        const wsStatus = document.getElementById('ws-status');
+        const wsStatusText = document.getElementById('ws-status-text');
+        const logContainer = document.getElementById('log-container');
+        const loggerSelect = document.getElementById('logger-select');
+        const evalTypeSelect = document.getElementById('eval-type-select');
+        const evalInputCode = document.getElementById('eval-input-code');
+        const evalResultOutput = document.getElementById('eval-result-output');
+
+        // Tabs
+        document.querySelectorAll('.tab').forEach(tab => {
+            tab.addEventListener('click', () => {
+                document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+                document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+                tab.classList.add('active');
+                document.getElementById(tab.dataset.tab).classList.add('active');
+            });
+        });
+
+        // System Diagnostics
+        async function fetchDiagnostics() {
+            try {
+                const res = await fetch('/api/debug/system');
+                const data = await res.json();
+                document.getElementById('sys-ram').textContent = data.memory?.rss_mb ? `${data.memory.rss_mb} MB` : 'N/A';
+                document.getElementById('sys-sqlite').textContent = `${data.sqlite_status} (${data.sqlite_compounds_count} items)`;
+                document.getElementById('sys-neo4j').textContent = data.neo4j_status;
+                document.getElementById('sys-log-count').textContent = data.total_logs_in_buffer;
+            } catch (e) {
+                console.error("Failed to fetch diagnostics", e);
+            }
+        }
+
+        // Fetch Loggers List
+        async function fetchLoggers() {
+            try {
+                const res = await fetch('/api/debug/loggers');
+                const data = await res.json();
+                loggerSelect.innerHTML = '';
+                data.loggers.forEach(l => {
+                    const opt = document.createElement('option');
+                    opt.value = l.name;
+                    opt.textContent = `${l.name} [${l.level}]`;
+                    loggerSelect.appendChild(opt);
+                });
+            } catch (e) {
+                console.error("Failed to fetch loggers", e);
+            }
+        }
+
+        // Apply Log Level
+        document.getElementById('btn-apply-level').addEventListener('click', async () => {
+            const logger_name = loggerSelect.value;
+            const level_name = document.getElementById('logger-level-select').value;
+            try {
+                const res = await fetch('/api/debug/log-level', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ logger_name, level_name })
+                });
+                const data = await res.json();
+                alert(data.message || 'Level updated');
+                fetchLoggers();
+            } catch (e) {
+                alert('Failed to set level: ' + e);
+            }
+        });
+
+        // Render Log Entry
+        function renderLogEntry(entry) {
+            const row = document.createElement('div');
+            row.className = 'log-row';
+
+            const timeSpan = document.createElement('span');
+            timeSpan.className = 'log-time';
+            timeSpan.textContent = entry.timestamp.split('T')[1]?.split('.')[0] || entry.timestamp;
+
+            const levelSpan = document.createElement('span');
+            levelSpan.className = `log-level ${entry.level}`;
+            levelSpan.textContent = entry.level;
+
+            const loggerSpan = document.createElement('span');
+            loggerSpan.className = 'log-logger';
+            loggerSpan.textContent = `[${entry.logger_name}]`;
+
+            const msgSpan = document.createElement('span');
+            msgSpan.className = 'log-msg';
+            msgSpan.textContent = entry.message;
+
+            row.appendChild(timeSpan);
+            row.appendChild(levelSpan);
+            row.appendChild(loggerSpan);
+            row.appendChild(msgSpan);
+
+            if (entry.exc_info) {
+                const traceDiv = document.createElement('div');
+                traceDiv.className = 'log-trace';
+                traceDiv.textContent = entry.exc_info;
+                row.appendChild(traceDiv);
+            }
+
+            logContainer.appendChild(row);
+            if (autoScroll) {
+                logContainer.scrollTop = logContainer.scrollHeight;
+            }
+        }
+
+        // Connect WebSocket
+        function connectWebSocket() {
+            const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+            const wsUrl = `${protocol}//${window.location.host}/api/debug/ws/logs`;
+            ws = new WebSocket(wsUrl);
+
+            ws.onopen = () => {
+                wsStatus.className = 'status-badge';
+                wsStatusText.textContent = 'Live Streaming';
+                logContainer.innerHTML = '';
+            };
+
+            ws.onmessage = (event) => {
+                const payload = JSON.parse(event.data);
+                if (payload.type === 'snapshot') {
+                    logContainer.innerHTML = '';
+                    payload.data.forEach(renderLogEntry);
+                } else if (payload.type === 'log') {
+                    renderLogEntry(payload.data);
+                }
+            };
+
+            ws.onclose = () => {
+                wsStatus.className = 'status-badge disconnected';
+                wsStatusText.textContent = 'Disconnected (Reconnecting...)';
+                setTimeout(connectWebSocket, 3000);
+            };
+
+            ws.onerror = (err) => {
+                console.error("WS error", err);
+            };
+        }
+
+        // Fetch logs via REST fallback / refresh
+        async function fetchLogsREST() {
+            const min_level = document.getElementById('filter-level').value;
+            const q = document.getElementById('filter-search').value;
+            const url = new URL('/api/debug/logs', window.location.origin);
+            if (min_level) url.searchParams.append('min_level', min_level);
+            if (q) url.searchParams.append('q', q);
+
+            try {
+                const res = await fetch(url);
+                const data = await res.json();
+                logContainer.innerHTML = '';
+                data.logs.forEach(renderLogEntry);
+            } catch (e) {
+                console.error("Error fetching logs REST", e);
+            }
+        }
+
+        document.getElementById('btn-refresh-logs').addEventListener('click', fetchLogsREST);
+        document.getElementById('btn-clear-logs').addEventListener('click', async () => {
+            if (confirm("Clear in-memory log buffer?")) {
+                await fetch('/api/debug/logs', { method: 'DELETE' });
+                logContainer.innerHTML = '';
+                fetchDiagnostics();
+            }
+        });
+
+        // Eval Sandbox Setup
+        evalTypeSelect.addEventListener('change', () => {
+            const val = evalTypeSelect.value;
+            evalInputCode.value = defaultPayloads[val] || '';
+        });
+        evalInputCode.value = defaultPayloads.collision;
+
+        document.getElementById('btn-run-eval').addEventListener('click', async () => {
+            evalResultOutput.textContent = 'Executing...';
+            try {
+                const payload = JSON.parse(evalInputCode.value);
+                const start = performance.now();
+                const res = await fetch('/api/debug/eval', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                });
+                const data = await res.json();
+                const elapsed = Math.round(performance.now() - start);
+                evalResultOutput.textContent = `// Execution completed in ${elapsed}ms\n\n` + JSON.stringify(data, null, 2);
+            } catch (e) {
+                evalResultOutput.textContent = `// Error executing payload:\n${e.message || e}`;
+            }
+        });
+
+        // Initial launch
+        fetchDiagnostics();
+        fetchLoggers();
+        connectWebSocket();
+        setInterval(fetchDiagnostics, 10000);
+    </script>
+</body>
+</html>

@@ -37,3 +37,9 @@ def serve_graph() -> FileResponse:
 def serve_compound_page(compound_key: str) -> FileResponse:
     """Serve the deep-dive profile page for an individual compound."""
     return FileResponse(STATIC_DIR / "compound.html", headers=NO_CACHE_HEADERS)
+
+
+@router.get("/debug")
+def serve_debug() -> FileResponse:
+    """Serve the Interactive Debugging & Log Workbench interface."""
+    return FileResponse(STATIC_DIR / "debug.html", headers=NO_CACHE_HEADERS)

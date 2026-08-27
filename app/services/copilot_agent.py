@@ -230,8 +230,17 @@ class StreamingTagParser:
                     elif tag_name == "action_card":
                         self.mode = "action_card"
                 else:
-                    # Check if stream is emitting untagged thinking preamble before markdown header
+                    # Check for bare JSON tool calls before markdown header (e.g. {"pmid": "..."} or {"query": "..."})
                     if not self.has_seen_clinical_markdown_header:
+                        bare_json_match = re.search(r'^\s*(\{\s*"[^{}]*"(?:\s*:\s*[^{}]*)?\})', self.buffer)
+                        if bare_json_match:
+                            raw_json = bare_json_match.group(1)
+                            self.tool_calls.append(raw_json)
+                            events.append(("reasoning", f"\n🔍 [Tool Call Request] {raw_json}\n"))
+                            self.buffer = self.buffer[bare_json_match.end():]
+                            continue
+
+                        # Check if stream is emitting untagged thinking preamble before markdown header
                         header_match = re.search(r'(?:^|\n)(?:#{1,4}\s+|(?:\*\*(?:Executive|Risk|Biomarker|Primary|Identified|Targeted|Protocol|Circadian|1\.|2\.|3\.|4\.)))', self.buffer)
                         if header_match:
                             h_idx = header_match.start()
@@ -242,14 +251,14 @@ class StreamingTagParser:
                             self.buffer = self.buffer[h_idx:]
                             continue
 
-                        # If full buffer looks like meta-cognition / self-talk, route to reasoning
+                        # If full buffer looks like meta-cognition / self-talk / raw JSON, route to reasoning
                         if self._is_meta_cognition(self.buffer):
                             events.append(("reasoning", self.buffer))
                             self.buffer = ""
                             break
 
-                    # If buffer ends with a partial '<...', keep partial in buffer
-                    partial_match = re.search(r'<[a-zA-Z0-9_\-\s]*$', self.buffer)
+                    # If buffer ends with a partial '<...' or '{...', keep partial in buffer
+                    partial_match = re.search(r'(?:<[a-zA-Z0-9_\-\s]*$|\{\s*"[a-zA-Z0-9_\-\s]*$)', self.buffer)
                     if partial_match:
                         safe_text = self.buffer[:partial_match.start()]
                         self.buffer = self.buffer[partial_match.start():]
@@ -308,7 +317,10 @@ class StreamingTagParser:
         return events
 
     def _is_meta_cognition(self, text: str) -> bool:
-        """Determines if text fragment contains untagged internal reasoning / self-talk."""
+        """Determines if text fragment contains untagged internal reasoning / self-talk or tool JSON."""
+        t_strip = text.strip()
+        if t_strip.startswith("{") and any(k in t_strip for k in ('"pmid"', '"query"', '"tool"', '"name"', '"compound_key"', '"max_results"', '"action_card"')):
+            return True
         t_low = text.lower()
         meta_phrases = [
             "we need", "need to", "need answer", "need produce", "need decide",
@@ -1935,6 +1947,25 @@ You have autonomous access to execute live graph traversals, pathway queries, ph
             except Exception:
                 pass
 
+        # Format 4: Bare JSON object or JSON lines (e.g. {"pmid": "38887114"} or {"query": "...", "max_results": 6})
+        bare_json_matches = re.finditer(r'\{[^{}]*"(?:pmid|query|tool|name|compound_key|goal|base_stack|target_id)"[^{}]*\}', text)
+        for bj in bare_json_matches:
+            try:
+                parsed = json.loads(bj.group(0))
+                if isinstance(parsed, dict):
+                    if "tool" in parsed:
+                        return {"name": parsed["tool"], "arguments": parsed.get("arguments", {})}
+                    elif "name" in parsed and "arguments" in parsed:
+                        return {"name": parsed["name"], "arguments": parsed.get("arguments", {})}
+                    elif "pmid" in parsed:
+                        return {"name": "read_paper_abstract", "arguments": {"pmid": str(parsed["pmid"])}}
+                    elif "query" in parsed:
+                        return {"name": "search_pubmed_titles", "arguments": parsed}
+                    elif "compound_key" in parsed:
+                        return {"name": "simulate_pkpd", "arguments": parsed}
+            except Exception:
+                pass
+
         return None
 
     @classmethod
@@ -1972,6 +2003,10 @@ You have autonomous access to execute live graph traversals, pathway queries, ph
         cleaned = re.sub(r'<action_card\s+type="[^"]+"\s*>.*?</action_card>', '', cleaned, flags=re.DOTALL | re.IGNORECASE)
         cleaned = re.sub(r'<(?:think|thought|scratchpad|clinical_notes|context|observation)>.*?$', '', cleaned, flags=re.DOTALL | re.IGNORECASE)
         cleaned = re.sub(r'(?i)^\s*(?:###?\s*)?(?:Thought(?:\s+Process)?|Scratchpad|Clinical Scratchpad|Internal Reasoning):\s*.*?(?=\n\n|\n[#\*\d]|\Z)', '', cleaned, flags=re.DOTALL | re.MULTILINE)
+
+        # Strip bare JSON tool calls or metadata objects from final text
+        cleaned = re.sub(r'\{[^{}]*"(?:pmid|query|tool|name|compound_key|dose_mg|target_id|max_results)"[^{}]*\}', '', cleaned)
+        cleaned = re.sub(r'^\s*\{[\s\S]*?\}\s*(?=\n|$)', '', cleaned)
 
         # Clean inline drafting questions and bracketed citation self-talk
         cleaned = re.sub(

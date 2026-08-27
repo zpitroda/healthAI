@@ -140,3 +140,48 @@ class TestAgenticLiteratureSearchAndEmbeddings:
 
         sig_chat = inspect.signature(CopilotAgent.chat_copilot_turn)
         assert sig_chat.parameters["max_exploration_steps"].default == 8
+
+    def test_10_bare_json_tool_calls_parsing_and_sanitization(self):
+        """Verify bare JSON lines are recognized by parse_tool_call_from_text and stripped by clean_scratchpad_and_tools_from_text."""
+        # Bare pmid
+        raw_text_1 = '{"pmid": "38887114"}\n\n### Executive Assessment\nTrenbolone is an unapproved anabolic steroid.'
+        parsed_1 = CopilotAgent.parse_tool_call_from_text(raw_text_1)
+        assert parsed_1 is not None
+        assert parsed_1["name"] == "read_paper_abstract"
+        assert parsed_1["arguments"]["pmid"] == "38887114"
+
+        cleaned_1 = CopilotAgent.clean_scratchpad_and_tools_from_text(raw_text_1)
+        assert '{"pmid": "38887114"}' not in cleaned_1
+        assert "### Executive Assessment" in cleaned_1
+
+        # Bare query
+        raw_text_2 = '{"query": "trenbolone cardiovascular lipid profile HDL LDL human", "max_results": 6}\n\n### Risk Severity Classification\nMODERATE RISK'
+        parsed_2 = CopilotAgent.parse_tool_call_from_text(raw_text_2)
+        assert parsed_2 is not None
+        assert parsed_2["name"] == "search_pubmed_titles"
+        assert parsed_2["arguments"]["query"] == "trenbolone cardiovascular lipid profile HDL LDL human"
+
+        cleaned_2 = CopilotAgent.clean_scratchpad_and_tools_from_text(raw_text_2)
+        assert "{" not in cleaned_2
+        assert "### Risk Severity Classification" in cleaned_2
+
+    def test_11_streaming_tag_parser_bare_json_suppression(self):
+        """Verify StreamingTagParser routes bare JSON tool lines to reasoning rather than leaking to delta."""
+        from app.services.copilot_agent import StreamingTagParser
+        parser = StreamingTagParser()
+        events_1 = parser.feed('{"pmid": "38887114"}\n')
+        events_2 = parser.feed('{"query": "trenbolone lipid", "max_results": 6}\n')
+        events_3 = parser.feed('### Executive Summary\nClinical evaluation of stack.')
+        flushed = parser.flush()
+
+        all_events = events_1 + events_2 + events_3 + flushed
+        deltas = [txt for etype, txt in all_events if etype == "delta"]
+        reasonings = [txt for etype, txt in all_events if etype == "reasoning"]
+
+        # Ensure no bare JSON leaked into deltas
+        joined_deltas = "".join(deltas)
+        assert '{"pmid": "38887114"}' not in joined_deltas
+        assert '{"query": "trenbolone lipid"' not in joined_deltas
+        assert "### Executive Summary" in joined_deltas
+        # Ensure it was captured in tool calls or reasoning
+        assert len(parser.tool_calls) >= 1 or len(reasonings) >= 1

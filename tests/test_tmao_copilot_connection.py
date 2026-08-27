@@ -136,3 +136,24 @@ def test_oral_carnitine_does_not_falsely_trigger_p5p_or_19nor():
     assert "p5p" not in rec_keys, "P-5-P must not be recommended when only L-carnitine is in the stack"
     assert "allicin" in rec_keys, "Allicin should be recommended for oral L-carnitine"
 
+
+def test_tadalafil_nebivolol_clenbuterol_stack_does_not_suggest_allicin():
+    """
+    Verifies that a stack with Tadalafil, Nebivolol, and Clenbuterol (with no oral carnitine/choline)
+    requested for cognitive focus does NOT generate an Allicin / TMA-lyase recommendation.
+    """
+    compounds = [
+        {"key": "tadalafil", "name": "Tadalafil", "dose_mg": 5.0, "route": "oral"},
+        {"key": "nebivolol", "name": "Nebivolol", "dose_mg": 2.5, "route": "oral"},
+        {"key": "clenbuterol", "name": "Clenbuterol", "dose_mg": 0.02, "route": "oral"},
+    ]
+    recs = CopilotAgent.get_evidence_based_recommendations(
+        compounds=compounds,
+        biometrics={"blood_pressure": 120, "alt_u_l": 25},
+        protocol_goal="cognitive_focus",
+    )
+    rec_keys = [r["key"] for r in recs]
+    assert "allicin" not in rec_keys, f"Allicin must NOT be recommended without oral carnitine/choline precursors, got: {rec_keys}"
+    assert not any("tma" in str(r.get("target", "")).lower() for r in recs), "No TMA-lyase target should be recommended"
+
+

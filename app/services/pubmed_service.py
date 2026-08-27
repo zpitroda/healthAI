@@ -552,6 +552,70 @@ SEED_LITERATURE_DB: Dict[str, List[Dict[str, Any]]] = {
             "url": "https://pubmed.ncbi.nlm.nih.gov/10471456/",
         }
     ],
+    "bpc_157": [
+        {
+            "pmid": "21030672",
+            "title": "Brain-gut axis and pentadecapeptide BPC 157: Theoretical and practical implications",
+            "journal": "Curr Neuropharmacol",
+            "pub_year": "2010",
+            "pub_date": "2010-12-01",
+            "authors": ["Sikiric P", "Seiwerth S", "Rucman R", "et al."],
+            "doi": "10.2174/157015910793611255",
+            "evidence_type": "Preclinical CNS & Neuroprotection Review",
+            "evidence_tier": "systematic_review",
+            "claim_topics": ["neuroprotection", "cns", "dopamine", "serotonin"],
+            "sample_size": None,
+            "clinical_finding": "BPC-157 modulates central dopamine and serotonin homeostasis, preserves neuronal membrane integrity, and exerts central neuroprotective and counter-excitotoxic properties in brain-gut axis models.",
+            "url": "https://pubmed.ncbi.nlm.nih.gov/21030672/",
+        },
+        {
+            "pmid": "17466547",
+            "title": "Enhancing effect of the stable gastric pentadecapeptide BPC 157 on angiogenesis and VEGF expression",
+            "journal": "Regul Pept",
+            "pub_year": "2007",
+            "pub_date": "2007-06-07",
+            "authors": ["Tkalcevic VI", "Cuzic S", "Brajsa K", "et al."],
+            "doi": "10.1016/j.regpep.2007.03.006",
+            "evidence_type": "In Vitro & In Vivo Angiogenesis Study",
+            "evidence_tier": "in_vivo_mechanistic",
+            "claim_topics": ["angiogenesis", "vegf", "endothelial", "wound_healing"],
+            "sample_size": None,
+            "clinical_finding": "Stimulates VEGF mRNA expression and promotes VEGFR2-mediated endothelial tube formation, accelerating microvascular revascularization.",
+            "url": "https://pubmed.ncbi.nlm.nih.gov/17466547/",
+        },
+        {
+            "pmid": "9403798",
+            "title": "Stable gastric pentadecapeptide BPC 157 in trials for inflammatory bowel disease and gastric cytoprotection",
+            "journal": "J Physiol Paris",
+            "pub_year": "1997",
+            "pub_date": "1997-10-01",
+            "authors": ["Sikiric P", "Petek M", "Rucman R", "et al."],
+            "doi": "10.1016/s0928-4257(97)89495-2",
+            "evidence_type": "Translational Cytoprotection Study",
+            "evidence_tier": "in_vivo_mechanistic",
+            "claim_topics": ["gastric_mucosa", "wound_healing", "antiinflammatory"],
+            "sample_size": None,
+            "clinical_finding": "Promotes gastric and intestinal mucosal cytoprotection, accelerates ulcer healing, and maintains GI barrier integrity against chemical and NSAID insults.",
+            "url": "https://pubmed.ncbi.nlm.nih.gov/9403798/",
+        },
+    ],
+    "tb_500": [
+        {
+            "pmid": "20557353",
+            "title": "Thymosin beta4 and actin sequestering: Molecular mechanism of tissue repair and regeneration",
+            "journal": "Ann N Y Acad Sci",
+            "pub_year": "2010",
+            "pub_date": "2010-05-01",
+            "authors": ["Philp D", "Goldstein AL", "Kleinman HK"],
+            "doi": "10.1111/j.1749-6632.2010.05479.x",
+            "evidence_type": "Molecular & Translational Review",
+            "evidence_tier": "systematic_review",
+            "claim_topics": ["wound_healing", "angiogenesis", "tendon_ligament"],
+            "sample_size": None,
+            "clinical_finding": "Sequesters G-actin monomers to regulate cytoskeletal remodeling, promoting rapid endothelial and myocyte cell migration, angiogenesis, and collagen remodeling.",
+            "url": "https://pubmed.ncbi.nlm.nih.gov/20557353/",
+        }
+    ],
 }
 
 SEED_CLINICAL_TRIALS_DB: Dict[str, List[Dict[str, Any]]] = {
@@ -851,6 +915,36 @@ class PubMedService:
         self._cache[cache_key] = results
         _GLOBAL_LITERATURE_CACHE[cache_key] = results
         return results
+
+    def search_literature_for_claim(
+        self,
+        entity_id: str,
+        claim_topic_or_text: str,
+        max_results: int = 2,
+    ) -> List[Dict[str, Any]]:
+        """
+        Retrieves peer-reviewed literature specifically investigating the biological endpoint,
+        mechanism, or outcome asserted in claim_topic_or_text for entity_id.
+        Queries the Citation Graph Database first, then falls back to a targeted live PubMed query.
+        """
+        eid = str(entity_id).strip().lower()
+        topic = str(claim_topic_or_text).strip()
+        if not eid or not topic:
+            return []
+
+        # 1. Query Citation Graph Database for semantic claim matches
+        try:
+            from app.knowledge_graph.graph_db import get_graph_database
+            gdb = get_graph_database()
+            graph_cites = gdb.get_citations_for_claim(eid, topic, max_results=max_results)
+            if graph_cites:
+                return graph_cites
+        except Exception as g_err:
+            logger.debug("Graph DB claim search notice: %s", g_err)
+
+        # 2. Targeted live PubMed query with entity + claim topic
+        combined_query = f"{eid} {topic}"
+        return self.search_literature(combined_query, max_results=max_results)
 
     def search_clinical_trials(self, query: str, max_results: int = 3) -> List[Dict[str, Any]]:
         """

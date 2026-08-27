@@ -1435,6 +1435,7 @@ class Neo4jGraphDatabase:
         evidence_tier = str(citation.get("evidence_tier") or citation.get("evidence_type") or "clinical_trial")
         key_findings = str(citation.get("clinical_finding") or citation.get("key_findings") or title)
         url = str(citation.get("url") or (f"https://pubmed.ncbi.nlm.nih.gov/{pmid}/" if pmid else ""))
+        claim_topics = citation.get("claim_topics") or self._extract_claim_topics(title, key_findings, journal)
 
         node_data = {
             "id": cid,
@@ -1451,6 +1452,7 @@ class Neo4jGraphDatabase:
             "sample_size": citation.get("sample_size"),
             "study_design": str(citation.get("evidence_type", "RCT / Observational")),
             "key_findings": key_findings,
+            "claim_topics": claim_topics,
             "url": url,
         }
 
@@ -1640,6 +1642,130 @@ class Neo4jGraphDatabase:
 
         matches.sort(key=lambda m: (m[0], int(m[1].get("pub_year") or 0)), reverse=True)
         return [m[1] for m in matches[:max_results]]
+
+    @staticmethod
+    def _extract_claim_topics(title: str, findings: str, journal: str = "") -> List[str]:
+        """Classifies biomedical text into standardized physiological/clinical claim topics."""
+        text = f"{title} {findings} {journal}".lower()
+        topics = []
+        topic_map = {
+            "neuroprotection": ["neuroprotect", "brain", "cns", "neuron", "bdnf", "ngf", "hippocamp", "dopamin", "serotonin", "excitotox", "cognitive", "stroke", "memory"],
+            "angiogenesis": ["angiogen", "vegf", "endothelial", "vascular", "blood vessel", "capillary", "enos", "nos3", "revascular"],
+            "wound_healing": ["wound", "healing", "tissue repair", "granulation", "epithelial"],
+            "tendon_ligament": ["tendon", "ligament", "collagen", "achilles", "tenocyte", "connective tissue", "biomechanic"],
+            "gastric_mucosa": ["gastric", "ulcer", "mucosa", "gut", "gastroprotect", "ibd", "colitis", "duodenal", "stomach", "nsaid"],
+            "fistula_urology": ["fistula", "bladder", "vesicovaginal", "urolog", "stone", "rectovaginal"],
+            "cardiovascular": ["blood pressure", "hypertension", "arterial", "cardio", "myocard", "infarct", "heart", "ras", "raas", "acei", "statin", "atheroscler"],
+            "pharmacokinetics": ["pharmacokinetic", "bioavailab", "half-life", "clearance", "absorption", "cmax", "auc", "metabol"],
+            "metabolic_glycemic": ["glucose", "insulin", "diabetes", "ampk", "glycemic", "hba1c", "metformin", "homa-ir"],
+            "lipid_management": ["cholesterol", "ldl", "hdl", "apob", "statin", "triglyceride", "lipid"],
+            "oncology": ["cancer", "tumor", "oncolog", "carcinoma", "neoplasm", "cytotox"],
+            "antiinflammatory": ["anti-inflammatory", "inflammation", "cytokine", "crp", "tnf", "interleukin", "cox-2"],
+            "antioxidant": ["antioxidant", "sod", "glutathione", "reactive oxygen", "ros", "oxidative stress"],
+            "anabolic_endocrine": ["testosterone", "androgen", "anabolic", "aromatase", "estradiol", "lh", "fsh", "hpta", "hypertrophy"],
+        }
+        for topic, keywords in topic_map.items():
+            if any(k in text for k in keywords):
+                topics.append(topic)
+        return topics or ["general_pharmacology"]
+
+    def get_citations_for_claim(
+        self,
+        entity_id: str,
+        claim_topic_or_text: str,
+        max_results: int = 3,
+        min_semantic_score: int = 1,
+    ) -> List[Dict[str, Any]]:
+        """
+        Retrieves citations linked to entity_id that specifically support the endpoint,
+        mechanism, or disease model asserted in claim_topic_or_text.
+        Prevents misattributing an unrelated trial (e.g. fistula repair) to a different claim (e.g. neuroprotection).
+        """
+        eid = str(entity_id).strip().lower()
+        if not eid or not claim_topic_or_text:
+            return []
+
+        # 1. Get all candidate citations for this entity
+        all_cites = self.get_citations_for_entity(eid, max_results=20)
+        if not all_cites:
+            try:
+                from app.services.pubmed_service import SEED_LITERATURE_DB
+                norm_k = eid.replace(" ", "_").replace("-", "_")
+                seeds = SEED_LITERATURE_DB.get(norm_k) or SEED_LITERATURE_DB.get(eid) or []
+                for s in seeds:
+                    self.ingest_citation(s, entity_id=eid)
+                all_cites = self.get_citations_for_entity(eid, max_results=20)
+            except Exception:
+                pass
+        if not all_cites:
+            all_cites = self.search_citations(f"{eid} {claim_topic_or_text}", max_results=10)
+
+        claim_tokens = [t for t in re.split(r"[\s_,\-]+", claim_topic_or_text.lower()) if len(t) >= 3]
+        claim_topics = self._extract_claim_topics(claim_topic_or_text, claim_topic_or_text)
+
+        scored: List[Tuple[int, Dict[str, Any]]] = []
+        for c in all_cites:
+            title = str(c.get("title", "")).lower()
+            findings = str(c.get("clinical_finding") or c.get("key_findings") or "").lower()
+            journal = str(c.get("journal", "")).lower()
+            c_topics = c.get("claim_topics") or self._extract_claim_topics(title, findings, journal)
+            c_corpus = f"{title} {findings} {journal}"
+
+            score = 0
+            # Topic overlap bonus
+            shared_topics = set(claim_topics).intersection(set(c_topics))
+            score += len(shared_topics) * 3
+
+            # Token overlap
+            token_matches = sum(1 for t in claim_tokens if t in c_corpus)
+            score += token_matches
+
+            if score >= min_semantic_score:
+                c_copy = copy.deepcopy(c)
+                c_copy["claim_topics"] = c_topics
+                c_copy["semantic_score"] = score
+                scored.append((score, c_copy))
+
+        scored.sort(key=lambda s: (s[0], int(s[1].get("pub_year") or 0)), reverse=True)
+        return [s[1] for s in scored[:max_results]]
+
+    def validate_claim_citation_match(
+        self,
+        claim_text: str,
+        citation: Dict[str, Any],
+    ) -> Dict[str, Any]:
+        """
+        Evaluates semantic congruence between an asserted claim and a candidate citation.
+        Detects and flags when a citation investigates an endpoint distinct from the claim.
+        """
+        claim_cleaned = claim_text.strip().lower()
+        title = str(citation.get("title", "")).lower()
+        findings = str(citation.get("clinical_finding") or citation.get("key_findings") or "").lower()
+        journal = str(citation.get("journal", "")).lower()
+
+        claim_topics = set(self._extract_claim_topics(claim_cleaned, claim_cleaned))
+        cite_topics = set(citation.get("claim_topics") or self._extract_claim_topics(title, findings, journal))
+
+        shared_topics = claim_topics.intersection(cite_topics)
+        claim_tokens = [t for t in re.split(r"[\s_,\-]+", claim_cleaned) if len(t) >= 4]
+        token_hits = [t for t in claim_tokens if t in f"{title} {findings}"]
+
+        is_congruent = bool(shared_topics) or (len(token_hits) >= 2)
+        confidence = min(1.0, (len(shared_topics) * 0.4) + (len(token_hits) * 0.2))
+
+        divergence_warning = None
+        if not is_congruent and cite_topics and claim_topics:
+            divergence_warning = (
+                f"Claim addresses [{', '.join(claim_topics)}], whereas citation investigates [{', '.join(cite_topics)}]."
+            )
+
+        return {
+            "is_congruent": is_congruent,
+            "confidence": round(confidence, 2),
+            "shared_topics": list(shared_topics),
+            "token_hits": token_hits,
+            "divergence_warning": divergence_warning,
+        }
 
 
 # Singleton instance accessor

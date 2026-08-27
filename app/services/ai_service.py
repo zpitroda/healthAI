@@ -70,11 +70,13 @@ def get_reasoning_params(base_url: str = "") -> Dict[str, Any]:
             return {"reasoning_effort": effort}
         return {}
 
-    # For local llama-server / vLLM
+    # For local llama-server / vLLM (Unsloth Dynamic Qwen3.8 Jinja template)
+    enable_thinking = effort != "none"
     return {
         "reasoning_effort": effort,
         "chat_template_kwargs": {
             "reasoning_effort": effort,
+            "enable_thinking": enable_thinking,
         },
     }
 
@@ -90,11 +92,12 @@ def get_candidate_urls() -> list[str]:
     return [u.rstrip("/") for u in candidates if u]
 
 
-DEFAULT_MODEL = os.getenv("OPENAI_MODEL", "qwen3.8:27b")
+DEFAULT_MODEL = os.getenv("OPENAI_MODEL", "Qwen3.8-27B-UD-Q6_K_M.gguf")
 
 # Priority list for automatic model resolution if configured model is not installed
 MODEL_PREFERENCES = [
     "qwen3.8:27b",
+    "Qwen3.8-27B-UD-Q6_K_M",
     "qwen3.8",
     "qwen3.6:27b",
     "qwen3.6",
@@ -184,16 +187,19 @@ async def get_best_available_model(preferred_model: Optional[str] = None, base_u
                 installed_data = res.json()
                 installed_names = [m.get("id", "") for m in installed_data.get("data", [])]
 
-                # Check if exact target or base name matches
+                # Check if exact target or base name matches (case-insensitive)
+                target_lower = target.lower()
                 for name in installed_names:
-                    if target == name or target in name:
+                    name_lower = name.lower()
+                    if target_lower == name_lower or target_lower in name_lower or name_lower in target_lower:
                         _ACTIVE_MODEL_CACHE[cache_key] = name
                         return name
 
                 # Otherwise pick the highest priority model installed
                 for pref in MODEL_PREFERENCES:
+                    pref_lower = pref.lower()
                     for name in installed_names:
-                        if pref in name:
+                        if pref_lower in name.lower():
                             logger.info(f"Auto-selected installed model: {name}")
                             _ACTIVE_MODEL_CACHE[cache_key] = name
                             return name
@@ -235,6 +241,8 @@ def get_candidate_fallback_models(primary_model: str, base_url: str) -> list[str
                 candidates.append(m)
     else:
         local_fallbacks = [
+            "Qwen3.8-27B-UD-Q6_K_M.gguf",
+            "qwen3.8-27b-ud-q6_k_m.gguf",
             "qwen3.8:27b",
             "qwen3.8",
             "qwen3.6:27b",
@@ -253,7 +261,7 @@ def get_candidate_fallback_models(primary_model: str, base_url: str) -> list[str
 
 def _extract_json_from_llm_response(content: str) -> Dict[str, Any]:
     """
-    Extracts and parses JSON object from LLM response, stripping Qwen3 thinking tags
+    Extracts and parses JSON object from LLM response, stripping Qwen3 / Unsloth thinking tags
     (<think>...</think>), markdown code blocks, or leading/trailing whitespace.
     """
     import re
@@ -267,8 +275,8 @@ def _extract_json_from_llm_response(content: str) -> Dict[str, Any]:
     except json.JSONDecodeError:
         pass
 
-    # Strip Qwen3 <think>...</think> or <thought>...</thought> tags
-    without_thoughts = re.sub(r'<(think|thought|scratchpad|clinical_notes)>.*?</\1>', '', cleaned, flags=re.DOTALL | re.IGNORECASE).strip()
+    # Strip Qwen3 / Unsloth Dynamic <think>...</think> or <thought>...</thought> tags
+    without_thoughts = re.sub(r'<(think|thought|scratchpad|clinical_notes|reasoning)>.*?</\1>', '', cleaned, flags=re.DOTALL | re.IGNORECASE).strip()
     try:
         return json.loads(without_thoughts)
     except json.JSONDecodeError:

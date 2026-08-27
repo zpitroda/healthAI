@@ -61,7 +61,7 @@ if (Test-Path "$ScriptDir\neo4j\bin\neo4j.bat") {
 if (Test-Path "$ScriptDir\start_llama_server.ps1") {
     $llamaRunning = Test-PortSilent "127.0.0.1" 8080
     if (-not $llamaRunning) {
-        Write-Host "[*] Starting llama-server (Qwen 3.8 27B on RTX 5090) in separate window..." -ForegroundColor Yellow
+        Write-Host "[*] Starting llama-server (Unsloth Qwen 3.8 27B UD-Q6_K_M on RTX 5090) in separate window..." -ForegroundColor Yellow
         Start-Process -FilePath "powershell.exe" -ArgumentList "-ExecutionPolicy Bypass -File `"$ScriptDir\start_llama_server.ps1`""
         Start-Sleep -Seconds 2
     } else {

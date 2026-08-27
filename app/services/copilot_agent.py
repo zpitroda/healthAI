@@ -50,10 +50,13 @@ You specialize in designing synergistic, bio-individualized stacks, circadian ti
 - Mandatory Requested Compound Inclusion & Risk Mitigation: If the user specifically requests a compound (even high-risk, unapproved, or experimental agents such as Clenbuterol, Trenbolone, SARMs, or research peptides), ALWAYS include it in the protocol regardless of baseline risk tolerance or default template settings. Do NOT refuse or exclude requested compounds. Instead, provide explicit risk warnings, highlight known data limitations/boxed warnings, and dynamically formulate evidence-based protective co-factors and mitigations (e.g. organ shields, electrolyte buffers, split dosing, or enzymatic countermeasures) to minimize negative side effects.
 - User Constraints & Exclusions: Strictly respect all user-specified exclusions (e.g. "no oral l-carnitine", "avoid stimulants"), route preferences, and pathway focus areas. User directives ALWAYS override default templates.
 - Organ Burden Offsetting: Address identified multi-organ burdens (renal, hepatic, cardiovascular, lipid) with evidence-graded clinical co-factors.
-- Publication-Ready Prose & Strict Citation Grounding: Write directly in finished, authoritative clinical markdown. Support assertions with clean, verified citations.
-  - ONLY use a `[PMID: ...]` if it is explicitly present in the `### VERIFIED BIOMEDICAL LITERATURE` context or retrieved via a literature tool for that specific compound/mechanism.
-  - NEVER misattribute or cross-contaminate citations between different drugs (e.g. NEVER cite a Telmisartan PMID when discussing Tadalafil, Caffeine, Ashwagandha, or TRT).
-  - NEVER fabricate random 8-digit PMIDs. If a verified PMID is not in context, cite using standard authoritative medical formats: `[FDA Label: <Drug Name> §<Section>]`, `[Study: <FirstAuthor> et al., <Journal> <Year>]`, `[Clinical Guideline: <Society>]`, or `[ChEMBL: <ID>]`.
+- Publication-Ready Prose & Strict Claim-Level Citation Grounding: Write directly in finished, authoritative clinical markdown. Support assertions with clean, verified, and semantically congruent citations.
+  - Strict Claim-to-Paper Congruence: Every study citation `[PMID: ...]` or `[Study: ...]` MUST directly evaluate the specific physiological endpoint, mechanism, tissue, or clinical outcome asserted in that sentence (e.g. do not cite a urological fistula repair paper for neuroprotection, stimulant excitotoxicity, or pharmacokinetics).
+  - Verification Against Context Topics: Check the provided `[Topic: ...]` and `Finding` in `### VERIFIED BIOMEDICAL LITERATURE`. If the literature does not investigate your specific claim, DO NOT cite it for that assertion.
+  - Transparent Separation of Direct Studies vs. Pharmacological Rationales:
+    * For Direct Empirical Findings: Cite the exact matching study (e.g. `[PMID: 21030672 - Sikiric et al., Curr Neuropharmacol 2010]`).
+    * For Multi-Compound Combinations, Unstudied Synergies, or Pharmacological Extrapolations (e.g. BPC-157 with Clenbuterol + Caffeine as an excitotoxicity shield): NEVER attach an unrelated empirical study on a different disease/endpoint. Instead, transparently label the clinical thought process using structured evidence tags: `[Pharmacological Rationale: Neuroprotective Shielding Hypothesis]`, `[Mechanistic Extrapolation: eNOS/VEGF Cytoprotection]`, `[Theoretical Combination Model]`, `[FDA Label: §5.1 Boxed Warning]`, or `[ChEMBL Target Profile: ADRB2]`.
+  - Zero Misattribution & Zero Fabrication: NEVER attach citations from one drug to an unrelated compound, and NEVER fabricate random 8-digit PMIDs.
 
 ### RESPONSE FORMAT (HIGH SIGNAL, CRISP MARKDOWN):
 1. **Executive Assessment**: 1–2 direct sentences on stack balance, safety, and core synergy vectors relative to the primary protocol objective and user constraints.
@@ -84,7 +87,7 @@ Your role is to forensically red-team compound stacks, identifying drug-drug int
 - Explain clearance kinetics: competitive CYP inhibition vs mechanism-based inactivation (MBI), AUCR surges, and renal CrCl/eGFR impacts.
 - Detail acute receptor cross-talk and toxicological collisions.
 - Propose evidence-based pharmacological countermeasures with verified clinical safety and dosing.
-- Strict Citation Grounding: Only cite exact `[PMID: ...]` numbers if present in the verified context or literature tool results for that specific drug. Never misattribute citations across different drugs, and never fabricate random PMIDs.
+- Strict Claim-Level Citation Grounding: Every citation MUST directly investigate the exact toxicological interaction or pharmacokinetic endpoint asserted. For theoretical DDI extrapolations, use structured evidence tags `[Pharmacological Rationale: CYP3A4 Competition]` or `[Mechanistic Extrapolation: Renal Hemodynamics]` rather than attaching unrelated empirical studies.
 - Provide direct, actionable conflict audits and solutions in finished prose.
 
 ### RESPONSE FORMAT (OBJECTIVE & ACTIONABLE):
@@ -105,7 +108,7 @@ You provide PhD-level molecular pharmacology explanations of receptor binding dy
 - Quote quantitative binding affinities ($K_i, K_d, IC_{50}, EC_{50}$) and Hill coefficients whenever available.
 - Detail specific receptor subtypes (e.g. 5-HT1A, 5-HT2A, alpha-1/beta-2 adrenergic, GABA-A alpha-1/alpha-2, CB1/CB2, Progesterone Receptor).
 - Trace intracellular signaling: G-protein coupling (Gs, Gi, Gq), second messengers (cAMP, IP3/DAG, Ca2+, PKA/PKC), and nuclear translocation/transcription factor activation (AMPK -> SIRT1 -> PGC-1alpha, Nrf2/ARE, NF-kB, CREB -> BDNF, mTORC1 -> p70S6K).
-- Strict Citation Grounding: Only cite exact `[PMID: ...]` numbers if present in the verified context or literature tool results for that specific drug. Never misattribute citations across different drugs, and never fabricate random PMIDs.
+- Strict Claim-Level Citation Grounding: Every citation MUST evaluate the exact molecular receptor, enzyme, or signaling pathway claimed. For hypothetical cascades, use `[Mechanistic Extrapolation: Signal Cascade]` or `[ChEMBL Target Assay: <TargetID>]`.
 
 ### RESPONSE FORMAT (HIGH SCIENTIFIC DENSITY):
 1. **Primary Molecular Targets & Binding Kinetics**: Specific receptors/enzymes, affinities, and agonist/antagonist/allosteric mode.
@@ -125,7 +128,7 @@ You interpret quantitative patient blood panels (Lipids, Hepatic transaminases, 
 - Factor in peak vs. trough blood draw timing relative to dosing interval tau. When wide fluctuations occur, advise on trough-standardized blood draws and frequency titration.
 - Provide individual baseline comparisons against clinical reference ranges.
 - Propose exact titration offsets and targeted ancillary co-factors to normalize skewed laboratory parameters.
-- Strict Citation Grounding: Only cite exact `[PMID: ...]` numbers if present in the verified context or literature tool results for that specific drug. Never misattribute citations across different drugs, and never fabricate random PMIDs.
+- Strict Claim-Level Citation Grounding: Only cite clinical trials that directly assess the biomarker shifts or organ clearance metrics in question. For theoretical extrapolations or clinical practice guidelines, cite `[Pharmacological Rationale: Organ Clearance]`, `[Mechanistic Extrapolation: Biomarker Modulation]`, `[Clinical Guideline: <Society/Year>]`, or `[FDA Label: §<Section>]`.
 
 ### RESPONSE FORMAT (CLINICALLY FOCUSED):
 1. **Biomarker Profile & Impact Overview**: Assessment across Lipid (ApoB, LDL-C, Triglycerides), Hepatic (ALT, AST, Bilirubin), Renal (eGFR, Cr, K+), and Hormonal axes.
@@ -1004,10 +1007,29 @@ class CopilotAgent:
         elif tool_name in ("search_pubmed_literature", "search_biomedical_literature", "search_pubmed"):
             from app.services.pubmed_service import PubMedService
             query = str(arguments.get("query") or arguments.get("compound_name") or arguments.get("topic") or "").strip()
+            claim_topic = str(arguments.get("claim_topic") or arguments.get("endpoint") or "").strip()
             max_res = int(arguments.get("max_results", 4))
             pubmed_svc = PubMedService()
-            citations = pubmed_svc.search_literature(query, max_results=max_res)
-            return {"query": query, "count": len(citations), "citations": citations}
+            if claim_topic:
+                citations = pubmed_svc.search_literature_for_claim(query, claim_topic, max_results=max_res)
+            else:
+                citations = pubmed_svc.search_literature(query, max_results=max_res)
+            return {"query": query, "claim_topic": claim_topic, "count": len(citations), "citations": citations}
+
+        elif tool_name in ("search_literature_for_claim", "search_evidence_for_claim", "get_claim_citations"):
+            from app.services.pubmed_service import PubMedService
+            entity_id = str(arguments.get("entity_id") or arguments.get("compound_name") or arguments.get("compound_key") or "").strip().lower()
+            claim_topic = str(arguments.get("claim_topic") or arguments.get("claim_text") or arguments.get("endpoint") or "").strip()
+            max_res = int(arguments.get("max_results", 3))
+            pubmed_svc = PubMedService()
+            citations = pubmed_svc.search_literature_for_claim(entity_id, claim_topic, max_results=max_res)
+            return {"entity_id": entity_id, "claim_topic": claim_topic, "count": len(citations), "citations": citations}
+
+        elif tool_name in ("validate_claim_citation", "check_citation_congruence"):
+            claim_text = str(arguments.get("claim_text") or arguments.get("claim") or "").strip()
+            citation = arguments.get("citation") or {}
+            val_res = graph_db.validate_claim_citation_match(claim_text, citation)
+            return val_res
 
         elif tool_name in ("search_literature_and_conflicts", "get_scientific_controversies", "detect_literature_conflicts"):
             from app.services.pubmed_service import PubMedService
@@ -1596,14 +1618,16 @@ class CopilotAgent:
                 c_name = comp_meta.get("name") if comp_meta else t_key.replace("_", " ").title()
                 c_cites = pubmed_svc.search_literature(str(t_key), max_results=2)
                 for cite in c_cites:
-                    finding_str = f" ➔ *Finding*: {cite['clinical_finding']}" if cite.get("clinical_finding") else ""
+                    finding_str = f" ➔ *Investigated Finding*: {cite['clinical_finding']}" if cite.get("clinical_finding") else ""
+                    topics_list = cite.get("claim_topics") or []
+                    topic_str = f" [Topic: {', '.join(topics_list)}]" if topics_list else ""
                     citations_found.append(
-                        f"- **{c_name}**: [{cite.get('journal', 'PubMed')} {cite.get('pub_year', '')}] *\"{cite.get('title')}\"* [PMID: {cite.get('pmid')}]{' (DOI: ' + cite['doi'] + ')' if cite.get('doi') else ''}{finding_str}"
+                        f"- **{c_name}**{topic_str}: [{cite.get('journal', 'PubMed')} {cite.get('pub_year', '')}] *\"{cite.get('title')}\"* [PMID: {cite.get('pmid')}]{' (DOI: ' + cite['doi'] + ')' if cite.get('doi') else ''}{finding_str}"
                     )
             if citations_found:
                 literature_sections.append("### VERIFIED BIOMEDICAL LITERATURE & CLINICAL EVIDENCE:")
                 literature_sections.extend(citations_found[:6])
-                literature_sections.append("*(Instruction: Strictly cite these verified PMIDs ONLY for their corresponding compound/finding. Do NOT misattribute or invent PMIDs.)*")
+                literature_sections.append("*(Mandate: Strictly cite a study ONLY when making a claim about that exact investigated topic/endpoint. If proposing an unstudied combination, synergy, or extrapolation, use transparent evidence tags such as [Pharmacological Rationale: <Mechanism>] rather than attaching an unrelated empirical study.)*")
         except Exception as lit_err:
             logger.debug("Literature context notice: %s", lit_err)
 

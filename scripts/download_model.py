@@ -2,7 +2,7 @@
 """
 Model Download & Resumable Chunked Ingestion Script
 ---------------------------------------------------
-Downloads and verifies large quantized GGUF language model weights (e.g. Qwen 3.8 27B)
+Downloads and verifies large quantized GGUF language model weights (e.g. unsloth/Qwen3.8-27B-GGUF)
 from Hugging Face with multi-threaded chunking and resumable state tracking.
 """
 from __future__ import annotations
@@ -18,12 +18,14 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 
 PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 MODELS_DIR = os.path.join(PROJECT_ROOT, "models")
+DEFAULT_HF_REPO = "unsloth/Qwen3.8-27B-GGUF"
+DEFAULT_MODEL_FILE = "Qwen3.8-27B-UD-Q6_K_M.gguf"
 DEFAULT_HF_URL = os.getenv(
     "MODEL_HF_URL",
-    "https://huggingface.co/Qwen/Qwen3.8-27B-GGUF/resolve/main/qwen3.8-27b-q6_k.gguf"
+    f"https://huggingface.co/{DEFAULT_HF_REPO}/resolve/main/{DEFAULT_MODEL_FILE}"
 )
 MODEL_HF_URL = DEFAULT_HF_URL
-MODEL_NAME = os.getenv("OPENAI_MODEL", "qwen3.8-27b-q6_k.gguf")
+MODEL_NAME = os.getenv("OPENAI_MODEL", DEFAULT_MODEL_FILE)
 if not MODEL_NAME.endswith(".gguf"):
     MODEL_NAME = f"{MODEL_NAME.replace(':', '-')}.gguf"
 

@@ -986,14 +986,18 @@ def build_selected_compound_graph(stack: List[Any], catalog_service: CatalogServ
         is_pde5 = any(w in c_name_lower or w in drug_class_lower or w in mechanism_text for w in ["pde5", "pde-5", "tadalafil", "sildenafil", "vardenafil", "avanafil", "phosphodiesterase 5", "phosphodiesterase-5", "phosphodiesterase type 5"])
         if is_pde5:
             pde5_eff = -min(0.85, 0.35 + 0.35 * math.log10(max(0.1, dose_mg / 2.0)))
-            existing_pde5 = next((t for t in receptor_targets if "pde5" in str(t.get("target", "")).lower() or "phosphodiesterase" in str(t.get("target", "")).lower()), None)
-            if existing_pde5:
-                existing_pde5["action"] = "inhibitor"
-                existing_pde5["intrinsic_efficacy"] = pde5_eff
-                existing_pde5["pre_computed_stress"] = True
-                existing_pde5["gene_symbol"] = "PDE5A"
-                existing_pde5["uniprot_id"] = "O76074"
-            else:
+            found_pde5 = False
+            for t in receptor_targets:
+                t_str = str(t.get("target", "")).lower()
+                if "pde" in t_str or "phosphodiesterase" in t_str or "cgmp" in t_str:
+                    t["action"] = "inhibitor"
+                    t["intrinsic_efficacy"] = pde5_eff
+                    t["inhibition_ic50"] = 0.005
+                    t["pre_computed_stress"] = True
+                    t["gene_symbol"] = "PDE5A"
+                    t["uniprot_id"] = "O76074"
+                    found_pde5 = True
+            if not found_pde5:
                 receptor_targets.append({
                     "target": "Phosphodiesterase 5A (PDE5A)",
                     "action": "inhibitor",

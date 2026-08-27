@@ -50,7 +50,7 @@ if %errorlevel% equ 0 (
     echo [*] llama-server is active on http://127.0.0.1:8080
     goto start_app
 )
-echo [*] Starting llama-server (Qwen 3.8 27B on RTX 5090) in separate window...
+echo [*] Starting llama-server (Unsloth Qwen 3.8 27B UD-Q6_K_M on RTX 5090) in separate window...
 start "healthAI - llama-server (RTX 5090)" cmd /c "start_llama_server.bat"
 ping 127.0.0.1 -n 3 >nul
 

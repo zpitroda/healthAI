@@ -369,6 +369,131 @@
             white-space: pre-wrap;
             color: #a7f3d0;
         }
+
+        .mobile-menu-toggle {
+            display: none;
+            background: var(--bg-card);
+            border: 1px solid var(--border-color);
+            color: var(--text-primary);
+            font-size: 1.25rem;
+            width: 36px;
+            height: 36px;
+            border-radius: 6px;
+            cursor: pointer;
+            align-items: center;
+            justify-content: center;
+        }
+
+        @media (max-width: 768px) {
+            html, body {
+                -webkit-tap-highlight-color: transparent;
+                height: auto;
+                min-height: 100vh;
+                overflow: visible;
+            }
+
+            header {
+                padding: 10px 14px;
+                position: relative;
+                flex-wrap: wrap;
+                gap: 8px;
+            }
+
+            .header-title h1 {
+                font-size: 1rem;
+            }
+
+            .mobile-menu-toggle {
+                display: flex;
+            }
+
+            .nav-links {
+                display: none;
+                position: absolute;
+                top: calc(100% + 6px);
+                left: 0;
+                right: 0;
+                background: rgba(17, 24, 39, 0.98);
+                backdrop-filter: blur(24px);
+                -webkit-backdrop-filter: blur(24px);
+                border: 1px solid var(--border-color);
+                border-radius: 8px;
+                box-shadow: 0 16px 40px rgba(0, 0, 0, 0.75);
+                padding: 10px;
+                flex-direction: column;
+                gap: 6px;
+                z-index: 200;
+            }
+
+            .nav-links.open {
+                display: flex;
+            }
+
+            .nav-links a {
+                padding: 10px 12px;
+                border-radius: 6px;
+                font-size: 0.88rem;
+            }
+
+            input, select, textarea {
+                font-size: 16px !important;
+            }
+
+            .main-container {
+                display: flex;
+                flex-direction: column;
+                overflow: visible;
+                height: auto;
+            }
+
+            .sidebar {
+                border-right: none;
+                border-bottom: 1px solid var(--border-color);
+                overflow: visible;
+                padding: 14px;
+            }
+
+            .workspace {
+                overflow: visible;
+                min-height: 500px;
+            }
+
+            .tabs {
+                overflow-x: auto;
+                -webkit-overflow-scrolling: touch;
+                padding: 0 10px;
+            }
+
+            .tab {
+                padding: 10px 14px;
+                font-size: 0.8rem;
+                white-space: nowrap;
+            }
+
+            .log-toolbar {
+                flex-wrap: wrap;
+            }
+
+            .log-container {
+                min-height: 350px;
+                max-height: 55vh;
+            }
+
+            .sandbox-grid {
+                grid-template-columns: 1fr;
+                gap: 12px;
+                overflow: visible;
+            }
+
+            .sandbox-pane textarea {
+                min-height: 180px;
+            }
+
+            .result-box {
+                min-height: 180px;
+                max-height: 300px;
+            }
+        }
     </style>
 </head>
 <body>
@@ -380,11 +505,15 @@
                 <span id="ws-status-text">Disconnected</span>
             </div>
         </div>
-        <nav class="nav-links">
-            <a href="/">Lab</a>
-            <a href="/graph">Graph</a>
-            <a href="/admin">Admin</a>
-            <a href="/debug" class="active">Debug</a>
+        <button class="mobile-menu-toggle" id="mobile-menu-toggle" aria-label="Toggle navigation menu">
+            <span>☰</span>
+        </button>
+        <nav class="nav-links" id="nav-links">
+            <a href="/">Safety Lab</a>
+            <a href="/graph">Knowledge Graph</a>
+            <a href="/compound?key=caffeine">Compound DB</a>
+            <a href="/admin">Catalog DB</a>
+            <a href="/debug" class="active">Debug Workbench</a>
         </nav>
     </header>
 
@@ -714,6 +843,21 @@
                 evalResultOutput.textContent = `// Error executing payload:\n${e.message || e}`;
             }
         });
+
+        // Mobile menu toggle
+        const debugMobileMenuBtn = document.getElementById('mobile-menu-toggle');
+        const debugNavLinks = document.getElementById('nav-links');
+        if (debugMobileMenuBtn && debugNavLinks) {
+            debugMobileMenuBtn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                debugNavLinks.classList.toggle('open');
+            });
+            document.addEventListener('click', (e) => {
+                if (!debugNavLinks.contains(e.target) && !debugMobileMenuBtn.contains(e.target)) {
+                    debugNavLinks.classList.remove('open');
+                }
+            });
+        }
 
         // Initial launch
         fetchDiagnostics();

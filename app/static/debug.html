@@ -389,7 +389,8 @@
                 -webkit-tap-highlight-color: transparent;
                 height: auto;
                 min-height: 100vh;
-                overflow: visible;
+                max-width: 100vw;
+                overflow-x: hidden;
             }
 
             header {
@@ -397,6 +398,8 @@
                 position: relative;
                 flex-wrap: wrap;
                 gap: 8px;
+                max-width: 100%;
+                box-sizing: border-box;
             }
 
             .header-title h1 {

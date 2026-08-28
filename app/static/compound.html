@@ -655,11 +655,21 @@
       @media (max-width: 768px) {
         html, body {
           -webkit-tap-highlight-color: transparent;
+          max-width: 100vw;
+          overflow-x: hidden;
         }
 
         .container {
           padding: 10px 12px 40px;
           max-width: 100%;
+          overflow-x: hidden;
+          box-sizing: border-box;
+        }
+
+        .layout, .layout > * {
+          min-width: 0;
+          max-width: 100%;
+          box-sizing: border-box;
         }
 
         .topbar {

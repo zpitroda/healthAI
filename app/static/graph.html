@@ -1351,11 +1351,21 @@
       @media (max-width: 768px) {
         html, body {
           -webkit-tap-highlight-color: transparent;
+          max-width: 100vw;
+          overflow-x: hidden;
         }
 
         .app-shell {
           padding: 6px 8px 8px;
           gap: 6px;
+          max-width: 100%;
+          overflow-x: hidden;
+          box-sizing: border-box;
+        }
+
+        .graph-workspace {
+          max-width: 100%;
+          box-sizing: border-box;
         }
 
         .toolbar {
@@ -1364,6 +1374,8 @@
           gap: 8px;
           border-radius: 10px;
           position: relative;
+          max-width: 100%;
+          box-sizing: border-box;
         }
 
         .brand-wrap {

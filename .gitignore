@@ -94,3 +94,4 @@ neo4j/
 # llama.cpp Inference Binaries & Runtimes
 llama.cpp/
 
+healthai_catalog.db

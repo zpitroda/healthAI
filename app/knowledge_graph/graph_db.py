@@ -643,41 +643,59 @@ class Neo4jGraphDatabase:
         Traces unbroken multi-tier causal reasoning pathways starting from compound nodes
         all the way to clinical biomarkers and outcomes.
         Sorts branches by biological potency (binding affinity Ki, IC50, magnitude) so highest-signal paths rank first.
+        Uses indexed edge lookup and branch pruning for optimal retrieval performance.
         """
         chains: List[List[Dict[str, Any]]] = []
 
+        # Index mock edges by source ID for O(1) traversal
+        outgoing_map: Dict[str, List[Dict[str, Any]]] = {}
+        for e in self._mock_edges:
+            src = str(e.get("source", ""))
+            if src:
+                outgoing_map.setdefault(src, []).append(e)
+
         def _edge_potency(e: Dict[str, Any]) -> float:
-            ki = e.get("ki") or e.get("affinity_ki")
-            ic50 = e.get("ic50") or e.get("inhibition_ic50")
-            mag = float(e.get("magnitude") or 1.0)
-            score = mag
+            ki = e.get("ki") if e.get("ki") is not None else e.get("affinity_ki")
+            ic50 = e.get("ic50") if e.get("ic50") is not None else e.get("inhibition_ic50")
+            mag = float(e.get("magnitude") or e.get("vector_magnitude") or 1.0)
+            score = abs(mag)
             if ki is not None and float(ki) > 0:
                 score += max(0.0, 10.0 - math.log10(max(0.001, float(ki))))
             elif ic50 is not None and float(ic50) > 0:
                 score += max(0.0, 8.0 - math.log10(max(0.001, float(ic50))))
             return score
 
+        # Pre-sort outgoing edge lists by potency
+        for src, edge_list in outgoing_map.items():
+            edge_list.sort(key=_edge_potency, reverse=True)
+
+        seen_chain_signatures: Set[Tuple[str, ...]] = set()
+
         def dfs(current_id: str, path: List[Dict[str, Any]], visited: Set[str], depth: int) -> None:
             if len(chains) >= 25:
                 return
             if depth >= max_depth:
                 if len(path) > 1:
-                    chains.append(list(path))
+                    sig = tuple(step["target"] for step in path)
+                    if sig not in seen_chain_signatures:
+                        seen_chain_signatures.add(sig)
+                        chains.append(list(path))
                 return
 
-            outgoing = [e for e in self._mock_edges if e["source"] == current_id]
+            outgoing = outgoing_map.get(current_id, [])
             if not outgoing:
                 if len(path) > 1:
-                    chains.append(list(path))
+                    sig = tuple(step["target"] for step in path)
+                    if sig not in seen_chain_signatures:
+                        seen_chain_signatures.add(sig)
+                        chains.append(list(path))
                 return
-
-            outgoing.sort(key=_edge_potency, reverse=True)
 
             has_children = False
             for edge in outgoing:
                 if len(chains) >= 25:
                     return
-                tgt = edge["target"]
+                tgt = str(edge["target"])
                 if tgt in visited:
                     continue
                 tgt_node = self._mock_nodes.get(tgt, {"id": tgt, "label": tgt, "node_type": "entity"})
@@ -686,10 +704,10 @@ class Neo4jGraphDatabase:
                     "target": tgt,
                     "target_label": tgt_node.get("label", tgt),
                     "target_type": tgt_node.get("node_type", "entity"),
-                    "relationship": edge.get("edge_type", "MODULATES"),
-                    "magnitude": edge.get("magnitude", 1.0),
-                    "affinity_ki": edge.get("ki"),
-                    "inhibition_ic50": edge.get("ic50"),
+                    "relationship": edge.get("edge_type") or edge.get("type") or "MODULATES",
+                    "magnitude": edge.get("magnitude") or edge.get("vector_magnitude") or 1.0,
+                    "affinity_ki": edge.get("ki") if edge.get("ki") is not None else edge.get("affinity_ki"),
+                    "inhibition_ic50": edge.get("ic50") if edge.get("ic50") is not None else edge.get("inhibition_ic50"),
                 }
                 visited.add(tgt)
                 has_children = True
@@ -697,17 +715,37 @@ class Neo4jGraphDatabase:
                 visited.remove(tgt)
 
             if not has_children and len(path) > 1:
-                chains.append(list(path))
+                sig = tuple(step["target"] for step in path)
+                if sig not in seen_chain_signatures:
+                    seen_chain_signatures.add(sig)
+                    chains.append(list(path))
 
         for start_id in start_node_ids:
             if len(chains) >= 25:
                 break
-            sid = str(start_id)
-            if sid in self._mock_nodes:
-                s_node = self._mock_nodes[sid]
+            sid = str(start_id).strip()
+            if sid in self._mock_nodes or sid in outgoing_map:
+                s_node = self._mock_nodes.get(sid, {"id": sid, "label": sid, "node_type": "compound"})
                 root_step = {"source": "ROOT", "target": sid, "target_label": s_node.get("label", sid), "target_type": s_node.get("node_type", "compound")}
                 dfs(sid, [root_step], {sid}, 0)
 
+        # Sort extracted causal chains by cumulative path potency
+        def _chain_potency(chain: List[Dict[str, Any]]) -> float:
+            score = 0.0
+            for step in chain:
+                if step.get("source") == "ROOT":
+                    continue
+                ki = step.get("affinity_ki")
+                ic50 = step.get("inhibition_ic50")
+                mag = abs(float(step.get("magnitude", 1.0)))
+                score += mag
+                if ki is not None and float(ki) > 0:
+                    score += max(0.0, 10.0 - math.log10(max(0.001, float(ki))))
+                elif ic50 is not None and float(ic50) > 0:
+                    score += max(0.0, 8.0 - math.log10(max(0.001, float(ic50))))
+            return score
+
+        chains.sort(key=_chain_potency, reverse=True)
         return chains
 
     def get_graphrag_context(

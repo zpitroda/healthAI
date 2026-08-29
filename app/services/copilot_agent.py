@@ -1909,60 +1909,78 @@ You have autonomous access to execute live graph traversals, pathway queries, ph
     def parse_tool_call_from_text(cls, text: str) -> Optional[Dict[str, Any]]:
         """
         Parses structured tool calls from agent generation text.
-        Supports XML tags: <tool_call name="...">{"arg": "val"}</tool_call>
-        and fallback formats.
+        Supports XML tags (<tool_call name="...">, <call tool="...">),
+        fenced JSON code blocks, bare JSON tool call structures, and OpenAI native tool call dicts.
         """
         if not text:
             return None
 
-        # Format 1: <tool_call name="tool_name">JSON_ARGS</tool_call>
-        tag_match = re.search(r'<tool_call\s+name="([^"]+)"\s*>(.*?)</tool_call>', text, re.DOTALL | re.IGNORECASE)
+        # Format 1: <tool_call name="tool_name">JSON_ARGS</tool_call> or <tool_call>{"name": "...", "arguments": {...}}</tool_call>
+        tag_match = re.search(r'<tool_call(?:\s+name="([^"]+)")?\s*>(.*?)(?:</tool_call>|$)', text, re.DOTALL | re.IGNORECASE)
         if tag_match:
-            name = tag_match.group(1).strip()
-            raw_args = tag_match.group(2).strip()
-            try:
-                args = json.loads(raw_args) if raw_args else {}
-            except Exception:
-                args = {}
-            return {"name": name, "arguments": args}
+            name_attr = tag_match.group(1)
+            raw_body = tag_match.group(2).strip()
+            if name_attr:
+                name = name_attr.strip()
+                try:
+                    args = json.loads(raw_body) if raw_body else {}
+                except Exception:
+                    args = {}
+                return {"name": name, "arguments": args}
+            elif raw_body:
+                try:
+                    parsed = json.loads(raw_body)
+                    if isinstance(parsed, dict):
+                        if "name" in parsed:
+                            return {"name": str(parsed["name"]), "arguments": parsed.get("arguments", parsed.get("args", {}))}
+                        elif "tool" in parsed:
+                            return {"name": str(parsed["tool"]), "arguments": parsed.get("arguments", parsed.get("args", {}))}
+                except Exception:
+                    pass
 
-        # Format 2: <call tool="tool_name">JSON_ARGS</call>
-        call_match = re.search(r'<call\s+tool="([^"]+)"\s*>(.*?)</call>', text, re.DOTALL | re.IGNORECASE)
+        # Format 2: <call tool="tool_name">JSON_ARGS</call> or <call name="tool_name">JSON_ARGS</call>
+        call_match = re.search(r'<call(?:\s+(?:tool|name)="([^"]+)")?\s*>(.*?)(?:</call>|$)', text, re.DOTALL | re.IGNORECASE)
         if call_match:
-            name = call_match.group(1).strip()
-            raw_args = call_match.group(2).strip()
-            try:
-                args = json.loads(raw_args) if raw_args else {}
-            except Exception:
-                args = {}
-            return {"name": name, "arguments": args}
+            name_attr = call_match.group(1)
+            raw_body = call_match.group(2).strip()
+            if name_attr:
+                name = name_attr.strip()
+                try:
+                    args = json.loads(raw_body) if raw_body else {}
+                except Exception:
+                    args = {}
+                return {"name": name, "arguments": args}
 
-        # Format 3: ```tool_call / ```json {"tool": "name", "arguments": {...}}
-        json_call_match = re.search(r'```(?:json|tool_call)?\s*(\{\s*"tool"\s*:\s*"[^"]+".*?\})\s*```', text, re.DOTALL | re.IGNORECASE)
-        if json_call_match:
+        # Format 3: ```json or ```tool_call {"tool": "name", "arguments": {...}} or {"name": "...", "arguments": {...}}
+        json_block_match = re.search(r'```(?:json|tool_call)?\s*(\{\s*"(?:tool|name|function)"\s*:\s*"[^"]+".*?\})\s*```', text, re.DOTALL | re.IGNORECASE)
+        if json_block_match:
             try:
-                parsed = json.loads(json_call_match.group(1))
-                if isinstance(parsed, dict) and "tool" in parsed:
-                    return {"name": parsed["tool"], "arguments": parsed.get("arguments", {})}
+                parsed = json.loads(json_block_match.group(1))
+                if isinstance(parsed, dict):
+                    tool_name = parsed.get("name") or parsed.get("tool") or parsed.get("function")
+                    if tool_name:
+                        return {"name": str(tool_name), "arguments": parsed.get("arguments", parsed.get("args", {}))}
             except Exception:
                 pass
 
-        # Format 4: Bare JSON object or JSON lines (e.g. {"pmid": "38887114"} or {"query": "...", "max_results": 6})
-        bare_json_matches = re.finditer(r'\{[^{}]*"(?:pmid|query|tool|name|compound_key|goal|base_stack|target_id)"[^{}]*\}', text)
+        # Format 4: Bare JSON object or JSON lines (e.g. {"name": "search_pubmed_titles", "arguments": {"query": "..."}})
+        bare_json_matches = re.finditer(r'\{[^{}]*"(?:pmid|query|tool|name|compound_key|goal|base_stack|target_id|cypher)"[^{}]*\}', text)
         for bj in bare_json_matches:
             try:
                 parsed = json.loads(bj.group(0))
                 if isinstance(parsed, dict):
                     if "tool" in parsed:
-                        return {"name": parsed["tool"], "arguments": parsed.get("arguments", {})}
-                    elif "name" in parsed and "arguments" in parsed:
-                        return {"name": parsed["name"], "arguments": parsed.get("arguments", {})}
+                        return {"name": str(parsed["tool"]), "arguments": parsed.get("arguments", parsed.get("args", {}))}
+                    elif "name" in parsed and ("arguments" in parsed or "args" in parsed):
+                        return {"name": str(parsed["name"]), "arguments": parsed.get("arguments", parsed.get("args", {}))}
                     elif "pmid" in parsed:
                         return {"name": "read_paper_abstract", "arguments": {"pmid": str(parsed["pmid"])}}
-                    elif "query" in parsed:
+                    elif "query" in parsed and "cypher" not in parsed:
                         return {"name": "search_pubmed_titles", "arguments": parsed}
                     elif "compound_key" in parsed:
                         return {"name": "simulate_pkpd", "arguments": parsed}
+                    elif "cypher" in parsed:
+                        return {"name": "execute_read_only_cypher", "arguments": {"query": str(parsed["cypher"])}}
             except Exception:
                 pass
 

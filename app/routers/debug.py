@@ -116,28 +116,7 @@ def evaluate_debug_payload(payload: DebugEvalRequest) -> DebugEvalResponse:
                 data=res,
             )
 
-        elif payload.eval_type == "graph":
-            if not payload.cypher:
-                raise HTTPException(status_code=400, detail="cypher parameter is required for graph query eval.")
-            res = DebugRunner.run_graph_query(payload.cypher)
-            return DebugEvalResponse(
-                success=res.get("success", False),
-                execution_time_ms=res["execution_time_ms"],
-                data=res.get("results"),
-                error=res.get("error"),
-            )
 
-        elif payload.eval_type == "snippet":
-            if not payload.code:
-                raise HTTPException(status_code=400, detail="code parameter is required for Python snippet eval.")
-            res = DebugRunner.run_code_snippet(payload.code)
-            return DebugEvalResponse(
-                success=res.get("success", False),
-                execution_time_ms=res["execution_time_ms"],
-                data=res.get("outputs"),
-                error=res.get("error"),
-                traceback=res.get("traceback"),
-            )
 
         else:
             raise HTTPException(

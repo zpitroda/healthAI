@@ -1,0 +1,2351 @@
+[
+  {
+    "key": "astaxanthin",
+    "name": "Astaxanthin",
+    "canonical_name": "Astaxanthin",
+    "synonyms": [
+      "astaxanthin",
+      "asta"
+    ],
+    "drug_class": "Dietary Supplement / Carotenoid Antioxidant",
+    "categories": [
+      "Dietary Supplement",
+      "Antioxidant",
+      "Endothelial Protection",
+      "Mitochondrial Support"
+    ],
+    "molecular_weight": 596.84,
+    "logp": 8.0,
+    "oral_bioavailability": 0.4,
+    "volume_of_distribution": 2.0,
+    "protein_binding": 95.0,
+    "mechanism": "Transmembrane lipophilic antioxidant that quenches singlet oxygen and lipid peroxides across cellular membranes, protecting mitochondrial double membranes.",
+    "receptor_targets": [
+      {
+        "target": "Cellular Redox Homeostasis & Lipid Peroxidation (MDA / ROS)",
+        "action": "scavenger",
+        "family": "Redox Defense"
+      },
+      {
+        "target": "Nrf2 Cytoprotective Pathway (NFE2L2)",
+        "action": "activator",
+        "family": "Transcription Factor",
+        "gene_symbol": "NFE2L2"
+      }
+    ]
+  },
+  {
+    "key": "coq10",
+    "name": "Coenzyme Q10 (Ubiquinol)",
+    "canonical_name": "Coenzyme Q10",
+    "synonyms": [
+      "coq10",
+      "ubiquinol",
+      "ubiquinone",
+      "coenzymeq10"
+    ],
+    "drug_class": "Dietary Supplement / Bioenergetic Antioxidant",
+    "categories": [
+      "Dietary Supplement",
+      "Antioxidant",
+      "Mitochondrial Bioenergetics",
+      "Cardiovascular Support"
+    ],
+    "molecular_weight": 863.34,
+    "logp": 10.5,
+    "oral_bioavailability": 0.06,
+    "volume_of_distribution": 1.5,
+    "protein_binding": 99.0,
+    "mechanism": "Essential mitochondrial electron transport chain electron carrier and lipid-soluble antioxidant, protecting LDL particles and cellular membranes from oxidative damage.",
+    "receptor_targets": [
+      {
+        "target": "Mitochondrial Electron Transport Complex I & III",
+        "action": "cofactor",
+        "family": "Mitochondrial Bioenergetics"
+      },
+      {
+        "target": "Cellular Redox Homeostasis & Lipid Peroxidation (MDA / ROS)",
+        "action": "antioxidant",
+        "family": "Redox Defense"
+      }
+    ]
+  },
+  {
+    "key": "milk_thistle",
+    "name": "Milk Thistle",
+    "canonical_name": "Milk Thistle (Silymarin / Silybin)",
+    "synonyms": [
+      "silymarin",
+      "silybin",
+      "silybum marianum",
+      "siliphos"
+    ],
+    "drug_class": "Dietary Supplement / Hepatoprotective Antioxidant",
+    "categories": [
+      "Dietary Supplement",
+      "Antioxidant",
+      "Hepatoprotective",
+      "Herbal Extract"
+    ],
+    "molecular_weight": 482.44,
+    "logp": 1.7,
+    "oral_bioavailability": 0.2,
+    "volume_of_distribution": 1.2,
+    "protein_binding": 75.0,
+    "receptor_targets": [
+      {
+        "target": "Hepatic Parenchymal & Biliary Transport (BSEP / MRP2 / CYP)",
+        "action": "supports",
+        "family": "Hepatobiliary Support"
+      },
+      {
+        "target": "Glutathione Biosynthesis & Cellular Antioxidant Defense (System xc- / Nrf2 / GCL)",
+        "action": "agonist",
+        "family": "Antioxidant Defense"
+      }
+    ],
+    "cyp_enzymes": {
+      "substrates": [],
+      "inhibitors": [
+        "CYP3A4",
+        "CYP2C9"
+      ],
+      "inducers": []
+    }
+  },
+  {
+    "key": "curcumin",
+    "name": "Curcumin",
+    "canonical_name": "Curcumin",
+    "synonyms": [
+      "curcumin",
+      "turmeric",
+      "turmericextract"
+    ],
+    "drug_class": "Dietary Supplement / Polyphenolic Antioxidant",
+    "categories": [
+      "Dietary Supplement",
+      "Antioxidant",
+      "Anti-Inflammatory"
+    ],
+    "molecular_weight": 368.38,
+    "logp": 3.2,
+    "oral_bioavailability": 0.01,
+    "volume_of_distribution": 2.1,
+    "protein_binding": 90.0,
+    "receptor_targets": [
+      {
+        "target": "Nrf2 Cytoprotective Pathway (NFE2L2)",
+        "action": "activator",
+        "family": "Transcription Factor",
+        "gene_symbol": "NFE2L2"
+      },
+      {
+        "target": "NF-\u03baB & Pro-Inflammatory Cytokines (NFKB1 / PTGS2)",
+        "action": "inhibitor",
+        "family": "Inflammatory Signaling",
+        "gene_symbol": "NFKB1"
+      }
+    ]
+  },
+  {
+    "key": "citrus_bergamot",
+    "name": "Citrus Bergamot",
+    "canonical_name": "Citrus Bergamot (Bergamonte / BPF)",
+    "synonyms": [
+      "bergamot",
+      "bergamotextract",
+      "bergamonte",
+      "bpf"
+    ],
+    "drug_class": "Dietary Supplement / Polyphenolic Flavonoid",
+    "categories": [
+      "Dietary Supplement",
+      "Cardiovascular Support",
+      "Lipid Management"
+    ],
+    "molecular_weight": 580.53,
+    "logp": 0.5,
+    "oral_bioavailability": 0.25,
+    "volume_of_distribution": 1.5,
+    "protein_binding": 60.0,
+    "receptor_targets": [
+      {
+        "target": "HMG-CoA Reductase (HMGCR)",
+        "action": "inhibitor",
+        "family": "Enzyme / Lipid"
+      }
+    ]
+  },
+  {
+    "key": "alpha_lipoic_acid",
+    "name": "Alpha-Lipoic Acid",
+    "canonical_name": "Alpha-Lipoic Acid (R-ALA / Thioctic Acid)",
+    "synonyms": [
+      "ala",
+      "rala",
+      "rlipoicacid",
+      "thiocticacid"
+    ],
+    "drug_class": "Dietary Supplement / Mitochondrial Co-Factor",
+    "categories": [
+      "Dietary Supplement",
+      "Antioxidant",
+      "Metabolic Support"
+    ],
+    "molecular_weight": 206.33,
+    "logp": 2.1,
+    "oral_bioavailability": 0.3,
+    "volume_of_distribution": 1.0,
+    "protein_binding": 70.0,
+    "receptor_targets": [
+      {
+        "target": "Glutathione Biosynthesis & Cellular Antioxidant Defense (System xc- / Nrf2 / GCL)",
+        "action": "agonist",
+        "family": "Antioxidant Defense"
+      }
+    ]
+  },
+  {
+    "key": "taurine",
+    "name": "Taurine",
+    "canonical_name": "Taurine (2-Aminoethanesulfonic Acid)",
+    "synonyms": [
+      "ltaurine"
+    ],
+    "drug_class": "Dietary Supplement / Amino Sulfonic Acid",
+    "categories": [
+      "Dietary Supplement",
+      "Osmolyte",
+      "Cardiovascular Support"
+    ],
+    "molecular_weight": 125.15,
+    "logp": -1.3,
+    "oral_bioavailability": 0.9,
+    "volume_of_distribution": 0.8,
+    "protein_binding": 0.0,
+    "receptor_targets": [
+      {
+        "target": "GABA-A Receptor (GABRA1 / GABRA2)",
+        "action": "agonist",
+        "family": "Ion Channel / Neurotransmitter"
+      }
+    ]
+  },
+  {
+    "key": "melatonin",
+    "name": "Melatonin",
+    "canonical_name": "Melatonin",
+    "synonyms": [
+      "circadin"
+    ],
+    "drug_class": "Dietary Supplement / Pineal Neurohormone",
+    "categories": [
+      "Dietary Supplement",
+      "Sleep Support",
+      "Antioxidant"
+    ],
+    "molecular_weight": 232.28,
+    "logp": 1.6,
+    "oral_bioavailability": 0.15,
+    "volume_of_distribution": 1.5,
+    "protein_binding": 60.0,
+    "receptor_targets": [
+      {
+        "target": "Melatonin Receptor (MTNR1A / MT1 / MT2)",
+        "action": "agonist",
+        "family": "GPCR / Circadian"
+      }
+    ]
+  },
+  {
+    "key": "nac",
+    "name": "N-Acetylcysteine (NAC)",
+    "canonical_name": "N-Acetylcysteine",
+    "synonyms": [
+      "nac",
+      "nacetylcysteine",
+      "acetylcysteine",
+      "mucomyst"
+    ],
+    "drug_class": "Antioxidant / Mucolytic / Glutathione Precursor",
+    "categories": [
+      "Dietary Supplement",
+      "Antioxidant",
+      "Hepatic Support",
+      "Cytoprotective"
+    ],
+    "molecular_weight": 163.19,
+    "logp": -0.6,
+    "oral_bioavailability": 0.1,
+    "volume_of_distribution": 0.47,
+    "protein_binding": 83.0,
+    "mechanism": "Provides bioavailable L-cysteine substrate for rate-limiting glutathione (GSH) synthesis, scavenges reactive oxygen species (ROS), and activates Nrf2 cytoprotective pathway.",
+    "receptor_targets": [
+      {
+        "target": "Glutathione Biosynthesis (GCLC / GCLM / SLC7A11)",
+        "action": "substrate",
+        "family": "Redox Defense",
+        "gene_symbol": "GCLC"
+      },
+      {
+        "target": "Nrf2 Cytoprotective Pathway (NFE2L2)",
+        "action": "activator",
+        "family": "Transcription Factor",
+        "gene_symbol": "NFE2L2"
+      },
+      {
+        "target": "Cellular Reactive Oxygen Species (ROS)",
+        "action": "scavenger",
+        "family": "Redox Defense"
+      }
+    ]
+  },
+  {
+    "key": "tudca",
+    "name": "Tauroursodeoxycholic Acid",
+    "canonical_name": "Tauroursodeoxycholic Acid (TUDCA)",
+    "synonyms": [
+      "tauroursodeoxycholicacid",
+      "tauroursodeoxycholate"
+    ],
+    "drug_class": "Dietary Supplement / Hydrophilic Bile Acid",
+    "categories": [
+      "Dietary Supplement",
+      "Hepatoprotective",
+      "ER Stress Reducer"
+    ],
+    "molecular_weight": 499.7,
+    "logp": 1.2,
+    "oral_bioavailability": 0.4,
+    "volume_of_distribution": 0.8,
+    "protein_binding": 70.0,
+    "receptor_targets": [
+      {
+        "target": "Hepatic Parenchymal & Biliary Transport (BSEP / MRP2 / CYP)",
+        "action": "supports",
+        "family": "Hepatobiliary Support"
+      }
+    ]
+  },
+  {
+    "key": "l_carnitine",
+    "name": "L-Carnitine",
+    "canonical_name": "L-Carnitine (ALCAR)",
+    "synonyms": [
+      "alcar",
+      "acetyllcarnitine",
+      "carnitine",
+      "lcarnitine",
+      "lcarnitinetartrate"
+    ],
+    "drug_class": "Dietary Supplement / Fatty Acid Shuttle",
+    "categories": [
+      "Dietary Supplement",
+      "Mitochondrial Support"
+    ],
+    "molecular_weight": 161.2,
+    "logp": -3.1,
+    "oral_bioavailability": 0.15,
+    "volume_of_distribution": 0.7,
+    "protein_binding": 0.0,
+    "receptor_targets": [
+      {
+        "target": "Carnitine Palmitoyltransferase (CPT1A / CPT2)",
+        "action": "agonist",
+        "family": "Enzyme / Fatty Acid Oxidation"
+      },
+      {
+        "target": "Gut Microbiota Carnitine TMA-Lyase (CntA/CntB / yeaW/yeaX)",
+        "action": "substrate",
+        "family": "Gut Microbiota / Microbial Lyase",
+        "is_microbial": true
+      }
+    ]
+  },
+  {
+    "key": "allicin",
+    "name": "Allicin",
+    "canonical_name": "Allicin (Garlic Extract / Allium sativum)",
+    "synonyms": [
+      "allicin",
+      "garlic",
+      "garlicextract",
+      "alliumsativum",
+      "agedgarlicextract",
+      "diallylthiosulfinate"
+    ],
+    "drug_class": "Dietary Supplement / Organosulfur Botanical / Microbial Lyase Inhibitor",
+    "categories": [
+      "Dietary Supplement",
+      "Antioxidant",
+      "Cardiovascular Support",
+      "Gut Microbiome Modulator"
+    ],
+    "molecular_weight": 162.27,
+    "logp": 1.35,
+    "oral_bioavailability": 0.8,
+    "volume_of_distribution": 0.8,
+    "protein_binding": 45.0,
+    "receptor_targets": [
+      {
+        "target": "Gut Microbiota Carnitine TMA-Lyase (CntA/CntB / yeaW/yeaX)",
+        "action": "inhibitor",
+        "family": "Gut Microbiota / Microbial Lyase",
+        "inhibition_ic50": 0.05,
+        "is_microbial": true
+      },
+      {
+        "target": "HMG-CoA Reductase (HMGCR)",
+        "action": "inhibitor",
+        "family": "Enzyme / Lipid",
+        "inhibition_ic50": 1.2
+      },
+      {
+        "target": "Endothelial Nitric Oxide Synthase (eNOS / NOS3)",
+        "action": "agonist",
+        "family": "Vascular Endothelium"
+      },
+      {
+        "target": "Glutathione Biosynthesis & Cellular Antioxidant Defense (System xc- / Nrf2 / GCL)",
+        "action": "agonist",
+        "family": "Antioxidant Defense"
+      }
+    ],
+    "cyp_enzymes": {
+      "substrates": [],
+      "inhibitors": [
+        "CYP2E1"
+      ],
+      "inducers": []
+    }
+  },
+  {
+    "key": "l_theanine",
+    "name": "L-Theanine",
+    "canonical_name": "L-Theanine",
+    "synonyms": [
+      "theanine",
+      "suntheanine"
+    ],
+    "drug_class": "Dietary Supplement / Amino Acid",
+    "categories": [
+      "Dietary Supplement",
+      "Nootropic",
+      "Anxiolytic"
+    ],
+    "molecular_weight": 174.2,
+    "logp": -1.8,
+    "oral_bioavailability": 0.95,
+    "volume_of_distribution": 0.8,
+    "protein_binding": 0.0,
+    "receptor_targets": [
+      {
+        "target": "GABA-A Receptor (GABRA1 / GABRA2)",
+        "action": "agonist",
+        "family": "Ion Channel / Neurotransmitter"
+      },
+      {
+        "target": "Glutamate Receptor (GRIN1 / NMDA)",
+        "action": "antagonist",
+        "family": "Ion Channel / Glutamate"
+      }
+    ]
+  },
+  {
+    "key": "berberine",
+    "name": "Berberine",
+    "canonical_name": "Berberine",
+    "synonyms": [
+      "berberinehcl"
+    ],
+    "drug_class": "Dietary Supplement / Isoquinoline Alkaloid",
+    "categories": [
+      "Dietary Supplement",
+      "Metabolic Support",
+      "AMPK Activator"
+    ],
+    "molecular_weight": 336.36,
+    "logp": -1.5,
+    "oral_bioavailability": 0.05,
+    "volume_of_distribution": 2.5,
+    "protein_binding": 50.0,
+    "receptor_targets": [
+      {
+        "target": "AMP-Activated Protein Kinase (AMPK)",
+        "action": "agonist",
+        "family": "Enzyme / Energy Sensor"
+      },
+      {
+        "target": "PCSK9",
+        "action": "inhibitor",
+        "family": "Enzyme / Lipid"
+      }
+    ],
+    "cyp_enzymes": {
+      "substrates": [
+        "CYP3A4"
+      ],
+      "inhibitors": [
+        "CYP3A4",
+        "CYP2D6"
+      ],
+      "inducers": []
+    }
+  },
+  {
+    "key": "omega_3",
+    "name": "Omega-3 Fatty Acids",
+    "canonical_name": "Omega-3 Fatty Acids (EPA / DHA)",
+    "synonyms": [
+      "fishoil",
+      "krilloil",
+      "epadha",
+      "epa",
+      "dha"
+    ],
+    "drug_class": "Dietary Supplement / Polyunsaturated Fatty Acid",
+    "categories": [
+      "Dietary Supplement",
+      "Cardiovascular Support",
+      "Anti-Inflammatory"
+    ],
+    "molecular_weight": 302.45,
+    "logp": 4.5,
+    "oral_bioavailability": 0.8,
+    "volume_of_distribution": 1.5,
+    "protein_binding": 95.0,
+    "receptor_targets": [
+      {
+        "target": "NF-\u03baB & Pro-Inflammatory Cytokines (NFKB1 / PTGS2)",
+        "action": "inhibitor",
+        "family": "Inflammatory Signaling",
+        "gene_symbol": "NFKB1"
+      },
+      {
+        "target": "PPAR-alpha (PPARA)",
+        "action": "agonist",
+        "family": "Nuclear Receptor"
+      }
+    ]
+  },
+  {
+    "key": "creatine",
+    "name": "Creatine",
+    "canonical_name": "Creatine",
+    "synonyms": [
+      "creatine",
+      "creatinemonohydrate"
+    ],
+    "drug_class": "Dietary Supplement / Ergogenic Aid",
+    "categories": [
+      "Dietary Supplement",
+      "Ergogenic Aid",
+      "Muscle Support"
+    ],
+    "molecular_weight": 131.13,
+    "logp": -0.9,
+    "oral_bioavailability": 0.99,
+    "volume_of_distribution": 0.8,
+    "protein_binding": 0.0,
+    "dosing": {
+      "unit": "mg/day",
+      "basis": "bodyweight",
+      "mg_per_kg": {
+        "threshold": 10,
+        "common": 20,
+        "heavy": 30
+      }
+    },
+    "reason": "Expands intramuscular phosphocreatine reserves to accelerate ATP resynthesis during high-intensity resistance training.",
+    "receptor_targets": [
+      {
+        "target": "Skeletal Muscle ATP-PCr Phosphagen System (CKM / SLC6A8)",
+        "action": "agonist",
+        "family": "Phosphagen System"
+      }
+    ]
+  },
+  {
+    "key": "caffeine",
+    "name": "Caffeine",
+    "canonical_name": "Caffeine",
+    "synonyms": [
+      "caffeine",
+      "caffeineanhydrous",
+      "guarana"
+    ],
+    "drug_class": "Dietary Supplement / CNS Psychostimulant",
+    "categories": [
+      "Dietary Supplement",
+      "CNS Stimulant",
+      "Adenosine Antagonist"
+    ],
+    "molecular_weight": 194.19,
+    "logp": -0.07,
+    "oral_bioavailability": 0.99,
+    "volume_of_distribution": 0.6,
+    "protein_binding": 36.0,
+    "dosing": {
+      "unit": "mg/day",
+      "basis": "bodyweight",
+      "mg_per_kg": {
+        "threshold": 1,
+        "common": 3,
+        "heavy": 6
+      }
+    },
+    "reason": "Antagonizes central adenosine A1 and A2A receptors to suppress fatigue and enhance alertness.",
+    "receptor_targets": [
+      {
+        "target": "A1 receptor",
+        "action": "antagonist",
+        "family": "GPCR / Adenosine"
+      },
+      {
+        "target": "Adenosine Receptor (ADORA1 / ADORA2A)",
+        "action": "antagonist",
+        "family": "GPCR / Adenosine"
+      }
+    ],
+    "cyp_enzymes": {
+      "substrates": [
+        "CYP1A2"
+      ],
+      "inhibitors": [
+        "CYP1A2"
+      ],
+      "inducers": []
+    }
+  },
+  {
+    "key": "semaglutide",
+    "name": "Semaglutide",
+    "canonical_name": "Semaglutide",
+    "synonyms": [
+      "semaglutide",
+      "ozempic",
+      "wegovy",
+      "rybelsus"
+    ],
+    "drug_class": "GLP-1 Receptor Agonist",
+    "categories": [
+      "Approved Drug",
+      "GLP-1 Receptor Agonist",
+      "Antidiabetic",
+      "Anti-Obesity"
+    ],
+    "molecular_weight": 4113.58,
+    "logp": -1.2,
+    "oral_bioavailability": 0.89,
+    "volume_of_distribution": 12.5,
+    "protein_binding": 99.0,
+    "metadata": {
+      "evidence_tier": "FDA_APPROVED_CLINICAL_DATA",
+      "regulatory_status": "APPROVED_RX",
+      "human_clinical_trials": true
+    },
+    "receptor_targets": [
+      {
+        "target": "Glucagon-Like Peptide 1 Receptor (GLP1R)",
+        "action": "agonist",
+        "family": "GPCR Class B",
+        "affinity_ki": 0.0005
+      }
+    ]
+  },
+  {
+    "key": "retatrutide",
+    "name": "Retatrutide",
+    "canonical_name": "Retatrutide",
+    "synonyms": [
+      "retatrutide",
+      "ly3437943"
+    ],
+    "drug_class": "Triple Incretin GIP / GLP-1 / Glucagon Receptor Agonist",
+    "categories": [
+      "Investigational Peptide",
+      "GIP/GLP-1/Glucagon Tri-Agonist"
+    ],
+    "molecular_weight": 4731.33,
+    "logp": -1.5,
+    "oral_bioavailability": 0.8,
+    "volume_of_distribution": 10.5,
+    "protein_binding": 99.0,
+    "metadata": {
+      "evidence_tier": "IN_VITRO_AND_ALLOMETRIC_EXTRAPOLATION",
+      "regulatory_status": "RESEARCH_CHEMICAL",
+      "human_clinical_trials": true
+    },
+    "receptor_targets": [
+      {
+        "target": "Gastric Inhibitory Polypeptide Receptor (GIPR)",
+        "action": "agonist",
+        "family": "GPCR Class B",
+        "affinity_ki": 0.05
+      },
+      {
+        "target": "Glucagon-Like Peptide 1 Receptor (GLP1R)",
+        "action": "agonist",
+        "family": "GPCR Class B",
+        "affinity_ki": 0.77
+      },
+      {
+        "target": "Glucagon Receptor (GCGR)",
+        "action": "agonist",
+        "family": "GPCR Class B",
+        "affinity_ki": 0.58
+      }
+    ]
+  },
+  {
+    "key": "nebivolol",
+    "name": "Nebivolol",
+    "canonical_name": "Nebivolol (Bystolic)",
+    "synonyms": [
+      "bystolic",
+      "nebilet",
+      "nebivololum",
+      "nebivololhcl"
+    ],
+    "drug_class": "Third-Generation Beta-1 Selective Blocker (eNOS Vasodilating)",
+    "categories": [
+      "Cardiovascular Agent",
+      "Beta Blocker",
+      "Antihypertensive",
+      "Vasodilator"
+    ],
+    "molecular_weight": 405.44,
+    "logp": 4.1,
+    "oral_bioavailability": 0.12,
+    "half_life": "10-12 hours (Extensive Metabolizers) / 19-30 hours (Poor Metabolizers)",
+    "t_half_numeric": 12.0,
+    "volume_of_distribution": 10.5,
+    "protein_binding": 98.0,
+    "mechanism": "Highly selective competitive beta-1 adrenergic receptor antagonist combined with d-enantiomer mediated endothelial nitric oxide synthase (eNOS / NOS3) activation and beta-3 adrenergic agonism, producing systemic peripheral vasodilation with minimal bronchoconstrictive or inotropic depression.",
+    "receptor_targets": [
+      {
+        "target": "Beta-1 Adrenergic Receptor (ADRB1)",
+        "action": "antagonist",
+        "family": "GPCR / Adrenergic",
+        "affinity_ki": 0.9,
+        "gene_symbol": "ADRB1"
+      },
+      {
+        "target": "Endothelial Nitric Oxide Synthase (eNOS / NOS3)",
+        "action": "activator",
+        "family": "Endothelial Vasodilation",
+        "gene_symbol": "NOS3"
+      },
+      {
+        "target": "Beta-3 Adrenergic Receptor (ADRB3)",
+        "action": "agonist",
+        "family": "GPCR / Adrenergic",
+        "affinity_ki": 25.0,
+        "gene_symbol": "ADRB3"
+      }
+    ],
+    "cyp_enzymes": {
+      "substrates": [
+        "CYP2D6",
+        "CYP3A4"
+      ],
+      "inhibitors": [
+        "CYP2D6"
+      ],
+      "inducers": []
+    }
+  },
+  {
+    "key": "quercetin",
+    "name": "Quercetin",
+    "canonical_name": "Quercetin",
+    "synonyms": [
+      "quercetine",
+      "quercetindihydrate",
+      "isoquercetin",
+      "bioflavonoid"
+    ],
+    "drug_class": "Dietary Supplement / Polyphenolic Flavonoid",
+    "categories": [
+      "Dietary Supplement",
+      "Antioxidant",
+      "Anti-Inflammatory",
+      "Flavonoid"
+    ],
+    "molecular_weight": 302.24,
+    "logp": 1.8,
+    "oral_bioavailability": 0.05,
+    "volume_of_distribution": 2.0,
+    "protein_binding": 98.0,
+    "receptor_targets": [
+      {
+        "target": "Catechol-O-Methyltransferase (COMT)",
+        "action": "inhibitor",
+        "family": "Enzyme / Catecholamine Metabolism",
+        "gene_symbol": "COMT"
+      },
+      {
+        "target": "Glutathione Biosynthesis & Cellular Antioxidant Defense (System xc- / Nrf2 / GCL)",
+        "action": "agonist",
+        "family": "Antioxidant Defense"
+      }
+    ]
+  },
+  {
+    "key": "resveratrol",
+    "name": "Resveratrol",
+    "canonical_name": "Resveratrol",
+    "synonyms": [
+      "transresveratrol",
+      "stilbenoid"
+    ],
+    "drug_class": "Dietary Supplement / Polyphenolic Stilbenoid",
+    "categories": [
+      "Dietary Supplement",
+      "Antioxidant",
+      "Sirtuin Activator"
+    ],
+    "molecular_weight": 228.25,
+    "logp": 3.1,
+    "oral_bioavailability": 0.01,
+    "volume_of_distribution": 1.8,
+    "protein_binding": 95.0,
+    "receptor_targets": [
+      {
+        "target": "Sirtuin 1 (SIRT1)",
+        "action": "agonist",
+        "family": "Deacetylase / Longevity"
+      },
+      {
+        "target": "Glutathione Biosynthesis & Cellular Antioxidant Defense (System xc- / Nrf2 / GCL)",
+        "action": "agonist",
+        "family": "Antioxidant Defense"
+      }
+    ]
+  },
+  {
+    "key": "rhodiola",
+    "name": "Rhodiola Rosea",
+    "canonical_name": "Rhodiola Rosea",
+    "synonyms": [
+      "rhodiolarosea",
+      "salidroside",
+      "rosavin",
+      "goldenroot"
+    ],
+    "drug_class": "Dietary Supplement / Botanical Adaptogen",
+    "categories": [
+      "Dietary Supplement",
+      "Adaptogen",
+      "Nootropic",
+      "Herbal Extract"
+    ],
+    "molecular_weight": 300.3,
+    "logp": 0.8,
+    "oral_bioavailability": 0.3,
+    "volume_of_distribution": 1.5,
+    "protein_binding": 50.0,
+    "receptor_targets": [
+      {
+        "target": "Monoamine Oxidase Subtype A & B (MAOA / MAOB)",
+        "action": "inhibitor",
+        "family": "Enzyme / Neurotransmitter",
+        "gene_symbol": "MAOA"
+      }
+    ]
+  },
+  {
+    "key": "bacopa",
+    "name": "Bacopa Monnieri",
+    "canonical_name": "Bacopa Monnieri",
+    "synonyms": [
+      "bacopamonnieri",
+      "brahmi",
+      "bacosides"
+    ],
+    "drug_class": "Dietary Supplement / Botanical Nootropic",
+    "categories": [
+      "Dietary Supplement",
+      "Nootropic",
+      "Adaptogen",
+      "Herbal Extract"
+    ],
+    "molecular_weight": 768.8,
+    "logp": 1.2,
+    "oral_bioavailability": 0.25,
+    "volume_of_distribution": 1.2,
+    "protein_binding": 60.0,
+    "receptor_targets": [
+      {
+        "target": "Tryptophan Hydroxylase & Serotonin Biosynthesis (TPH2)",
+        "action": "activator",
+        "family": "Neurotransmitter Biosynthesis",
+        "gene_symbol": "TPH2"
+      }
+    ]
+  },
+  {
+    "key": "ginkgo_biloba",
+    "name": "Ginkgo Biloba",
+    "canonical_name": "Ginkgo Biloba",
+    "synonyms": [
+      "ginkgo",
+      "ginkgoextract",
+      "egb761",
+      "ginkgolides"
+    ],
+    "drug_class": "Dietary Supplement / Botanical Vasodilator",
+    "categories": [
+      "Dietary Supplement",
+      "Nootropic",
+      "Vasodilator",
+      "Herbal Extract"
+    ],
+    "molecular_weight": 408.4,
+    "logp": 1.5,
+    "oral_bioavailability": 0.8,
+    "volume_of_distribution": 1.4,
+    "protein_binding": 50.0,
+    "receptor_targets": [
+      {
+        "target": "Platelet-Activating Factor Receptor (PTAFR)",
+        "action": "antagonist",
+        "family": "GPCR / Hemostasis"
+      },
+      {
+        "target": "Endothelial Nitric Oxide Synthase (eNOS / NOS3)",
+        "action": "activator",
+        "family": "Endothelial Vasodilation"
+      }
+    ]
+  },
+  {
+    "key": "panax_ginseng",
+    "name": "Panax Ginseng",
+    "canonical_name": "Panax Ginseng",
+    "synonyms": [
+      "ginseng",
+      "redginseng",
+      "koreanginseng",
+      "ginsenosides"
+    ],
+    "drug_class": "Dietary Supplement / Botanical Adaptogen",
+    "categories": [
+      "Dietary Supplement",
+      "Adaptogen",
+      "Herbal Extract"
+    ],
+    "molecular_weight": 800.0,
+    "logp": 1.1,
+    "oral_bioavailability": 0.1,
+    "volume_of_distribution": 1.8,
+    "protein_binding": 70.0,
+    "receptor_targets": [
+      {
+        "target": "Endothelial Nitric Oxide Synthase (eNOS / NOS3)",
+        "action": "activator",
+        "family": "Endothelial Vasodilation",
+        "gene_symbol": "NOS3"
+      }
+    ]
+  },
+  {
+    "key": "piperine",
+    "name": "Piperine",
+    "canonical_name": "Piperine (Black Pepper Extract)",
+    "synonyms": [
+      "bioperine",
+      "blackpepperextract",
+      "pipernigrum"
+    ],
+    "drug_class": "Dietary Supplement / Bioenhancer Alkaloid",
+    "categories": [
+      "Dietary Supplement",
+      "Bioenhancer",
+      "Alkaloid"
+    ],
+    "molecular_weight": 285.34,
+    "logp": 3.7,
+    "oral_bioavailability": 0.9,
+    "volume_of_distribution": 1.0,
+    "protein_binding": 95.0,
+    "receptor_targets": [
+      {
+        "target": "Transient Receptor Potential Vanilloid 1 (TRPV1)",
+        "action": "agonist",
+        "family": "Ion Channel",
+        "gene_symbol": "TRPV1"
+      },
+      {
+        "target": "P-glycoprotein / ABCB1 Efflux Transporter (ABCB1)",
+        "action": "inhibitor",
+        "family": "ABC Transporter",
+        "gene_symbol": "ABCB1"
+      },
+      {
+        "target": "UDP-Glucuronosyltransferase 1A1 (UGT1A1)",
+        "action": "inhibitor",
+        "family": "Phase II Conjugation",
+        "gene_symbol": "UGT1A1"
+      }
+    ],
+    "cyp_enzymes": {
+      "substrates": [
+        "CYP3A4"
+      ],
+      "inhibitors": [
+        "CYP3A4",
+        "CYP2C9"
+      ],
+      "inducers": []
+    },
+    "transporters": {
+      "substrates": [
+        "P-gp"
+      ],
+      "inhibitors": [
+        "P-gp"
+      ],
+      "inducers": []
+    },
+    "phase2_enzymes": {
+      "substrates": [],
+      "inhibitors": [
+        "UGT1A1"
+      ],
+      "inducers": []
+    }
+  },
+  {
+    "key": "sulforaphane",
+    "name": "Sulforaphane",
+    "canonical_name": "Sulforaphane",
+    "synonyms": [
+      "broccolisproutextract",
+      "glucoraphanin"
+    ],
+    "drug_class": "Dietary Supplement / Isothiocyanate Nrf2 Inducer",
+    "categories": [
+      "Dietary Supplement",
+      "Antioxidant",
+      "Detoxification"
+    ],
+    "molecular_weight": 177.29,
+    "logp": 0.2,
+    "oral_bioavailability": 0.8,
+    "volume_of_distribution": 0.9,
+    "protein_binding": 40.0,
+    "receptor_targets": [
+      {
+        "target": "Nrf2 / Keap1 Cytoprotective & Phase II Detoxification Pathway (NFE2L2)",
+        "action": "activator",
+        "family": "Transcription Factor",
+        "gene_symbol": "NFE2L2"
+      }
+    ]
+  },
+  {
+    "key": "st_johns_wort",
+    "name": "St. John's Wort",
+    "canonical_name": "St. John's Wort (Hypericum perforatum)",
+    "synonyms": [
+      "stjohnswort",
+      "stjohnwort",
+      "hypericum",
+      "hypericumperforatum",
+      "hyperforin",
+      "hypericin"
+    ],
+    "drug_class": "Dietary Supplement / Botanical PXR Inducer",
+    "categories": [
+      "Dietary Supplement",
+      "Herbal Extract",
+      "Antidepressant"
+    ],
+    "molecular_weight": 536.7,
+    "logp": 4.2,
+    "oral_bioavailability": 0.2,
+    "volume_of_distribution": 1.5,
+    "protein_binding": 90.0,
+    "receptor_targets": [
+      {
+        "target": "Pregnane X Receptor (PXR / NR1I2 / CYP3A4 Inducer)",
+        "action": "inducer",
+        "family": "Nuclear Receptor",
+        "gene_symbol": "NR1I2"
+      },
+      {
+        "target": "Sodium-Dependent Serotonin Transporter (SERT / SLC6A4)",
+        "action": "inhibitor",
+        "family": "Monoamine Transporter",
+        "gene_symbol": "SLC6A4"
+      }
+    ],
+    "cyp_enzymes": {
+      "substrates": [
+        "CYP3A4",
+        "CYP2C9"
+      ],
+      "inhibitors": [],
+      "inducers": [
+        "CYP3A4",
+        "CYP2C9",
+        "CYP2C19"
+      ]
+    },
+    "transporters": {
+      "substrates": [
+        "P-gp"
+      ],
+      "inhibitors": [],
+      "inducers": [
+        "P-gp"
+      ]
+    }
+  },
+  {
+    "key": "saw_palmetto",
+    "name": "Saw Palmetto",
+    "canonical_name": "Saw Palmetto (Serenoa repens)",
+    "synonyms": [
+      "sawpalmetto",
+      "serenoarepens",
+      "permixon"
+    ],
+    "drug_class": "Dietary Supplement / Botanical 5-AR Inhibitor",
+    "categories": [
+      "Dietary Supplement",
+      "Herbal Extract",
+      "Prostate Support"
+    ],
+    "molecular_weight": 280.0,
+    "logp": 4.5,
+    "oral_bioavailability": 0.4,
+    "volume_of_distribution": 1.0,
+    "protein_binding": 90.0,
+    "receptor_targets": [
+      {
+        "target": "5-Alpha Reductase Subtype 1 & 2 (SRD5A1 / SRD5A2)",
+        "action": "inhibitor",
+        "family": "Steroid Biosynthesis",
+        "gene_symbol": "SRD5A2"
+      },
+      {
+        "target": "Androgen Receptor (AR / NR3C4)",
+        "action": "antagonist",
+        "family": "Nuclear Receptor",
+        "gene_symbol": "AR"
+      }
+    ]
+  },
+  {
+    "key": "green_tea_extract",
+    "name": "Green Tea Extract (EGCG)",
+    "canonical_name": "Green Tea Extract (Epigallocatechin Gallate)",
+    "synonyms": [
+      "greenteaextract",
+      "greentea",
+      "egcg",
+      "epigallocatechingallate"
+    ],
+    "drug_class": "Dietary Supplement / Botanical Polyphenol",
+    "categories": [
+      "Dietary Supplement",
+      "Antioxidant",
+      "Herbal Extract"
+    ],
+    "molecular_weight": 458.37,
+    "logp": 1.1,
+    "oral_bioavailability": 0.05,
+    "volume_of_distribution": 1.2,
+    "protein_binding": 80.0,
+    "receptor_targets": [
+      {
+        "target": "Catechol-O-Methyltransferase (COMT)",
+        "action": "inhibitor",
+        "family": "Enzyme / Catecholamine Metabolism",
+        "gene_symbol": "COMT"
+      },
+      {
+        "target": "Glutathione Biosynthesis & Cellular Antioxidant Defense (System xc- / Nrf2 / GCL)",
+        "action": "agonist",
+        "family": "Antioxidant Defense"
+      }
+    ]
+  },
+  {
+    "key": "magnesium",
+    "name": "Magnesium Glycinate",
+    "canonical_name": "Magnesium Glycinate",
+    "synonyms": [
+      "magnesiumglycinate",
+      "magnesiumbisglycinate",
+      "magnesiumcitrate",
+      "magnesiumlthreonate",
+      "magglycinate"
+    ],
+    "drug_class": "Dietary Supplement / Essential Mineral",
+    "categories": [
+      "Dietary Supplement",
+      "Essential Mineral",
+      "Relaxant"
+    ],
+    "molecular_weight": 172.46,
+    "logp": -1.0,
+    "oral_bioavailability": 0.4,
+    "volume_of_distribution": 1.0,
+    "protein_binding": 30.0,
+    "receptor_targets": [
+      {
+        "target": "Multivalent Cation Gastrointestinal Chelation Site",
+        "action": "chelator",
+        "family": "Physicochemical Interaction"
+      },
+      {
+        "target": "NMDA Receptor Ion Channel Voltage-Dependent Blockade (GRIN1 / GRIN2B)",
+        "action": "antagonist",
+        "family": "Ion Channel",
+        "gene_symbol": "GRIN1"
+      }
+    ]
+  },
+  {
+    "key": "zinc",
+    "name": "Zinc Picolinate",
+    "canonical_name": "Zinc Picolinate",
+    "synonyms": [
+      "zincpicolinate",
+      "zinccitrate",
+      "zincgluconate",
+      "optizinc"
+    ],
+    "drug_class": "Dietary Supplement / Essential Mineral",
+    "categories": [
+      "Dietary Supplement",
+      "Essential Mineral",
+      "Immune Support"
+    ],
+    "molecular_weight": 309.52,
+    "logp": -0.5,
+    "oral_bioavailability": 0.5,
+    "volume_of_distribution": 1.0,
+    "protein_binding": 90.0,
+    "receptor_targets": [
+      {
+        "target": "Multivalent Cation Gastrointestinal Chelation Site",
+        "action": "chelator",
+        "family": "Physicochemical Interaction"
+      }
+    ]
+  },
+  {
+    "key": "tart_cherry",
+    "name": "Tart Cherry Extract",
+    "canonical_name": "Tart Cherry Extract (Montmorency)",
+    "synonyms": [
+      "tartcherry",
+      "tartcherryextract",
+      "montmorencycherry",
+      "prunuscerasus"
+    ],
+    "drug_class": "Dietary Supplement / Botanical Flavonoid",
+    "categories": [
+      "Dietary Supplement",
+      "Antioxidant",
+      "Herbal Extract"
+    ],
+    "molecular_weight": 448.38,
+    "logp": 0.8,
+    "oral_bioavailability": 0.2,
+    "volume_of_distribution": 1.2,
+    "protein_binding": 70.0,
+    "receptor_targets": [
+      {
+        "target": "Xanthine Dehydrogenase / Oxidase (XDH / XO)",
+        "action": "inhibitor",
+        "family": "Purine Metabolism",
+        "gene_symbol": "XDH"
+      },
+      {
+        "target": "NF-\u03baB & Pro-Inflammatory Cytokines (NFKB1 / PTGS2)",
+        "action": "inhibitor",
+        "family": "Inflammatory Signaling"
+      }
+    ]
+  },
+  {
+    "key": "alpha_gpc",
+    "name": "Alpha-GPC",
+    "canonical_name": "Alpha-GPC (L-Alpha Glycerylphosphorylcholine / Choline Alfoscerate)",
+    "synonyms": [
+      "alphagpc",
+      "alpha_gpc",
+      "cholinealfoscerate",
+      "lalphagpc",
+      "gpc",
+      "alfoscerate"
+    ],
+    "drug_class": "Dietary Supplement / Cholinergic Nootropic",
+    "categories": [
+      "Dietary Supplement",
+      "Nootropic",
+      "Cognitive Support",
+      "Cholinergic"
+    ],
+    "molecular_weight": 257.22,
+    "logp": -2.8,
+    "oral_bioavailability": 0.85,
+    "volume_of_distribution": 0.9,
+    "protein_binding": 10.0,
+    "mechanism": "Rapidly crosses the blood-brain barrier to deliver bioavailable free choline, accelerating central acetylcholine (ACh) neurotransmitter synthesis and supporting membrane phosphatidylcholine reserves.",
+    "receptor_targets": [
+      {
+        "target": "Muscarinic Acetylcholine Receptor (CHRM1 / CHRM2)",
+        "action": "agonist",
+        "family": "GPCR / Cholinergic",
+        "gene_symbol": "CHRM1"
+      },
+      {
+        "target": "Neuronal Nicotinic Acetylcholine Receptor (CHRNA7 / CHRNB2)",
+        "action": "agonist",
+        "family": "Ion Channel / Cholinergic",
+        "gene_symbol": "CHRNA7"
+      }
+    ]
+  },
+  {
+    "key": "huperzine_a",
+    "name": "Huperzine A",
+    "canonical_name": "Huperzine A (Huperzia serrata Extract)",
+    "synonyms": [
+      "huperzinea",
+      "huperzine",
+      "selagine",
+      "huperziaserrata"
+    ],
+    "drug_class": "Dietary Supplement / Acetylcholinesterase Inhibitor",
+    "categories": [
+      "Dietary Supplement",
+      "Nootropic",
+      "AChE Inhibitor",
+      "Neuroprotective"
+    ],
+    "molecular_weight": 242.32,
+    "logp": 1.4,
+    "oral_bioavailability": 0.95,
+    "half_life": "10-14 hours",
+    "t_half_numeric": 12.0,
+    "volume_of_distribution": 2.5,
+    "protein_binding": 40.0,
+    "mechanism": "Potent, highly selective, reversible, and centrally active inhibitor of acetylcholinesterase (AChE), preventing acetylcholine hydrolysis and enhancing synaptic cholinergic neurotransmission.",
+    "receptor_targets": [
+      {
+        "target": "Acetylcholinesterase (ACHE)",
+        "action": "inhibitor",
+        "family": "Enzyme / Cholinergic",
+        "gene_symbol": "ACHE"
+      },
+      {
+        "target": "Glutamate Receptor (GRIN1 / NMDA)",
+        "action": "antagonist",
+        "family": "Ion Channel / Glutamate",
+        "gene_symbol": "GRIN1"
+      }
+    ]
+  },
+  {
+    "key": "ashwagandha",
+    "name": "Ashwagandha",
+    "canonical_name": "Ashwagandha (Withania somnifera / KSM-66 / Sensoril)",
+    "synonyms": [
+      "ashwagandha",
+      "ksm66",
+      "sensoril",
+      "withaniasomnifera",
+      "withanolides"
+    ],
+    "drug_class": "Dietary Supplement / Botanical Adaptogen",
+    "categories": [
+      "Dietary Supplement",
+      "Adaptogen",
+      "Anxiolytic",
+      "Endocrine Support"
+    ],
+    "molecular_weight": 470.6,
+    "logp": 2.3,
+    "oral_bioavailability": 0.35,
+    "volume_of_distribution": 1.8,
+    "protein_binding": 65.0,
+    "mechanism": "Withanolide glycosides modulate hypothalamic-pituitary-adrenal (HPA) axis feedback, reducing serum cortisol and activating central GABA-A receptor signaling.",
+    "receptor_targets": [
+      {
+        "target": "GABA-A Receptor (GABRA1 / GABRA2)",
+        "action": "agonist",
+        "family": "Ion Channel / Neurotransmitter",
+        "gene_symbol": "GABRA1"
+      },
+      {
+        "target": "Glucocorticoid Receptor (GR / NR3C1 / Cortisol Regulation)",
+        "action": "modulator",
+        "family": "Nuclear Receptor",
+        "gene_symbol": "NR3C1"
+      }
+    ]
+  },
+  {
+    "key": "l_tyrosine",
+    "name": "L-Tyrosine",
+    "canonical_name": "L-Tyrosine",
+    "synonyms": [
+      "ltyrosine",
+      "tyrosine",
+      "nalt",
+      "nacetyltyrosine"
+    ],
+    "drug_class": "Dietary Supplement / Catecholamine Amino Acid Precursor",
+    "categories": [
+      "Dietary Supplement",
+      "Nootropic",
+      "Neurotransmitter Precursor",
+      "Focus"
+    ],
+    "molecular_weight": 181.19,
+    "logp": -2.3,
+    "oral_bioavailability": 0.9,
+    "volume_of_distribution": 0.8,
+    "protein_binding": 15.0,
+    "mechanism": "Rate-limiting substrate precursor for tyrosine hydroxylase (TH), driving dopamine, norepinephrine, and epinephrine synthesis under acute environmental and cognitive stress.",
+    "receptor_targets": [
+      {
+        "target": "Tyrosine Hydroxylase & Catecholamine Synthesis (TH / SLC6A3)",
+        "action": "substrate",
+        "family": "Neurotransmitter Biosynthesis",
+        "gene_symbol": "TH"
+      }
+    ]
+  },
+  {
+    "key": "nmn",
+    "name": "Nicotinamide Mononucleotide (NMN)",
+    "canonical_name": "Nicotinamide Mononucleotide",
+    "synonyms": [
+      "nmn",
+      "nicotinamidemononucleotide",
+      "beta_nmn"
+    ],
+    "drug_class": "Dietary Supplement / NAD+ Precursor",
+    "categories": [
+      "Dietary Supplement",
+      "Longevity",
+      "NAD+ Booster",
+      "Mitochondrial Support"
+    ],
+    "molecular_weight": 334.22,
+    "logp": -3.5,
+    "oral_bioavailability": 0.65,
+    "volume_of_distribution": 1.1,
+    "protein_binding": 5.0,
+    "mechanism": "Direct intracellular precursor to Nicotinamide Adenine Dinucleotide (NAD+), activating sirtuin deacylases (SIRT1, SIRT3) and promoting mitochondrial oxidative phosphorylation.",
+    "receptor_targets": [
+      {
+        "target": "Sirtuin 1 (SIRT1)",
+        "action": "activator",
+        "family": "Deacetylase / Longevity",
+        "gene_symbol": "SIRT1"
+      },
+      {
+        "target": "Sirtuin 3 (SIRT3 / Mitochondrial)",
+        "action": "activator",
+        "family": "Deacetylase / Mitochondrial",
+        "gene_symbol": "SIRT3"
+      }
+    ]
+  },
+  {
+    "key": "apigenin",
+    "name": "Apigenin",
+    "canonical_name": "Apigenin (Chamomile Extract)",
+    "synonyms": [
+      "apigenin",
+      "chamomileextract",
+      "flavone"
+    ],
+    "drug_class": "Dietary Supplement / Flavonoid CD38 Inhibitor",
+    "categories": [
+      "Dietary Supplement",
+      "Antioxidant",
+      "Sleep Support",
+      "Longevity"
+    ],
+    "molecular_weight": 270.24,
+    "logp": 2.6,
+    "oral_bioavailability": 0.3,
+    "volume_of_distribution": 1.5,
+    "protein_binding": 90.0,
+    "mechanism": "Positive allosteric modulator of central GABA-A benzodiazepine receptors that reduces sleep latency, alongside potent inhibition of the NADase CD38 enzyme to preserve cellular NAD+ pools.",
+    "receptor_targets": [
+      {
+        "target": "GABA-A Receptor (GABRA1 / GABRA2)",
+        "action": "agonist",
+        "family": "Ion Channel / Neurotransmitter",
+        "gene_symbol": "GABRA1"
+      },
+      {
+        "target": "CD38 NAD+ Hydrolase (CD38)",
+        "action": "inhibitor",
+        "family": "Enzyme / NAD Metabolism",
+        "gene_symbol": "CD38"
+      }
+    ]
+  },
+  {
+    "key": "lions_mane",
+    "name": "Lion's Mane Mushroom",
+    "canonical_name": "Lion's Mane (Hericium erinaceus)",
+    "synonyms": [
+      "lionsmane",
+      "lion_s_mane",
+      "hericiumerinaceus",
+      "erinacines",
+      "hericenones"
+    ],
+    "drug_class": "Dietary Supplement / Botanical Neurotrophic",
+    "categories": [
+      "Dietary Supplement",
+      "Nootropic",
+      "Neuroprotective",
+      "Mushroom Extract"
+    ],
+    "molecular_weight": 450.0,
+    "logp": 1.8,
+    "oral_bioavailability": 0.4,
+    "volume_of_distribution": 1.4,
+    "protein_binding": 50.0,
+    "mechanism": "Erinacines (mycelium) and hericenones (fruiting body) cross the blood-brain barrier to stimulate Nerve Growth Factor (NGF) and Brain-Derived Neurotrophic Factor (BDNF) synthesis.",
+    "receptor_targets": [
+      {
+        "target": "Nerve Growth Factor & TrkA Signaling (NGF / NTRK1)",
+        "action": "inducer",
+        "family": "Neurotrophic Factor",
+        "gene_symbol": "NGF"
+      },
+      {
+        "target": "Brain-Derived Neurotrophic Factor (BDNF / NTRK2)",
+        "action": "inducer",
+        "family": "Neurotrophic Factor",
+        "gene_symbol": "BDNF"
+      }
+    ]
+  },
+  {
+    "key": "magnesium_l_threonate",
+    "name": "Magnesium L-Threonate",
+    "canonical_name": "Magnesium L-Threonate (Magtein)",
+    "synonyms": [
+      "magnesiumlthreonate",
+      "magtein",
+      "mg_threonate"
+    ],
+    "drug_class": "Dietary Supplement / BBB-Penetrating Magnesium Chelate",
+    "categories": [
+      "Dietary Supplement",
+      "Nootropic",
+      "Essential Mineral",
+      "Synaptic Plasticity"
+    ],
+    "molecular_weight": 294.5,
+    "logp": -1.2,
+    "oral_bioavailability": 0.7,
+    "volume_of_distribution": 0.9,
+    "protein_binding": 25.0,
+    "mechanism": "Chelated magnesium form engineered to cross the blood-brain barrier, significantly raising cerebrospinal fluid magnesium concentrations and enhancing synaptic density and NMDA plasticity.",
+    "receptor_targets": [
+      {
+        "target": "NMDA Receptor Ion Channel Voltage-Dependent Blockade (GRIN1 / GRIN2B)",
+        "action": "antagonist",
+        "family": "Ion Channel",
+        "gene_symbol": "GRIN1"
+      },
+      {
+        "target": "Multivalent Cation Gastrointestinal Chelation Site",
+        "action": "chelator",
+        "family": "Physicochemical Interaction"
+      }
+    ]
+  },
+  {
+    "key": "tongkat_ali",
+    "name": "Tongkat Ali",
+    "canonical_name": "Tongkat Ali (Eurycoma longifolia / Longjack)",
+    "synonyms": [
+      "tongkatali",
+      "longjack",
+      "eurycomalongifolia",
+      "eurycomanone"
+    ],
+    "drug_class": "Dietary Supplement / Botanical Endocrine Adaptogen",
+    "categories": [
+      "Dietary Supplement",
+      "Endocrine Support",
+      "Ergogenic",
+      "Herbal Extract"
+    ],
+    "molecular_weight": 408.4,
+    "logp": 1.9,
+    "oral_bioavailability": 0.3,
+    "volume_of_distribution": 1.6,
+    "protein_binding": 70.0,
+    "mechanism": "Eurycomanone quassinoids release bound testosterone from sex hormone-binding globulin (SHBG) and stimulate luteinizing hormone (LH) pulsatility.",
+    "receptor_targets": [
+      {
+        "target": "Sex Hormone-Binding Globulin (SHBG)",
+        "action": "antagonist",
+        "family": "Endocrine Binding Globulin",
+        "gene_symbol": "SHBG"
+      },
+      {
+        "target": "Hypothalamic-Pituitary-Gonadal Axis (HPG Axis / GnRH / LH)",
+        "action": "agonist",
+        "family": "Endocrine Axis"
+      }
+    ]
+  },
+  {
+    "key": "noopept",
+    "name": "Noopept",
+    "canonical_name": "Noopept (N-Phenylacetyl-L-prolylglycine Ethyl Ester)",
+    "synonyms": [
+      "noopept",
+      "gvs111",
+      "omberacetam"
+    ],
+    "drug_class": "Synthetic Peptide Nootropic / AMPA Modulator",
+    "categories": [
+      "Nootropic",
+      "Peptide",
+      "Cognitive Support"
+    ],
+    "molecular_weight": 318.37,
+    "logp": 0.8,
+    "oral_bioavailability": 0.99,
+    "volume_of_distribution": 0.7,
+    "protein_binding": 10.0,
+    "mechanism": "Positively modulates central AMPA receptors and enhances hippocampal BDNF and NGF expression, improving synaptic consolidation and memory encoding.",
+    "receptor_targets": [
+      {
+        "target": "AMPA Glutamate Receptor (GRIA1 / GRIA2)",
+        "action": "agonist",
+        "family": "Ion Channel / Glutamate",
+        "gene_symbol": "GRIA1"
+      },
+      {
+        "target": "Brain-Derived Neurotrophic Factor (BDNF / NTRK2)",
+        "action": "inducer",
+        "family": "Neurotrophic Factor",
+        "gene_symbol": "BDNF"
+      }
+    ]
+  },
+  {
+    "key": "bpc_157",
+    "name": "BPC-157",
+    "canonical_name": "BPC-157 (Body Protection Compound-157 / Pentadecapeptide)",
+    "synonyms": [
+      "bpc157",
+      "bpc_157",
+      "bepecin",
+      "pentadecapeptide"
+    ],
+    "drug_class": "Cytoprotective Regenerative Peptide",
+    "categories": [
+      "Peptide",
+      "Cytoprotective",
+      "Tissue Repair",
+      "Angiogenesis"
+    ],
+    "molecular_weight": 1419.53,
+    "logp": -2.1,
+    "oral_bioavailability": 0.75,
+    "volume_of_distribution": 0.5,
+    "protein_binding": 20.0,
+    "mechanism": "Accelerates tissue healing, tendon repair, and mucosal cytoprotection via upregulation of VEGF-driven angiogenesis, focal adhesion kinase (FAK), and eNOS nitric oxide generation.",
+    "receptor_targets": [
+      {
+        "target": "Vascular Endothelial Growth Factor Receptor (KDR / VEGFR2)",
+        "action": "inducer",
+        "family": "Receptor Tyrosine Kinase",
+        "gene_symbol": "KDR"
+      },
+      {
+        "target": "Endothelial Nitric Oxide Synthase (eNOS / NOS3)",
+        "action": "activator",
+        "family": "Endothelial Vasodilation",
+        "gene_symbol": "NOS3"
+      }
+    ]
+  },
+  {
+    "key": "tb_500",
+    "name": "TB-500",
+    "canonical_name": "TB-500 (Thymosin Beta-4 Active Fragment LKKTETQ)",
+    "synonyms": [
+      "tb500",
+      "tb_500",
+      "thymosinbeta4",
+      "tbeta4"
+    ],
+    "drug_class": "Cytoprotective Regenerative Peptide",
+    "categories": [
+      "Peptide",
+      "Cytoprotective",
+      "Tissue Repair",
+      "Actin Sequestration"
+    ],
+    "molecular_weight": 4963.5,
+    "logp": -2.8,
+    "oral_bioavailability": 0.2,
+    "volume_of_distribution": 0.6,
+    "protein_binding": 30.0,
+    "mechanism": "Actin-binding peptide that sequesters G-actin, promoting endothelial cell migration, microvascular angiogenesis, and suppression of inflammatory myofibroblast differentiation.",
+    "receptor_targets": [
+      {
+        "target": "Actin Cytoskeleton Dynamics (ACTB / Cell Migration)",
+        "action": "agonist",
+        "family": "Cytoskeleton",
+        "gene_symbol": "ACTB"
+      }
+    ]
+  },
+  {
+    "key": "tirzepatide",
+    "name": "Tirzepatide",
+    "canonical_name": "Tirzepatide (Mounjaro / Zepbound)",
+    "synonyms": [
+      "tirzepatide",
+      "mounjaro",
+      "zepbound",
+      "ly3298176"
+    ],
+    "drug_class": "Dual GIP / GLP-1 Receptor Agonist",
+    "categories": [
+      "Approved Drug",
+      "Dual Incretin Agonist",
+      "Antidiabetic",
+      "Anti-Obesity"
+    ],
+    "molecular_weight": 4813.45,
+    "logp": -1.4,
+    "oral_bioavailability": 0.8,
+    "half_life": "5 days (120 hours)",
+    "t_half_numeric": 120.0,
+    "volume_of_distribution": 10.3,
+    "protein_binding": 99.0,
+    "mechanism": "Bi-functional agonist at both glucose-dependent insulinotropic polypeptide (GIP) and glucagon-like peptide-1 (GLP-1) receptors, synergistically suppressing appetite, delaying gastric emptying, and optimizing insulin secretion.",
+    "receptor_targets": [
+      {
+        "target": "Gastric Inhibitory Polypeptide Receptor (GIPR)",
+        "action": "agonist",
+        "family": "GPCR Class B",
+        "gene_symbol": "GIPR"
+      },
+      {
+        "target": "Glucagon-Like Peptide 1 Receptor (GLP1R)",
+        "action": "agonist",
+        "family": "GPCR Class B",
+        "gene_symbol": "GLP1R"
+      }
+    ]
+  },
+  {
+    "key": "rapamycin",
+    "name": "Rapamycin",
+    "canonical_name": "Rapamycin (Sirolimus)",
+    "synonyms": [
+      "sirolimus",
+      "rapamune",
+      "rapamycin"
+    ],
+    "drug_class": "mTORC1 Inhibitor / Autophagy Inducer",
+    "categories": [
+      "Immunosuppressant",
+      "Longevity",
+      "mTOR Inhibitor",
+      "Autophagy"
+    ],
+    "molecular_weight": 914.17,
+    "logp": 4.3,
+    "oral_bioavailability": 0.15,
+    "half_life": "62 hours",
+    "t_half_numeric": 62.0,
+    "volume_of_distribution": 12.0,
+    "protein_binding": 92.0,
+    "mechanism": "Binds FKBP12 to selectively inhibit the mammalian target of rapamycin complex 1 (mTORC1), triggering macroautophagy, reducing senescence-associated secretory phenotype (SASP), and extending lifespan.",
+    "receptor_targets": [
+      {
+        "target": "Mechanistic Target of Rapamycin Complex 1 (mTOR / MTORC1)",
+        "action": "inhibitor",
+        "family": "Kinase / Longevity",
+        "gene_symbol": "MTOR"
+      },
+      {
+        "target": "FKBP12 Peptidyl-Prolyl Cis-Trans Isomerase (FKBP1A)",
+        "action": "agonist",
+        "family": "Immunophilin",
+        "gene_symbol": "FKBP1A"
+      }
+    ],
+    "cyp_enzymes": {
+      "substrates": [
+        "CYP3A4"
+      ],
+      "inhibitors": [
+        "CYP3A4"
+      ],
+      "inducers": []
+    }
+  },
+  {
+    "key": "testosterone",
+    "name": "Testosterone",
+    "canonical_name": "Testosterone Base",
+    "synonyms": [
+      "testosteronebase",
+      "freetestosterone",
+      "unesterifiedtestosterone"
+    ],
+    "drug_class": "Androgen / Anabolic Steroid",
+    "categories": [
+      "Anabolic Steroid",
+      "Hormone Replacement",
+      "Androgen"
+    ],
+    "molecular_weight": 288.42,
+    "logp": 3.3,
+    "oral_bioavailability": 0.05,
+    "half_life": "10-100 minutes (unesterified IV/oral)",
+    "t_half_numeric": 1.0,
+    "volume_of_distribution": 1.0,
+    "protein_binding": 98.0,
+    "is_ester": false,
+    "ester_name": null,
+    "parent_compound_id": null,
+    "ester_weight_factor": 1.0,
+    "mechanism": "Binds to and activates nuclear androgen receptor (AR / NR3C4), inducing male secondary sexual characteristics, anabolic protein synthesis, and HPG axis feedback.",
+    "receptor_targets": [
+      {
+        "target": "Androgen Receptor (AR / NR3C4)",
+        "action": "agonist",
+        "family": "Nuclear Receptor",
+        "affinity_ki": 0.5,
+        "gene_symbol": "AR"
+      },
+      {
+        "target": "Estrogen Receptor Alpha (ESR1 / ER-alpha)",
+        "action": "agonist (via aromatization)",
+        "family": "Nuclear Receptor",
+        "gene_symbol": "ESR1"
+      },
+      {
+        "target": "5-Alpha Reductase Type 1 & 2 (SRD5A1 / SRD5A2)",
+        "action": "substrate (to DHT)",
+        "family": "Enzyme",
+        "gene_symbol": "SRD5A2",
+        "affinity_ki": 2500.0
+      }
+    ],
+    "cyp_enzymes": {
+      "substrates": [
+        "CYP3A4",
+        "CYP2C19"
+      ],
+      "inhibitors": [],
+      "inducers": []
+    }
+  },
+  {
+    "key": "testosterone_cypionate",
+    "name": "Testosterone Cypionate",
+    "canonical_name": "Testosterone Cypionate",
+    "synonyms": [
+      "testc",
+      "testcyp",
+      "testosteronecypionate",
+      "depotestosterone"
+    ],
+    "drug_class": "Androgen / Anabolic Steroid Ester",
+    "categories": [
+      "Anabolic Steroid",
+      "Hormone Replacement",
+      "Prodrug Depot"
+    ],
+    "molecular_weight": 412.61,
+    "logp": 6.3,
+    "oral_bioavailability": 0.05,
+    "half_life": "8 days (192 hours)",
+    "t_half_numeric": 192.0,
+    "absorption_rate_ka": 0.02,
+    "volume_of_distribution": 1.0,
+    "protein_binding": 98.0,
+    "is_ester": true,
+    "ester_name": "Cypionate",
+    "parent_compound_id": "testosterone",
+    "ester_weight_factor": 0.699,
+    "mechanism": "Long-acting depot prodrug ester of testosterone. Hydrolyzed by endogenous esterases into free testosterone."
+  },
+  {
+    "key": "testosterone_enanthate",
+    "name": "Testosterone Enanthate",
+    "canonical_name": "Testosterone Enanthate",
+    "synonyms": [
+      "teste",
+      "testenan",
+      "testosteroneenanthate",
+      "delatestryl"
+    ],
+    "drug_class": "Androgen / Anabolic Steroid Ester",
+    "categories": [
+      "Anabolic Steroid",
+      "Hormone Replacement",
+      "Prodrug Depot"
+    ],
+    "molecular_weight": 400.59,
+    "logp": 6.0,
+    "oral_bioavailability": 0.05,
+    "half_life": "7 days (168 hours)",
+    "t_half_numeric": 168.0,
+    "absorption_rate_ka": 0.025,
+    "volume_of_distribution": 1.0,
+    "protein_binding": 98.0,
+    "is_ester": true,
+    "ester_name": "Enanthate",
+    "parent_compound_id": "testosterone",
+    "ester_weight_factor": 0.72,
+    "mechanism": "Depot prodrug ester of testosterone. Hydrolyzed by esterases into free testosterone."
+  },
+  {
+    "key": "testosterone_propionate",
+    "name": "Testosterone Propionate",
+    "canonical_name": "Testosterone Propionate",
+    "synonyms": [
+      "testp",
+      "testprop",
+      "testosteronepropionate",
+      "testoviron"
+    ],
+    "drug_class": "Androgen / Anabolic Steroid Ester",
+    "categories": [
+      "Anabolic Steroid",
+      "Hormone Replacement",
+      "Short-Acting Ester"
+    ],
+    "molecular_weight": 344.49,
+    "logp": 4.9,
+    "oral_bioavailability": 0.05,
+    "half_life": "1.5 days (36 hours)",
+    "t_half_numeric": 36.0,
+    "absorption_rate_ka": 0.08,
+    "volume_of_distribution": 1.0,
+    "protein_binding": 98.0,
+    "is_ester": true,
+    "ester_name": "Propionate",
+    "parent_compound_id": "testosterone",
+    "ester_weight_factor": 0.837,
+    "mechanism": "Short-acting prodrug ester of testosterone. Hydrolyzed rapidly into free testosterone."
+  },
+  {
+    "key": "testosterone_undecanoate",
+    "name": "Testosterone Undecanoate",
+    "canonical_name": "Testosterone Undecanoate",
+    "synonyms": [
+      "testu",
+      "testundec",
+      "testosteroneundecanoate",
+      "aveed",
+      "nebido",
+      "androdiol"
+    ],
+    "drug_class": "Androgen / Anabolic Steroid Ester",
+    "categories": [
+      "Anabolic Steroid",
+      "Hormone Replacement",
+      "Ultra Long-Acting Ester"
+    ],
+    "molecular_weight": 456.7,
+    "logp": 7.5,
+    "oral_bioavailability": 0.07,
+    "half_life": "21 days (504 hours)",
+    "t_half_numeric": 504.0,
+    "absorption_rate_ka": 0.008,
+    "volume_of_distribution": 1.0,
+    "protein_binding": 98.0,
+    "is_ester": true,
+    "ester_name": "Undecanoate",
+    "parent_compound_id": "testosterone",
+    "ester_weight_factor": 0.632,
+    "mechanism": "Ultra long-acting prodrug ester of testosterone."
+  },
+  {
+    "key": "trenbolone",
+    "name": "Trenbolone",
+    "canonical_name": "Trenbolone Base (19-Nor Trienolone)",
+    "synonyms": [
+      "trenbolonebase",
+      "trenbase",
+      "trienolone",
+      "parabolanbase"
+    ],
+    "drug_class": "19-Nor Anabolic-Androgenic Steroid",
+    "categories": [
+      "Anabolic Steroid",
+      "19-Nor Derivative",
+      "Non-Aromatizing Triene",
+      "Research Chemical"
+    ],
+    "smiles": "CC12CCC3C(=CCC4=C3CCC(=O)C4)C1CCC2O",
+    "inchikey": "OKIZDXOPAGLMIA-UHFFFAOYSA-N",
+    "molecular_weight": 270.37,
+    "logp": 3.3,
+    "oral_bioavailability": 0.03,
+    "half_life": "6-12 hours (unesterified base)",
+    "t_half_numeric": 8.0,
+    "volume_of_distribution": 1.1,
+    "volume_of_distribution_l_kg": 1.1,
+    "protein_binding": 98.0,
+    "protein_binding_pct": 98.0,
+    "fraction_unbound": 0.02,
+    "is_ester": false,
+    "ester_name": null,
+    "parent_compound_id": null,
+    "ester_weight_factor": 1.0,
+    "source_tier": "research_chemical_enrichment",
+    "metadata": {
+      "evidence_tier": "IN_VITRO_AND_ALLOMETRIC_EXTRAPOLATION",
+      "regulatory_status": "VETERINARY / RESEARCH_CHEMICAL",
+      "human_clinical_trials": false,
+      "data_sources": [
+        "ChEMBL In Vitro Assays",
+        "PubChem Compound Database",
+        "Interspecies Allometric Scaling & QSPR PK Engine"
+      ],
+      "data_limitations": {
+        "has_human_trials": false,
+        "has_human_pk": false,
+        "has_chronic_toxicity_studies": false,
+        "has_cyp_metabolite_mapping": false,
+        "known_limitations": [
+          "No FDA or EMA human clinical trials conducted for systemic human administration.",
+          "Pharmacokinetics derived from veterinary models and in vitro human receptor assays.",
+          "Long-term neurodegenerative and cardiovascular safety profiles uncharacterized in humans."
+        ]
+      }
+    },
+    "mechanism": "High-affinity binding to nuclear androgen receptor (AR / NR3C4, ~3-5x affinity of testosterone) and moderate progestogenic agonist activity (PGR / NR3C3). Non-aromatizable triene structure with strong anti-glucocorticoid and anabolic potency.",
+    "receptor_targets": [
+      {
+        "target": "Androgen Receptor (AR / NR3C4)",
+        "action": "agonist",
+        "family": "Nuclear Receptor",
+        "affinity_ki": 0.7,
+        "gene_symbol": "AR"
+      },
+      {
+        "target": "Progesterone Receptor (PGR / NR3C3)",
+        "action": "agonist",
+        "family": "Nuclear Receptor",
+        "affinity_ki": 1.2,
+        "gene_symbol": "PGR"
+      },
+      {
+        "target": "Glucocorticoid Receptor (NR3C1)",
+        "action": "antagonist",
+        "family": "Nuclear Receptor",
+        "gene_symbol": "NR3C1"
+      }
+    ],
+    "cyp_enzymes": {
+      "substrates": [
+        "CYP3A4"
+      ],
+      "inhibitors": [],
+      "inducers": []
+    }
+  },
+  {
+    "key": "trenbolone_acetate",
+    "name": "Trenbolone Acetate",
+    "canonical_name": "Trenbolone Acetate",
+    "synonyms": [
+      "trenace",
+      "trena",
+      "finajet",
+      "finaplix",
+      "trenboloneacetate"
+    ],
+    "drug_class": "19-Nor Anabolic Steroid Ester",
+    "categories": [
+      "Anabolic Steroid",
+      "19-Nor Derivative",
+      "Short-Acting Depot Ester"
+    ],
+    "molecular_weight": 312.41,
+    "logp": 4.5,
+    "oral_bioavailability": 0.03,
+    "half_life": "1.5 days (36 hours)",
+    "t_half_numeric": 36.0,
+    "absorption_rate_ka": 0.08,
+    "volume_of_distribution": 1.1,
+    "protein_binding": 98.0,
+    "is_ester": true,
+    "ester_name": "Acetate",
+    "parent_compound_id": "trenbolone",
+    "ester_weight_factor": 0.865,
+    "mechanism": "Short-acting intramuscular depot prodrug of trenbolone. Hydrolyzed by endogenous esterases into active trenbolone."
+  },
+  {
+    "key": "trenbolone_enanthate",
+    "name": "Trenbolone Enanthate",
+    "canonical_name": "Trenbolone Enanthate",
+    "synonyms": [
+      "trene",
+      "trenenanthate",
+      "trenboloneenanthate"
+    ],
+    "drug_class": "19-Nor Anabolic Steroid Ester",
+    "categories": [
+      "Anabolic Steroid",
+      "19-Nor Derivative",
+      "Long-Acting Depot Ester"
+    ],
+    "molecular_weight": 382.54,
+    "logp": 6.1,
+    "oral_bioavailability": 0.03,
+    "half_life": "7-10 days (168 hours)",
+    "t_half_numeric": 168.0,
+    "absorption_rate_ka": 0.025,
+    "volume_of_distribution": 1.1,
+    "protein_binding": 98.0,
+    "is_ester": true,
+    "ester_name": "Enanthate",
+    "parent_compound_id": "trenbolone",
+    "ester_weight_factor": 0.706,
+    "mechanism": "Long-acting intramuscular depot prodrug of trenbolone. Hydrolyzed by endogenous esterases into active trenbolone."
+  },
+  {
+    "key": "trenbolone_hexahydrophenylcarbonate",
+    "name": "Trenbolone Hexahydrobenzylcarbonate",
+    "canonical_name": "Trenbolone Hexahydrobenzylcarbonate (Parabolan)",
+    "synonyms": [
+      "parabolan",
+      "trenhex",
+      "trenbolonecyclohexylmethylcarbonate"
+    ],
+    "drug_class": "19-Nor Anabolic Steroid Ester",
+    "categories": [
+      "Anabolic Steroid",
+      "19-Nor Derivative",
+      "Extended Depot Ester"
+    ],
+    "molecular_weight": 410.55,
+    "logp": 6.5,
+    "oral_bioavailability": 0.03,
+    "half_life": "14 days (336 hours)",
+    "t_half_numeric": 336.0,
+    "absorption_rate_ka": 0.012,
+    "volume_of_distribution": 1.1,
+    "protein_binding": 98.0,
+    "is_ester": true,
+    "ester_name": "Hexahydrobenzylcarbonate",
+    "parent_compound_id": "trenbolone",
+    "ester_weight_factor": 0.658,
+    "mechanism": "Extended-release intramuscular depot prodrug of trenbolone."
+  },
+  {
+    "key": "nandrolone",
+    "name": "Nandrolone",
+    "canonical_name": "Nandrolone (19-Nortestosterone Base)",
+    "synonyms": [
+      "nandrolonebase",
+      "19nortestosterone"
+    ],
+    "drug_class": "19-Nor Anabolic Steroid / Progestin",
+    "categories": [
+      "Anabolic Steroid",
+      "19-Nor Derivative"
+    ],
+    "molecular_weight": 274.4,
+    "logp": 2.6,
+    "is_ester": false,
+    "ester_weight_factor": 1.0,
+    "mechanism": "Binds and activates androgen receptor (AR) and progesterone receptor (PGR).",
+    "receptor_targets": [
+      {
+        "target": "Androgen Receptor (AR / NR3C4)",
+        "action": "agonist",
+        "family": "Nuclear Receptor",
+        "affinity_ki": 0.4
+      },
+      {
+        "target": "Progesterone Receptor (PGR / NR3C3)",
+        "action": "agonist",
+        "family": "Nuclear Receptor",
+        "affinity_ki": 2.5
+      }
+    ]
+  },
+  {
+    "key": "nandrolone_decanoate",
+    "name": "Nandrolone Decanoate",
+    "canonical_name": "Nandrolone Decanoate",
+    "synonyms": [
+      "deca",
+      "durabolin",
+      "decadurabolin",
+      "nandrolonedecanoate"
+    ],
+    "drug_class": "19-Nor Anabolic Steroid Ester",
+    "categories": [
+      "Anabolic Steroid",
+      "19-Nor Derivative",
+      "Prodrug Depot"
+    ],
+    "molecular_weight": 428.65,
+    "logp": 6.8,
+    "half_life": "12 days (288 hours)",
+    "t_half_numeric": 288.0,
+    "is_ester": true,
+    "ester_name": "Decanoate",
+    "parent_compound_id": "nandrolone",
+    "ester_weight_factor": 0.64
+  },
+  {
+    "key": "drostanolone",
+    "name": "Drostanolone",
+    "canonical_name": "Drostanolone Base",
+    "synonyms": [
+      "masteronbase",
+      "dromostanolone"
+    ],
+    "drug_class": "DHT-Derived Anabolic Steroid",
+    "categories": [
+      "Anabolic Steroid",
+      "DHT Derivative"
+    ],
+    "molecular_weight": 304.47,
+    "logp": 3.8,
+    "is_ester": false,
+    "ester_weight_factor": 1.0,
+    "mechanism": "Non-aromatizing DHT derivative. High binding affinity to androgen receptor and mild anti-estrogenic properties.",
+    "receptor_targets": [
+      {
+        "target": "Androgen Receptor (AR / NR3C4)",
+        "action": "agonist",
+        "family": "Nuclear Receptor",
+        "affinity_ki": 0.6
+      }
+    ]
+  },
+  {
+    "key": "drostanolone_propionate",
+    "name": "Drostanolone Propionate",
+    "canonical_name": "Drostanolone Propionate",
+    "synonyms": [
+      "masteron",
+      "masteronpropionate",
+      "drostanolonepropionate"
+    ],
+    "drug_class": "DHT-Derived Anabolic Steroid Ester",
+    "categories": [
+      "Anabolic Steroid",
+      "DHT Derivative",
+      "Short-Acting Ester"
+    ],
+    "molecular_weight": 360.53,
+    "logp": 5.2,
+    "half_life": "1.5 days (36 hours)",
+    "t_half_numeric": 36.0,
+    "is_ester": true,
+    "ester_name": "Propionate",
+    "parent_compound_id": "drostanolone",
+    "ester_weight_factor": 0.844
+  },
+  {
+    "key": "drostanolone_enanthate",
+    "name": "Drostanolone Enanthate",
+    "canonical_name": "Drostanolone Enanthate",
+    "synonyms": [
+      "masteronenanthate",
+      "drostanoloneenanthate"
+    ],
+    "drug_class": "DHT-Derived Anabolic Steroid Ester",
+    "categories": [
+      "Anabolic Steroid",
+      "DHT Derivative",
+      "Long-Acting Ester"
+    ],
+    "molecular_weight": 416.64,
+    "logp": 6.3,
+    "half_life": "7 days (168 hours)",
+    "t_half_numeric": 168.0,
+    "is_ester": true,
+    "ester_name": "Enanthate",
+    "parent_compound_id": "drostanolone",
+    "ester_weight_factor": 0.73
+  },
+  {
+    "key": "estradiol",
+    "name": "Estradiol",
+    "canonical_name": "Estradiol (17-Beta Estradiol)",
+    "synonyms": [
+      "e2",
+      "17betaestradiol",
+      "estradiolbase"
+    ],
+    "drug_class": "Estrogen Hormone",
+    "categories": [
+      "Hormone",
+      "Estrogen"
+    ],
+    "molecular_weight": 272.38,
+    "logp": 2.4,
+    "is_ester": false,
+    "ester_weight_factor": 1.0,
+    "mechanism": "Primary female sex hormone. Binds ESR1 and ESR2 nuclear receptors.",
+    "receptor_targets": [
+      {
+        "target": "Estrogen Receptor Alpha (ESR1)",
+        "action": "agonist",
+        "family": "Nuclear Receptor"
+      },
+      {
+        "target": "Estrogen Receptor Beta (ESR2)",
+        "action": "agonist",
+        "family": "Nuclear Receptor"
+      }
+    ]
+  },
+  {
+    "key": "estradiol_valerate",
+    "name": "Estradiol Valerate",
+    "canonical_name": "Estradiol Valerate",
+    "synonyms": [
+      "progynova",
+      "delestrogen",
+      "estradiolvalerate"
+    ],
+    "drug_class": "Estrogen Hormone Ester",
+    "categories": [
+      "Hormone",
+      "Estrogen Ester",
+      "Prodrug Depot"
+    ],
+    "molecular_weight": 356.5,
+    "logp": 5.1,
+    "half_life": "4 days (96 hours)",
+    "t_half_numeric": 96.0,
+    "is_ester": true,
+    "ester_name": "Valerate",
+    "parent_compound_id": "estradiol",
+    "ester_weight_factor": 0.764
+  }
+]

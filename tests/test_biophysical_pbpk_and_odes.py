@@ -67,7 +67,7 @@ def test_henderson_hasselbalch_lysosomal_trapping():
         "name": "Aspirin Test",
         "logp": 1.2,
         "pka": 3.5,
-        "drug_class": "NSAID Salicylate Acid",
+        "drug_class": "NSAID Salicylate Acid", "categories": ["M01AE"],
     }
     lyso_acid = PKPDEngine.calculate_lysosomal_trapping(acidic_drug)
     assert lyso_acid.is_lysosomotropic is False

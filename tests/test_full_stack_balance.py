@@ -14,7 +14,7 @@ def test_exemestane_monotherapy_e2_crash_detection():
     exemestane = cat.get_compound("exemestane") or {
         "key": "exemestane",
         "name": "Exemestane",
-        "drug_class": "steroidal aromatase inhibitor",
+        "drug_class": "steroidal aromatase inhibitor", "categories": ["L02BG"], "receptor_targets": [{"target": "CYP19A1", "action": "inhibitor", "gene_symbol": "CYP19A1"}],
         "dose": 25.0,
         "unit": "mg",
         "dose_mg": 25.0,

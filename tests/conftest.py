@@ -9,17 +9,32 @@ def anyio_backend():
 
 
 @pytest.fixture(autouse=True)
-
 def isolate_catalog_db_env():
     """Ensure HEALTHAI_CATALOG_DB environment variable and in-memory caches are isolated per test."""
-    from app.services.catalog_service import _CATALOG_MEMORY_CACHE, _CATALOG_ALL_COMPOUNDS
+    from app.services.catalog_service import _CATALOG_MEMORY_CACHE, _CATALOG_ALL_COMPOUNDS, CatalogService
     from app.services.pathway_service import _PATHWAY_METADATA_CACHE, _PATHWAY_CASCADE_CACHE
+    import json
+    import os
+    
     _CATALOG_MEMORY_CACHE.clear()
     _CATALOG_ALL_COMPOUNDS.clear()
     _PATHWAY_METADATA_CACHE.clear()
     _PATHWAY_CASCADE_CACHE.clear()
     original_db = os.environ.get("HEALTHAI_CATALOG_DB")
+    
+    # Load test fixtures into the test database
+    db_path = os.environ.get("HEALTHAI_CATALOG_DB", "healthai_catalog_test.db")
+    svc = CatalogService(db_path)
+    try:
+        with open('tests/fixtures/test_seed_compounds.json', 'r') as f:
+            seeds = json.load(f)
+            for s in seeds:
+                svc.upsert_compound(s)
+    except Exception as e:
+        pass
+        
     yield
+    
     _CATALOG_MEMORY_CACHE.clear()
     _CATALOG_ALL_COMPOUNDS.clear()
     _PATHWAY_METADATA_CACHE.clear()

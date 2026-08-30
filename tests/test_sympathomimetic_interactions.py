@@ -58,7 +58,7 @@ def test_synthetic_unnamed_beta_agonist_and_xanthine_collision(engine):
     synthetic_beta_agonist = {
         "key": "SYNTH_BETA2_AGONIST",
         "name": "Compound-Beta2-99",
-        "drug_class": "Selective Beta-2 Adrenoreceptor Agonist",
+        "drug_class": "Selective Beta-2 Adrenoreceptor Agonist", "categories": ["R03CC"], "receptor_targets": [{"target": "ADRB2", "action": "agonist", "gene_symbol": "ADRB2"}],
         "mechanism": "Selective beta-2 adrenergic receptor agonist",
         "receptor_targets": [
             {"target": "Beta-2 adrenergic receptor", "action": "agonist", "family": "SINGLE PROTEIN"}

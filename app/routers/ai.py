@@ -1,12 +1,13 @@
-from __future__ import annotations
-
+import os
 import json
 import logging
+import httpx
 from typing import Any, Dict, List, Optional
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Header
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field
 
+from app.services.ai_service import QuotaExhaustedException, is_quota_exceeded_error
 from app.services.copilot_agent import CopilotAgent
 from app.services.protocol_agent import optimize_protocol
 from app.services.stack_intent_engine import StackIntentEngine
@@ -30,6 +31,7 @@ class CopilotChatRequest(BaseModel):
     protocol_objective: Optional[str] = Field(None, description="User's custom protocol objective or notes")
     custom_instructions: Optional[str] = Field(None, description="Custom prompt constraints or user notes")
     max_exploration_steps: Optional[int] = Field(8, description="Maximum ReAct graph traversal & tool call exploration steps")
+    user_api_key: Optional[str] = Field(None, description="Optional user-supplied OpenRouter or OpenAI API key")
 
 
 class InferPurposeRequest(BaseModel):
@@ -37,6 +39,7 @@ class InferPurposeRequest(BaseModel):
     biometrics: Optional[Dict[str, Any]] = Field(default_factory=dict, description="Patient biometrics")
     user_goal: Optional[str] = Field(None, description="Optional user goal ID")
     user_objective: Optional[str] = Field(None, description="Optional custom user objective text")
+    user_api_key: Optional[str] = Field(None, description="Optional user-supplied API key")
 
 
 class BuildStackFromScratchRequest(BaseModel):
@@ -49,6 +52,7 @@ class BuildStackFromScratchRequest(BaseModel):
     requested_compounds: Optional[List[str]] = Field(default_factory=list, description="Explicit structured list of requested compound keys or names")
     exclusions: Optional[List[str]] = Field(default_factory=list, description="Explicit structured list of compound keys or names to exclude")
     custom_instructions: Optional[str] = Field(None, description="Custom user notes or clinical constraints")
+    user_api_key: Optional[str] = Field(None, description="Optional user-supplied API key")
 
 
 class ToolExecutionRequest(BaseModel):
@@ -59,6 +63,11 @@ class ToolExecutionRequest(BaseModel):
 class ProtocolOptimizationRequest(BaseModel):
     stack: List[Any] = Field(..., description="List of compound IDs or names")
     biometrics: Optional[Dict[str, Any]] = Field(default_factory=dict, description="Patient biometrics")
+    user_api_key: Optional[str] = Field(None, description="Optional user-supplied API key")
+
+
+class ValidateKeyRequest(BaseModel):
+    api_key: str = Field(..., description="OpenRouter or OpenAI API key to validate")
 
 
 @router.get("/api/ai/modes")
@@ -111,8 +120,66 @@ def infer_stack_purpose(request: InferPurposeRequest) -> Dict[str, Any]:
     )
 
 
+@router.post("/api/ai/validate-key")
+async def validate_api_key(request: ValidateKeyRequest):
+    """
+    Validates a user-supplied API key against OpenRouter or configured OpenAI-compatible provider.
+    """
+    key = (request.api_key or "").strip()
+    if not key:
+        raise HTTPException(status_code=400, detail="API key cannot be empty.")
+
+    # Determine validation endpoint
+    endpoint = "https://openrouter.ai/api/v1" if (key.startswith("sk-or-") or not os.getenv("OPENAI_BASE_URL")) else os.getenv("OPENAI_BASE_URL", "https://openrouter.ai/api/v1").rstrip("/")
+    headers = {
+        "Authorization": f"Bearer {key}",
+        "HTTP-Referer": "http://localhost:8000",
+        "X-Title": "HealthAI Pharmacology Copilot",
+    }
+    try:
+        async with httpx.AsyncClient(timeout=httpx.Timeout(6.0, connect=3.0)) as client:
+            res = await client.get(f"{endpoint}/models", headers=headers)
+            if res.status_code == 200:
+                data = res.json()
+                models_count = len(data.get("data", []))
+                return {
+                    "valid": True,
+                    "status": "valid",
+                    "provider": "OpenRouter" if "openrouter" in endpoint.lower() else "OpenAI Compatible",
+                    "models_count": models_count,
+                    "message": f"API key successfully validated with {models_count} models accessible."
+                }
+            elif res.status_code == 402 or is_quota_exceeded_error(res.status_code, res.text):
+                return {
+                    "valid": False,
+                    "status": "quota_exceeded",
+                    "message": "Key is recognized but has an exhausted token quota / zero credit balance."
+                }
+            elif res.status_code in (401, 403):
+                return {
+                    "valid": False,
+                    "status": "invalid",
+                    "message": "Authentication failed: invalid or unauthorized API key."
+                }
+            else:
+                return {
+                    "valid": False,
+                    "status": "error",
+                    "message": f"Provider returned status {res.status_code}: {res.text[:120]}"
+                }
+    except Exception as e:
+        return {
+            "valid": False,
+            "status": "error",
+            "message": f"Connection error testing API key: {str(e)}"
+        }
+
+
 @router.post("/api/ai/chat/stream")
-async def stream_copilot_chat(request: CopilotChatRequest):
+async def stream_copilot_chat(
+    request: CopilotChatRequest,
+    x_user_api_key: Optional[str] = Header(None, alias="X-User-API-Key"),
+):
     """
     Server-Sent Events (SSE) streaming endpoint for real-time multi-turn Copilot chat,
     reasoning telemetry, and structured action card generation.
@@ -122,6 +189,7 @@ async def stream_copilot_chat(request: CopilotChatRequest):
 
     raw_messages = [m.model_dump() for m in request.messages]
     cleaned_stack = [str(s).strip() for s in (request.stack or []) if s is not None and str(s).strip()]
+    effective_api_key = (x_user_api_key or request.user_api_key or "").strip() or None
 
     async def sse_event_generator():
         try:
@@ -134,6 +202,7 @@ async def stream_copilot_chat(request: CopilotChatRequest):
                 protocol_objective=request.protocol_objective,
                 custom_instructions=request.custom_instructions,
                 max_exploration_steps=request.max_exploration_steps or 8,
+                user_api_key=effective_api_key,
             ):
                 event_name = event_obj.get("event", "delta")
                 data_val = event_obj.get("data")
@@ -144,6 +213,9 @@ async def stream_copilot_chat(request: CopilotChatRequest):
 
                 # Standard SSE chunk
                 yield f"event: {event_name}\ndata: {payload_str}\n\n"
+        except QuotaExhaustedException as qe:
+            logger.warning(f"Quota exhausted in SSE copilot stream: {qe}")
+            yield f"event: quota_exceeded\ndata: {json.dumps({'message': str(qe), 'code': 'QUOTA_EXHAUSTED'})}\n\n"
         except Exception as e:
             logger.error(f"Error in SSE copilot stream: {e}")
             yield f"event: error\ndata: {json.dumps(str(e))}\n\n"
@@ -162,7 +234,10 @@ async def stream_copilot_chat(request: CopilotChatRequest):
 
 
 @router.post("/api/ai/chat")
-async def copilot_chat(request: CopilotChatRequest):
+async def copilot_chat(
+    request: CopilotChatRequest,
+    x_user_api_key: Optional[str] = Header(None, alias="X-User-API-Key"),
+):
     """
     Non-streaming multi-turn chat endpoint for REST clients.
     """
@@ -171,16 +246,21 @@ async def copilot_chat(request: CopilotChatRequest):
 
     raw_messages = [m.model_dump() for m in request.messages]
     cleaned_stack = [str(s).strip() for s in (request.stack or []) if s is not None and str(s).strip()]
+    effective_api_key = (x_user_api_key or request.user_api_key or "").strip() or None
 
-    result = await CopilotAgent.chat_copilot_turn(
-        messages=raw_messages,
-        persona=request.persona or "architect",
-        stack=cleaned_stack,
-        biometrics=request.biometrics or {},
-        protocol_goal=request.protocol_goal,
-        protocol_objective=request.protocol_objective,
-    )
-    return result
+    try:
+        result = await CopilotAgent.chat_copilot_turn(
+            messages=raw_messages,
+            persona=request.persona or "architect",
+            stack=cleaned_stack,
+            biometrics=request.biometrics or {},
+            protocol_goal=request.protocol_goal,
+            protocol_objective=request.protocol_objective,
+            user_api_key=effective_api_key,
+        )
+        return result
+    except QuotaExhaustedException as qe:
+        raise HTTPException(status_code=402, detail=str(qe))
 
 
 @router.post("/api/ai/chat/reset")

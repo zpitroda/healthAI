@@ -32,7 +32,7 @@ def test_testosterone_and_hgh_is_not_false_alarm_hypoglycemia():
     testosterone = {
         "key": "testosterone",
         "name": "Testosterone",
-        "drug_class": "Androgen",
+        "drug_class": "Androgen", "categories": ["G03BA"], "receptor_targets": [{"target": "AR", "action": "agonist", "gene_symbol": "AR"}],
         "indications": ["hypogonadism", "insulin resistance"],
         "external_ids": {"atc_codes": ["G03BA03"]},
     }

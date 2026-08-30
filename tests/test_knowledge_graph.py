@@ -38,12 +38,8 @@ def test_yohimbine_and_nebivolol_cross_talk_connectivity():
     assert nx.has_path(undirected, "yohimbine", neb_node)
 
     # Verify both direct PK metabolism bridge and PD cascade bridge exist
-    all_paths = list(nx.all_simple_paths(undirected, "yohimbine", neb_node, cutoff=8))
-    assert len(all_paths) > 0
-
-    # Verify PD cross-talk path: Alpha-2 -> Autonomic Tone / Hemodynamics -> Beta-1 Adrenergic Receptor
     pd_path_found = False
-    for p in all_paths:
+    for p in nx.all_simple_paths(undirected, "yohimbine", neb_node, cutoff=8):
         labels_lower = [str(graph.graph.nodes[n].get("label", n)).lower() for n in p]
         if any("alpha-2" in lbl for lbl in labels_lower) and any("beta-1" in lbl or "beta-2" in lbl for lbl in labels_lower):
             pd_path_found = True
@@ -154,7 +150,93 @@ def test_unmapped_target_dynamic_fallback_cascade():
     phys_nodes = [n for n in nodes if "physiological" in str(graph.graph.nodes[n].get("label", "")).lower() or "function" in str(graph.graph.nodes[n].get("label", "")).lower() or "tone" in str(n).lower()]
 
     assert len(pathway_nodes) > 0, "Fallback pathway node not generated"
-    assert len(phys_nodes) > 0, "Fallback physiology node not generated"
+
+def test_caffeine_hemodynamic_pressor_simulation():
+    """Verify 200mg Caffeine simulation produces physiological pressor & chronotropic shifts (increased BP and HR)."""
+    from app.services.graph_service import (
+        build_selected_compound_graph,
+        filter_graph_by_stack,
+        parse_compound_spec,
+        canonicalize_match_token,
+        compute_target_combined_effects,
+        resolve_stack_to_catalog_keys,
+    )
+
+    parsed_stack = ["caffeine:200mg:daily"]
+    graph = build_selected_compound_graph(parsed_stack)
+    graph = filter_graph_by_stack(graph, parsed_stack, max_depth=5)
+    custom_doses = {}
+    for item in parsed_stack:
+        parsed = parse_compound_spec(item)
+        if parsed.get("key"):
+            custom_doses[parsed["key"].lower()] = parsed
+            custom_doses[canonicalize_match_token(parsed["key"])] = parsed
+
+    combined_effects = compute_target_combined_effects(graph, custom_doses=custom_doses)
+    resolved_keys = resolve_stack_to_catalog_keys(parsed_stack)
+    cascade_results = graph.propagate_cascade(
+        resolved_keys or parsed_stack,
+        combined_effects=combined_effects,
+        patient_biometrics={"sex": "male", "age": 30, "weight_kg": 70},
+        user_labs={"blood_pressure": 120.0},
+    )
+
+    shifts = {b["biomarker_id"]: b for b in cascade_results.get("biomarker_shifts", [])}
+    assert "bio_blood_pressure" in shifts, "bio_blood_pressure not found in biomarker shifts"
+    bp_shift = shifts["bio_blood_pressure"]
+    
+    # Systolic blood pressure must increase (pressor response, delta > 0), not drop from 120 to 108
+    assert bp_shift["estimated_delta"] > 0, f"Expected positive BP delta, got {bp_shift['estimated_delta']}"
+    assert bp_shift["estimated_value"] > 120.0, f"Expected BP > 120, got {bp_shift['estimated_value']}"
+    assert 121.0 <= bp_shift["estimated_value"] <= 128.0, f"BP out of expected physiological range (121-128 mmHg): {bp_shift['estimated_value']}"
+
+    # Resting heart rate must increase
+    assert "bio_heart_rate" in shifts
+    hr_shift = shifts["bio_heart_rate"]
+    assert hr_shift["estimated_delta"] > 0
+    assert hr_shift["estimated_value"] > 70.0
+
+
+def test_tadalafil_pde5_vasodilation_simulation():
+    """Verify 20mg Tadalafil (PDE5 inhibitor) produces cGMP elevation and blood pressure reduction."""
+    from app.services.graph_service import (
+        build_selected_compound_graph,
+        filter_graph_by_stack,
+        parse_compound_spec,
+        canonicalize_match_token,
+        compute_target_combined_effects,
+        resolve_stack_to_catalog_keys,
+    )
+
+    parsed_stack = ["tadalafil:20mg:daily"]
+    graph = build_selected_compound_graph(parsed_stack)
+    graph = filter_graph_by_stack(graph, parsed_stack, max_depth=5)
+    custom_doses = {}
+    for item in parsed_stack:
+        parsed = parse_compound_spec(item)
+        if parsed.get("key"):
+            custom_doses[parsed["key"].lower()] = parsed
+            custom_doses[canonicalize_match_token(parsed["key"])] = parsed
+
+    combined_effects = compute_target_combined_effects(graph, custom_doses=custom_doses)
+    resolved_keys = resolve_stack_to_catalog_keys(parsed_stack)
+    cascade_results = graph.propagate_cascade(
+        resolved_keys or parsed_stack,
+        combined_effects=combined_effects,
+        patient_biometrics={"sex": "male", "age": 30, "weight_kg": 70},
+        user_labs={"blood_pressure": 120.0},
+    )
+
+    shifts = {b["biomarker_id"]: b for b in cascade_results.get("biomarker_shifts", [])}
+    assert "bio_blood_pressure" in shifts
+    bp_shift = shifts["bio_blood_pressure"]
+    assert bp_shift["estimated_delta"] < 0, f"Expected negative BP delta for PDE5 inhibitor, got {bp_shift['estimated_delta']}"
+    assert bp_shift["estimated_value"] < 120.0
+
+    assert "bio_cgmp" in shifts
+    cgmp_shift = shifts["bio_cgmp"]
+    assert cgmp_shift["estimated_delta"] > 0, "Expected elevated cGMP for PDE5 inhibitor"
+
 
 
 

@@ -399,8 +399,8 @@ def get_graphrag_context_api(request: GraphRAGContextRequest) -> JSONResponse:
     # Ensure compound graph is built & synced to Neo4j
     try:
         build_selected_compound_graph(request.entity_ids)
-    except Exception:
-        pass
+    except Exception as e:
+        import logging; logging.getLogger(__name__).debug("Suppressed exception: %s", e, exc_info=True)
 
     try:
         db = get_graph_database()

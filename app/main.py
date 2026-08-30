@@ -44,8 +44,8 @@ async def _warmup_background_services():
                 InteractionEngine(),
             ),
         )
-    except Exception:
-        pass
+    except Exception as e:
+        import logging; logging.getLogger(__name__).debug("Suppressed exception: %s", e, exc_info=True)
 
 
 @asynccontextmanager

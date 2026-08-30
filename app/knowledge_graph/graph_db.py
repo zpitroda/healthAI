@@ -102,8 +102,8 @@ class Neo4jGraphDatabase:
                 for statement in constraints_and_indexes:
                     try:
                         session.run(statement)
-                    except Exception:
-                        pass
+                    except Exception as e:
+                        import logging; logging.getLogger(__name__).debug("Suppressed exception: %s", e, exc_info=True)
         except Exception as e:
             logger.debug("Failed initializing Neo4j constraints: %s", e)
 
@@ -118,8 +118,8 @@ class Neo4jGraphDatabase:
         if self.driver:
             try:
                 self.driver.close()
-            except Exception:
-                pass
+            except Exception as e:
+                import logging; logging.getLogger(__name__).debug("Suppressed exception: %s", e, exc_info=True)
             self.driver = None
 
     @staticmethod
@@ -589,8 +589,8 @@ class Neo4jGraphDatabase:
                 if clean_rel_type != "RELATIONSHIP":
                     self.execute_cypher(q_typed, params)
                 edges_synced += 1
-            except Exception:
-                pass
+            except Exception as e:
+                import logging; logging.getLogger(__name__).debug("Suppressed exception: %s", e, exc_info=True)
 
         return {"nodes_synced": nodes_synced, "edges_synced": edges_synced}
 
@@ -606,8 +606,8 @@ class Neo4jGraphDatabase:
         if self.driver:
             try:
                 return self.execute_cypher(cypher, {"start_id": start_id})
-            except Exception:
-                pass
+            except Exception as e:
+                import logging; logging.getLogger(__name__).debug("Suppressed exception: %s", e, exc_info=True)
 
         # Fallback multi-hop traversal in memory
         results = []
@@ -1258,8 +1258,8 @@ class Neo4jGraphDatabase:
             if len(self._graphrag_cache) >= 128:
                 try:
                     self._graphrag_cache.pop(next(iter(self._graphrag_cache)))
-                except Exception:
-                    pass
+                except Exception as e:
+                    import logging; logging.getLogger(__name__).debug("Suppressed exception: %s", e, exc_info=True)
             self._graphrag_cache[cache_key] = copy.deepcopy(res)
 
         return res
@@ -1356,8 +1356,8 @@ class Neo4jGraphDatabase:
                         "sample_size": s.get("sample_size"),
                         "url": s.get("url") or f"https://pubmed.ncbi.nlm.nih.gov/{s['pmid']}/",
                     })
-            except Exception:
-                pass
+            except Exception as e:
+                import logging; logging.getLogger(__name__).debug("Suppressed exception: %s", e, exc_info=True)
 
         # Sort chronologically
         milestones.sort(key=lambda m: (m.get("year") or 9999, m.get("tier") or ""))
@@ -1780,8 +1780,8 @@ class Neo4jGraphDatabase:
                 for s in seeds:
                     self.ingest_citation(s, entity_id=eid)
                 all_cites = self.get_citations_for_entity(eid, max_results=20)
-            except Exception:
-                pass
+            except Exception as e:
+                import logging; logging.getLogger(__name__).debug("Suppressed exception: %s", e, exc_info=True)
         if not all_cites:
             all_cites = self.search_citations(f"{eid} {claim_topic_or_text}", max_results=10)
 

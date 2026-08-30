@@ -17,7 +17,7 @@ def test_androgen_without_testosterone_base_crashes_testosterone_and_e2():
         "key": "drostanolone",
         "name": "Drostanolone",
         "canonical_name": "Drostanolone",
-        "drug_class": "Anabolic Steroid / DHT Derivative",
+        "drug_class": "Anabolic Steroid / DHT Derivative", "categories": ["G03BA"], "receptor_targets": [{"target": "AR", "action": "agonist", "gene_symbol": "AR"}],
         "mechanism": "Androgen receptor agonist, non-aromatizable 2-methyl-DHT derivative",
         "receptor_targets": [
             {"target": "Androgen Receptor (AR / NR3C4)", "action": "agonist", "family": "Nuclear Receptor", "intrinsic_efficacy": 0.90}
@@ -57,7 +57,7 @@ def test_androgen_with_testosterone_base_maintains_physiological_t_and_e2():
         "key": "drostanolone",
         "name": "Drostanolone",
         "canonical_name": "Drostanolone",
-        "drug_class": "Anabolic Steroid / DHT Derivative",
+        "drug_class": "Anabolic Steroid / DHT Derivative", "categories": ["G03BA"], "receptor_targets": [{"target": "AR", "action": "agonist", "gene_symbol": "AR"}],
         "mechanism": "Androgen receptor agonist, non-aromatizable 2-methyl-DHT derivative",
         "receptor_targets": [
             {"target": "Androgen Receptor (AR / NR3C4)", "action": "agonist", "family": "Nuclear Receptor", "intrinsic_efficacy": 0.90}
@@ -69,7 +69,7 @@ def test_androgen_with_testosterone_base_maintains_physiological_t_and_e2():
         "key": "testosterone",
         "name": "Testosterone",
         "canonical_name": "Testosterone",
-        "drug_class": "Bioidentical Androgen",
+        "drug_class": "Bioidentical Androgen", "categories": ["G03BA"], "receptor_targets": [{"target": "AR", "action": "agonist", "gene_symbol": "AR"}],
         "mechanism": "Endogenous androgen receptor agonist and substrate for CYP19A1 aromatase and 5-alpha reductase",
         "receptor_targets": [
             {"target": "Circulating Serum Testosterone Pool", "action": "agonist", "family": "Endocrine Pool", "intrinsic_efficacy": 0.85},
@@ -102,7 +102,7 @@ def test_19nor_without_cabergoline_triggers_prolactin_alert():
         "key": "trenbolone",
         "name": "Trenbolone",
         "canonical_name": "Trenbolone",
-        "drug_class": "19-nor Anabolic Steroid",
+        "drug_class": "19-nor Anabolic Steroid", "categories": ["G03BA"], "receptor_targets": [{"target": "AR", "action": "agonist", "gene_symbol": "AR"}],
         "mechanism": "Potent androgen and progesterone receptor agonist",
         "receptor_targets": [
             {"target": "Androgen Receptor (AR / NR3C4)", "action": "agonist", "family": "Nuclear Receptor", "intrinsic_efficacy": 1.0},
@@ -125,7 +125,7 @@ def test_19nor_with_cabergoline_resolves_prolactin_alert():
         "key": "trenbolone",
         "name": "Trenbolone",
         "canonical_name": "Trenbolone",
-        "drug_class": "19-nor Anabolic Steroid",
+        "drug_class": "19-nor Anabolic Steroid", "categories": ["G03BA"], "receptor_targets": [{"target": "AR", "action": "agonist", "gene_symbol": "AR"}],
         "mechanism": "Potent androgen and progesterone receptor agonist",
         "receptor_targets": [
             {"target": "Androgen Receptor (AR / NR3C4)", "action": "agonist", "family": "Nuclear Receptor", "intrinsic_efficacy": 1.0},
@@ -186,7 +186,7 @@ def test_oral_testosterone_with_aas_crashes_serum_testosterone():
         "key": "drostanolone",
         "name": "Drostanolone",
         "canonical_name": "Drostanolone",
-        "drug_class": "Anabolic Steroid / DHT Derivative",
+        "drug_class": "Anabolic Steroid / DHT Derivative", "categories": ["G03BA"], "receptor_targets": [{"target": "AR", "action": "agonist", "gene_symbol": "AR"}],
         "route": "intramuscular",
         "dose_mg": 100.0,
         "mechanism": "Androgen receptor agonist, non-aromatizable 2-methyl-DHT derivative",
@@ -200,7 +200,7 @@ def test_oral_testosterone_with_aas_crashes_serum_testosterone():
         "key": "testosterone",
         "name": "Testosterone",
         "canonical_name": "Testosterone",
-        "drug_class": "Bioidentical Androgen",
+        "drug_class": "Bioidentical Androgen", "categories": ["G03BA"], "receptor_targets": [{"target": "AR", "action": "agonist", "gene_symbol": "AR"}],
         "route": "oral",
         "dose_mg": 25.0,
         "mechanism": "Endogenous androgen receptor agonist and substrate for CYP19A1 aromatase and 5-alpha reductase",

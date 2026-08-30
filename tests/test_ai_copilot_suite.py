@@ -268,8 +268,8 @@ def test_copilot_system_context_deterministic_grounding():
 def test_evidence_based_recommendations_anabolic_burden():
     """Verify evidence-based candidate recommendations dynamically offset organ burdens."""
     compounds = [
-        {"key": "testosterone_cypionate", "name": "Testosterone Cypionate", "drug_class": "Androgenic Anabolic Steroid", "route": "intramuscular", "dose": 250},
-        {"key": "trenbolone_enanthate", "name": "Trenbolone Enanthate", "drug_class": "19-nor Androgenic Anabolic Steroid", "route": "intramuscular", "dose": 150}
+        {"key": "testosterone_cypionate", "name": "Testosterone Cypionate", "drug_class": "Androgenic Anabolic Steroid", "categories": ["G03BA"], "receptor_targets": [{"target": "AR", "action": "agonist", "gene_symbol": "AR"}], "route": "intramuscular", "dose": 250},
+        {"key": "trenbolone_enanthate", "name": "Trenbolone Enanthate", "drug_class": "19-nor Androgenic Anabolic Steroid", "categories": ["G03BA"], "receptor_targets": [{"target": "AR", "action": "agonist", "gene_symbol": "AR"}], "route": "intramuscular", "dose": 150}
     ]
     biometrics = {"age": 30, "weight_kg": 90, "egfr": 90, "alt_u_l": 30, "blood_pressure": 138}
     recs = CopilotAgent.get_evidence_based_recommendations(

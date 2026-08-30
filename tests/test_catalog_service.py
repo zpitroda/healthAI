@@ -22,7 +22,7 @@ def test_catalog_service_can_seed_and_read_compounds(tmp_path):
     service.upsert_compound({
         "key": "testosterone",
         "name": "Testosterone",
-        "drug_class": "androgen receptor agonist",
+        "drug_class": "androgen receptor agonist", "categories": ["G03BA"], "receptor_targets": [{"target": "AR", "action": "agonist", "gene_symbol": "AR"}],
         "mechanism": "Binds androgen receptor and modulates transcription.",
         "receptor_targets": [{"target": "AR", "action": "agonist", "family": "androgen"}],
         "categories": ["hormone", "performance"],
@@ -114,7 +114,7 @@ def test_graph_data_uses_selected_compound_target_edges(tmp_path):
         "key": "CHEMBL38943",
         "name": "Test Agonist",
         "canonical_name": "Test Agonist",
-        "drug_class": "androgen receptor agonist",
+        "drug_class": "androgen receptor agonist", "categories": ["G03BA"], "receptor_targets": [{"target": "AR", "action": "agonist", "gene_symbol": "AR"}],
         "mechanism": "Binds androgen receptor.",
         "receptor_targets": [{"target": "Androgen receptor", "action": "agonist", "family": "androgen"}],
         "categories": ["hormone"],

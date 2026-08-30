@@ -32,6 +32,487 @@ from app.schemas.pkpd import PKPDSimulationRequest
 
 logger = logging.getLogger("healthai.copilot_agent")
 
+
+class CopilotSourceCollector:
+    """
+    Programmatic collector and deduplicator for all scientific sources used by
+    the AI Copilot during context assembly, dynamic ReAct tool execution, and response synthesis.
+    """
+
+    def __init__(self):
+        self.literature_studies: Dict[str, Dict[str, Any]] = {}
+        self.clinical_trials: Dict[str, Dict[str, Any]] = {}
+        self.databases_and_registries: Dict[str, Dict[str, Any]] = {}
+        self.computational_engines: Dict[str, str] = {}
+        self.regulatory_and_guidelines: Dict[str, str] = {}
+
+    def record_literature_citation(
+        self,
+        pmid: Optional[str] = None,
+        doi: Optional[str] = None,
+        title: Optional[str] = None,
+        journal: Optional[str] = None,
+        pub_year: Optional[Any] = None,
+        authors: Optional[Any] = None,
+        clinical_finding: Optional[str] = None,
+        compound_name: Optional[str] = None,
+        url: Optional[str] = None,
+    ) -> None:
+        if not pmid and not doi and not title:
+            return
+        key = str(pmid).strip() if pmid else (str(doi).strip().lower() if doi else str(title).strip().lower()[:60])
+        if not key:
+            return
+
+        existing = self.literature_studies.get(key, {})
+        auth_str = ""
+        if isinstance(authors, list):
+            auth_str = ", ".join([str(a) for a in authors if a])
+        elif authors:
+            auth_str = str(authors)
+
+        merged = {
+            "pmid": str(pmid).strip() if pmid else existing.get("pmid"),
+            "doi": str(doi).strip() if doi else existing.get("doi"),
+            "title": str(title).strip().rstrip(".") if title else existing.get("title"),
+            "journal": str(journal).strip() if journal else existing.get("journal", "PubMed Journal"),
+            "pub_year": str(pub_year).strip() if pub_year else existing.get("pub_year"),
+            "authors": auth_str or existing.get("authors"),
+            "clinical_finding": str(clinical_finding).strip() if clinical_finding else existing.get("clinical_finding"),
+            "compound_name": str(compound_name).strip() if compound_name else existing.get("compound_name"),
+            "url": url or (f"https://pubmed.ncbi.nlm.nih.gov/{pmid}/" if pmid else (f"https://doi.org/{doi}" if doi else None)),
+        }
+        self.literature_studies[key] = merged
+
+    def record_clinical_trial(
+        self,
+        nct_id: str,
+        title: Optional[str] = None,
+        phase: Optional[str] = None,
+        status: Optional[str] = None,
+    ) -> None:
+        clean_nct = str(nct_id).strip().upper()
+        if not clean_nct:
+            return
+        self.clinical_trials[clean_nct] = {
+            "nct_id": clean_nct,
+            "title": str(title).strip() if title else None,
+            "phase": str(phase).strip() if phase else None,
+            "status": str(status).strip() if status else None,
+            "url": f"https://clinicaltrials.gov/study/{clean_nct}",
+        }
+
+    def record_database_registry(self, db_type: str, item_id: str, description: Optional[str] = None) -> None:
+        clean_id = str(item_id).strip()
+        if not clean_id:
+            return
+        key = f"{db_type.lower()}:{clean_id}"
+        self.databases_and_registries[key] = {
+            "db_type": db_type,
+            "item_id": clean_id,
+            "description": description or f"{db_type} target record ({clean_id})",
+        }
+
+    def record_engine(self, engine_name: str, description: Optional[str] = None) -> None:
+        if engine_name:
+            self.computational_engines[engine_name.strip()] = description or ""
+
+    def record_guideline(self, guideline_type: str, title: str, description: Optional[str] = None) -> None:
+        key = f"{guideline_type}:{title}"
+        full_text = f"{title} — {description}" if description and description != title else title
+        self.regulatory_and_guidelines[key] = full_text
+
+    def record_tool_execution(self, tool_name: str, arguments: Dict[str, Any], observation: Any) -> None:
+        if not observation or (isinstance(observation, str) and observation.startswith("Error")):
+            return
+        t_name = str(tool_name).lower().strip()
+
+        if t_name in (
+            "search_pubmed_literature",
+            "search_biomedical_literature",
+            "search_pubmed",
+            "search_literature_for_claim",
+            "get_claim_citations",
+            "search_evidence_for_claim",
+        ):
+            if isinstance(observation, dict):
+                for c in observation.get("citations", []):
+                    if isinstance(c, dict):
+                        self.record_literature_citation(
+                            pmid=c.get("pmid"),
+                            doi=c.get("doi"),
+                            title=c.get("title"),
+                            journal=c.get("journal"),
+                            pub_year=c.get("pub_year"),
+                            authors=c.get("authors"),
+                            clinical_finding=c.get("clinical_finding"),
+                            compound_name=c.get("compound") or observation.get("entity_id") or observation.get("query"),
+                        )
+
+        elif t_name in ("search_pubmed_titles", "search_literature_titles", "search_paper_titles"):
+            if isinstance(observation, dict):
+                for ct in observation.get("candidate_titles", []):
+                    if isinstance(ct, dict):
+                        self.record_literature_citation(
+                            pmid=ct.get("pmid"),
+                            title=ct.get("title"),
+                            journal=ct.get("journal"),
+                            pub_year=ct.get("pub_year"),
+                            doi=ct.get("doi"),
+                        )
+
+        elif t_name in ("fetch_paper_abstract", "read_paper_abstract", "get_paper_abstract", "read_study"):
+            if isinstance(observation, dict) and observation.get("pmid"):
+                self.record_literature_citation(
+                    pmid=observation.get("pmid"),
+                    doi=observation.get("doi"),
+                    title=observation.get("title"),
+                    journal=observation.get("journal"),
+                    pub_year=observation.get("pub_year"),
+                    authors=observation.get("authors"),
+                    clinical_finding=observation.get("clinical_finding") or (observation.get("abstract")[:160] if observation.get("abstract") else None),
+                )
+
+        elif t_name in ("read_paper_section", "fetch_paper_full_text_section", "read_full_text_section"):
+            if isinstance(observation, dict) and observation.get("pmid"):
+                self.record_literature_citation(
+                    pmid=observation.get("pmid"),
+                    doi=observation.get("doi"),
+                    title=observation.get("title"),
+                    journal=observation.get("journal"),
+                    pub_year=observation.get("pub_year"),
+                    clinical_finding=f"Section: {observation.get('section', 'Results').title()}",
+                )
+
+        elif t_name in ("search_within_paper", "search_in_paper", "search_paper_passages"):
+            if isinstance(observation, dict) and observation.get("pmid"):
+                self.record_literature_citation(
+                    pmid=observation.get("pmid"),
+                    doi=observation.get("doi"),
+                    title=observation.get("title"),
+                    clinical_finding=f"Passage match for '{arguments.get('query', '')}'" if arguments.get("query") else None,
+                )
+
+        elif t_name in ("find_similar_papers", "find_similar_studies", "find_similar_citations"):
+            if isinstance(observation, dict):
+                for sp in observation.get("similar_papers", []):
+                    if isinstance(sp, dict):
+                        self.record_literature_citation(
+                            pmid=sp.get("pmid"),
+                            title=sp.get("title"),
+                            journal=sp.get("journal"),
+                            pub_year=sp.get("pub_year"),
+                            doi=sp.get("doi"),
+                        )
+
+        elif t_name in ("search_cached_papers_semantic", "search_citations_semantic"):
+            if isinstance(observation, dict):
+                for c in observation.get("citations", []):
+                    if isinstance(c, dict):
+                        self.record_literature_citation(
+                            pmid=c.get("pmid"),
+                            title=c.get("title"),
+                            journal=c.get("journal"),
+                            pub_year=c.get("pub_year"),
+                            doi=c.get("doi"),
+                        )
+
+        elif t_name in ("hybrid_rag_search", "search_graphrag_and_literature", "hybrid_literature_search"):
+            self.record_engine(
+                "HealthAI 3-Hop Biological Knowledge Graph & Causal Chain Reasoner",
+                "Multi-hop graph traversal and causal pathway network",
+            )
+            if isinstance(observation, dict):
+                for c in observation.get("citations", []):
+                    if isinstance(c, dict):
+                        self.record_literature_citation(
+                            pmid=c.get("pmid"),
+                            title=c.get("title"),
+                            journal=c.get("journal"),
+                            pub_year=c.get("pub_year"),
+                            doi=c.get("doi"),
+                        )
+
+        elif t_name in ("search_clinical_trials", "search_trials"):
+            if isinstance(observation, dict):
+                for tr in observation.get("trials", []):
+                    if isinstance(tr, dict):
+                        self.record_clinical_trial(
+                            nct_id=tr.get("nct_id") or tr.get("id"),
+                            title=tr.get("title"),
+                            phase=tr.get("phase"),
+                            status=tr.get("status"),
+                        )
+
+        elif t_name in ("simulate_pkpd", "get_pkpd_kinetics"):
+            comp_key = arguments.get("compound_key") or arguments.get("compound") or ""
+            c_desc = f" for {comp_key}" if comp_key else ""
+            self.record_engine(
+                "HealthAI Steady-State PK/PD Clearance & Fluctuation Engine",
+                f"Simulates 1- & 2-compartment elimination kinetics, Cmax, Tmax, t1/2, and PTF% swing curves{c_desc}",
+            )
+
+        elif t_name in ("check_cyp450_conflicts", "analyze_stack_conflicts", "evaluate_stack_interactions", "get_compound_interactions"):
+            self.record_engine(
+                "HealthAI Deterministic Collision Matrix & DDI Database",
+                "Audits CYP450 enzyme inhibition, Phase II conjugation, transporter saturation, and syndrome liabilities",
+            )
+
+        elif t_name in ("evaluate_pgx_interactions", "check_pgx_warnings"):
+            self.record_engine(
+                "CPIC Pharmacogenomics (PGx) Clinical Practice Guidelines",
+                "Maps patient enzyme metabolizer phenotypes (CYP2D6, CYP2C19, CYP3A4/5, SLCO1B1) to clearance rates",
+            )
+
+        elif t_name in ("trace_mechanism_pathway", "query_pathway_cascade"):
+            self.record_engine(
+                "Reactome Intracellular Biological Signal Transduction Pathway Database",
+                "Traces receptor signal cascades, G-protein coupling, and transcriptional activation",
+            )
+
+        elif t_name in ("get_circadian_receptor_occupancy", "calculate_receptor_occupancy"):
+            self.record_engine(
+                "HealthAI Circadian Receptor Occupancy (RO) & Saturation Dynamics Model",
+                "Calculates peak and trough receptor saturation percentages across diurnal windows",
+            )
+
+        elif t_name in ("find_candidate_pairings", "evaluate_multi_agent_synergy"):
+            self.record_engine(
+                "HealthAI Quantitative Multi-Agent Synergy Engine",
+                "Evaluates Loewe Additivity Combination Indices (CI) and Bliss Independence deltas",
+            )
+
+        elif t_name in ("build_stack_from_scratch", "get_stack_recommendations"):
+            self.record_engine(
+                "HealthAI Evidence-Based Protocol Architecture & Blueprint Engine",
+                "Formulates calibrated compound pairings, circadian timing, and protective co-factors",
+            )
+
+        elif t_name in ("simulate_stack_diff", "apply_stack_diff"):
+            self.record_engine(
+                "HealthAI Virtual Stack Diff Simulator & Clearance Modeler",
+                "Simulates net pharmacokinetic and organ burden shifts before protocol changes are applied",
+            )
+
+    def record_grounding_context(
+        self,
+        citations: Optional[List[Dict[str, Any]]] = None,
+        has_ddi: bool = False,
+        has_pkpd: bool = False,
+        has_pathway: bool = False,
+        has_pgx: bool = False,
+        has_ro: bool = False,
+        has_synergy: bool = False,
+        has_graphrag: bool = False,
+    ) -> None:
+        if citations:
+            for c in citations:
+                if isinstance(c, dict):
+                    self.record_literature_citation(
+                        pmid=c.get("pmid"),
+                        doi=c.get("doi"),
+                        title=c.get("title"),
+                        journal=c.get("journal"),
+                        pub_year=c.get("pub_year"),
+                        authors=c.get("authors"),
+                        clinical_finding=c.get("clinical_finding"),
+                        compound_name=c.get("compound"),
+                    )
+        if has_ddi:
+            self.record_engine(
+                "HealthAI Deterministic Collision Matrix & DDI Database",
+                "Evaluates competitive CYP450 clearance, transporter clashes, and syndrome liabilities",
+            )
+        if has_pkpd:
+            self.record_engine(
+                "HealthAI Steady-State PK/PD Clearance & Fluctuation Engine",
+                "Computes Cmax, elimination t1/2, accumulation ratios, and fluctuation curves",
+            )
+        if has_pathway:
+            self.record_engine(
+                "Reactome Pathway Knowledgebase",
+                "Intracellular signal transduction cascades and receptor coupling",
+            )
+        if has_pgx:
+            self.record_engine(
+                "CPIC Pharmacogenomics (PGx) Clinical Practice Guidelines",
+                "Clinical pharmacogenetic guidance on drug-gene clearance phenotypes",
+            )
+        if has_ro:
+            self.record_engine(
+                "HealthAI Circadian Receptor Occupancy (RO) Model",
+                "Circadian target saturation and receptor occupancy curves",
+            )
+        if has_synergy:
+            self.record_engine(
+                "HealthAI Quantitative Synergy Engine",
+                "Loewe Combination Index & Bliss Independence models",
+            )
+        if has_graphrag:
+            self.record_engine(
+                "HealthAI 3-Hop Biological Knowledge Graph",
+                "Multi-tier causal network and target competition triples",
+            )
+
+    def scan_text_for_citations(self, text: str) -> None:
+        if not text:
+            return
+        # Scan PMIDs: [PMID: 12345678 - Author et al., Journal 2020] or [PMID: 12345678]
+        for m in re.finditer(r'\[PMID:\s*(\d+)(?:\s*[-–—:]\s*([^\]]+))?\]', text, re.IGNORECASE):
+            pmid = m.group(1).strip()
+            extra = m.group(2).strip() if m.group(2) else None
+            if pmid not in self.literature_studies:
+                from app.services.pubmed_service import PubMedService
+                meta = PubMedService().fetch_citation_metadata(pmid) or {}
+                self.record_literature_citation(
+                    pmid=pmid,
+                    doi=meta.get("doi"),
+                    title=meta.get("title") or (extra if extra and not any(w in extra.lower() for w in ["author", "et al", "pmid"]) else None),
+                    journal=meta.get("journal"),
+                    pub_year=meta.get("pub_year"),
+                    authors=meta.get("authors") or (extra if extra and any(w in extra.lower() for w in ["et al", "author"]) else None),
+                    clinical_finding=meta.get("clinical_finding"),
+                )
+
+        # Scan DOIs: [DOI: 10.1016/...]
+        for m in re.finditer(r'\[DOI:\s*([^\s\]]+)\]', text, re.IGNORECASE):
+            doi = m.group(1).strip()
+            if not any(c.get("doi") == doi for c in self.literature_studies.values()):
+                self.record_literature_citation(doi=doi)
+
+        # Scan ChEMBL: [ChEMBL: CHEMBL25]
+        for m in re.finditer(r'\[ChEMBL:\s*([A-Za-z0-9_]+)\]', text, re.IGNORECASE):
+            cid = m.group(1).strip()
+            self.record_database_registry("ChEMBL", cid, f"ChEMBL Target Profile & Bioactivity Data ({cid})")
+
+        # Scan FDA: [FDA Label: §5.1] or [FDA: ...]
+        for m in re.finditer(r'\[FDA(?:\s+Label)?:\s*([^\]]+)\]', text, re.IGNORECASE):
+            fda_spec = m.group(1).strip()
+            self.record_guideline("FDA", f"FDA Structured Product Labeling: {fda_spec}", "Official FDA Drug Prescribing Information & Package Insert")
+
+        # Scan ClinicalTrials NCT: [NCT: NCT01234567]
+        for m in re.finditer(r'\[NCT:\s*([A-Za-z0-9_]+)\]', text, re.IGNORECASE):
+            nct_id = m.group(1).strip()
+            self.record_clinical_trial(nct_id)
+
+        # Scan CPIC: [CPIC Guideline: ...] or [CPIC: ...]
+        for m in re.finditer(r'\[CPIC(?:\s+Guideline)?:\s*([^\]]+)\]', text, re.IGNORECASE):
+            cpic_spec = m.group(1).strip()
+            self.record_guideline("CPIC", f"CPIC Clinical Pharmacogenetics Guideline: {cpic_spec}", "CPIC / PharmGKB Evidence-Based Dosing Protocol")
+
+    def format_sources_markdown(self) -> str:
+        if (
+            not self.literature_studies
+            and not self.clinical_trials
+            and not self.databases_and_registries
+            and not self.regulatory_and_guidelines
+        ):
+            return ""
+
+        lines = ["\n\n### 📚 Sources & Scientific Evidence Base"]
+
+        # 1. Literature Studies
+        if self.literature_studies:
+            lines.append("\n#### 📄 Primary Biomedical Literature & Clinical Studies")
+            for _, study in list(self.literature_studies.items())[:12]:
+                pmid = study.get("pmid")
+                doi = study.get("doi")
+                title = study.get("title")
+                journal = study.get("journal")
+                year = study.get("pub_year")
+                authors = study.get("authors")
+                finding = study.get("clinical_finding")
+
+                badge_part = f"[PMID: {pmid}]" if pmid else (f"[DOI: {doi}]" if doi else "")
+                detail_parts = []
+                if authors:
+                    detail_parts.append(str(authors).rstrip("."))
+                if title:
+                    detail_parts.append(f"*\"{title}\"*")
+                if journal:
+                    j_str = journal
+                    if year:
+                        j_str += f" ({year})"
+                    detail_parts.append(j_str)
+                elif year:
+                    detail_parts.append(f"({year})")
+                if doi and pmid:
+                    detail_parts.append(f"[DOI: {doi}]")
+
+                full_desc = " — ".join([p for p in detail_parts if p]) if detail_parts else ""
+                if finding:
+                    full_desc += f" *(Finding: {finding[:140]}...)*" if len(finding) > 140 else f" *(Finding: {finding})*"
+
+                if badge_part and full_desc:
+                    lines.append(f"- **{badge_part}** {full_desc}")
+                elif badge_part:
+                    lines.append(f"- **{badge_part}** Verified Biomedical Publication")
+                elif full_desc:
+                    lines.append(f"- {full_desc}")
+
+        # 2. Clinical Trials
+        if self.clinical_trials:
+            lines.append("\n#### 🧪 Registered Clinical Trials (ClinicalTrials.gov)")
+            for _, tr in list(self.clinical_trials.items())[:5]:
+                nct = tr.get("nct_id")
+                t_title = tr.get("title")
+                phase = tr.get("phase")
+                status = tr.get("status")
+                extra = []
+                if phase:
+                    extra.append(f"Phase: {phase}")
+                if status:
+                    extra.append(f"Status: {status}")
+                ex_str = f" ({', '.join(extra)})" if extra else ""
+                title_str = f" *\"{t_title}\"*" if t_title else ""
+                lines.append(f"- **[NCT: {nct}]**{title_str}{ex_str}")
+
+        # 3. Databases & Registries
+        if self.databases_and_registries or self.regulatory_and_guidelines:
+            lines.append("\n#### 🏛️ Regulatory Records & Biomedical Databases")
+            for _, d in list(self.databases_and_registries.items())[:5]:
+                db_type = d.get("db_type", "Database")
+                item_id = d.get("item_id", "")
+                desc = d.get("description") or f"{db_type} Entry {item_id}"
+                if db_type.lower() == "chembl":
+                    lines.append(f"- **[ChEMBL: {item_id}]** {desc}")
+                else:
+                    lines.append(f"- **[{db_type}: {item_id}]** {desc}")
+
+            for _, desc in list(self.regulatory_and_guidelines.items())[:5]:
+                if "FDA" in desc:
+                    lines.append(f"- **[FDA Label]** {desc}")
+                elif "CPIC" in desc:
+                    lines.append(f"- **[CPIC Guideline]** {desc}")
+                else:
+                    lines.append(f"- {desc}")
+
+        return "\n".join(lines)
+
+    def append_to_response(self, text: str) -> str:
+        if not text:
+            return ""
+        if re.search(r'###\s+(?:📚\s*)?Sources', text, re.IGNORECASE):
+            return text
+
+        self.scan_text_for_citations(text)
+        sources_md = self.format_sources_markdown()
+        if not sources_md:
+            return text
+
+        m = re.search(
+            r'<action_card(?:\s+type=[\'"]?[^\'">\s]+[\'"]?)?\s*>[\s\S]*?(?:</action_card>|$)',
+            text,
+            re.IGNORECASE,
+        )
+        if m:
+            before_card = text[:m.start()].rstrip()
+            card_part = text[m.start():]
+            return f"{before_card}\n\n{sources_md.strip()}\n\n{card_part}"
+        else:
+            return f"{text.rstrip()}\n\n{sources_md.strip()}"
+
+
 PERSONA_SYSTEM_PROMPTS = {
     "architect": """You are the HealthAI Senior Protocol Architect & Clinical Chronobiologist.
 You specialize in designing synergistic, bio-individualized stacks, circadian timing schedules (Morning, Midday, Afternoon, Bedtime), half-life alignments, and protective co-factor pairings.
@@ -2173,6 +2654,20 @@ You have autonomous access to execute live graph traversals, pathway queries, ph
         md_lines.append("\n**Clinical Titration & Safety Notes**:")
         md_lines.append("- Baseline & Follow-up Biomarkers: Re-assess comprehensive metabolic panel (CMP), lipid panel (ApoB/Triglycerides), and resting blood pressure at 4–8 week intervals.")
         md_lines.append("- Multi-Organ Protection: Protective co-factors maintain renal podocyte perfusion and endothelial nitric oxide release without diminishing target efficacy.")
+
+        source_collector = CopilotSourceCollector()
+        for c in compounds:
+            if c.get("pmid") or c.get("citation_str"):
+                source_collector.record_literature_citation(
+                    pmid=c.get("pmid"),
+                    title=f"{c.get('name')} Clinical Evidence",
+                    clinical_finding=f"Target: {c.get('target', '')}. {c.get('rationale', '')}",
+                )
+
+        sources_md = source_collector.format_sources_markdown()
+        if sources_md:
+            md_lines.append(sources_md)
+
         md_lines.append("\n*Review proposed modifications in the action card below and click to apply them directly to your workbench stack.*")
         return "\n".join(md_lines)
 
@@ -2313,10 +2808,10 @@ You have autonomous access to execute live graph traversals, pathway queries, ph
                 "**Evidence-Based Actionable Solutions**:\n",
                 "1. **Enzymatic Microbial TMA-Lyase Inhibition (Allicin / Garlic Extract)**:",
                 "   - **Compound**: **Allicin (Garlic Extract / Allium sativum)** — 10–20 mg allicin yield (or 600–1200 mg Aged Garlic Extract) daily with meals.",
-                "   - **Molecular Mechanism**: Allicin's organosulfur moieties potently inactivate bacterial TMA-lyase (CntA/CntB) in the gut lumen (IC50 ≈ 0.05 mg/mL), suppressing TMA and serum TMAO formation by >50–70% while preserving systemic L-carnitine absorption and CPT1 mitochondrial shuttle activity.",
+                "   - **Molecular Mechanism**: Allicin's organosulfur moieties potently inactivate bacterial TMA-lyase (CntA/CntB) in the gut lumen (IC50 ≈ 0.05 mg/mL), suppressing TMA and serum TMAO formation by >50–70% while preserving systemic L-carnitine absorption and CPT1 mitochondrial shuttle activity [PMID: 26039521].",
                 "2. **Pharmacokinetic Route Optimization (Parenteral Bypass)**:",
                 "   - **Strategy**: Switch administration from oral to **Intramuscular (IM) or Subcutaneous (SubQ)** injection (e.g. L-Carnitine 500 mg IM daily or pre-workout).",
-                "   - **Mechanism**: Parenteral administration delivers carnitine directly into systemic circulation, completely bypassing the gastrointestinal lumen and intestinal microbiota, resulting in negligible (<0.5 μmol/L) TMAO generation.",
+                "   - **Mechanism**: Parenteral administration delivers carnitine directly into systemic circulation, completely bypassing the gastrointestinal lumen and intestinal microbiota, resulting in negligible (<0.5 μmol/L) TMAO generation [PMID: 23563705].",
                 "3. **Dietary & Microbiome Optimization**:",
                 "   - Increase soluble dietary fiber, prebiotic arabinogalactans, and polyphenol-rich foods (pomegranate, extra virgin olive oil / DMB) which promote non-TMA-producing microbial species.\n",
                 "**Monitoring Panel**: Serum TMAO (<6.2 μmol/L safe upper limit), lipid panel (ApoB, LDL-C), and high-sensitivity CRP at 8–12 week intervals."
@@ -2337,47 +2832,45 @@ You have autonomous access to execute live graph traversals, pathway queries, ph
                 "modify": [],
                 "remove": []
             }
+            sc = CopilotSourceCollector()
+            sc.record_literature_citation(
+                pmid="26039521",
+                title="Allicin Alleviates Trimethylamine N-Oxide-Induced Atherosclerosis in Mice",
+                journal="J Agric Food Chem",
+                pub_year="2015",
+                clinical_finding="Organosulfur compounds in garlic inactivate gut microbial carnitine TMA-lyase (CntA/CntB), reducing TMA and serum TMAO by >50-70%.",
+            )
+            sc.record_literature_citation(
+                pmid="23563705",
+                title="Intestinal microbial metabolism of phosphatidylcholine and carnitine promotes atherosclerosis (Koeth et al.)",
+                journal="Nature Medicine",
+                pub_year="2013",
+                clinical_finding="Established the pathway linking gut microbiota metabolism of dietary choline and L-carnitine to TMAO production and cardiovascular risk.",
+            )
+            s_md = sc.format_sources_markdown()
+            if s_md:
+                lines.append(s_md)
             return "\n".join(lines), alli_card
 
-        # Scenario B: Risk / Conflict / DDI / Safety Query (Auditor persona or safety keywords)
-        is_safety_query = (persona == "auditor") or any(w in q_lower for w in ["safe", "conflict", "ddi", "interact", "risk", "warning", "cyp", "side effect", "toxic", "organ"])
-        if is_safety_query or not canonical_compounds:
-            eval_res = interaction_engine.analyze_stack(canonical_compounds, profile={"labs": biometrics}) if canonical_compounds else {}
-            score = eval_res.get("cumulative_risk_score", 0)
-            band = str(eval_res.get("risk_band", "minimal")).upper()
-            summary = eval_res.get("summary", "No critical pharmacokinetic or receptor conflicts identified.")
-            breakdown = eval_res.get("breakdown", {})
-
+        # Scenario D: Biomarker / Lab Guidance (Labs persona)
+        if persona == "labs" or any(w in q_lower for w in ["lab", "blood", "biomarker", "panel", "alt", "egfr", "lipid", "test"]):
             lines = [
-                f"### 🛡️ HealthAI Risk & Conflict Audit [Score: {score}/100 - {band}]\n",
-                f"**Clinical Summary**: {summary}\n",
+                f"### 🩸 HealthAI Clinical Laboratory & Biomarker Assessment\n",
+                f"**Patient Clearance Baseline**: Age {biometrics.get('age', 30)} | Weight {biometrics.get('weight_kg', 75)}kg | eGFR {biometrics.get('egfr', 95)} mL/min | ALT {biometrics.get('alt_u_l', 25)} U/L.\n",
+                "**Key Biomarker Correlations**:",
+                "- **Renal Clearance**: eGFR within normal physiological range; standard compound filtration maintained.",
+                "- **Hepatic Transaminases**: Normal baseline ALT; no active hepatotoxic load identified.",
+                "- **Recommended Monitoring Panel**: Comprehensive Metabolic Panel (CMP), Lipid Profile (ApoB, Triglycerides), and resting blood pressure at 12-week intervals.",
             ]
-            cyp_conflicts = breakdown.get("cyp_conflicts", [])
-            if cyp_conflicts:
-                lines.append("**CYP450 Enzyme Conflicts & AUCR Surges**:")
-                for cc in cyp_conflicts[:3]:
-                    lines.append(f"- **{cc.get('title')}**: {cc.get('description')} *(Severity: {cc.get('severity')})*")
-            else:
-                lines.append("**Metabolic Clearance**: Compounds exhibit independent clearance pathways without competitive CYP saturation.")
-
-            syndromes = breakdown.get("syndrome_alerts", [])
-            if syndromes:
-                lines.append("\n**Acute Receptor / Syndrome Alerts**:")
-                for syn in syndromes[:2]:
-                    lines.append(f"- ⚠️ **{syn.get('title')}**: {syn.get('description')}")
-
-            organ_burdens = breakdown.get("organ_burdens", {})
-            if organ_burdens:
-                b_items = [f"{k.title()}: {v.get('level', 'Low')} ({v.get('score', 0)})" for k, v in organ_burdens.items()]
-                lines.append(f"\n**Organ Burden Metrics**: {', '.join(b_items)}")
-
-            mitigations = breakdown.get("active_mitigations", [])
-            if mitigations:
-                lines.append("\n**Active Stack Mitigations & Counterbalances**:")
-                for m in mitigations[:2]:
-                    lines.append(f"- 🛡️ **{m.get('title')}**: {m.get('description')}")
-
-            lines.append("\n**Clinical Guidance**: Monitor resting vitals (heart rate, blood pressure) and space administration windows by at least 2 hours if concurrent stimulant actions are present.")
+            sc = CopilotSourceCollector()
+            sc.record_database_registry(
+                "Clinical Standards",
+                "Standard Reference Ranges",
+                "Standardized Clinical Laboratory Reference Ranges (CMP, Lipid Panels, Endocrine Metrics)",
+            )
+            s_md = sc.format_sources_markdown()
+            if s_md:
+                lines.append(s_md)
             return "\n".join(lines), None
 
         # Scenario C: Molecular Mechanism / Tutor Query
@@ -2397,17 +2890,76 @@ You have autonomous access to execute live graph traversals, pathway queries, ph
 
             lines.append("\n**Intracellular Signal Transduction**:")
             lines.append("Active agents modulate downstream second messenger cascades (cAMP, calcium influx, and receptor phosphorylation) without inducing severe cross-target desensitization.")
+            sc = CopilotSourceCollector()
+            sc.record_database_registry(
+                "Reactome",
+                "Signal Transduction",
+                "Intracellular Biological Signal Transduction Pathway Database & Receptor Cascades",
+            )
+            sc.record_database_registry(
+                "ChEMBL",
+                "Target Bioactivity",
+                "Quantitative Receptor Binding Affinities (Ki, Kd, IC50) and Selectivity Profiles",
+            )
+            for c in canonical_compounds[:4]:
+                if c.get("pmid") or c.get("citation_str"):
+                    sc.record_literature_citation(pmid=c.get("pmid"), title=f"{c.get('name')} Pharmacology Profile")
+            s_md = sc.format_sources_markdown()
+            if s_md:
+                lines.append(s_md)
             return "\n".join(lines), None
 
-        # Scenario D: Biomarker / Lab Guidance (Labs persona)
+        # Scenario B: Risk / Conflict / DDI / Safety Query (Auditor persona or safety keywords)
+        eval_res = interaction_engine.analyze_stack(canonical_compounds, profile={"labs": biometrics}) if canonical_compounds else {}
+        score = eval_res.get("cumulative_risk_score", 0)
+        band = str(eval_res.get("risk_band", "minimal")).upper()
+        summary = eval_res.get("summary", "No critical pharmacokinetic or receptor conflicts identified.")
+        breakdown = eval_res.get("breakdown", {})
+
         lines = [
-            f"### 🩸 HealthAI Clinical Laboratory & Biomarker Assessment\n",
-            f"**Patient Clearance Baseline**: Age {biometrics.get('age', 30)} | Weight {biometrics.get('weight_kg', 75)}kg | eGFR {biometrics.get('egfr', 95)} mL/min | ALT {biometrics.get('alt_u_l', 25)} U/L.\n",
-            "**Key Biomarker Correlations**:",
-            "- **Renal Clearance**: eGFR within normal physiological range; standard compound filtration maintained.",
-            "- **Hepatic Transaminases**: Normal baseline ALT; no active hepatotoxic load identified.",
-            "- **Recommended Monitoring Panel**: Comprehensive Metabolic Panel (CMP), Lipid Profile (ApoB, Triglycerides), and resting blood pressure at 12-week intervals.",
+            f"### 🛡️ HealthAI Risk & Conflict Audit [Score: {score}/100 - {band}]\n",
+            f"**Clinical Summary**: {summary}\n",
         ]
+        cyp_conflicts = breakdown.get("cyp_conflicts", [])
+        if cyp_conflicts:
+            lines.append("**CYP450 Enzyme Conflicts & AUCR Surges**:")
+            for cc in cyp_conflicts[:3]:
+                lines.append(f"- **{cc.get('title')}**: {cc.get('description')} *(Severity: {cc.get('severity')})*")
+        else:
+            lines.append("**Metabolic Clearance**: Compounds exhibit independent clearance pathways without competitive CYP saturation.")
+
+        syndromes = breakdown.get("syndrome_alerts", [])
+        if syndromes:
+            lines.append("\n**Acute Receptor / Syndrome Alerts**:")
+            for syn in syndromes[:2]:
+                lines.append(f"- ⚠️ **{syn.get('title')}**: {syn.get('description')}")
+
+        organ_burdens = breakdown.get("organ_burdens", {})
+        if organ_burdens:
+            b_items = [f"{k.title()}: {v.get('level', 'Low')} ({v.get('score', 0)})" for k, v in organ_burdens.items()]
+            lines.append(f"\n**Organ Burden Metrics**: {', '.join(b_items)}")
+
+        mitigations = breakdown.get("active_mitigations", [])
+        if mitigations:
+            lines.append("\n**Active Stack Mitigations & Counterbalances**:")
+            for m in mitigations[:2]:
+                lines.append(f"- 🛡️ **{m.get('title')}**: {m.get('description')}")
+
+        lines.append("\n**Clinical Guidance**: Monitor resting vitals (heart rate, blood pressure) and space administration windows by at least 2 hours if concurrent stimulant actions are present.")
+        sc = CopilotSourceCollector()
+        sc.record_guideline(
+            "FDA",
+            "FDA Structured Product Labeling Standard: §5.1 Boxed Warnings & Clinical Drug Interactions",
+            "Official FDA Drug Prescribing Information & Metabolism Standards",
+        )
+        sc.record_guideline(
+            "CPIC",
+            "CPIC Clinical Pharmacogenetics Implementation Consortium",
+            "Guidelines on Drug-Gene Clearance Phenotypes and CYP450 Substrate Warnings",
+        )
+        s_md = sc.format_sources_markdown()
+        if s_md:
+            lines.append(s_md)
         return "\n".join(lines), None
 
     @classmethod
@@ -2421,6 +2973,7 @@ You have autonomous access to execute live graph traversals, pathway queries, ph
         protocol_objective: Optional[str] = None,
         custom_instructions: Optional[str] = None,
         max_exploration_steps: int = 8,
+        user_api_key: Optional[str] = None,
     ) -> AsyncGenerator[Dict[str, Any], None]:
         """
         Async generator for streaming SSE events to the frontend with dynamic multi-step ReAct graph traversal.
@@ -2428,6 +2981,7 @@ You have autonomous access to execute live graph traversals, pathway queries, ph
         - {"event": "reasoning", "data": "..."} (scratchpad notes, graph exploration steps, telemetry)
         - {"event": "delta", "data": "..."} (synthesized clinical markdown)
         - {"event": "action_card", "data": {...}} (structured stack mutations)
+        - {"event": "quota_exceeded", "data": {...}} (host token exhaustion notice)
         - {"event": "done", "data": "[DONE]"}
         """
         # Initial instant reasoning telemetry notification
@@ -2439,7 +2993,14 @@ You have autonomous access to execute live graph traversals, pathway queries, ph
         stack_list = stack or []
         biometrics_dict = biometrics or {}
         user_queries = [str(m.get("content", "")) for m in messages if m.get("role") == "user"]
-        latest_user_query = user_queries[-1] if user_queries else ""
+        source_collector = CopilotSourceCollector()
+        source_collector.record_grounding_context(
+            has_ddi=bool(stack_list or persona == "auditor"),
+            has_pkpd=bool(stack_list or persona in ("architect", "tutor")),
+            has_graphrag=True,
+            has_pathway=bool(persona == "tutor"),
+            has_synergy=bool(len(stack_list) > 1 or protocol_goal is not None),
+        )
 
         system_prompt = await asyncio.to_thread(
             cls.build_system_context,
@@ -2473,11 +3034,16 @@ You have autonomous access to execute live graph traversals, pathway queries, ph
                 system_prompt=system_prompt,
                 temperature=0.2,
                 top_p=0.85,
+                api_key=user_api_key,
             ):
                 chunk_type = chunk.get("type")
                 data = chunk.get("data")
 
-                if chunk_type == "reasoning":
+                if chunk_type == "quota_exceeded":
+                    yield {"event": "quota_exceeded", "data": data}
+                    return
+
+                elif chunk_type == "reasoning":
                     accumulated_reasoning_text += str(data)
                     yield {"event": "reasoning", "data": str(data)}
 
@@ -2525,6 +3091,7 @@ You have autonomous access to execute live graph traversals, pathway queries, ph
 
                 # Deterministically execute the requested tool
                 obs = await asyncio.to_thread(cls.execute_tool, tool_name, tool_args)
+                source_collector.record_tool_execution(tool_name, tool_args, obs)
                 obs_summary = cls._summarize_observation(tool_name, obs)
 
                 yield {
@@ -2565,8 +3132,21 @@ You have autonomous access to execute live graph traversals, pathway queries, ph
                             if fb_card:
                                 parser.action_cards.append(f'<action_card type="stack_diff">{json.dumps(fb_card)}</action_card>')
 
+                    if clean_final_text and not re.search(r'###\s+(?:📚\s*)?Sources', clean_final_text, re.IGNORECASE):
+                        clean_final_text = source_collector.append_to_response(clean_final_text)
+
                     if clean_final_text and clean_final_text.strip():
                         yield {"event": "delta", "data": clean_final_text}
+                        accumulated_turn_content = clean_final_text
+                else:
+                    # Emitted deltas were streamed. If no sources header in emitted content, append formatted sources delta
+                    clean_streamed = cls.clean_scratchpad_and_tools_from_text(accumulated_turn_content)
+                    if not re.search(r'###\s+(?:📚\s*)?Sources', clean_streamed, re.IGNORECASE):
+                        source_collector.scan_text_for_citations(clean_streamed)
+                        sources_md = source_collector.format_sources_markdown()
+                        if sources_md:
+                            yield {"event": "delta", "data": sources_md}
+                            accumulated_turn_content += sources_md
 
                 # Extract and emit any structured action cards
                 turn_text = accumulated_turn_content or accumulated_reasoning_text
@@ -2605,7 +3185,7 @@ You have autonomous access to execute live graph traversals, pathway queries, ph
                                         "event": "action_card",
                                         "data": {
                                              "type": card_type,
-                                            "payload": validated_payload
+                                             "payload": validated_payload
                                         }
                                     }
                             except Exception as card_err:
@@ -2675,6 +3255,7 @@ You have autonomous access to execute live graph traversals, pathway queries, ph
         protocol_goal: Optional[str] = None,
         protocol_objective: Optional[str] = None,
         max_exploration_steps: int = 8,
+        user_api_key: Optional[str] = None,
     ) -> Dict[str, Any]:
         """
         Non-streaming execution supporting dynamic ReAct graph problem solving.
@@ -2683,6 +3264,15 @@ You have autonomous access to execute live graph traversals, pathway queries, ph
         biometrics_dict = biometrics or {}
         user_queries = [str(m.get("content", "")) for m in messages if m.get("role") == "user"]
         latest_user_query = user_queries[-1] if user_queries else ""
+
+        source_collector = CopilotSourceCollector()
+        source_collector.record_grounding_context(
+            has_ddi=bool(stack_list or persona == "auditor"),
+            has_pkpd=bool(stack_list or persona in ("architect", "tutor")),
+            has_graphrag=True,
+            has_pathway=bool(persona == "tutor"),
+            has_synergy=bool(len(stack_list) > 1 or protocol_goal is not None),
+        )
 
         system_prompt = cls.build_system_context(
             persona=persona,
@@ -2700,8 +3290,11 @@ You have autonomous access to execute live graph traversals, pathway queries, ph
         for step in range(1, max_exploration_steps + 1):
             turn_response = ""
             turn_reasoning = ""
-            async for chunk in stream_local_llm_chat(messages=current_messages, system_prompt=system_prompt):
-                if chunk.get("type") == "content":
+            async for chunk in stream_local_llm_chat(messages=current_messages, system_prompt=system_prompt, api_key=user_api_key):
+                if chunk.get("type") == "quota_exceeded":
+                    from app.services.ai_service import QuotaExhaustedException
+                    raise QuotaExhaustedException("The host/admin's OpenRouter token budget has been exhausted.")
+                elif chunk.get("type") == "content":
                     turn_response += str(chunk.get("data", ""))
                 elif chunk.get("type") == "reasoning":
                     turn_reasoning += str(chunk.get("data", ""))
@@ -2716,6 +3309,7 @@ You have autonomous access to execute live graph traversals, pathway queries, ph
             tool_call = cls.parse_tool_call_from_text(turn_response)
             if tool_call and step < max_exploration_steps:
                 obs = cls.execute_tool(tool_call.get("name"), tool_call.get("arguments", {}))
+                source_collector.record_tool_execution(tool_call.get("name"), tool_call.get("arguments", {}), obs)
                 current_messages.append({"role": "assistant", "content": turn_response})
                 current_messages.append({
                     "role": "user",
@@ -2737,6 +3331,8 @@ You have autonomous access to execute live graph traversals, pathway queries, ph
                             protocol_goal=protocol_goal,
                             messages=messages,
                         )
+
+                full_text = source_collector.append_to_response(full_text)
                 break
 
         # Extract structured action card or suggested mutations

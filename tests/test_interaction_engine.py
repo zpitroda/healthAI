@@ -108,12 +108,15 @@ def test_serotonin_syndrome_detected():
         "name": "Fluoxetine",
         "drug_class": "SSRI antidepressant",
         "mechanism": "Selective serotonin reuptake inhibitor",
+        "categories": ["N06AB03"],
     }
     tramadol = {
         "key": "tramadol",
         "name": "Tramadol",
         "drug_class": "Opioid / Serotonin releaser",
         "mechanism": "Mu-opioid agonist and 5-HT reuptake inhibitor",
+        "categories": ["N02AX02"],
+        "receptor_targets": [{"target": "Serotonin Transporter", "action": "inhibitor", "gene_symbol": "SLC6A4"}],
     }
 
     result = engine.analyze_stack([fluoxetine, tramadol])
@@ -123,9 +126,9 @@ def test_serotonin_syndrome_detected():
 
 def test_renal_triple_whammy_detected():
     engine = InteractionEngine()
-    lisinopril = {"key": "lisinopril", "name": "Lisinopril", "drug_class": "ACE Inhibitor", "mechanism": "Inhibits ACE"}
-    ibuprofen = {"key": "ibuprofen", "name": "Ibuprofen", "drug_class": "NSAID", "mechanism": "Inhibits COX-1 and COX-2"}
-    furosemide = {"key": "furosemide", "name": "Furosemide", "drug_class": "Loop Diuretic", "mechanism": "Inhibits Na-K-2Cl cotransporter"}
+    lisinopril = {"key": "lisinopril", "name": "Lisinopril", "drug_class": "ACE Inhibitor", "mechanism": "Inhibits ACE", "categories": ["C09AA03"]}
+    ibuprofen = {"key": "ibuprofen", "name": "Ibuprofen", "drug_class": "NSAID", "categories": ["M01AE"], "mechanism": "Inhibits COX-1 and COX-2", "categories": ["M01AE01"]}
+    furosemide = {"key": "furosemide", "name": "Furosemide", "drug_class": "Loop Diuretic", "mechanism": "Inhibits Na-K-2Cl cotransporter", "categories": ["C03CA01"]}
 
     result = engine.analyze_stack([lisinopril, ibuprofen, furosemide])
     assert any("Triple Whammy" in s["syndrome"] for s in result["breakdown"]["syndrome_alerts"])
@@ -188,12 +191,14 @@ def test_pde5_and_nitrate_severe_hypotension_collision():
         "name": "Tadalafil",
         "drug_class": "PDE5 Inhibitor",
         "mechanism": "Inhibits phosphodiesterase type 5",
+        "categories": ["G04BE08"],
     }
     nitroglycerin = {
         "key": "nitroglycerin",
         "name": "Nitroglycerin",
         "drug_class": "Nitrate vasodilator",
         "mechanism": "Nitric oxide donor / cGMP stimulator",
+        "categories": ["C01DA02"],
     }
 
     result = engine.analyze_stack([tadalafil, nitroglycerin])
@@ -208,12 +213,14 @@ def test_beta_blocker_and_non_dhp_ccb_bradycardia_collision():
         "name": "Metoprolol",
         "drug_class": "Beta-1 Adrenergic Receptor Blocker",
         "mechanism": "Beta-1 blocker",
+        "categories": ["C07AB02"],
     }
     verapamil = {
         "key": "verapamil",
         "name": "Verapamil",
         "drug_class": "Non-Dihydropyridine Calcium Channel Blocker",
         "mechanism": "L-type calcium channel blocker",
+        "categories": ["C08DA01"],
     }
 
     result = engine.analyze_stack([metoprolol, verapamil])
@@ -227,7 +234,7 @@ def test_hormonal_fluctuation_uncompensated_risk_detected():
     testosterone_enanthate_biweekly = {
         "key": "testosterone_enanthate",
         "name": "Testosterone Enanthate",
-        "drug_class": "Anabolic Steroid / Androgen Ester",
+        "drug_class": "Anabolic Steroid / Androgen Ester", "categories": ["G03BA"], "receptor_targets": [{"target": "AR", "action": "agonist", "gene_symbol": "AR"}],
         "categories": ["Androgen", "Hormone Replacement"],
         "t_half_numeric": 108.0,  # 4.5 days
         "frequency": "every 2 weeks",
@@ -252,7 +259,7 @@ def test_split_dosing_mitigation_resolves_fluctuation_risk():
     testosterone_enanthate_split = {
         "key": "testosterone_enanthate",
         "name": "Testosterone Enanthate",
-        "drug_class": "Anabolic Steroid / Androgen Ester",
+        "drug_class": "Anabolic Steroid / Androgen Ester", "categories": ["G03BA"], "receptor_targets": [{"target": "AR", "action": "agonist", "gene_symbol": "AR"}],
         "categories": ["Androgen", "Hormone Replacement"],
         "t_half_numeric": 108.0,  # 4.5 days
         "frequency": "twice weekly",

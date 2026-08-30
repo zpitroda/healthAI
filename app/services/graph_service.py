@@ -670,7 +670,7 @@ def build_selected_compound_graph(stack: List[Any], catalog_service: CatalogServ
 
             ref_dose_single = dose_mg * (route_f / 0.95)
             exo_arom_eff = 0.20 * (max(0.001, ref_dose_single) / 10.0) if ref_dose_single <= 10.0 else min(0.48, 0.20 + 0.0025 * (ref_dose_single - 10.0))
-            existing_arom = next((t for t in receptor_targets if "aromatase" in str(t.get("target", "")).lower() or "cyp19a1" in str(t.get("target", "")).lower()), None)
+            existing_arom = next((t for t in receptor_targets if t.get("gene_symbol") == "CYP19A1"), None)
             if existing_arom:
                 existing_arom["action"] = "substrate"
                 existing_arom["family"] = "Steroidogenesis"
@@ -693,7 +693,7 @@ def build_selected_compound_graph(stack: List[Any], catalog_service: CatalogServ
             # 25mg Exemestane (clinical): ~85% inhibition
             # 100mg Exemestane (mega-dose): ~98% inhibition (crashing E2)
             ai_eff = -min(0.98, 0.55 + 0.25 * math.log10(max(0.1, dose_mg / 2.5)))
-            existing_ai_arom = next((t for t in receptor_targets if "aromatase" in str(t.get("target", "")).lower() or "cyp19a1" in str(t.get("target", "")).lower()), None)
+            existing_ai_arom = next((t for t in receptor_targets if t.get("gene_symbol") == "CYP19A1"), None)
             if existing_ai_arom:
                 existing_ai_arom["target"] = "Aromatase (CYP19A1)"
                 existing_ai_arom["action"] = "inhibitor"
@@ -743,7 +743,7 @@ def build_selected_compound_graph(stack: List[Any], catalog_service: CatalogServ
         is_caffeine = any(w in c_name_lower or w in drug_class_lower for w in ["caffeine", "theophylline", "theobromine", "methylxanthine", "adenosine antagonist"])
         if is_caffeine:
             for t in receptor_targets:
-                if any(w in str(t.get("target", "")).lower() for w in ["adenosine", "adora1", "adora2", "adora3"]):
+                if t.get("gene_symbol") in ["ADORA1", "ADORA2A", "ADORA2B", "ADORA3"]:
                     t["action"] = "antagonist"
                     t["intrinsic_efficacy"] = -0.85
                     t["pre_computed_stress"] = True
@@ -752,7 +752,7 @@ def build_selected_compound_graph(stack: List[Any], catalog_service: CatalogServ
         is_mra = any(w in c_name_lower or w in drug_class_lower or w in mechanism_text for w in ["mineralocorticoid", "aldosterone antagonist", "eplerenone", "spironolactone", "finerenone"])
         if is_mra:
             mra_eff = -min(0.85, 0.25 + 0.30 * math.log10(max(1.0, dose_mg / 12.5)))
-            existing_mr = next((t for t in receptor_targets if any(w in str(t.get("target", "")).lower() for w in ["mineralocorticoid", "aldosterone", "nr3c2"])), None)
+            existing_mr = next((t for t in receptor_targets if t.get("gene_symbol") == "NR3C2"), None)
             if existing_mr:
                 existing_mr["action"] = "antagonist"
                 existing_mr["intrinsic_efficacy"] = mra_eff
@@ -768,14 +768,14 @@ def build_selected_compound_graph(stack: List[Any], catalog_service: CatalogServ
             # Remove off-target micromolar (>5000 nM) false positive agonist bindings on steroid receptors for MRAs
             receptor_targets = [
                 t for t in receptor_targets
-                if any(w in str(t.get("target", "")).lower() for w in ["mineralocorticoid", "aldosterone", "nr3c2"])
+                if t.get("gene_symbol") == "NR3C2"
                 or float(t.get("affinity_ki") or t.get("inhibition_ic50") or 0.0) < 5000.0
             ]
 
         # L-Theanine / Calming Glutamatergic & GABA-A Modulators
         is_theanine = any(w in c_name_lower or w in drug_class_lower for w in ["theanine", "l-theanine", "suntheanine"])
         if is_theanine:
-            if not any("gaba" in str(t.get("target", "")).lower() for t in receptor_targets):
+            if not any(t.get("gene_symbol") in ["GABRA1", "GABRA2", "GABRB3"] for t in receptor_targets if isinstance(t, dict)):
                 receptor_targets.append({
                     "target": "GABA-A Receptor (GABRA1 / GABRA2)",
                     "action": "agonist",
@@ -783,7 +783,7 @@ def build_selected_compound_graph(stack: List[Any], catalog_service: CatalogServ
                     "intrinsic_efficacy": 0.75,
                     "pre_computed_stress": True,
                 })
-            if not any("glutamate" in str(t.get("target", "")).lower() for t in receptor_targets):
+            if not any(t.get("gene_symbol") in ["GRIN1", "GRIN2A", "GRIA1"] for t in receptor_targets if isinstance(t, dict)):
                 receptor_targets.append({
                     "target": "Glutamate Receptor (GRIN1 / NMDA)",
                     "action": "antagonist",
@@ -852,7 +852,7 @@ def build_selected_compound_graph(stack: List[Any], catalog_service: CatalogServ
 
         # Endocrine negative feedback: Synthetic androgens / SARMs without bioidentical testosterone base shut down HPG axis
         if is_androgen and not is_bioidentical_test:
-            if not any("androgen receptor" in str(t.get("target", "")).lower() for t in receptor_targets):
+            if not any(t.get("gene_symbol") == "AR" for t in receptor_targets if isinstance(t, dict)):
                 receptor_targets.append({
                     "target": "Androgen Receptor (AR / NR3C4)",
                     "action": "agonist",
@@ -864,7 +864,7 @@ def build_selected_compound_graph(stack: List[Any], catalog_service: CatalogServ
 
         # 19-nor progestogenic stimulation (Trenbolone, Nandrolone)
         is_19nor = any(w in c_name_lower or w in drug_class_lower or w in mechanism_text for w in ["19-nor", "nandrolone", "trenbolone", "nortestosterone", "progest"])
-        if is_19nor and not any("progesterone receptor" in str(t.get("target", "")).lower() for t in receptor_targets):
+        if is_19nor and not any(t.get("gene_symbol") == "PGR" for t in receptor_targets if isinstance(t, dict)):
             receptor_targets.append({
                 "target": "Progesterone Receptor (PGR / NR3C3)",
                 "action": "agonist",
@@ -875,7 +875,7 @@ def build_selected_compound_graph(stack: List[Any], catalog_service: CatalogServ
 
         # Dopamine Agonist prolactin suppression (Cabergoline, Pramipexole)
         is_d2_agonist = any(w in c_name_lower or w in drug_class_lower or w in mechanism_text for w in ["cabergoline", "pramipexole", "bromocriptine", "dopamine agonist"])
-        if is_d2_agonist and not any("dopamine" in str(t.get("target", "")).lower() for t in receptor_targets):
+        if is_d2_agonist and not any(t.get("gene_symbol") in ["DRD1", "DRD2", "DRD3", "DRD4", "DRD5"] for t in receptor_targets if isinstance(t, dict)):
             receptor_targets.append({
                 "target": "Dopamine Transporter & Receptors (SLC6A3 / DRD2)",
                 "action": "agonist",
@@ -886,7 +886,7 @@ def build_selected_compound_graph(stack: List[Any], catalog_service: CatalogServ
 
         # Exogenous Thyroid (T3 / Liothyronine, T4 / Levothyroxine)
         is_thyroid = any(w in c_name_lower or w in drug_class_lower or w in mechanism_text for w in ["liothyronine", "levothyroxine", "thyroid hormone", "triiodothyronine", "t3", "t4"]) and not any(w in c_name_lower for w in ["ashwagandha", "iodine", "selenium", "tyrosine"])
-        if is_thyroid and not any("thyroid hormone receptor" in str(t.get("target", "")).lower() for t in receptor_targets):
+        if is_thyroid and not any(t.get("gene_symbol") in ["THRA", "THRB"] for t in receptor_targets if isinstance(t, dict)):
             receptor_targets.append({
                 "target": "Thyroid Hormone Receptor Alpha & Beta (THRA/THRB / NR1A1/NR1A2)",
                 "action": "agonist",
@@ -897,7 +897,7 @@ def build_selected_compound_graph(stack: List[Any], catalog_service: CatalogServ
 
         # Exogenous Glucocorticoids (Prednisone, Dexamethasone, Hydrocortisone)
         is_glucocorticoid = any(w in c_name_lower or w in drug_class_lower or w in mechanism_text for w in ["prednisone", "dexamethasone", "hydrocortisone", "methylprednisolone", "budesonide", "corticosteroid", "glucocorticoid"])
-        if is_glucocorticoid and not any("glucocorticoid receptor" in str(t.get("target", "")).lower() for t in receptor_targets):
+        if is_glucocorticoid and not any(t.get("gene_symbol") == "NR3C1" for t in receptor_targets if isinstance(t, dict)):
             receptor_targets.append({
                 "target": "Glucocorticoid Receptor (GR / NR3C1)",
                 "action": "agonist",
@@ -912,7 +912,7 @@ def build_selected_compound_graph(stack: List[Any], catalog_service: CatalogServ
             # 10mg Telmisartan (sub-clinical): ~15% efficacy (modest ~4-6 mmHg drop)
             # 80mg Telmisartan (max clinical): ~75% efficacy (strong counterbalance)
             arb_eff = -min(0.85, 0.15 + 0.60 * ((dose_mg / 80.0) ** 0.65))
-            existing_arb = next((t for t in receptor_targets if "angiotensin" in str(t.get("target", "")).lower() or "agtr1" in str(t.get("target", "")).lower() or "ace" in str(t.get("target", "")).lower()), None)
+            existing_arb = next((t for t in receptor_targets if t.get("gene_symbol") in ["AGTR1", "ACE"]), None)
             if existing_arb:
                 existing_arb["action"] = "antagonist"
                 existing_arb["intrinsic_efficacy"] = arb_eff
@@ -1057,7 +1057,7 @@ def build_selected_compound_graph(stack: List[Any], catalog_service: CatalogServ
             or is_steroidal_androgen(compound)
             or logp_val >= 3.2
         )
-        if has_hep_clearance and not is_antioxidant and not any("hepatic metabolic clearance" in str(t.get("target", "")).lower() for t in receptor_targets):
+        if has_hep_clearance and not is_antioxidant and not any(t.get("target_id") == "HEPATIC_CLEARANCE" for t in receptor_targets if isinstance(t, dict)):
             # Tiered hepatotoxicity scoring based on structural features
             hep_risk_score = 0.0
 
@@ -1111,7 +1111,7 @@ def build_selected_compound_graph(stack: List[Any], catalog_service: CatalogServ
             or is_nephrotoxic
             or any(w in mechanism_text for w in ["raas", "cox-1", "cox-2"])
         )
-        if has_ren_involvement and not any("glomerular filtration" in str(t.get("target", "")).lower() for t in receptor_targets):
+        if has_ren_involvement and not any(t.get("target_id") == "GLOMERULAR_FILTRATION" for t in receptor_targets if isinstance(t, dict)):
             if is_nephroprotective:
                 # ARBs, SGLT2i, MRAs are nephroprotective — they reduce GFR stress long-term
                 # Short-term they may transiently raise creatinine (hemodynamic effect), but this is mild

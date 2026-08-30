@@ -147,11 +147,11 @@ class RedoxEnricher:
             eff = float(t.get("intrinsic_efficacy", 0.5))
 
             # Mitochondrial Uncoupling or Direct ROS Generation
-            if "mitochondrial" in target_name or "ros" in target_name or "uncoupl" in target_name:
+            if t.get("gene_symbol") in ["UCP1", "ROS_GEN"]:
                 target_stress += eff * 0.45
 
             # Xanthine Oxidase / NOX / COX-2 Pro-oxidants
-            elif any(w in target_name for w in ["xanthine oxidase", "nadph oxidase", "nox", "cyclooxygenase"]):
+            elif t.get("gene_symbol") in ["XDH", "NOX1", "NOX2", "NOX4", "PTGS2"]:
                 if action in ["agonist", "inducer", "activator"]:
                     target_stress += eff * 0.35
 

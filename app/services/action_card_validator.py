@@ -342,11 +342,11 @@ class ActionCardValidator:
             has_ai_or_serm = any(
                 k in stack_keys for k in ["anastrozole", "exemestane", "letrozole", "raloxifene", "tamoxifen", "arimidex", "aromasin", "formestane", "aminoglutethimide"]
             ) or any(
-                "aromatase inhibitor" in str(c.get("drug_class", "")).lower()
-                or "serm" in str(c.get("drug_class", "")).lower()
+                c.get("drug_class") == "Aromatase Inhibitor"
+                or c.get("drug_class") == "SERM"
                 or any(
-                    ("cyp19a1" in str(t.get("target", "") if isinstance(t, dict) else str(t)).lower() or "aromatase" in str(t.get("target", "") if isinstance(t, dict) else str(t)).lower())
-                    and str(t.get("action", "") if isinstance(t, dict) else "").lower() in ["inhibitor", "antagonist", "blocker"]
+                    (isinstance(t, dict) and t.get("gene_symbol") == "CYP19A1")
+                    and isinstance(t, dict) and t.get("action") in ["inhibitor", "antagonist", "blocker"]
                     for t in (c.get("receptor_targets") or [])
                 )
                 for c in enriched_stack
@@ -361,7 +361,7 @@ class ActionCardValidator:
             has_prolactin_support = any(
                 k in stack_keys for k in ["p5p", "pyridoxal_5_phosphate", "cabergoline", "pramipexole"]
             ) or any(
-                "dopamine agonist" in str(c.get("drug_class", "")).lower()
+                c.get("drug_class") == "Dopamine Agonist"
                 for c in enriched_stack
             )
             if not has_prolactin_support:

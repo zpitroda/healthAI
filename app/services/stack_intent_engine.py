@@ -760,7 +760,7 @@ class StackIntentEngine:
             is_oral_route = route in ("oral", "po", "swallow", "") or ":oral" in k
             is_parenteral = route in ("intramuscular", "im", "subcutaneous", "subq", "iv")
             is_tma_substrate = (
-                any(("tma lyase" in t or "cnta" in t or "cntb" in t or "cutc" in t or "yeaw" in t) and "substrate" in t for t in targets)
+                any(t == "CNTA" for t in targets)
                 or any(w in tokens for w in ["carnitine", "alcar", "acetylcarnitine", "choline", "alpha_gpc", "citicoline", "betaine", "trimethylglycine"])
                 or any(re.search(rf"\b{re.escape(w)}\b", f"{k} {name}") for w in ["l-carnitine", "carnitine", "alcar", "acetyl-l-carnitine", "choline", "alpha-gpc", "alpha_gpc", "citicoline", "cdp-choline", "betaine"])
             )

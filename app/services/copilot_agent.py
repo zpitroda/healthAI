@@ -613,25 +613,25 @@ class CopilotAgent:
 
         physiological_axes = [
             (
-                renal_score >= 20 or cv_score >= 30 or bp_val > 125 or any("cardio" in str(g).lower() or "blood pressure" in str(g).lower() for g in therapeutic_gaps) or active_goal == "anabolic_physique",
+                renal_score >= 20 or cv_score >= 30 or bp_val > 125 or any(isinstance(g, dict) and g.get("id") == "cardiovascular" for g in therapeutic_gaps) or active_goal == "anabolic_physique",
                 [("at1 receptor", "antagonist"), ("angiotensin receptor", "antagonist"), ("beta-1 adrenergic", "antagonist")],
                 "Renal & Cardiovascular Endothelial Strain",
                 "Blocks RAAS-mediated renal vasoconstriction, manages resting heart rate, and protects cardiovascular endothelium."
             ),
             (
-                hepatic_score >= 30 or alt_val > 40 or any("hepatic" in str(g).lower() or "liver" in str(g).lower() for g in therapeutic_gaps),
+                hepatic_score >= 30 or alt_val > 40 or any(isinstance(g, dict) and g.get("id") == "hepatic" for g in therapeutic_gaps),
                 [("bile acid", None), ("glutathione synthesis", None), ("cysteine donor", None)],
                 "Cholestasis & Hepatic Transaminase Elevation",
                 "Alleviates hepatocyte ER stress, promotes biliary flow, and restores intracellular glutathione pools."
             ),
             (
-                lipid_score >= 20 or any("lipid" in str(g).lower() or "apob" in str(g).lower() for g in therapeutic_gaps) or active_goal == "anabolic_physique",
+                lipid_score >= 20 or any(isinstance(g, dict) and g.get("id") == "lipid" for g in therapeutic_gaps) or active_goal == "anabolic_physique",
                 [("hmg-coa reductase", "inhibitor"), ("npc1l1", "inhibitor")],
                 "Atherogenic Dyslipidemia & ApoB Surge",
                 "Upregulates hepatic LDL receptors and suppresses intestinal cholesterol absorption to clear atherogenic ApoB particles."
             ),
             (
-                has_19nor or (any("prolactin" in str(g).lower() for g in therapeutic_gaps) and any(is_steroidal_androgen(c) or "androgen" in str(c.get("drug_class", "")).lower() for c in compounds)),
+                has_19nor or (any(isinstance(g, dict) and g.get("id") == "prolactin" for g in therapeutic_gaps) and any(is_steroidal_androgen(c) or "androgen" in str(c.get("drug_class", "")).lower() for c in compounds)),
                 [("dopa decarboxylase", None), ("dopamine d2", "agonist")],
                 "Hyperprolactinemia & Progestogenic Breast Tenderness",
                 "Enhances endogenous dopamine synthesis in the tuberoinfundibular pathway to tonically inhibit pituitary prolactin secretion."
@@ -655,7 +655,7 @@ class CopilotAgent:
                 "Stimulates AMPK phosphorylation and suppresses mTORC1 to promote cellular autophagy."
             ),
             (
-                active_goal == "sleep_stress_recovery" or any("sleep" in str(g).lower() or "cortisol" in str(g).lower() for g in therapeutic_gaps),
+                active_goal == "sleep_stress_recovery" or any((isinstance(g, dict) and g.get("id") == "sleep") or "cortisol" in str(g).lower() for g in therapeutic_gaps),
                 [("nmda receptor", "antagonist"), ("gaba-a allosteric", None)],
                 "Nocturnal Hyperarousal & Recovery Deficit",
                 "Promotes central nervous system down-regulation, blunts nocturnal catecholamines, and deepens Slow-Wave Sleep (SWS)."

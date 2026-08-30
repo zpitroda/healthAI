@@ -1218,7 +1218,7 @@ class BiologicalGraph:
                     else:
                         next_mag = cum_mag * (edge_mag if sign_mult > 0 else -abs(edge_mag))
 
-                    if affinity_decay and "affinity_ki" in edge_attrs and not (combined_effects and (succ in combined_effects or succ_label in combined_effects)):
+                    if affinity_decay and "affinity_ki" in edge_attrs and not edge_attrs.get("pre_computed_stress") and not (combined_effects and (succ in combined_effects or succ_label in combined_effects)):
                         ki = float(edge_attrs["affinity_ki"])
                         next_mag *= max(0.2, min(1.0, 1.0 / (1.0 + (ki / 10.0))))
 

@@ -693,21 +693,15 @@ def build_selected_compound_graph(stack: List[Any], catalog_service: CatalogServ
             # 25mg Exemestane (clinical): ~85% inhibition
             # 100mg Exemestane (mega-dose): ~98% inhibition (crashing E2)
             ai_eff = -min(0.98, 0.55 + 0.25 * math.log10(max(0.1, dose_mg / 2.5)))
-            existing_ai_arom = next((t for t in receptor_targets if t.get("gene_symbol") == "CYP19A1"), None)
-            if existing_ai_arom:
-                existing_ai_arom["target"] = "Aromatase (CYP19A1)"
-                existing_ai_arom["action"] = "inhibitor"
-                existing_ai_arom["family"] = "Enzyme"
-                existing_ai_arom["intrinsic_efficacy"] = ai_eff
-                existing_ai_arom["pre_computed_stress"] = True
-            else:
-                receptor_targets.append({
-                    "target": "Aromatase (CYP19A1)",
-                    "action": "inhibitor",
-                    "family": "Enzyme",
-                    "intrinsic_efficacy": ai_eff,
-                    "pre_computed_stress": True,
-                })
+            receptor_targets = [t for t in receptor_targets if not (isinstance(t, dict) and (t.get("gene_symbol") == "CYP19A1" or "aromatase" in str(t.get("target", "")).lower() or "cyp19" in str(t.get("target", "")).lower()))]
+            receptor_targets.append({
+                "target": "Aromatase (CYP19A1)",
+                "action": "inhibitor",
+                "family": "Enzyme",
+                "gene_symbol": "CYP19A1",
+                "intrinsic_efficacy": ai_eff,
+                "pre_computed_stress": True,
+            })
 
         # 5-Alpha Reductase Inhibitors (Finasteride, Dutasteride)
         has_5ar_target = any(
@@ -723,21 +717,15 @@ def build_selected_compound_graph(stack: List[Any], catalog_service: CatalogServ
         if is_5ari:
             is_duta = "dutasteride" in c_name_lower
             ari_eff = -0.95 if is_duta else -min(0.90, 0.70 + 0.15 * math.log10(max(0.1, dose_mg / 1.0)))
-            existing_5ar = next((t for t in receptor_targets if any(w in str(t.get("target", "")).lower() for w in ["5-alpha", "srd5a", "5ar"])), None)
-            if existing_5ar:
-                existing_5ar["target"] = "5-Alpha Reductase Subtype 1 & 2"
-                existing_5ar["action"] = "inhibitor"
-                existing_5ar["family"] = "Enzyme"
-                existing_5ar["intrinsic_efficacy"] = ari_eff
-                existing_5ar["pre_computed_stress"] = True
-            else:
-                receptor_targets.append({
-                    "target": "5-Alpha Reductase Subtype 1 & 2",
-                    "action": "inhibitor",
-                    "family": "Enzyme",
-                    "intrinsic_efficacy": ari_eff,
-                    "pre_computed_stress": True,
-                })
+            receptor_targets = [t for t in receptor_targets if not (isinstance(t, dict) and (t.get("gene_symbol") in ("SRD5A1", "SRD5A2") or any(w in str(t.get("target", "")).lower() for w in ["5-alpha", "srd5a", "5ar"])))]
+            receptor_targets.append({
+                "target": "5-Alpha Reductase Subtype 1 & 2",
+                "action": "inhibitor",
+                "family": "Enzyme",
+                "gene_symbol": "SRD5A2",
+                "intrinsic_efficacy": ari_eff,
+                "pre_computed_stress": True,
+            })
 
         # Adenosine Receptor Antagonists / Methylxanthines (Caffeine, Theophylline, Theobromine)
         is_caffeine = any(w in c_name_lower or w in drug_class_lower for w in ["caffeine", "theophylline", "theobromine", "methylxanthine", "adenosine antagonist"])
@@ -912,19 +900,15 @@ def build_selected_compound_graph(stack: List[Any], catalog_service: CatalogServ
             # 10mg Telmisartan (sub-clinical): ~15% efficacy (modest ~4-6 mmHg drop)
             # 80mg Telmisartan (max clinical): ~75% efficacy (strong counterbalance)
             arb_eff = -min(0.85, 0.15 + 0.60 * ((dose_mg / 80.0) ** 0.65))
-            existing_arb = next((t for t in receptor_targets if t.get("gene_symbol") in ["AGTR1", "ACE"]), None)
-            if existing_arb:
-                existing_arb["action"] = "antagonist"
-                existing_arb["intrinsic_efficacy"] = arb_eff
-                existing_arb["pre_computed_stress"] = True
-            else:
-                receptor_targets.append({
-                    "target": "Angiotensin II Type-1 (AT1) Receptor / ACE",
-                    "action": "antagonist",
-                    "family": "GPCR / Renin-Angiotensin",
-                    "intrinsic_efficacy": arb_eff,
-                    "pre_computed_stress": True,
-                })
+            receptor_targets = [t for t in receptor_targets if not (isinstance(t, dict) and (t.get("gene_symbol") in ["AGTR1", "ACE"] or any(w in str(t.get("target", "")).lower() for w in ["angiotensin", "agtr1", "ace"])))]
+            receptor_targets.append({
+                "target": "Angiotensin II Type-1 (AT1) Receptor / ACE",
+                "action": "antagonist",
+                "family": "GPCR / Renin-Angiotensin",
+                "gene_symbol": "AGTR1",
+                "intrinsic_efficacy": arb_eff,
+                "pre_computed_stress": True,
+            })
 
         # Gut Microbial TMA Precursors (Oral L-Carnitine, Choline, Betaine)
         is_tma_precursor = any(w in c_name_lower or w in drug_class_lower or w in mechanism_text for w in ["carnitine", "alcar", "acetylcarnitine", "choline", "alpha-gpc", "citicoline", "betaine", "trimethylamine"])

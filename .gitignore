@@ -1,15 +1,14 @@
-# Virtual Environments
-.venv/
-env/
-venv/
-ENV/
-env.bak/
-venv.bak/
+# ==============================================================================
+# HealthAI Gitignore
+# ==============================================================================
 
 # Python Bytecode, Cache & Testing
 __pycache__/
 *.py[cod]
 *$py.class
+*.pyo
+*.pyd
+.Python
 .pytest_cache/
 .coverage
 .coverage.*
@@ -17,6 +16,23 @@ htmlcov/
 .mypy_cache/
 .ruff_cache/
 .hypothesis/
+.tox/
+.nox/
+.cache/
+nosetests.xml
+coverage.xml
+*.cover
+*.py,cover
+
+# Virtual Environments
+.venv/
+env/
+venv/
+ENV/
+env.bak/
+venv.bak/
+*.venv/
+conda-meta/
 
 # Python Build & Packaging
 build/
@@ -24,27 +40,64 @@ dist/
 *.egg-info/
 .eggs/
 *.egg
+develop-eggs/
+downloads/
+eggs/
+.installed.cfg
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.manifest
+*.spec
+share/python-wheels/
 
 # Compiled Binaries, Native Libraries & Executables
 *.exe
 *.dll
 *.so
 *.dylib
-*.pyd
 *.lib
 *.obj
 *.exp
+*.o
+*.a
+*.class
 LICENSE-LLVM-OpenMP
-llama.cpp/
 
-# Model Weights & Quantized GGUF Artifacts
+# Server & Runtime Engines
+llama.cpp/
+neo4j/
+
+# Model Weights, Embeddings & Large AI Artifacts
 *.gguf
 *.bin
 *.pt
 *.pth
 *.onnx
 *.safetensors
+*.tflite
+*.h5
+*.ckpt
+*.weights
 models/
+checkpoints/
+
+# SQLite Databases & WAL/SHM Runtime Files
+*.db
+*.db-journal
+*.db-wal
+*.db-shm
+*.sqlite
+*.sqlite3
+*.sqlite3-wal
+*.sqlite3-shm
+*.sqlite-journal
+*.rdb
+healthai_catalog*.db*
+app/data/*.db
 
 # Archives & Compressed Files
 *.tar.gz
@@ -53,8 +106,11 @@ models/
 *.gz
 *.rar
 *.7z
+*.bz2
+*.xz
+*.iso
 
-# Logs, Progress & Temporary Files
+# Logs, Progress, Dumps & Temporary Files
 *.log
 logs/
 *.tmp
@@ -63,35 +119,54 @@ logs/
 *.swp
 *.swo
 *.progress
+*~
+*.pid
+*.seed
+*.dmp
+*.crash
 
-# Operating System & IDE Files
+# Operating System Files
 .DS_Store
+.DS_Store?
+._*
 Thumbs.db
+ehthumbs.db
+ehthumbs_vista.db
+Desktop.ini
+$RECYCLE.BIN/
+
+# IDE & Editor Files
 .vscode/
 .idea/
 .cursor/
 *.sublime-workspace
 *.sublime-project
+*.sublime-keymap
+*.code-workspace
+.project
+.pydevproject
+.settings/
 
 # Environment Variables & Secrets
 .env
 .env.local
 .env.*.local
+.env.test
+.env.production
+.env.development
 *.pem
 *.key
+*.crt
+*.cert
+*.pfx
+*.p12
 
-# SQLite Databases & WAL/SHM Runtime Files
-*.db-journal
-*.db-wal
-*.db-shm
-*.sqlite3-wal
-*.sqlite3-shm
-app/data/*.db
+# Explicitly keep environment example files
+!.env.example
 
-# Neo4j Server Runtime, Data & Logs
-neo4j/
-
-# llama.cpp Inference Binaries & Runtimes
-llama.cpp/
-
-healthai_catalog.db
+# Node / Frontend Artifacts (if applicable)
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.pnpm-debug.log*

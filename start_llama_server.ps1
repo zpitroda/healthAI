@@ -42,7 +42,7 @@ if (Test-Path $MtpCandidate1) {
     $SpecMsg = "Enabled (MTP\mtp-Qwen3.8-27B-Q4_0.gguf)"
 }
 
-$ContextSize = if ($env:LLAMA_CTX) { [int]$env:LLAMA_CTX } else { 32768 }
+$ContextSize = if ($env:LLAMA_CTX) { [int]$env:LLAMA_CTX } else { 65536 }
 
 Write-Host "============================================================" -ForegroundColor Cyan
 Write-Host "  healthAI - llama-server (Unsloth Dynamic V3.0 / RTX 5090)" -ForegroundColor Green
@@ -50,7 +50,7 @@ Write-Host "============================================================" -Foreg
 Write-Host "  - Model: $MODEL_PATH" -ForegroundColor White
 Write-Host "  - GPU Offload: All Layers (-ngl 99)" -ForegroundColor White
 Write-Host "  - Flash Attention: -fa on" -ForegroundColor White
-Write-Host "  - 8-bit KV Cache Quantization: -ctk q8_0 -ctv q8_0" -ForegroundColor White
+Write-Host "  - 4-bit KV Cache Quantization: -ctk q4_0 -ctv q4_0" -ForegroundColor White
 Write-Host "  - Context Window: $ContextSize tokens (-c $ContextSize)" -ForegroundColor White
 Write-Host "  - Batch Processing: -b 2048 -ub 1024" -ForegroundColor White
 Write-Host "  - Jinja Template Parser: --jinja" -ForegroundColor White
@@ -83,8 +83,8 @@ $ServerArgs = @(
     "-b", "2048",
     "-ub", "1024",
     "-fa", "on",
-    "-ctk", "q8_0",
-    "-ctv", "q8_0",
+    "-ctk", "q4_0",
+    "-ctv", "q4_0",
     "--jinja",
     "--reasoning-format", "deepseek",
     "--load-mode", "mlock",

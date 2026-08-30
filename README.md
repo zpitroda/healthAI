@@ -509,8 +509,8 @@ start_llama_server.bat
 #### Included GPU Optimizations:
 - **Speculative Multi-Target Prediction (MTP):** `--spec-draft-mtp --spec-draft-n-max 2`
 - **Flash Attention:** `-fa`
-- **8-bit Quantized KV Cache:** `-ctk q8_0 -ctv q8_0`
-- **Large Context Window:** `-c 16384`
+- **4-bit Quantized KV Cache:** `-ctk q4_0 -ctv q4_0`
+- **Large Context Window:** `-c 65536` (64k context)
 - **Auto-Connection:** HealthAI automatically detects and connects to the active LLM server on port `8080`.
 
 ---

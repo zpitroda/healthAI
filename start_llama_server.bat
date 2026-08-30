@@ -70,15 +70,15 @@ if exist "%~dp0models\mtp-Qwen3.8-27B-Q4_0.gguf" (
     set "SPEC_MSG=Enabled (MTP\mtp-Qwen3.8-27B-Q4_0.gguf)"
 )
 
-:: Context window (defaults to 32768 for RTX 5090; fits 21.5GB Q6_K_M + 32k Q8_0 KV Cache within 28GB)
-if not defined LLAMA_CTX set "LLAMA_CTX=32768"
+:: Context window (defaults to 65536 for RTX 5090; fits 21.5GB Q6_K_M + 64k Q4_0 KV Cache within ~28.5GB)
+if not defined LLAMA_CTX set "LLAMA_CTX=65536"
 
 echo.
 echo [*] Launching llama-server with Unsloth Dynamic V3.0 / RTX 5090 optimizations:
 echo     - Model: %MODEL_PATH%
 echo     - GPU Offload: All Layers (-ngl 99)
 echo     - Flash Attention (-fa on)
-echo     - 8-bit KV Cache Quantization (-ctk q8_0 -ctv q8_0)
+echo     - 4-bit KV Cache Quantization (-ctk q4_0 -ctv q4_0)
 echo     - Context Window: %LLAMA_CTX% tokens (-c %LLAMA_CTX%)
 echo     - Physical Batch Size: -b 2048 -ub 1024
 echo     - Jinja Template Parser (--jinja)
@@ -87,7 +87,7 @@ echo     - Speculative MTP Decoding: %SPEC_MSG%
 echo     - Memory Lock (--load-mode mlock)
 echo.
 
-"%LLAMA_EXE%" -m "%MODEL_PATH%" %SPEC_FLAGS% -ngl 99 -c %LLAMA_CTX% -b 2048 -ub 1024 -fa on -ctk q8_0 -ctv q8_0 --jinja --reasoning-format deepseek --load-mode mlock --port 8080
+"%LLAMA_EXE%" -m "%MODEL_PATH%" %SPEC_FLAGS% -ngl 99 -c %LLAMA_CTX% -b 2048 -ub 1024 -fa on -ctk q4_0 -ctv q4_0 --jinja --reasoning-format deepseek --load-mode mlock --port 8080
 
 if %errorlevel% neq 0 (
     echo.

@@ -1215,16 +1215,145 @@ CORE_ESTER_LIBRARY: Dict[str, Dict[str, Any]] = {
         "name": "Estradiol Valerate",
         "canonical_name": "Estradiol Valerate",
         "synonyms": ["progynova", "delestrogen", "estradiolvalerate"],
-        "drug_class": "Estrogen Hormone Ester",
-        "categories": ["Hormone", "Estrogen Ester", "Prodrug Depot"],
-        "molecular_weight": 356.50,
-        "logp": 5.1,
-        "half_life": "4 days (96 hours)",
-        "t_half_numeric": 96.0,
         "is_ester": True,
         "ester_name": "Valerate",
         "parent_compound_id": "estradiol",
         "ester_weight_factor": 0.764,
+    }
+}
+
+
+CORE_THERAPEUTIC_LIBRARY: Dict[str, Dict[str, Any]] = {
+    "exemestane": {
+        "name": "Exemestane",
+        "canonical_name": "Exemestane (Aromasin)",
+        "synonyms": ["aromasin", "exemestane", "fCE24304"],
+        "drug_class": "Type I Irreversible Steroidal Aromatase Inactivator",
+        "categories": ["Aromatase Inactivator", "Endocrine Modulator", "Prescription"],
+        "molecular_weight": 296.40,
+        "logp": 2.5,
+        "oral_bioavailability": 0.42,
+        "half_life": "24 hours",
+        "t_half_numeric": 24.0,
+        "volume_of_distribution": 2.1,
+        "protein_binding": 90.0,
+        "evidence_level": "gold_standard",
+        "mechanism": "Steroidal suicidal/irreversible inactivator of CYP19A1 aromatase that covalently binds and permanently destroys the enzyme molecule, preventing estrogen rebound surges upon clearance with favorable lipid preservation.",
+        "receptor_targets": [
+            {"target": "CYP19A1 Aromatase (Aromatase / Estrogen Synthase)", "action": "inactivator", "family": "Cytochrome P450 / Steroid Biosynthesis", "gene_symbol": "CYP19A1"}
+        ],
+        "cyp_enzymes": {"substrates": ["CYP3A4"], "inhibitors": [], "inducers": []},
+        "organ_burdens": {"lipid": {"score": 10.0, "severity": "MILD"}, "hepatic": {"score": 10.0, "severity": "MILD"}},
+    },
+    "anastrozole": {
+        "name": "Anastrozole",
+        "canonical_name": "Anastrozole (Arimidex)",
+        "synonyms": ["arimidex", "anastrozole", "zd1033"],
+        "drug_class": "Type II Reversible Non-Steroidal Aromatase Inhibitor",
+        "categories": ["Aromatase Inhibitor", "Endocrine Modulator", "Prescription"],
+        "molecular_weight": 293.37,
+        "logp": 2.1,
+        "oral_bioavailability": 0.85,
+        "half_life": "48 hours",
+        "t_half_numeric": 48.0,
+        "volume_of_distribution": 1.5,
+        "protein_binding": 40.0,
+        "evidence_level": "moderate",
+        "warnings": "Risk of estrogen rebound upon discontinuation and adverse HDL-C suppression.",
+        "mechanism": "Competitive reversible non-steroidal inhibitor of CYP19A1 aromatase; binds reversibly with potential for estrogen rebound upon dissociation.",
+        "receptor_targets": [
+            {"target": "CYP19A1 Aromatase (Aromatase / Estrogen Synthase)", "action": "inhibitor", "family": "Cytochrome P450 / Steroid Biosynthesis", "gene_symbol": "CYP19A1"}
+        ],
+        "cyp_enzymes": {"substrates": ["CYP3A4", "CYP2C9"], "inhibitors": ["CYP1A2", "CYP2C9", "CYP3A4"], "inducers": []},
+        "organ_burdens": {"lipid": {"score": 25.0, "severity": "MODERATE"}, "hepatic": {"score": 15.0, "severity": "MILD"}},
+    },
+    "letrozole": {
+        "name": "Letrozole",
+        "canonical_name": "Letrozole (Femara)",
+        "synonyms": ["femara", "letrozole", "cgs20267"],
+        "drug_class": "Type II Reversible Non-Steroidal Aromatase Inhibitor",
+        "categories": ["Aromatase Inhibitor", "Endocrine Modulator", "Prescription"],
+        "molecular_weight": 285.31,
+        "logp": 2.2,
+        "oral_bioavailability": 0.99,
+        "half_life": "48 hours",
+        "t_half_numeric": 48.0,
+        "volume_of_distribution": 1.9,
+        "protein_binding": 60.0,
+        "evidence_level": "moderate",
+        "warnings": "Very high potency (>98% E2 suppression); high risk of severe hypoestrogenic crash and joint arthralgia.",
+        "mechanism": "Highly potent competitive reversible non-steroidal aromatase inhibitor with high risk of complete estrogen suppression and severe lipid disruption.",
+        "receptor_targets": [
+            {"target": "CYP19A1 Aromatase (Aromatase / Estrogen Synthase)", "action": "inhibitor", "family": "Cytochrome P450 / Steroid Biosynthesis", "gene_symbol": "CYP19A1"}
+        ],
+        "cyp_enzymes": {"substrates": ["CYP3A4", "CYP2A6"], "inhibitors": ["CYP2A6", "CYP2C19"], "inducers": []},
+        "organ_burdens": {"lipid": {"score": 35.0, "severity": "ELEVATED"}, "hepatic": {"score": 20.0, "severity": "MODERATE"}},
+    },
+    "telmisartan": {
+        "name": "Telmisartan",
+        "canonical_name": "Telmisartan (Micardis)",
+        "synonyms": ["micardis", "telmisartan", "pritor"],
+        "drug_class": "Angiotensin II Receptor Blocker (ARB) / PPAR-gamma Agonist",
+        "categories": ["Antihypertensive", "Renoprotective", "Cardioprotective", "Prescription"],
+        "molecular_weight": 514.62,
+        "logp": 3.2,
+        "oral_bioavailability": 0.50,
+        "half_life": "24 hours",
+        "t_half_numeric": 24.0,
+        "volume_of_distribution": 7.0,
+        "protein_binding": 99.5,
+        "evidence_level": "gold_standard",
+        "mechanism": "Dual-action AT1 receptor antagonist and selective partial PPAR-gamma agonist, providing 24-hour hemodynamic control, reversal of left ventricular hypertrophy, renal podocyte protection, and metabolic insulin sensitization.",
+        "receptor_targets": [
+            {"target": "Angiotensin II Type 1 Receptor (AGTR1 / AT1)", "action": "antagonist", "family": "GPCR / Renin-Angiotensin", "gene_symbol": "AGTR1"},
+            {"target": "Peroxisome Proliferator-Activated Receptor Gamma (PPARG / PPAR-γ)", "action": "agonist", "family": "Nuclear Receptor / Metabolic", "gene_symbol": "PPARG"}
+        ],
+        "cyp_enzymes": {"substrates": [], "inhibitors": [], "inducers": []},
+        "organ_burdens": {"cardiovascular": {"score": 0.0}, "renal": {"score": 0.0}},
+    },
+    "nebivolol": {
+        "name": "Nebivolol",
+        "canonical_name": "Nebivolol (Bystolic)",
+        "synonyms": ["bystolic", "nebivolol", "nebilet"],
+        "drug_class": "Third-Generation Selective Beta-1 Blocker & Endothelial NO Donor",
+        "categories": ["Antihypertensive", "Beta Blocker", "Cardioprotective", "Prescription"],
+        "molecular_weight": 405.44,
+        "logp": 4.1,
+        "oral_bioavailability": 0.12,
+        "half_life": "16 hours",
+        "t_half_numeric": 16.0,
+        "volume_of_distribution": 10.0,
+        "protein_binding": 98.0,
+        "evidence_level": "gold_standard",
+        "mechanism": "Highly selective beta-1 adrenergic antagonist (>30-fold selectivity over beta-2) with direct endothelial nitric oxide synthase (eNOS) activation via beta-3 agonism, lowering peripheral vascular resistance without erectile dysfunction or bronchospasm.",
+        "receptor_targets": [
+            {"target": "Beta-1 Adrenergic Receptor (ADRB1)", "action": "antagonist", "family": "GPCR / Adrenergic", "gene_symbol": "ADRB1"},
+            {"target": "Endothelial Nitric Oxide Synthase (eNOS / NOS3)", "action": "activator", "family": "Endothelial Vasodilation", "gene_symbol": "NOS3"}
+        ],
+        "cyp_enzymes": {"substrates": ["CYP2D6"], "inhibitors": [], "inducers": []},
+        "organ_burdens": {"cardiovascular": {"score": 0.0}},
+    },
+    "raloxifene": {
+        "name": "Raloxifene",
+        "canonical_name": "Raloxifene (Evista)",
+        "synonyms": ["evista", "raloxifene"],
+        "drug_class": "Selective Estrogen Receptor Modulator (SERM)",
+        "categories": ["SERM", "Endocrine Modulator", "Prescription"],
+        "molecular_weight": 473.58,
+        "logp": 5.4,
+        "oral_bioavailability": 0.02,
+        "half_life": "27 hours",
+        "t_half_numeric": 27.0,
+        "volume_of_distribution": 30.0,
+        "protein_binding": 95.0,
+        "evidence_level": "gold_standard",
+        "mechanism": "Second-generation SERM with potent estrogen receptor antagonism in breast/glandular tissue and agonism in bone, effectively treating gynecomastia without negative ocular effects.",
+        "receptor_targets": [
+            {"target": "Estrogen Receptor Alpha (ESR1 / ER-α)", "action": "antagonist", "family": "Nuclear Receptor", "gene_symbol": "ESR1"},
+            {"target": "Estrogen Receptor Beta (ESR2 / ER-β)", "action": "agonist", "family": "Nuclear Receptor", "gene_symbol": "ESR2"}
+        ],
+        "cyp_enzymes": {"substrates": [], "inhibitors": [], "inducers": []},
+        "organ_burdens": {"hepatic": {"score": 10.0, "severity": "MILD"}},
     }
 }
 
@@ -1234,6 +1363,8 @@ def _get_default_compounds() -> List[Dict[str, Any]]:
     for key, value in CORE_SUPPLEMENT_LIBRARY.items():
         compounds.append({"key": key, **value})
     for key, value in CORE_ESTER_LIBRARY.items():
+        compounds.append({"key": key, **value})
+    for key, value in CORE_THERAPEUTIC_LIBRARY.items():
         compounds.append({"key": key, **value})
     return compounds
 
@@ -1606,12 +1737,8 @@ class CatalogService:
             _INITIALIZED_DATABASES.add(self.database_path)
 
     def sync_seed_compounds(self) -> None:
-        with self._connect() as conn:
-            existing_keys = {str(row["key"]).lower() for row in conn.execute("SELECT key FROM compounds").fetchall()}
         for compound in _get_default_compounds():
-            k = str(compound.get("key") or compound.get("name")).lower()
-            if k and k not in existing_keys:
-                self.upsert_compound(compound)
+            self.upsert_compound(compound)
 
     @property
     def database_path(self) -> str:
@@ -2502,10 +2629,17 @@ class CatalogService:
         """Resolves a compound by synonym, alias, key, or canonical name."""
         return self.get_compound(key, auto_enrich=auto_enrich)
 
-    def find_compounds_by_target(self, target_name_or_keyword: str, action: Optional[str] = None) -> List[Dict[str, Any]]:
+    def find_compounds_by_target(
+        self,
+        target_name_or_keyword: str,
+        action: Optional[str] = None,
+        rank_by_utility: bool = True,
+        user_profile: Optional[Dict[str, Any]] = None,
+    ) -> List[Dict[str, Any]]:
         """
         Dynamically finds all catalog compounds that interact with or modulate a target enzyme/receptor.
-        Optionally filters by action mode (e.g. 'inhibitor', 'antagonist', 'agonist', 'substrate').
+        Optionally filters by action mode (e.g. 'inhibitor', 'antagonist', 'agonist', 'substrate')
+        and ranks candidates by composite Pharmacological Utility Score (PD, PK, Safety, Economy).
         """
         tgt_kw = str(target_name_or_keyword or "").strip().lower()
         act_kw = str(action or "").strip().lower() if action else ""
@@ -2547,8 +2681,34 @@ class CatalogService:
                         if not act_kw or act_kw in t_act or (act_kw in ("inhibitor", "antagonist") and any(w in t_act for w in ["inhibitor", "antagonist", "blocker", "inactivator"])) or (act_kw == "agonist" and any(w in t_act for w in ["agonist", "activator", "stimulator"])):
                             matched = True
                             break
+
+                # Secondary fallback: match on mechanism / drug_class if targets array was sparse
+                if not matched:
+                    mech_text = f"{comp.get('mechanism', '')} {comp.get('drug_class', '')}".lower()
+                    if tgt_kw in mech_text or (words and all(w in mech_text for w in words)):
+                        if not act_kw or act_kw in mech_text or (act_kw in ("inhibitor", "antagonist") and any(w in mech_text for w in ["inhibitor", "antagonist", "blocker", "inactivator"])):
+                            matched = True
+
                 if matched and comp.get("key") not in [res["key"] for res in results]:
                     results.append(comp)
+
+        if rank_by_utility and results:
+            try:
+                from app.services.pharmacological_utility_engine import PharmacologicalUtilityEngine
+                scored = []
+                for c in results:
+                    u_data = PharmacologicalUtilityEngine.score_compound(
+                        compound=c,
+                        user_profile=user_profile,
+                        target_context=target_name_or_keyword,
+                        action_context=action,
+                    )
+                    scored.append((u_data["total_score"], c))
+                scored.sort(key=lambda x: x[0], reverse=True)
+                results = [item[1] for item in scored]
+            except Exception as rank_err:
+                logger.debug("PharmacologicalUtilityEngine ranking notice: %s", rank_err)
+
         return results
 
     def canonicalize_and_merge_stack(self, stack: List[Dict[str, Any]]) -> List[Dict[str, Any]]:

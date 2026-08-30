@@ -642,8 +642,14 @@ class StackIntentEngine:
         }
 
     @classmethod
+    def _has_atc_prefix(cls, compound: Dict[str, Any], prefixes: Tuple[str, ...]) -> bool:
+        ext = compound.get("external_ids") or {}
+        atc_codes = [str(c).upper() for c in (ext.get("atc_codes") or [])]
+        return any(c.startswith(prefixes) for c in atc_codes)
+
+    @classmethod
     def _extract_pharmacological_features(cls, compounds: List[Dict[str, Any]]) -> Dict[str, Any]:
-        """Extracts high-level pharmacological flags from compound catalog records."""
+        """Extracts high-level pharmacological flags from compound catalog records algorithmically."""
         features = {
             "has_androgens": False,
             "has_19nor_progestogenic": False,
@@ -664,6 +670,10 @@ class StackIntentEngine:
             "has_depot_injectables": False,
             "has_oral_tma_precursors": False,
             "has_microbial_tma_inhibitors": False,
+            "has_prolactin_inhibitors": False,
+            "has_phase2_conjugation_support": False,
+            "has_biliary_clearance_support": False,
+            "has_autonomic_buffer": False,
             "androgen_names": [],
             "oral_tma_precursor_names": [],
             "protective_ancillary_names": [],
@@ -671,107 +681,138 @@ class StackIntentEngine:
 
         for c in compounds:
             k = str(c.get("key", "")).lower()
-            name = str(c.get("name", "")).lower()
-            d_class = str(c.get("drug_class", "")).lower()
-            mech = str(c.get("mechanism", "")).lower()
+            name = c.get("name") or k.title()
             route = str(c.get("route", "")).lower()
-            targets = [str(t.get("target", "")).lower() if isinstance(t, dict) else str(t).lower() for t in (c.get("receptor_targets") or [])]
-
-            tokens = set(re.findall(r"[a-z0-9]+", f"{k} {name} {d_class}"))
-            text_blob = f"{k} {name} {d_class} {mech} {' '.join(targets)}"
+            cats = [str(cat).lower() for cat in (c.get("categories") or [])]
+            mech = str(c.get("mechanism", "")).lower()
+            
+            targets = []
+            for t in (c.get("receptor_targets") or []):
+                if isinstance(t, dict):
+                    targets.append(t)
+                else:
+                    targets.append({"target": str(t)})
+                    
+            def has_gene(symbols, actions=None):
+                for t in targets:
+                    if str(t.get("gene_symbol")).upper() in symbols:
+                        if actions is None or str(t.get("action")).lower() in actions:
+                            return True
+                return False
 
             # Depot injectable detection
-            if route in ("intramuscular", "im", "subcutaneous", "subq") or any(e in text_blob for e in ["cypionate", "enanthate", "decanoate", "undecanoate", "isocaproate", "depot"]):
+            is_depot = (
+                route in ("intramuscular", "im", "subcutaneous", "subq") 
+                or "depot" in cats
+            )
+            if is_depot:
                 features["has_depot_injectables"] = True
 
             # Androgen / AAS detection
             is_androgen = (
                 is_steroidal_androgen(c)
-                or any(w in tokens for w in ["testosterone", "trenbolone", "nandrolone", "drostanolone", "masteron", "primobolan", "methenolone", "boldenone", "oxandrolone", "anavar", "stanozolol", "winstrol", "superdrol", "dianabol", "anadrol", "turinabol", "trestolone"])
-                or any(k == w or name == w for w in ["rad140", "lgd4033", "ostarine", "yk11", "s23", "s4"])
+                or cls._has_atc_prefix(c, ("G03B", "G03BA", "G03BB", "A14A", "A14AA", "A14AB"))
+                or has_gene({"AR", "NR3C4"}, {"agonist", "modulator", "partial agonist"})
+                or "sarm" in cats
+                or "anabolic agent" in cats
             )
             if is_androgen:
                 features["has_androgens"] = True
-                features["androgen_names"].append(c.get("name") or k.title())
+                features["androgen_names"].append(name)
+                if "sarm" in cats or not is_steroidal_androgen(c):
+                    features["has_sarms"] = True
 
             # 19-nor progestogenic
-            if any(w in tokens for w in ["trenbolone", "nandrolone", "durabolin", "trestolone", "npp", "parabolan"]) or any(w in k or w in name for w in ["nandrolone", "trenbolone", "trestolone", "19-nor", "19nor"]):
+            if cls._has_atc_prefix(c, ("A14AB",)) or "19-nor" in cats or "estren derivative" in cats or (is_androgen and has_gene({"PGR", "NR3C3"})):
                 features["has_19nor_progestogenic"] = True
 
             # Aromatase inhibitor (AI)
-            if any(w in tokens for w in ["exemestane", "anastrozole", "letrozole", "aromasin", "arimidex", "femara"]) or any(w in text_blob for w in ["aromatase inhibitor", "cyp19a1 inhibitor"]):
+            if cls._has_atc_prefix(c, ("L02BG",)) or has_gene({"CYP19A1"}, {"inhibitor", "antagonist"}) or "aromatase inhibitor" in cats:
                 features["has_aromatase_inhibitors"] = True
-                features["protective_ancillary_names"].append(c.get("name") or k.title())
+                features["protective_ancillary_names"].append(name)
 
             # SERMs (Selective Estrogen Receptor Modulators)
-            if any(w in tokens for w in ["tamoxifen", "nolvadex", "raloxifene", "evista", "clomiphene", "clomid", "enclomiphene", "toremifene", "fareston"]):
+            if cls._has_atc_prefix(c, ("G03XC", "L02BA")) or has_gene({"ESR1", "ESR2", "NR3A1", "NR3A2"}, {"modulator", "antagonist", "partial agonist"}) or "serm" in cats:
                 features["has_serms"] = True
-                features["protective_ancillary_names"].append(c.get("name") or k.title())
+                features["protective_ancillary_names"].append(name)
 
             # Aromatizable substrate
-            if is_aromatizable_androgen(c) or any(w in tokens for w in ["testosterone", "testc", "testcyp", "teste", "testenan", "dianabol", "dbol", "methandrostenolone", "boldenone", "equipoise"]):
+            if is_aromatizable_androgen(c) or (is_androgen and cls._has_atc_prefix(c, ("G03BA03", "G03BA02"))):
                 features["has_aromatizable_substrate"] = True
 
             # RAAS blockers
-            if any(w in text_blob for w in ["telmisartan", "losartan", "candesartan", "valsartan", "enalapril", "lisinopril", "ramipril"]):
+            is_raas = cls._has_atc_prefix(c, ("C09",)) or has_gene({"AGTR1", "ACE"}, {"antagonist", "inhibitor"})
+            if is_raas:
                 features["has_raas_blockers"] = True
-                features["protective_ancillary_names"].append(c.get("name") or k.title())
+                features["protective_ancillary_names"].append(name)
 
             # Beta blockers
-            if any(w in text_blob for w in ["nebivolol", "bisoprolol", "metoprolol", "carvedilol", "atenolol"]):
+            if cls._has_atc_prefix(c, ("C07",)) or has_gene({"ADRB1", "ADRB2", "ADRB3"}, {"antagonist"}) or "beta blocker" in cats:
                 features["has_beta_blockers"] = True
-                features["protective_ancillary_names"].append(c.get("name") or k.title())
+                features["protective_ancillary_names"].append(name)
 
             # PDE5 inhibitors
-            if any(w in text_blob for w in ["tadalafil", "sildenafil", "vardenafil"]):
+            if cls._has_atc_prefix(c, ("G04BE",)) or has_gene({"PDE5A"}, {"inhibitor"}):
                 features["has_pde5_inhibitors"] = True
 
             # Psychostimulants
-            if any(w in text_blob for w in ["caffeine", "modafinil", "armodafinil", "methylphenidate", "amphetamine", "yohimbine", "nicotine"]):
+            if cls._has_atc_prefix(c, ("N06B",)) or has_gene({"SLC6A2", "SLC6A3", "ADORA1", "ADORA2A"}, {"inhibitor", "antagonist", "reuptake inhibitor"}) or "stimulant" in cats:
                 features["has_psychostimulants"] = True
 
             # Cholinergics
-            if any(w in text_blob for w in ["alpha_gpc", "alpha-gpc", "citicoline", "cdp-choline", "huperzine", "donepezil"]):
+            if cls._has_atc_prefix(c, ("N06D",)) or has_gene({"ACHE", "CHRNA7"}) or "cholinergic" in cats or "nootropic" in cats:
                 features["has_cholinergics"] = True
 
             # GABAergics / Sedatives
-            if any(w in text_blob for w in ["magnesium", "theanine", "l-theanine", "melatonin", "gaba", "ashwagandha", "glycine", "lemon_balm"]):
+            if cls._has_atc_prefix(c, ("N05B", "N05C")) or has_gene({"GABRA1", "GABRB2", "MT1", "MT2", "MTNR1A", "MTNR1B"}) or any("gaba" in str(t.get("target")).lower() for t in targets) or "sedative" in cats:
                 features["has_gabaergics_sedatives"] = True
 
             # Longevity / Metabolic
-            if any(w in text_blob for w in ["metformin", "berberine", "rapamycin", "nmn", "nr", "resveratrol", "empagliflozin", "dapagliflozin"]):
+            if cls._has_atc_prefix(c, ("A10",)) or has_gene({"PRKAA1", "PRKAA2", "SIRT1", "MTOR"}) or "ampk activator" in cats or "longevity" in cats:
                 features["has_longevity_metabolic"] = True
 
             # Hepatoprotectants
-            if any(w in text_blob for w in ["nac", "acetylcysteine", "tudca", "udca", "milk_thistle", "silymarin", "glutathione"]):
+            if cls._has_atc_prefix(c, ("A05",)) or "hepatoprotectant" in cats or "liver therapy" in cats:
                 features["has_hepatoprotectants"] = True
-                features["protective_ancillary_names"].append(c.get("name") or k.title())
+                features["protective_ancillary_names"].append(name)
 
             # Lipid regulators
-            if any(w in text_blob for w in ["bergamot", "citrus_bergamot", "ezetimibe", "statin", "pitavastatin", "rosuvastatin", "omega3", "omega-3", "fish_oil"]):
+            if cls._has_atc_prefix(c, ("C10",)) or has_gene({"HMGCR", "PCSK9", "NPC1L1"}) or "lipid modifying agent" in cats:
                 features["has_lipid_regulators"] = True
-                features["protective_ancillary_names"].append(c.get("name") or k.title())
+                features["protective_ancillary_names"].append(name)
 
             # Renal support
-            if any(w in text_blob for w in ["astragalus", "cycloastragenol", "telmisartan"]):
+            if is_raas or "renal support" in cats:
                 features["has_renal_support"] = True
 
-            # Oral TMA precursors (e.g. oral L-carnitine, choline, betaine)
+            # Oral TMA precursors
             is_oral_route = route in ("oral", "po", "swallow", "") or ":oral" in k
             is_parenteral = route in ("intramuscular", "im", "subcutaneous", "subq", "iv")
-            is_tma_substrate = (
-                any(t == "CNTA" for t in targets)
-                or any(w in tokens for w in ["carnitine", "alcar", "acetylcarnitine", "choline", "alpha_gpc", "citicoline", "betaine", "trimethylglycine"])
-                or any(re.search(rf"\b{re.escape(w)}\b", f"{k} {name}") for w in ["l-carnitine", "carnitine", "alcar", "acetyl-l-carnitine", "choline", "alpha-gpc", "alpha_gpc", "citicoline", "cdp-choline", "betaine"])
-            )
+            is_tma_substrate = has_gene({"CNTA", "SLC22A5"}) or "tma precursor" in cats
             if is_oral_route and not is_parenteral and is_tma_substrate:
                 features["has_oral_tma_precursors"] = True
-                features["oral_tma_precursor_names"].append(c.get("name") or k.title())
+                features["oral_tma_precursor_names"].append(name)
 
-            # Microbial TMA lyase inhibitors (e.g. allicin, garlic extract, DMB)
-            if any(w in text_blob for w in ["allicin", "garlic", "allium", "dimethylbutanol", "dmb"]) or any(("tma lyase" in t or "cnta" in t) and "inhibitor" in str(getattr(t, "action", "")).lower() for t in targets):
+            # Microbial TMA lyase inhibitors
+            if has_gene({"CNTA", "CNTB", "CUTC"}, {"inhibitor"}) or "tma lyase inhibitor" in cats:
                 features["has_microbial_tma_inhibitors"] = True
-                features["protective_ancillary_names"].append(c.get("name") or k.title())
+                features["protective_ancillary_names"].append(name)
+
+            # Prolactin inhibitors / Dopamine agonists
+            if cls._has_atc_prefix(c, ("G02CB", "A11HA02")) or has_gene({"DRD2"}, {"agonist"}):
+                features["has_prolactin_inhibitors"] = True
+
+            # Phase II Conjugation (NAC)
+            if cls._has_atc_prefix(c, ("R05CB01", "V03AB23")) or "glutathione biosynthesis" in mech or "acetylcysteine" in name.lower() or k == "nac":
+                features["has_phase2_conjugation_support"] = True
+
+            # Biliary Clearance (TUDCA)
+            if cls._has_atc_prefix(c, ("A05AA",)) or "bile acid" in cats or "cholestasis" in mech or k in ("tudca", "udca"):
+                features["has_biliary_clearance_support"] = True
+
+            # Autonomic Buffer / Theanine
+            if has_gene({"GRIN1", "GRIN2A", "GRIN2B", "GRIN2C", "GRIN2D"}, {"antagonist"}) or "autonomic buffer" in cats or k in ("l_theanine", "theanine", "agmatine"):
+                features["has_autonomic_buffer"] = True
 
         return features
 
@@ -889,12 +930,8 @@ class StackIntentEngine:
         gaps = []
 
         # 1. 19-Nor Progestogenic / Prolactin Elevation
-        if features["has_19nor_progestogenic"]:
-            has_p5p_or_cab = any(
-                any(w in str(c.get("key", "") + " " + c.get("name", "")).lower() for w in ["p5p", "p-5-p", "pyridoxal", "cabergoline"])
-                for c in compounds
-            )
-            if not has_p5p_or_cab:
+        if features.get("has_19nor_progestogenic"):
+            if not features.get("has_prolactin_inhibitors"):
                 gaps.append({
                     "axis": "Endocrine / Prolactin Axis",
                     "severity": "HIGH",
@@ -905,7 +942,7 @@ class StackIntentEngine:
                 })
 
         # 2. AAS-Induced Atherogenic Dyslipidemia (SR-B1 suppression, HDL crash, ApoB elevation)
-        if features["has_androgens"] and not features["has_lipid_regulators"]:
+        if features.get("has_androgens") and not features.get("has_lipid_regulators"):
             gaps.append({
                 "axis": "Cardiovascular / Lipid Profile",
                 "severity": "HIGH",
@@ -916,7 +953,7 @@ class StackIntentEngine:
             })
 
         # 3. AAS Renal Glomerular Strain / Elevated Vascular Resistance
-        if features["has_androgens"] and not features["has_renal_support"]:
+        if features.get("has_androgens") and not features.get("has_renal_support"):
             gaps.append({
                 "axis": "Renal Glomerular Microcirculation",
                 "severity": "MODERATE",
@@ -927,10 +964,8 @@ class StackIntentEngine:
             })
 
         # 4. AAS Hepatic Bile Acid & Phase II Conjugation Strain
-        if features["has_androgens"]:
-            has_nac = any("nac" in str(c.get("key", "") + " " + c.get("name", "")).lower() for c in compounds)
-            has_tudca = any("tudca" in str(c.get("key", "") + " " + c.get("name", "")).lower() for c in compounds)
-            if has_nac and not has_tudca:
+        if features.get("has_androgens"):
+            if features.get("has_phase2_conjugation_support") and not features.get("has_biliary_clearance_support"):
                 gaps.append({
                     "axis": "Hepatobiliary / Cholestasis",
                     "severity": "MODERATE",
@@ -941,7 +976,7 @@ class StackIntentEngine:
                 })
 
         # 5. Aromatization & Estrogen (E2) Management
-        if (features["has_androgens"] or features["has_aromatizable_substrate"]) and not features["has_aromatase_inhibitors"] and not features["has_serms"]:
+        if (features.get("has_androgens") or features.get("has_aromatizable_substrate")) and not features.get("has_aromatase_inhibitors") and not features.get("has_serms"):
             gaps.append({
                 "axis": "Aromatization & Estrogen (E2) Management",
                 "severity": "HIGH",
@@ -952,7 +987,7 @@ class StackIntentEngine:
             })
 
         # 6. Aromatase Inhibitor Crash Protection
-        if features["has_aromatase_inhibitors"]:
+        if features.get("has_aromatase_inhibitors"):
             gaps.append({
                 "axis": "Estrogen Balance (E2 Preservation)",
                 "severity": "RULE",
@@ -962,12 +997,8 @@ class StackIntentEngine:
             })
 
         # 7. Psychostimulant Vasoconstriction & Sleep Hygiene
-        if features["has_psychostimulants"]:
-            has_theanine = any(
-                any(w in str(c.get("key", "") + " " + c.get("name", "")).lower() for w in ["theanine", "l-theanine", "agmatine"])
-                for c in compounds
-            )
-            if not has_theanine:
+        if features.get("has_psychostimulants"):
+            if not features.get("has_autonomic_buffer"):
                 gaps.append({
                     "axis": "Autonomic / Psychostimulant Buffer",
                     "severity": "MODERATE",
@@ -979,7 +1010,7 @@ class StackIntentEngine:
 
         # 8. Female-Specific Androgen Sensitivity & Virilization Protection
         sex = str(biometrics.get("sex") or biometrics.get("gender") or "").lower().strip()
-        if sex in ("female", "f", "woman") and features["has_androgens"]:
+        if sex in ("female", "f", "woman") and features.get("has_androgens"):
             gaps.append({
                 "axis": "Endocrine / Female Virilization Risk",
                 "severity": "HIGH",
@@ -990,7 +1021,7 @@ class StackIntentEngine:
 
         # 9. Gut Microbiota TMA/TMAO Axis (Oral L-Carnitine/Choline without Microbial Lyase Inhibition)
         if features.get("has_oral_tma_precursors") and not features.get("has_microbial_tma_inhibitors"):
-            precursor_str = ", ".join(features.get("oral_tma_precursor_names", ["Oral L-Carnitine/Choline"]))
+            precursor_str = ", ".join(features.get("oral_tma_precursor_names") or ["Oral L-Carnitine/Choline"])
             gaps.append({
                 "axis": "Gastrointestinal / Microbial TMAO Axis",
                 "severity": "MODERATE",
@@ -1622,6 +1653,8 @@ class StackIntentEngine:
         built_compounds: List[Dict[str, Any]] = []
         seen_keys: Set[str] = set()
 
+        from app.services.pharmacological_utility_engine import PharmacologicalUtilityEngine
+
         for cand in raw_candidates:
             c_key = cand.get("key")
             if not c_key or c_key in seen_keys:
@@ -1633,16 +1666,27 @@ class StackIntentEngine:
             if is_exp and risk_pref not in ("aggressive", "high", "performance", "high_potency") and not any(r.get("key") == c_key for r in user_requested_compounds):
                 continue
 
-            # Route and frequency inference
+            # Dynamic route and frequency resolution using pharmacological delivery scoring
+            opt_route = PharmacologicalUtilityEngine.determine_optimal_route(cand, route_pref)
             inf_route, inf_freq = infer_compound_route_and_frequency(c_key)
-            c_route = cand.get("route") or inf_route
+            c_route = opt_route or cand.get("route") or inf_route
             c_freq = cand.get("frequency") or inf_freq
+
+            # Dynamic formulation scaling for route (e.g. 100% bioavailable parenteral vs low oral)
+            cand_name = cand.get("name") or c_key.replace("_", " ").title()
+            base_dose_val = cand.get("base_dose", 100.0)
+            if "carnitine" in c_key and c_route in ("intramuscular", "subcutaneous"):
+                base_dose_val = 400.0
+                cand_name = "Injectable L-Carnitine"
+            elif "carnitine" in c_key and c_route == "oral":
+                base_dose_val = 2000.0
+                cand_name = "L-Carnitine L-Tartrate"
 
             # Check explicit user compound / route exclusions
             cand_check = dict(cand)
             cand_check["route"] = c_route
             if cls._is_compound_excluded(cand_check, parsed_exclusions, catalog):
-                applied_exclusions.append(f"{cand.get('name') or c_key} ({c_route})")
+                applied_exclusions.append(f"{cand_name} ({c_route})")
                 continue
 
             seen_keys.add(c_key)
@@ -1660,11 +1704,11 @@ class StackIntentEngine:
                 if stim_pref in ("none", "stim-free", "stim_free", "free"):
                     continue
                 elif stim_pref in ("mild", "low"):
-                    cand_dose = round(cand["base_dose"] * 0.5 * min(1.0, risk_scale))
+                    cand_dose = round(base_dose_val * 0.5 * min(1.0, risk_scale))
                 else:
-                    cand_dose = round(cand["base_dose"] * risk_scale)
+                    cand_dose = round(base_dose_val * risk_scale)
             else:
-                b_dose = cand.get("base_dose", 100.0)
+                b_dose = base_dose_val
                 if c_key in ("caffeine", "beta_alanine", "creatine", "l_carnitine", "magnesium", "citrus_bergamot", "taurine"):
                     scaled_dose = round(b_dose * weight_scale * risk_scale)
                 elif c_key in ("berberine", "telmisartan", "nebivolol", "metformin"):
@@ -1699,7 +1743,7 @@ class StackIntentEngine:
 
             built_compounds.append({
                 "key": c_key,
-                "name": cand.get("name") or c_key.replace("_", " ").title(),
+                "name": cand_name,
                 "dose": cand_dose,
                 "unit": cand.get("unit", "mg"),
                 "timing": timing_val,
@@ -1785,16 +1829,34 @@ class StackIntentEngine:
                 continue
 
             search_terms = gap.get("cofactor_search_terms", [])
-            found_rec = None
+            candidate_records = []
             for term in search_terms:
                 term_clean = term.lower().strip().replace("-", "_")
-                found_rec = catalog.get_compound(term_clean) or catalog.find_by_synonym(term_clean)
-                if found_rec:
-                    break
+                rec = catalog.get_compound(term_clean) or catalog.find_by_synonym(term_clean)
+                if rec and rec.get("key") not in seen_keys:
+                    candidate_records.append(rec)
+
+            if not candidate_records:
+                continue
+
+            # Rank candidate cofactors by composite Pharmacological Utility Score
+            scored_candidates = []
+            for rec in candidate_records:
+                opt_r = PharmacologicalUtilityEngine.determine_optimal_route(rec, route_pref)
+                u_score = PharmacologicalUtilityEngine.score_compound(
+                    compound=rec,
+                    route=opt_r,
+                    user_profile={"biometrics": biometrics, "preferences": preferences},
+                    target_context=gap.get("axis"),
+                )
+                scored_candidates.append((u_score["total_score"], rec, opt_r))
+
+            scored_candidates.sort(key=lambda x: x[0], reverse=True)
+            best_score, found_rec, co_route = scored_candidates[0]
 
             if found_rec and found_rec.get("key") not in seen_keys:
                 cofactor_key = found_rec.get("key")
-                co_route, co_freq = infer_compound_route_and_frequency(cofactor_key)
+                _, co_freq = infer_compound_route_and_frequency(cofactor_key)
 
                 # Check if cofactor is excluded
                 co_check = {"key": cofactor_key, "name": found_rec.get("name"), "route": co_route}

@@ -1,0 +1,32 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="100%" height="100%">
+  <defs>
+    <linearGradient id="healthai-grad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#00f2fe" />
+      <stop offset="100%" stop-color="#2563eb" />
+    </linearGradient>
+    <filter id="glow" x="-20%" y="-20%" width="140%" height="140%">
+      <feGaussianBlur stdDeviation="8" result="blur" />
+      <feComposite in="SourceGraphic" in2="blur" operator="over" />
+    </filter>
+  </defs>
+
+  <!-- Background Squircle Badge -->
+  <rect x="25.6" y="25.6" width="460.8" height="460.8" rx="112" fill="url(#healthai-grad)" />
+  <rect x="25.6" y="25.6" width="460.8" height="460.8" rx="112" fill="none" stroke="rgba(255, 255, 255, 0.45)" stroke-width="12" />
+
+  <!-- Monogram HealthAI 'H' in Deep Slate/Navy (#050f18) -->
+  <g fill="#050f18">
+    <!-- Left Vertical Bar -->
+    <rect x="133.12" y="117.76" width="66.56" height="276.48" rx="23.3" />
+    <!-- Right Vertical Bar -->
+    <rect x="312.32" y="117.76" width="66.56" height="276.48" rx="23.3" />
+    <!-- Center Horizontal Bar -->
+    <rect x="133.12" y="224.38" width="245.76" height="63.23" rx="23.3" />
+  </g>
+
+  <!-- Medical Cross / Spark in Center -->
+  <g fill="#ffffff">
+    <rect x="240.38" y="214.4" width="31.24" height="83.2" rx="9" />
+    <rect x="214.4" y="240.38" width="83.2" height="31.24" rx="9" />
+  </g>
+</svg>

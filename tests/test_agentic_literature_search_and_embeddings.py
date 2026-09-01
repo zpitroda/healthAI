@@ -185,3 +185,70 @@ class TestAgenticLiteratureSearchAndEmbeddings:
         assert "### Executive Summary" in joined_deltas
         # Ensure it was captured in tool calls or reasoning
         assert len(parser.tool_calls) >= 1 or len(reasonings) >= 1
+
+    def test_12_token_by_token_streaming_bare_json_suppression(self):
+        """Verify StreamingTagParser routes bare JSON to reasoning even when delivered in tiny 1-character/3-character chunks across token boundaries."""
+        from app.services.copilot_agent import StreamingTagParser
+        parser = StreamingTagParser()
+
+        raw_stream = (
+            '{\n  "query": "trenbolone cardiovascular blood pressure lipid profile human",\n  "max_results": 6\n}\n'
+            '{"query": "anabolic steroids sleep disruption insomnia", "max_results": 5}\n'
+            '{"pmid": "8637535"}\n\n'
+            '### 1. Executive Summary\nTrenbolone administration is contraindicated due to pronounced atherogenic lipid shifts.'
+        )
+
+        all_events = []
+        # Feed token stream in arbitrary small chunks (1 to 5 chars)
+        chunk_size = 3
+        for i in range(0, len(raw_stream), chunk_size):
+            chunk = raw_stream[i:i + chunk_size]
+            all_events.extend(parser.feed(chunk))
+        all_events.extend(parser.flush())
+
+        deltas = [txt for etype, txt in all_events if etype == "delta"]
+        reasonings = [txt for etype, txt in all_events if etype == "reasoning"]
+        joined_deltas = "".join(deltas)
+
+        # Zero tool JSON or fragmented tool queries should ever leak to deltas
+        assert "query" not in joined_deltas
+        assert "max_results" not in joined_deltas
+        assert "pmid" not in joined_deltas
+        assert "8637535" not in joined_deltas
+        assert "{" not in joined_deltas
+        assert "}" not in joined_deltas
+        assert "### 1. Executive Summary" in joined_deltas
+        assert "Trenbolone administration is contraindicated" in joined_deltas
+
+        # Tool calls should be properly recorded
+        assert len(parser.tool_calls) >= 3
+
+    def test_13_exact_user_leak_sanitization(self):
+        """Verify clean_scratchpad_and_tools_from_text strips the exact multi-block tool leakage reported by the user."""
+        raw_user_dirty_text = (
+            "}\n"
+            '{"query": "trenbolone cardiovascular blood pressure lipid profile human", "max_results": 6}\n'
+            'bolone sleep disruption insomnia anabolic steroid", "max_results": 5}\n\n'
+            '"trenbolone enanthate cardiovascular hemodynamic blood pressure", "max_results": 6}\n'
+            '{"query": "anabolic androgenic steroids sleep architecture REM disruption melatonin", "max_results": 5}\n'
+            '{"query": "spironolactone progestin receptor antagonist anabolic steroid water retention", "max_results": 5}\n\n'
+            '"trenbolone progestin receptor progesterone binding mineralocorticoid", "max_results": 5}\n'
+            '{"query": "anabolic steroids HDL LDL lipid profile testosterone enanthate", "max_results": 5}\n'
+            '{"pmid": "8637535"}\n\n'
+            "### 1. Executive Summary & Clinical Assessment\n"
+            "Trenbolone exhibits extreme binding affinity for androgen and progesterone receptors.\n"
+            "Cardiovascular risk monitoring is mandatory."
+        )
+
+        cleaned = CopilotAgent.clean_scratchpad_and_tools_from_text(raw_user_dirty_text)
+
+        assert "max_results" not in cleaned
+        assert "query" not in cleaned
+        assert "pmid" not in cleaned
+        assert "8637535" not in cleaned
+        assert "{" not in cleaned
+        assert "}" not in cleaned
+        assert 'bolone sleep disruption' not in cleaned
+        assert 'spironolactone progestin receptor antagonist' not in cleaned
+        assert "### 1. Executive Summary & Clinical Assessment" in cleaned
+        assert "Trenbolone exhibits extreme binding affinity" in cleaned

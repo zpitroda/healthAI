@@ -349,4 +349,5 @@ def calculate_protocol(profile: Dict[str, Any]) -> Dict[str, Any]:
         "breakdown": interaction_results["breakdown"],
         "conflict_count": interaction_results["conflict_count"],
         "synergy_count": interaction_results["synergy_count"],
+        "disclaimer": "HealthAI is an in silico computational pharmacology simulation platform for educational and research evaluation only. Not medical advice. Always consult a licensed healthcare provider.",
     }

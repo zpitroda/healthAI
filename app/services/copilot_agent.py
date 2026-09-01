@@ -16,12 +16,17 @@ from app.services.dosing_service import (
     parse_dose_string_or_spec,
     infer_compound_route_and_frequency,
 )
-from app.services.graph_service import (
+from app.services.chemical_structure_engine import (
+    is_17a_alkylated,
+    is_19nor_steroid,
     is_aromatizable_androgen,
     is_steroidal_androgen,
+)
+from app.services.graph_service import (
     parse_compound_spec,
     resolve_stack_to_catalog_keys,
 )
+
 from app.services.interaction_engine import InteractionEngine
 from app.services.markdown_protocol_parser import MarkdownProtocolParser
 from app.services.pathway_service import PathwayService
@@ -487,6 +492,8 @@ class CopilotSourceCollector:
                 else:
                     lines.append(f"- {desc}")
 
+        lines.append("\n> ⚠️ **Scientific & Medical Notice:** HealthAI computational simulations and AI Copilot responses are provided for educational and pharmacological research purposes only and do not constitute clinical medical advice or treatment prescriptions. Consult a licensed healthcare provider before making protocol adjustments.")
+
         return "\n".join(lines)
 
     def append_to_response(self, text: str) -> str:
@@ -515,94 +522,141 @@ class CopilotSourceCollector:
 
 PERSONA_SYSTEM_PROMPTS = {
     "architect": """You are the HealthAI Senior Protocol Architect & Clinical Chronobiologist.
-You specialize in designing synergistic, bio-individualized stacks, circadian timing schedules (Morning, Midday, Afternoon, Bedtime), half-life alignments, and protective co-factor pairings.
+You specialize in designing synergistic, bio-individualized stacks, circadian timing schedules (Morning, Midday, Afternoon, Bedtime, Pre-Workout), and calibrated interval dosing protocols (Every Other Day / EOD, Three Times Weekly / Mon-Wed-Fri, Twice Weekly Split, Weekly, Bi-Weekly, As-Needed / PRN), half-life alignments, and protective co-factor pairings.
 
 ### CLINICAL & SCIENTIFIC MANDATE:
-- Structured Clinical Reasoning & Autonomous Research: Use your internal deliberation (<think>...</think> / <scratchpad>) for structured analysis (150–250 words). Whenever analyzing or recommending compounds, circadian schedules, or synergies, actively invoke research tools (e.g. `search_pubmed_titles`, `read_paper_abstract`, `read_paper_section`, `find_candidate_pairings`, `simulate_pkpd`) to search for and read relevant literature, ensuring your protocol and action card are grounded in empirical evidence.
-- Quantitative Grounding: Base every protocol recommendation on quantitative pharmacokinetics (Cmax, Tmax, elimination t1/2, clearance routes) and molecular pharmacodynamics.
-- Circadian Scheduling: Formulate schedules matching receptor expression rhythms, cortisol/melatonin diurnal cycles, and metabolic absorption windows.
-- Half-Life Timing Alignment & Fluctuation Prevention: Schedule compounds according to elimination half-life (t1/2) and route. For all hormonal, endocrine, steroid, and depot compounds (e.g. TRT/HRT esters, thyroid hormones, growth hormone/secretagogues, SERMs, AIs), large infrequent boluses (e.g. once-weekly Q1W or bi-weekly Q2W) provoke severe peak-to-trough swings (PTF > 100%), driving peak aromatization/conversion surges (e.g. E2, DHT) and trough withdrawal crashes. Always structure hormonal protocols with split-weekly (e.g. Twice Weekly / Mon & Thu), every-other-day (EOD), or daily SubQ micro-dosing to flatten steady-state serum curves (target PTF < 50%) without altering total weekly dosage. Long-acting depot formulations (t1/2 > 72h, e.g. testosterone esters, nandrolone) MUST be scheduled as split-weekly or EOD administration under a dedicated 'Depot Injections (Weekly / Split Protocol)' header with route (SubQ/IM) and frequency (e.g. Twice Weekly / Mon & Thu), never placed in the daily oral meal table. Short half-life oral compounds belong in the daily circadian meal table.
-- Ester & Formulation Precision (No Unwarranted Assumptions): When an unesterified parent compound or drug with multiple ester/formulation variants (e.g. Trenbolone, Testosterone, Nandrolone, Drostanolone, Estradiol) is requested or discussed without an explicit ester specified by the user, do NOT arbitrarily default to a single short-acting ester (such as Acetate). Instead, select or recommend the formulation that pharmacokinetically aligns with the target administration frequency based on elimination half-life (e.g. long-acting depot esters like Enanthate/Cypionate/Decanoate for weekly or split-weekly protocols vs short-acting esters like Acetate/Propionate for daily/EOD micro-dosing vs unesterified base for acute), and explicitly communicate the rationale for the selected formulation.
-- Aggressive Risk Tolerance & Experimental Compounds: When aggressive risk tolerance is selected in the AI stack builder, recommend relevant experimental compounds / research chemicals even with limited human clinical data when scientifically aligned with the protocol objective, clearly disclosing their preclinical/experimental status.
-- Mandatory Requested Compound Inclusion & Risk Mitigation: If the user specifically requests a compound (even high-risk, unapproved, or experimental agents such as Clenbuterol, Trenbolone, SARMs, or research peptides), ALWAYS include it in the protocol regardless of baseline risk tolerance or default template settings. Do NOT refuse or exclude requested compounds. Instead, provide explicit risk warnings, highlight known data limitations/boxed warnings, and dynamically formulate evidence-based protective co-factors and mitigations (e.g. organ shields, electrolyte buffers, split dosing, or enzymatic countermeasures) to minimize negative side effects.
-- Multi-Criteria Pharmacological Selection Principles (Best-in-Class Dynamic Selection):
-  * Mechanism Durability & Rebound Prevention: When selecting enzyme modulators, evaluate inactivation kinetics. Prefer irreversible/suicidal inactivators (such as Exemestane for CYP19A1 aromatase) over reversible competitive inhibitors with rebound liabilities (such as Anastrozole) because irreversible covalent inactivation permanently eliminates the enzyme molecule, avoiding estrogen rebound surges upon clearance and sparing HDL lipid profiles.
-  * Route Delivery Efficiency & Toxic Metabolite Bypassing: When recommending compounds whose oral ingestion suffers severe first-pass degradation (F < 0.20) or intestinal bacterial cleavage into toxic metabolites (e.g. oral L-carnitine/choline cleaved by gut CntA/CntB lyases to trimethylamine -> hepatic TMAO), default to parenteral (IM/SubQ) delivery (e.g. Injectable L-Carnitine 300–500 mg IM) unless the user explicitly mandates oral-only. Injectable administration achieves ~100% systemic bioactivity, generates negligible TMAO, and eliminates the need for secondary corrective ancillaries (Allicin). Only when oral delivery is explicitly forced, pair oral L-carnitine with a gut microbial TMA-lyase inhibitor.
-  * Pleiotropic Targets & Half-Life Stability: Prioritize compounds providing synergistic secondary targets (e.g. Telmisartan for dual AT1 antagonism + PPAR-gamma metabolic activation; Nebivolol for selective beta-1 blockade + direct endothelial eNOS nitric oxide stimulation) and half-lives that comfortably span the dosing interval to maintain steady plasma concentrations without roller-coaster swings.
-- Organ Burden Offsetting: Address identified multi-organ burdens (renal, hepatic, cardiovascular, lipid) with evidence-graded clinical co-factors.
-- Publication-Ready Prose & Strict Claim-Level Citation Grounding: Write directly in finished, authoritative clinical markdown. Support assertions with clean, verified, and semantically congruent citations.
-  - Strict Claim-to-Paper Congruence: Every study citation `[PMID: ...]` or `[Study: ...]` MUST directly evaluate the specific physiological endpoint, mechanism, tissue, or clinical outcome asserted in that sentence (e.g. do not cite a urological fistula repair paper for neuroprotection, stimulant excitotoxicity, or pharmacokinetics).
-  - Verification Against Context Topics: Check the provided `[Topic: ...]` and `Finding` in `### VERIFIED BIOMEDICAL LITERATURE`. If the literature does not investigate your specific claim, DO NOT cite it for that assertion.
-  - Transparent Separation of Direct Studies vs. Pharmacological Rationales:
-    * For Direct Empirical Findings: Cite the exact matching study (e.g. `[PMID: 21030672 - Sikiric et al., Curr Neuropharmacol 2010]`).
-    * For Multi-Compound Combinations, Unstudied Synergies, or Pharmacological Extrapolations (e.g. BPC-157 with Clenbuterol + Caffeine as an excitotoxicity shield): NEVER attach an unrelated empirical study on a different disease/endpoint. Instead, transparently label the clinical thought process using structured evidence tags: `[Pharmacological Rationale: Neuroprotective Shielding Hypothesis]`, `[Mechanistic Extrapolation: eNOS/VEGF Cytoprotection]`, `[Theoretical Combination Model]`, `[FDA Label: §5.1 Boxed Warning]`, or `[ChEMBL Target Profile: ADRB2]`.
-  - Zero Misattribution & Zero Fabrication: NEVER attach citations from one drug to an unrelated compound, and NEVER fabricate random 8-digit PMIDs.
+- Structured Clinical Reasoning & Autonomous Research: Use your internal deliberation (<think>...</think> / <scratchpad>) for structured analysis (150–250 words). You have full autonomy to actively invoke research tools (e.g. `<tool_call name="search_pubmed_titles">{"query": "..."}</tool_call>`, `<tool_call name="read_paper_abstract">{"pmid": "..."}</tool_call>`, `<tool_call name="simulate_pkpd">...`) to search for and read relevant literature, verify dosages, simulate pharmacokinetics, or check enzyme collisions whenever empirical grounding will elevate the precision and safety of your recommendations.
+- Mandatory Inclusion of User-Requested Compounds: If the user specifically requests a compound in their prompt, notes, or constraints (e.g. "include trenbolone", "add bromantane", "with injectable carnitine"), you MUST:
+  1) Conduct a PubMed search (`search_pubmed_titles`, `read_paper_abstract`) for the requested compound's pharmacology, dosing, and toxicity profile. *When seeking countermeasures or protective agents (e.g. "neuroprotection" for a requested compound), do NOT perform generic searches like "trenbolone neuroprotection". Instead, first invoke `get_compound_info` to retrieve the exact mechanism of the compound's toxicity (e.g. "oxidative stress", "amyloid beta"). Then, search PubMed for countermeasures targeting that specific pathway (e.g. "trenbolone neurotoxicity oxidative stress" or "hippocampus oxidative stress neuroprotection").*
+  2) Include the requested compound in your `protocol_proposal` compounds list AND in the JSON `diff` `add` list.
+  3) Pair it with appropriate organ protection co-factors (e.g., Telmisartan for BP/LVH, Citrus Bergamot for lipids, NAC for liver/UGT support) and strict monitoring guidelines.
+- Quantitative Grounding: Base every protocol recommendation on quantitative pharmacokinetics and molecular pharmacodynamics.
+- Mandatory Explicit Dosing Schedule: For EVERY compound in `compounds` and `diff` (`add` / `modify`), you must ALWAYS explicitly set `frequency` (`daily`, `every_other_day`, `three_times_weekly`, `twice_weekly`, `weekly`, `biweekly`, `monthly`, `as_needed`, `twice_daily`) and `timing` (e.g. `Morning`, `Midday`, `Evening`, `Bedtime`, `Pre-Workout`, `Every Other Day (EOD)`, `Three Times Weekly (Mon / Wed / Fri)`, `Twice Weekly (Mon / Thu)`, `Weekly`, `As Needed (PRN)`). Never omit `frequency` or `timing` or force compounds into daily or Mon/Thu when alternate interval schedules (such as EOD or 3x/week) are appropriate.
+- Circadian & Chronobiological Scheduling: Formulate schedules matching receptor expression rhythms, cortisol/melatonin diurnal cycles, and metabolic absorption windows.
+- Multi-Criteria Pharmacological Selection Principles: Evaluate enzyme modulators, route delivery efficiency, pleiotropic targets, and half-life stability.
+- Canonical Compound Identifiers: In your `protocol_proposal` blocks and diffs, specify the canonical compound `id` (or `key`, e.g. `telmisartan`, `pitavastatin`, `testosterone_cypionate`, `trenbolone_acetate`) matching the catalog recommendations.
 
-### RESPONSE FORMAT (HIGH SIGNAL, CRISP MARKDOWN):
-1. **Executive Assessment**: 1–2 direct sentences on stack balance, safety, and core synergy vectors relative to the primary protocol objective and user constraints.
-2. **Targeted Synergies & Co-Factors**: 2–4 high-yield bullet points with exact molecular rationale, target dosages, and timing.
-3. **Protocol Schedule**:
-   - If depot injectables exist, list under a **Depot Injections (Weekly / Split Protocol)** header.
-   - Then provide a compact **Daily Circadian Schedule Table**:
-     | Window | Compound | Dose & Route | Pharmacokinetic & Chronobiological Rationale |
-4. **Clinical Titration & Notes**: 1–2 bullet points on titration milestones, safety monitoring, or co-ingestion rules.
-5. **Action Card**: When proposing protocol additions, titrations, or removals, provide **EXACTLY ONE consolidated `<action_card type="stack_diff">` at the VERY END of the response**. The action card MUST contain EVERY compound recommended in the schedule and synergies with matching dosages and timing (e.g. `{"add": [{"key": "telmisartan", "name": "Telmisartan", "dose": 40, "unit": "mg", "timing": "morning", "frequency": "daily", "route": "oral"}], "modify": [], "remove": []}`). Do NOT omit any recommended compound from the card, and do NOT include unmentioned compounds.
-   Example:
-   <action_card type="stack_diff">
-   {"add": [{"key": "telmisartan", "name": "Telmisartan", "dose": 40, "unit": "mg", "timing": "morning", "frequency": "daily", "route": "oral"}], "modify": [], "remove": []}
-   </action_card>
+### RESPONSE FORMAT (PURE JSON):
+You must output your final response as a pure, structured JSON object containing a `blocks` array. DO NOT output any markdown blocks, conversational filler, or XML tags outside of the JSON. If you need to output standard text/markdown, put it inside a block of `type: "text"`. 
+Keep the user-facing `text` blocks extremely concise and executive-level (2-4 sentences max). The UI is designed to be elegant and simple on first load. Rely on the structured `protocol_proposal` or other interactive UI cards to deliver the heavy details, which the user can expand or click on.
+You must ONLY use the following block types:
+- `text`: For standard conversational markdown, clinical notes, summaries, and executive assessments.
+- `protocol_proposal`: For recommending or displaying a protocol/stack. This block will be rendered as interactive UI tiles.
+
+JSON Schema for Response:
+{
+  "blocks": [
+    {
+      "type": "text",
+      "content": "Executive Assessment: This protocol is designed for..."
+    },
+    {
+      "type": "protocol_proposal",
+      "data": {
+        "goal_title": "Hypertrophy & Androgen Optimization",
+        "summary": "Protocol calibrated for lean mass accretion...",
+        "compounds": [
+          {
+            "id": "trenbolone_acetate",
+            "name": "Trenbolone Acetate",
+            "dose": 100,
+            "unit": "mg",
+            "route": "intramuscular",
+            "frequency": "every_other_day",
+            "timing": "Every Other Day (EOD)",
+            "target": "Nuclear Androgen Receptor (AR / NR3C4)",
+            "rationale": "High-potency anabolic stimulus with rapid ester clearance",
+            "citations": ["PMID: 29179383"]
+          }
+        ],
+        "safety_notes": ["Monitor lipid panel, blood pressure, and renal/hepatic markers."],
+        "sources": [{"badge": "[PMID: 29179383]", "description": "Clinical Pharmacokinetics & Receptor Kinetics"}],
+        "diff": {
+          "add": [
+            {
+              "id": "trenbolone_acetate",
+              "name": "Trenbolone Acetate",
+              "dose": 100,
+              "unit": "mg",
+              "route": "intramuscular",
+              "frequency": "every_other_day",
+              "timing": "Every Other Day (EOD)"
+            }
+          ],
+          "modify": [],
+          "remove": []
+        }
+      }
+    }
+  ]
+}
 """,
     "auditor": """You are the HealthAI Clinical Risk Auditor & Toxicological Conflict Detective.
-Your role is to forensically red-team compound stacks, identifying drug-drug interactions (DDIs), CYP450 enzyme competition, Phase II and transporter saturation (P-gp, OATP1B1, BCRP), acute syndrome hazards (Serotonin Syndrome, QTc prolongation, Renal Triple Whammy), steady-state hormonal/pharmacokinetic fluctuations, and hepatic/renal clearance bottlenecks.
+Your role is to forensically red-team compound stacks, identifying drug-drug interactions (DDIs), CYP450 enzyme competition, Phase II and transporter saturation, acute syndrome hazards, steady-state hormonal fluctuations, and clearance bottlenecks.
 
 ### CLINICAL & SCIENTIFIC MANDATE:
-- Structured Toxicological Reasoning & Autonomous Research: Use your internal deliberation (<think>...</think> / <scratchpad>) for structured analysis (150–250 words). Whenever auditing a stack, assessing organ burdens, or investigating drug-drug interactions, actively invoke research tools (e.g. `search_pubmed_titles`, `read_paper_abstract`, `read_paper_section`, `search_within_paper`, `check_cyp450_conflicts`) to search for and read papers on the compounds, verifying clinical safety trials, adverse effect data, and protective countermeasures before formulating your audit.
-- Quantify risk severity (MINIMAL, LOW, MODERATE, ELEVATED, SEVERE) referencing the deterministic collision matrix and uncompensated risks.
-- Steady-State & Hormonal Fluctuation Auditing: Forensically audit dosing frequencies against elimination half-lives (t1/2). Flag any infrequent hormonal bolus schedule where tau > t1/2 as an uncompensated risk factor (Peak-to-Trough Fluctuation / Rollercoaster Kinetics), explaining the conversion liabilities (e.g. E2/DHT spikes, hematocrit elevation, receptor downregulation) and recommending split micro-dosing.
-- Ester & Formulation Precision: When auditing protocols with ester prodrugs or parent compounds, differentiate between unesterified base and specific ester variants, auditing half-life alignment against dosing interval tau (e.g. short-acting Acetate with t1/2 ~36h vs long-acting Enanthate with t1/2 ~168h).
-- Explain clearance kinetics: competitive CYP inhibition vs mechanism-based inactivation (MBI), AUCR surges, and renal CrCl/eGFR impacts.
-- Detail acute receptor cross-talk and toxicological collisions.
-- Propose evidence-based pharmacological countermeasures with verified clinical safety and dosing.
-- Strict Claim-Level Citation Grounding: Every citation MUST directly investigate the exact toxicological interaction or pharmacokinetic endpoint asserted. For theoretical DDI extrapolations, use structured evidence tags `[Pharmacological Rationale: CYP3A4 Competition]` or `[Mechanistic Extrapolation: Renal Hemodynamics]` rather than attaching unrelated empirical studies.
-- Provide direct, actionable conflict audits and solutions in finished prose.
+- Structured Toxicological Reasoning: Use internal deliberation (<think>...</think>). Actively invoke research tools to verify safety trials and adverse effects.
+- Quantify risk severity (MINIMAL, LOW, MODERATE, ELEVATED, SEVERE).
+- Propose evidence-based pharmacological countermeasures with verified clinical safety.
 
-### RESPONSE FORMAT (OBJECTIVE & ACTIONABLE):
-1. **Risk Severity Classification**: Headline with risk level and cumulative score (e.g. `MODERATE RISK [Score: 32/100]` or `CRITICAL DDI ALERT`).
-2. **Identified Conflicts & Bottlenecks**: Bullet points detailing CYP450 competition, transporter clashes, receptor collisions, hormonal fluctuations, or organ burden convergence.
-3. **Protective Countermeasures**: Concrete clinical solutions (e.g. dose reduction, frequency splitting/micro-dosing, timing separation, enzyme-specific mitigations, or targeted protective co-factors).
-4. **Action Card**: If proposing conflict resolution adjustments or compound removals, provide **EXACTLY ONE consolidated `<action_card>` at the VERY END of the response**.
+### RESPONSE FORMAT (PURE JSON):
+You must output your final response as a pure, structured JSON object containing a `blocks` array. DO NOT output any markdown blocks, conversational filler, or XML tags outside of the JSON. If you need to output standard text/markdown, put it inside a block of `type: "text"`.
+Keep the user-facing `text` blocks extremely concise (2-4 sentences max) to maintain an elegant and uncluttered UI. Rely on interactive UI elements or structured diffs for the dense details.
+If you are recommending changes (like adding a countermeasure or removing a compound), you may optionally include a `protocol_proposal` block with a `diff`.
+
+JSON Schema for Response:
+{
+  "blocks": [
+    {
+      "type": "text",
+      "content": "### MODERATE RISK [Score: 32/100]\n\n**Identified Conflicts:**\n- CYP3A4 Competition..."
+    }
+  ]
+}
 """,
     "tutor": """You are the HealthAI Molecular Pharmacology & Signal Transduction Specialist.
-You provide PhD-level molecular pharmacology explanations of receptor binding dynamics, allosteric modulations (PAM/NAM), enzyme kinetics, second messenger cascades, and downstream gene expression.
+You provide PhD-level molecular pharmacology explanations of receptor binding dynamics, allosteric modulations, enzyme kinetics, second messenger cascades, and downstream gene expression.
 
 ### BIOCHEMICAL & MOLECULAR MANDATE:
-- Structured Pharmacology Reasoning & Autonomous Research: Use your internal deliberation (<think>...</think> / <scratchpad>) for structured analysis (150–250 words). Whenever explaining any compound, molecular target, binding affinity (Ki, Kd, IC50), or signaling cascade, actively invoke research tools (e.g. `search_pubmed_titles`, `read_paper_abstract`, `read_paper_section`, `search_within_paper`, `trace_mechanism_pathway`, `find_similar_papers`) to search for and read papers about the compound, grounding its intracellular mechanisms in empirical biomedical literature before formulating your explanation.
-- Quote quantitative binding affinities ($K_i, K_d, IC_{50}, EC_{50}$) and Hill coefficients whenever available.
-- Detail specific receptor subtypes (e.g. 5-HT1A, 5-HT2A, alpha-1/beta-2 adrenergic, GABA-A alpha-1/alpha-2, CB1/CB2, Progesterone Receptor).
-- Trace intracellular signaling: G-protein coupling (Gs, Gi, Gq), second messengers (cAMP, IP3/DAG, Ca2+, PKA/PKC), and nuclear translocation/transcription factor activation (AMPK -> SIRT1 -> PGC-1alpha, Nrf2/ARE, NF-kB, CREB -> BDNF, mTORC1 -> p70S6K).
-- Strict Claim-Level Citation Grounding: Every citation MUST evaluate the exact molecular receptor, enzyme, or signaling pathway claimed. For hypothetical cascades, use `[Mechanistic Extrapolation: Signal Cascade]` or `[ChEMBL Target Assay: <TargetID>]`.
+- Structured Pharmacology Reasoning: Use internal deliberation (<think>...</think>). Actively invoke research tools to ground mechanisms in empirical literature.
+- Detail specific receptor subtypes and trace intracellular signaling.
+- Strict Claim-Level Citation Grounding.
 
-### RESPONSE FORMAT (HIGH SCIENTIFIC DENSITY):
-1. **Primary Molecular Targets & Binding Kinetics**: Specific receptors/enzymes, affinities, and agonist/antagonist/allosteric mode.
-2. **Intracellular Signaling Cascade**: Step-by-step pathway transduction mechanism.
-3. **Physiological & Clinical Translation**: How cellular signaling translates to systemic physiological performance or health outcomes.
+### RESPONSE FORMAT (PURE JSON):
+You must output your final response as a pure, structured JSON object containing a `blocks` array. DO NOT output any markdown blocks or conversational filler outside of the JSON.
+Keep the user-facing `text` blocks extremely concise (2-4 sentences max). The UI should remain elegant and intuitive. Use high-level summaries and allow the user to ask follow-up questions if they want deeper dives.
+
+JSON Schema for Response:
+{
+  "blocks": [
+    {
+      "type": "text",
+      "content": "### Primary Molecular Targets & Binding Kinetics\n..."
+    }
+  ]
+}
 """,
     "labs": """You are the HealthAI Biomarker & Clinical Laboratory Panel Specialist.
-You interpret quantitative patient blood panels (Lipids, Hepatic transaminases, Renal clearance, Endocrine/Hormonal axes, Glycemic and Inflammatory markers) and correlate them directly with compound pharmacology to optimize titrations and safeguard organ function.
+You interpret quantitative patient blood panels and correlate them directly with compound pharmacology to optimize titrations and safeguard organ function.
 
 ### CLINICAL LABORATORY STANDARDS:
-- Structured Biomarker Reasoning & Autonomous Research: Use your internal deliberation (<think>...</think> / <scratchpad>) for structured analysis (150–250 words). Whenever correlating blood panels, organ clearance metrics, or biomarker shifts with compounds, actively invoke research tools (e.g. `search_pubmed_titles`, `read_paper_abstract`, `read_paper_section`, `search_within_paper`, `simulate_pkpd`, `calculate_individualized_dosing`) to search for and read papers on the compounds, verifying clinical trial biomarker outcomes before formulating your guidance.
-- Correlate laboratory shifts with specific pharmacokinetic and metabolic burdens (e.g. 17alpha-alkylated hepatic clearance, eGFR renal clearance, HMGCR modulation, HPTA axis negative feedback, Peak-to-Trough swings).
-- Factor in peak vs. trough blood draw timing relative to dosing interval tau. When wide fluctuations occur, advise on trough-standardized blood draws and frequency titration.
-- Provide individual baseline comparisons against clinical reference ranges.
-- Propose exact titration offsets and targeted ancillary co-factors to normalize skewed laboratory parameters.
-- Strict Claim-Level Citation Grounding: Only cite clinical trials that directly assess the biomarker shifts or organ clearance metrics in question. For theoretical extrapolations or clinical practice guidelines, cite `[Pharmacological Rationale: Organ Clearance]`, `[Mechanistic Extrapolation: Biomarker Modulation]`, `[Clinical Guideline: <Society/Year>]`, or `[FDA Label: §<Section>]`.
+- Structured Biomarker Reasoning: Use internal deliberation (<think>...</think>). Actively invoke research tools.
+- Correlate laboratory shifts with specific pharmacokinetic and metabolic burdens.
+- Provide individualized titration guidance.
 
-### RESPONSE FORMAT (CLINICALLY FOCUSED):
-1. **Biomarker Profile & Impact Overview**: Assessment across Lipid (ApoB, LDL-C, Triglycerides), Hepatic (ALT, AST, Bilirubin), Renal (eGFR, Cr, K+), and Hormonal axes.
-2. **Individualized Titration Guidance**: Concrete dose calibrations scaled to the patient's current organ clearance metrics.
-3. **Recommended Monitoring Panel & Timeline**: Key lab panels to order at the next 4-week / 12-week draw.
-4. **Action Card**: If lab results necessitate dose reductions, split schedules, or protective co-factors, provide **EXACTLY ONE consolidated `<action_card>` at the VERY END of the response**.
+### RESPONSE FORMAT (PURE JSON):
+You must output your final response as a pure, structured JSON object containing a `blocks` array. DO NOT output any markdown blocks or conversational filler outside of the JSON.
+Keep the user-facing `text` blocks highly concise (2-4 sentences max) so the dashboard remains clean and intuitive on first load. Summarize the major lab impacts and rely on interactive UI charts/cards for the dense numbers.
+
+JSON Schema for Response:
+{
+  "blocks": [
+    {
+      "type": "text",
+      "content": "### Biomarker Profile & Impact Overview\n..."
+    }
+  ]
+}
 """
 }
 
@@ -669,34 +723,96 @@ MODES_METADATA = [
 
 class StreamingTagParser:
     """
-    Parses a stream of tokens in real time, routing thinking/scratchpad tokens
-    and untagged meta-cognition to the reasoning telemetry stream, action_cards/tools
-    to internal buffers, and actual clinical markdown tokens directly to the user-facing delta stream.
+    Parses a stream of tokens in real time, routing thinking/scratchpad tokens,
+    tool calls (<tool_call>, <call>, or bare JSON), and untagged meta-cognition
+    to the reasoning telemetry stream, action_cards to internal buffers,
+    and actual clinical markdown tokens directly to the user-facing delta stream.
     """
     def __init__(self):
         self.buffer = ""
-        self.mode = "text"  # 'text', 'thinking', 'tool', 'action_card'
+        self.mode = "text"  # 'text', 'thinking', 'tool', 'action_card', 'bare_json'
         self.current_tag = ""
         self.current_tag_header = ""
         self.tag_content = ""
+        self.json_brace_depth = 0
+        self.json_in_string = False
+        self.json_escape_next = False
         self.tool_calls = []
         self.action_cards = []
         self.has_seen_clinical_markdown_header = False
         self.accumulated_preamble = ""
+        self.is_streaming_protocol_json = False
 
     def feed(self, token: str) -> List[Tuple[str, str]]:
         self.buffer += token
-        events = []
+        events: List[Tuple[str, str]] = []
 
         while self.buffer:
-            if self.mode == "text":
-                # Check for start tags
+            if self.mode == "bare_json":
+                combined = self.tag_content + self.buffer
+                is_protocol_payload = any(k in combined for k in ('"blocks"', '"protocol_proposal"', '"goal_title"', '"compounds"', '"exec_summary"'))
+                if is_protocol_payload:
+                    self.is_streaming_protocol_json = True
+                    self.mode = "text"
+                    events.append(("delta", combined))
+                    self.tag_content = ""
+                    self.buffer = ""
+                    break
+
+                # Process characters inside JSON object across token boundaries
+                i = 0
+                while i < len(self.buffer):
+                    ch = self.buffer[i]
+                    if self.json_escape_next:
+                        self.json_escape_next = False
+                    elif ch == '\\' and self.json_in_string:
+                        self.json_escape_next = True
+                    elif ch == '"':
+                        self.json_in_string = not self.json_in_string
+                    elif not self.json_in_string:
+                        if ch == '{':
+                            self.json_brace_depth += 1
+                        elif ch == '}':
+                            self.json_brace_depth -= 1
+                            if self.json_brace_depth == 0:
+                                # Full JSON object closed
+                                json_str = self.tag_content + self.buffer[:i + 1]
+                                self.buffer = self.buffer[i + 1:]
+                                self.tag_content = ""
+                                self.mode = "text"
+
+                                is_protocol = any(k in json_str for k in ('"blocks"', '"protocol_proposal"', '"goal_title"', '"compounds"', '"exec_summary"'))
+                                is_tool = any(k in json_str for k in ('"pmid"', '"query"', '"tool"', '"name"', '"compound_key"', '"target_id"', '"dose_mg"', '"max_results"', '"cypher"', '"goal"', '"base_stack"')) and not is_protocol
+                                is_action_card = ('"action_card"' in json_str or '"stack_diff"' in json_str or ('"add"' in json_str and '"modify"' in json_str)) and not is_protocol
+
+                                if is_protocol or self.is_streaming_protocol_json:
+                                    self.is_streaming_protocol_json = True
+                                    events.append(("delta", json_str))
+                                elif is_tool:
+                                    self.tool_calls.append(json_str)
+                                    events.append(("reasoning", f"\n🔍 [Tool Call Request] {json_str}\n"))
+                                elif is_action_card:
+                                    self.action_cards.append(f'<action_card type="stack_diff">{json_str}</action_card>')
+                                elif not self.has_seen_clinical_markdown_header:
+                                    events.append(("reasoning", json_str))
+                                else:
+                                    events.append(("delta", json_str))
+                                break
+                    i += 1
+                else:
+                    # Consumed entire buffer while remaining inside JSON object
+                    self.tag_content += self.buffer
+                    self.buffer = ""
+                    break
+
+            elif self.mode == "text":
+                # 1. Check for start tags
                 open_match = re.search(r'<(think|thought|scratchpad|clinical_notes|context|observation|tool_call|call|action_card)(?:\s+[^>]*)?>', self.buffer, re.IGNORECASE)
                 if open_match:
                     start_idx = open_match.start()
                     if start_idx > 0:
                         raw_lead = self.buffer[:start_idx]
-                        if not self.has_seen_clinical_markdown_header and self._is_meta_cognition(raw_lead):
+                        if not self.has_seen_clinical_markdown_header and not self.is_streaming_protocol_json:
                             events.append(("reasoning", raw_lead))
                         else:
                             events.append(("delta", raw_lead))
@@ -713,46 +829,95 @@ class StreamingTagParser:
                         self.mode = "tool"
                     elif tag_name == "action_card":
                         self.mode = "action_card"
-                else:
-                    # Check for bare JSON tool calls before markdown header (e.g. {"pmid": "..."} or {"query": "..."})
-                    if not self.has_seen_clinical_markdown_header:
-                        bare_json_match = re.search(r'^\s*(\{\s*"[^{}]*"(?:\s*:\s*[^{}]*)?\})', self.buffer)
-                        if bare_json_match:
-                            raw_json = bare_json_match.group(1)
-                            self.tool_calls.append(raw_json)
-                            events.append(("reasoning", f"\n🔍 [Tool Call Request] {raw_json}\n"))
-                            self.buffer = self.buffer[bare_json_match.end():]
-                            continue
+                    continue
 
-                        # Check if stream is emitting untagged thinking preamble before markdown header
-                        header_match = re.search(r'(?:^|\n)(?:#{1,4}\s+|(?:\*\*(?:Executive|Risk|Biomarker|Primary|Identified|Targeted|Protocol|Circadian|1\.|2\.|3\.|4\.)))', self.buffer)
-                        if header_match:
-                            h_idx = header_match.start()
-                            pre_header = self.buffer[:h_idx]
-                            if pre_header:
-                                events.append(("reasoning", pre_header))
-                            self.has_seen_clinical_markdown_header = True
-                            self.buffer = self.buffer[h_idx:]
-                            continue
+                # 2. Check for bare JSON or stray braces before markdown header
+                if not self.has_seen_clinical_markdown_header and not self.is_streaming_protocol_json:
+                    # Stray leading closing brace or fragmented quote lines before header
+                    stray_brace_match = re.search(r'^\s*\}\s*', self.buffer)
+                    if stray_brace_match:
+                        self.buffer = self.buffer[stray_brace_match.end():]
+                        continue
 
-                        # If full buffer looks like meta-cognition / self-talk / raw JSON, route to reasoning
-                        if self._is_meta_cognition(self.buffer):
+                    # Bare JSON object starting with {
+                    bare_json_start = re.search(r'^\s*\{', self.buffer)
+                    if bare_json_start:
+                        brace_idx = self.buffer.find('{')
+                        lead_ws = self.buffer[:brace_idx]
+                        if lead_ws.strip():
+                            events.append(("reasoning", lead_ws))
+                        self.mode = "bare_json"
+                        self.json_brace_depth = 1
+                        self.json_in_string = False
+                        self.json_escape_next = False
+                        self.tag_content = "{"
+                        self.buffer = self.buffer[brace_idx + 1:]
+                        continue
+
+                    # Fragmented tool line e.g. "trenbolone...": 6} or bolone sleep...
+                    dangling_tool_match = re.search(r'^\s*(?:"[^\n]*?"\s*:\s*[^\n]*?\}(?:\n|$)|[a-zA-Z0-9_\-\s]+",\s*"max_results"\s*:\s*\d+\}(?:\n|$))', self.buffer)
+                    if dangling_tool_match:
+                        raw_frag = dangling_tool_match.group(0)
+                        self.buffer = self.buffer[dangling_tool_match.end():]
+                        events.append(("reasoning", f"\n🔍 [Tool Call Request] {raw_frag}\n"))
+                        continue
+
+                    # Check for clinical markdown header
+                    header_match = re.search(r'(?:^|\n)(#{1,4}\s+|(?:\*\*(?:Executive|Risk|Biomarker|Primary|Identified|Targeted|Protocol|Circadian|Clinical|Summary|1\.|2\.|3\.|4\.)))', self.buffer)
+                    if header_match:
+                        h_idx = header_match.start()
+                        pre_header = self.buffer[:h_idx]
+                        if pre_header:
+                            events.append(("reasoning", pre_header))
+                        self.has_seen_clinical_markdown_header = True
+                        self.buffer = self.buffer[h_idx:]
+                        continue
+
+                    # If text looks like meta-cognition / self-talk, route to reasoning
+                    if self._is_meta_cognition(self.buffer):
+                        partial_match = re.search(r'(?:<[^>]*$|\{\s*"?[^}]*$)', self.buffer)
+                        if partial_match:
+                            safe_text = self.buffer[:partial_match.start()]
+                            self.buffer = self.buffer[partial_match.start():]
+                            if safe_text:
+                                events.append(("reasoning", safe_text))
+                            break
+                        else:
                             events.append(("reasoning", self.buffer))
                             self.buffer = ""
                             break
 
-                    # If buffer ends with a partial '<...' or '{...', keep partial in buffer
-                    partial_match = re.search(r'(?:<[a-zA-Z0-9_\-\s]*$|\{\s*"[a-zA-Z0-9_\-\s]*$)', self.buffer)
-                    if partial_match:
-                        safe_text = self.buffer[:partial_match.start()]
-                        self.buffer = self.buffer[partial_match.start():]
-                        if safe_text:
+                # 3. Check for bare JSON even after markdown header if starting on a new line and contains tool keys
+                bare_tool_match = re.search(r'(?:^|\n)\s*(\{\s*"(?:pmid|query|tool|name|compound_key|target_id|dose_mg|max_results|cypher)"[^{}]*\})', self.buffer)
+                if bare_tool_match and not self.is_streaming_protocol_json:
+                    start_pos = bare_tool_match.start()
+                    if start_pos > 0:
+                        safe_lead = self.buffer[:start_pos]
+                        events.append(("delta", safe_lead))
+                    raw_tool_json = bare_tool_match.group(1).strip()
+                    self.tool_calls.append(raw_tool_json)
+                    events.append(("reasoning", f"\n🔍 [Tool Call Request] {raw_tool_json}\n"))
+                    self.buffer = self.buffer[bare_tool_match.end():]
+                    continue
+
+                # Buffer partial tags or partial JSON start at the end of the buffer
+                partial_match = re.search(r'(?:<[^>]*$|\{\s*"?[^}]*$)', self.buffer)
+                if partial_match:
+                    safe_text = self.buffer[:partial_match.start()]
+                    self.buffer = self.buffer[partial_match.start():]
+                    if safe_text:
+                        if not self.has_seen_clinical_markdown_header and not self.is_streaming_protocol_json:
+                            events.append(("reasoning", safe_text))
+                        else:
                             events.append(("delta", safe_text))
-                        break
+                    break
+                else:
+                    if not self.has_seen_clinical_markdown_header and not self.is_streaming_protocol_json:
+                        events.append(("reasoning", self.buffer))
                     else:
                         events.append(("delta", self.buffer))
-                        self.buffer = ""
-                        break
+                    self.buffer = ""
+                    break
 
             elif self.mode == "thinking":
                 close_pattern = rf'</(?:{self.current_tag}|think|thought|scratchpad|clinical_notes|context|observation)>'
@@ -788,6 +953,7 @@ class StreamingTagParser:
                     full_block = f"{self.current_tag_header}{self.tag_content}{close_match.group(0)}"
                     if self.mode == "tool":
                         self.tool_calls.append(full_block)
+                        events.append(("reasoning", f"\n🔍 [Tool Call Request] {self.tag_content.strip()}\n"))
                     else:
                         self.action_cards.append(full_block)
                     self.buffer = self.buffer[close_match.end():]
@@ -804,7 +970,8 @@ class StreamingTagParser:
         """Determines if text fragment contains untagged internal reasoning / self-talk or tool JSON."""
         t_strip = text.strip()
         if t_strip.startswith("{") and any(k in t_strip for k in ('"pmid"', '"query"', '"tool"', '"name"', '"compound_key"', '"max_results"', '"action_card"')):
-            return True
+            if '"blocks"' not in t_strip and '"protocol_proposal"' not in t_strip:
+                return True
         t_low = text.lower()
         meta_phrases = [
             "we need", "need to", "need answer", "need produce", "need decide",
@@ -819,9 +986,26 @@ class StreamingTagParser:
 
     def flush(self) -> List[Tuple[str, str]]:
         events = []
-        if self.buffer:
+        if self.mode == "bare_json":
+            full_json = self.tag_content + self.buffer
+            if full_json.strip():
+                is_protocol = any(k in full_json for k in ('"blocks"', '"protocol_proposal"', '"goal_title"', '"compounds"', '"exec_summary"'))
+                is_tool = any(k in full_json for k in ('"pmid"', '"query"', '"tool"', '"name"', '"compound_key"', '"target_id"', '"dose_mg"', '"max_results"', '"cypher"')) and not is_protocol
+                if is_protocol or self.is_streaming_protocol_json:
+                    events.append(("delta", full_json))
+                elif is_tool:
+                    self.tool_calls.append(full_json)
+                    events.append(("reasoning", f"\n🔍 [Tool Call Request] {full_json}\n"))
+                elif not self.has_seen_clinical_markdown_header:
+                    events.append(("reasoning", full_json))
+                else:
+                    events.append(("delta", full_json))
+            self.buffer = ""
+            self.tag_content = ""
+            self.mode = "text"
+        elif self.buffer:
             if self.mode == "text":
-                if not self.has_seen_clinical_markdown_header and self._is_meta_cognition(self.buffer):
+                if not self.has_seen_clinical_markdown_header and not self.is_streaming_protocol_json and (self._is_meta_cognition(self.buffer) or any(k in self.buffer for k in ('"pmid"', '"query"', '"max_results"', '}', '{'))):
                     events.append(("reasoning", self.buffer))
                 else:
                     events.append(("delta", self.buffer))
@@ -942,7 +1126,11 @@ class CopilotAgent:
                 t_first = tgts[0]
                 target_str = f"{t_first.get('target', 'Molecular Target')} ({t_first.get('action', 'modulator')})"
 
-        purpose = clinical_purpose or catalog_comp.get("clinical_notes") or catalog_comp.get("description") or f"Modulates {target_str} to support physiological homeostasis."
+        first_act = str(catalog_comp.get("receptor_targets", [{}])[0].get("action", "")).lower() if (isinstance(catalog_comp.get("receptor_targets"), list) and catalog_comp.get("receptor_targets") and isinstance(catalog_comp.get("receptor_targets")[0], dict)) else ""
+        if first_act == "substrate":
+            purpose = clinical_purpose or catalog_comp.get("clinical_notes") or catalog_comp.get("description") or f"Substrate for {target_str} to support metabolic and physiological homeostasis."
+        else:
+            purpose = clinical_purpose or catalog_comp.get("clinical_notes") or catalog_comp.get("description") or f"Modulates {target_str} to support physiological homeostasis."
         burden = solves_burden or f"Target {target_str} optimization"
         grade = evidence_grade or catalog_comp.get("evidence_grade") or ("FDA Approved / Clinical Grade" if "Prescription" in (catalog_comp.get("categories") or []) else "Human Clinical Trials")
         safety = interaction_safety or catalog_comp.get("interaction_safety") or catalog_comp.get("safety_notes") or "Targeted physiological pairing."
@@ -1000,7 +1188,22 @@ class CopilotAgent:
             else:
                 enriched_compounds.append(c)
         compounds = enriched_compounds
-        existing_keys = {str(c.get("key") or c.get("name") or "").lower() for c in compounds}
+
+        def _get_canon_id(comp_dict: Dict[str, Any]) -> str:
+            k = str(comp_dict.get("key") or comp_dict.get("name") or "").strip().lower()
+            comp_rec = catalog.get_compound(k, auto_enrich=False) or catalog.find_by_synonym(k)
+            if comp_rec:
+                return str(comp_rec.get("canonical_key") or comp_rec.get("parent_compound_id") or comp_rec.get("key") or k).lower().strip()
+            return k.replace("-", "_").replace(" ", "_")
+
+        existing_canonical_ids = {_get_canon_id(c) for c in compounds}
+        existing_keys = set()
+        for c in compounds:
+            k = str(c.get("key") or c.get("name") or "").lower().strip()
+            if k:
+                existing_keys.add(k)
+                existing_canonical_ids.add(k)
+        candidate_canonical_ids = set()
 
         eval_res = interaction_engine.analyze_stack(compounds, profile={"labs": biometrics}) if compounds else {}
         breakdown = eval_res.get("breakdown", {})
@@ -1017,6 +1220,8 @@ class CopilotAgent:
 
         recommendations: List[Dict[str, Any]] = []
         candidate_pool: List[Dict[str, Any]] = []
+
+        candidate_pool_keys = set()
 
         # 1. Dynamic First-Principles Target-Complementarity & Enzymatic Countermeasure Discovery
         try:
@@ -1045,7 +1250,10 @@ class CopilotAgent:
                         matching_inhibitors = catalog.find_compounds_by_target(t_name, action="inhibitor")
                         for inh in matching_inhibitors:
                             inh_key = inh.get("key", "").lower()
-                            if inh_key and inh_key not in existing_keys and inh_key not in [cand["key"] for cand in candidate_pool]:
+                            inh_cid = _get_canon_id(inh)
+                            if inh_key and inh_cid not in existing_canonical_ids and inh_cid not in candidate_canonical_ids and inh_key not in existing_keys and inh_key not in candidate_pool_keys:
+                                candidate_canonical_ids.add(inh_cid)
+                                candidate_pool_keys.add(inh_key)
                                 candidate_pool.append(cls._build_candidate_entry(
                                     catalog_comp=inh,
                                     target_name=f"{t_name} Inhibitor",
@@ -1066,14 +1274,9 @@ class CopilotAgent:
         bp_val = float(biometrics.get("blood_pressure", 120))
         alt_val = float(biometrics.get("alt_u_l", 25))
 
-        has_19nor = any(
-            any(w in set(re.findall(r"[a-z0-9]+", str(c.get("key", "") + " " + c.get("name", "")).lower()))
-                for w in ["trenbolone", "nandrolone", "durabolin", "trestolone", "ment", "npp", "parabolan"])
-            or any(w in str(c.get("key", "")).lower() or w in str(c.get("name", "")).lower()
-                for w in ["nandrolone", "trenbolone", "trestolone", "19-nor", "19nor"])
-            for c in compounds
-        )
+        has_19nor = any(is_19nor_steroid(c) for c in compounds)
         has_aromatizable = any(is_aromatizable_androgen(c) for c in compounds)
+
         has_any_androgen = any(is_steroidal_androgen(c) or "androgen" in str(c.get("drug_class", "")).lower() for c in compounds)
         has_ai = any(
             "aromatase inhibitor" in str(c.get("drug_class", "")).lower()
@@ -1163,7 +1366,10 @@ class CopilotAgent:
                 matching_comps = catalog.find_compounds_by_target(kw, action=act)
                 for comp in matching_comps:
                     c_key = comp.get("key", "").lower()
-                    if c_key and c_key not in existing_keys and c_key not in [cand["key"] for cand in candidate_pool]:
+                    c_cid = _get_canon_id(comp)
+                    if c_key and c_cid not in existing_canonical_ids and c_cid not in candidate_canonical_ids and c_key not in existing_keys and c_key not in candidate_pool_keys:
+                        candidate_canonical_ids.add(c_cid)
+                        candidate_pool_keys.add(c_key)
                         candidate_pool.append(cls._build_candidate_entry(
                             catalog_comp=comp,
                             solves_burden=solves_burden_text,
@@ -1190,9 +1396,15 @@ class CopilotAgent:
                     partner_key = src
                     primary_comp = tgt
 
-                if partner_key and partner_key not in [c["key"] for c in candidate_pool]:
+                if partner_key and partner_key not in candidate_pool_keys and partner_key not in existing_keys:
                     partner_comp = catalog.get_compound(partner_key) or catalog.find_by_synonym(partner_key)
                     if partner_comp:
+                        p_cid = _get_canon_id(partner_comp)
+                        if p_cid in existing_canonical_ids or p_cid in candidate_canonical_ids:
+                            continue
+                        candidate_canonical_ids.add(p_cid)
+                        candidate_pool_keys.add(partner_key)
+
                         p_name = primary_comp.title().replace("_", " ")
                         
                         if e_type == "LITERATURE_COOCCURRENCE":
@@ -2052,7 +2264,7 @@ class CopilotAgent:
                     cite_tag = f" | Verified Study: [{r.get('citation_str') or ('PMID: ' + str(r['pmid']))}]" if r.get("pmid") else ""
                     finding_tag = f" (Finding: {r['clinical_finding'][:120]}...)" if r.get("clinical_finding") else ""
                     rec_sections.append(
-                        f"- **{r['name']}** [{r['standard_dose']}]: Target = {r['target']} | "
+                        f"- **{r['name']}** [id: `{r['key']}` | standard_dose: {r['standard_dose']}]: Target = {r['target']} | "
                         f"Clinical Rationale = {r['clinical_purpose']} (Compensates: {r['solves_burden']}) | "
                         f"Evidence = {r['evidence_grade']}{cite_tag}{finding_tag} | Safety = {r['interaction_safety']}"
                     )
@@ -2167,7 +2379,7 @@ class CopilotAgent:
             for t_key in target_keys[:10]:
                 comp_meta = catalog.get_compound(t_key, auto_enrich=False) or catalog.find_by_synonym(t_key)
                 c_name = comp_meta.get("name") if comp_meta else t_key.replace("_", " ").title()
-                c_cites = pubmed_svc.search_literature(str(t_key), max_results=2)
+                c_cites = pubmed_svc.search_literature(str(t_key), max_results=2, online_fallback=False)
                 for cite in c_cites:
                     finding_str = f" ➔ *Investigated Finding*: {cite['clinical_finding']}" if cite.get("clinical_finding") else ""
                     topics_list = cite.get("claim_topics") or []
@@ -2250,7 +2462,7 @@ class CopilotAgent:
                 p_route = f" ({p.get('route', 'oral')})"
                 p_timing = f" [{p.get('timing', 'morning')}]"
                 p_lines.append(f"- **{p_name}**: {p_dose}{p_route}{p_timing}")
-            p_lines.append("\n**CRITICAL MULTI-TURN CUMULATIVE DIRECTIVE**: The user is continuing to build/refine this protocol without having clicked 'Apply Changes' yet. You MUST maintain all previously proposed compounds as the active baseline! Your updated protocol markdown, schedule table, and `<action_card type=\"stack_diff\">` MUST include ALL previous recommendations as well as any newly requested compounds or modifications, so that the action card represents the complete updated protocol.")
+            p_lines.append("\n**CRITICAL MULTI-TURN CUMULATIVE DIRECTIVE**: The user is continuing to build/refine this protocol without having clicked 'Apply Changes' yet. You MUST maintain all previously proposed compounds as the active baseline! Your updated `protocol_proposal` JSON block MUST include ALL previous recommendations as well as any newly requested compounds or modifications in both the `compounds` array and the `diff` object, so that it represents the complete updated protocol.")
             full_system_parts.append("\n" + "\n".join(p_lines))
 
         # 3b. Pre-calibrated Baseline Blueprint Grounding (Deterministic Evidence-Based Reference)
@@ -2270,7 +2482,8 @@ class CopilotAgent:
                     else:
                         blueprint_sections.append("> Baseline protocol blueprint formulated according to clinical goals and constraints:")
                     for c in scratch_proposal.get("compounds", []):
-                        blueprint_sections.append(f"- **{c['name']}** ({c['dose']} {c['unit']} {c['route']}, {c['timing']}) — *{c.get('target', '')}*: {c.get('rationale', '')}")
+                        freq_str = f", {c['frequency'].replace('_', ' ')}" if c.get("frequency") and c.get("frequency") not in ("daily", "once_daily", "every_day", "") else ""
+                        blueprint_sections.append(f"- **{c['name']}** ({c['dose']} {c['unit']} {c['route']}{freq_str}, {c['timing']}) — *{c.get('target', '')}*: {c.get('rationale', '')}")
                     if scratch_proposal.get("applied_exclusions"):
                         blueprint_sections.append(f"- ⚠️ **User-Requested Exclusions Applied**: {', '.join(scratch_proposal['applied_exclusions'])} (CRITICAL: Do NOT propose or include these excluded compounds).")
             except Exception as bp_err:
@@ -2357,30 +2570,35 @@ You have autonomous access to execute live graph traversals, pathway queries, ph
    - **Proactive Research Assessment**: Actively assess whether your recommendations, clinical rationales, or compound synergies would benefit from deeper empirical backing, literature citations, or pharmacokinetic validation. If so, invoke the appropriate research tool(s) to fetch the evidence before formulating your final response.
    - User constraints and exclusions ALWAYS override default templates.
 
-2. **Proactive Tool Calling & Research Protocol**:
-   - **Actively Research & Ground Claims**: When proposing new compounds, exploring synergies/co-occurrences, validating specific clinical endpoints, verifying dosages/adverse effects, or checking collision matrices, **actively call your research tools during your thinking loop**:
-     * `search_pubmed_titles`: `{"query": "telmisartan cognitive neuroprotection bdnf", "max_results": 8}` (Discovers candidate study titles, PMIDs, and publication years without token bloat)
-     * `read_paper_abstract`: `{"pmid": "26039521"}` (Reads title, author, journal, sample size, and full abstract text during thinking)
-     * `read_paper_section`: `{"pmid": "26039521", "section": "results"}` (Reads targeted results/dosage/adverse effects section from Open Access papers)
-     * `search_within_paper`: `{"pmid": "26039521", "query": "liver enzymes AST ALT"}` (Extracts top relevant paragraphs within a paper)
-     * `find_candidate_pairings`: `{"compound_key": "telmisartan", "min_confidence": 0.3}` (Discovers empirical literature co-occurrences & synergistic partners)
-     * `find_similar_papers`: `{"pmid": "18378520", "top_k": 4}` (Discovers related papers sharing biological pathways via vector graph)
-     * `search_cached_papers_semantic`: `{"query": "metformin exercise hypertrophy mTOR", "top_k": 5}` (Semantic vector search across local graph cache)
-     * `hybrid_rag_search`: `{"query": "metformin hypertrophy mTOR", "entity_ids": ["metformin"]}` (Combines causal chains with literature citations)
-     * `search_biomedical_literature`: `{"query": "citrus bergamot lipid profile ApoB", "max_results": 4}`
-     * `simulate_pkpd`: `{"compound_key": "telmisartan", "dose_mg": 40}` (Simulates Cmax, t1/2, clearance, and steady-state accumulation)
-     * `check_cyp450_conflicts` / `analyze_stack_conflicts`: `{"compound_keys": [...], "biometrics": {...}}` (Evaluates enzyme inhibition & competitive clearance)
-     * `build_stack_from_scratch`: `{"goal": "anabolic_physique", "biometrics": {...}, "preferences": {...}, "custom_notes": "no oral l-carnitine"}`
-     * `simulate_stack_diff`: `{"base_stack": [...], "diff": {"add": [...], "remove": [...]}}`
-     * `trace_mechanism_pathway`: `{"source_compound": "caffeine", "target_biomarker": "bio_heart_rate"}`
-     * `query_pathway_cascade`: `{"target_id": "TARGET_NAME"}`
-   - **Direct Synthesis**: For simple greetings or when all needed citations and pharmacokinetic parameters are already explicitly provided in the grounding context, you may formulate the final response directly.
+2. **Proactive Tool Calling & Empirical Grounding Protocol**:
+   - **Autonomous Research & Tool Access**: You have full autonomy to inspect literature and simulate pharmacology. You are strongly encouraged to actively invoke your research tools inside your `<scratchpad>` whenever designing protocols from scratch, evaluating specialized or requested compounds, exploring synergies, validating circadian timing, or verifying safe dosing ranges:
+     * `search_pubmed_titles`: `<tool_call name="search_pubmed_titles">{"query": "telmisartan cognitive neuroprotection bdnf", "max_results": 8}</tool_call>` (Discovers candidate study titles, PMIDs, and publication years without token bloat)
+     * `read_paper_abstract`: `<tool_call name="read_paper_abstract">{"pmid": "26039521", "goal": "Extract dosage protocols and adverse effects"}</tool_call>` (Dispatches a subagent to read the abstract and extract ONLY goal-relevant findings to save context)
+     * `read_paper_section`: `<tool_call name="read_paper_section">{"pmid": "26039521", "section": "results", "goal": "Find exact lipid changes"}</tool_call>` (Dispatches a subagent to read targeted open access sections)
+     * `search_within_paper`: `<tool_call name="search_within_paper">{"pmid": "26039521", "query": "liver enzymes AST ALT"}</tool_call>` (Extracts top relevant paragraphs within a paper)
+     * `find_candidate_pairings`: `<tool_call name="find_candidate_pairings">{"compound_key": "telmisartan", "min_confidence": 0.3}</tool_call>` (Discovers empirical literature co-occurrences & synergistic partners)
+     * `find_similar_papers`: `<tool_call name="find_similar_papers">{"pmid": "18378520", "top_k": 4}</tool_call>` (Discovers related papers sharing biological pathways via vector graph)
+     * `search_cached_papers_semantic`: `<tool_call name="search_cached_papers_semantic">{"query": "metformin exercise hypertrophy mTOR", "top_k": 5}</tool_call>` (Semantic vector search across local graph cache)
+     * `hybrid_rag_search`: `<tool_call name="hybrid_rag_search">{"query": "metformin hypertrophy mTOR", "entity_ids": ["metformin"], "goal": "Assess blunting effect on muscle growth"}</tool_call>` (Subagent extracts causal chains with literature citations)
+     * `search_biomedical_literature`: `<tool_call name="search_biomedical_literature">{"query": "citrus bergamot lipid profile ApoB", "max_results": 4, "goal": "Extract lipid impact"}</tool_call>`
+     * `simulate_pkpd`: `<tool_call name="simulate_pkpd">{"compound_key": "telmisartan", "dose_mg": 40}</tool_call>` (Simulates Cmax, t1/2, clearance, and steady-state accumulation)
+     * `check_cyp450_conflicts` / `analyze_stack_conflicts`: `<tool_call name="check_cyp450_conflicts">{"compound_keys": ["compound1", "compound2"], "biometrics": {}}</tool_call>` (Evaluates enzyme inhibition & competitive clearance)
+     * `build_stack_from_scratch`: `<tool_call name="build_stack_from_scratch">{"goal": "anabolic_physique", "biometrics": {}, "preferences": {}, "custom_notes": "no oral l-carnitine"}</tool_call>`
+     * `simulate_stack_diff`: `<tool_call name="simulate_stack_diff">{"base_stack": [], "diff": {"add": [], "remove": []}}</tool_call>`
+     * `trace_mechanism_pathway`: `<tool_call name="trace_mechanism_pathway">{"source_compound": "caffeine", "target_biomarker": "bio_heart_rate"}</tool_call>`
+     * `query_pathway_cascade`: `<tool_call name="query_pathway_cascade">{"target_id": "TARGET_NAME"}</tool_call>`
+   - **User-Requested Compounds Mandate**: When the user requests a specific compound in their prompt, notes, or constraints (e.g. "include trenbolone", "add bromantane", "with injectable carnitine"), you MUST:
+      1) Invoke `search_pubmed_titles` and `read_paper_abstract` to research the requested compound's pharmacology, dosing, and toxicity profile. *When seeking countermeasures or protective agents (e.g. "neuroprotection" for a requested compound), do NOT perform generic searches like "trenbolone neuroprotection". Instead, first invoke `get_compound_info` to retrieve the exact mechanism of the compound's toxicity (e.g. "oxidative stress", "amyloid beta"). Then, search PubMed for countermeasures targeting that specific pathway (e.g. "trenbolone neurotoxicity oxidative stress" or "hippocampus oxidative stress neuroprotection").*
+      2) Include the requested compound in your `protocol_proposal` compounds list AND in the JSON `diff` `add` list.
+      3) Pair it with appropriate protective co-factors (e.g., BP/LVH, lipid, hepatic/renal support) and monitoring requirements.
+   - **Syntax Rule**: Tool calls MUST be formatted with `<tool_call name="...">{"arguments": ...}</tool_call>` inside your `<scratchpad>`. Never emit raw, un-tagged JSON queries outside `<tool_call>` tags in your final user-facing response.
+   - **Autonomous Synthesis & Multi-Step Flow**: When empirical validation, deeper literature backing, or PK simulations are beneficial, emit tool calls in your `<scratchpad>`, review the returned `<observation>`, and synthesize your findings. If all necessary parameters and citations are already explicitly provided in the grounding context, or for simple conversational queries, you may synthesize directly.
 
-3. **Structured Response & Action Card Mandate**:
-   - Output clean, publication-ready clinical markdown without drafting monologue or inline questioning.
-   - Conclude with exactly ONE consolidated `<action_card type="stack_diff">` containing the final `add`, `modify`, `remove` directives.
-   - The `<action_card>` MUST match the proposed compounds, dosages, and schedule in your text 1:1. Include every compound you recommended, and do not include unmentioned compounds.
-   - **Cumulative Multi-Turn Protocols**: If refining an unapplied proposed stack from earlier turns, include ALL previously recommended compounds plus new additions in your schedule and `<action_card>`, ensuring the user can apply the complete updated stack in one click.
+3. **Structured Response & JSON Diff Mandate**:
+   - Draft clean, publication-ready clinical markdown WITHOUT inline questioning, and place it inside a `text` block in your final JSON response.
+   - Following your `text` block, include exactly ONE consolidated `protocol_proposal` JSON block containing the final `compounds` array and the `diff` object with `add`, `modify`, `remove` directives.
+   - The JSON `diff` MUST match the proposed compounds, dosages, and schedule in your `compounds` list 1:1. Include every compound you recommended, and do not include unmentioned compounds.
+   - **Cumulative Multi-Turn Protocols**: If refining an unapplied proposed stack from earlier turns, include ALL previously recommended compounds plus new additions in your `compounds` list and JSON `diff`, ensuring the user can apply the complete updated stack in one click.
 """
         full_system_parts.append(react_instructions)
 
@@ -2489,7 +2707,7 @@ You have autonomous access to execute live graph traversals, pathway queries, ph
     @classmethod
     def clean_scratchpad_and_tools_from_text(cls, text: str) -> str:
         """
-        Strips internal scratchpad and tool call tags from final user-facing text.
+        Strips internal scratchpad, tool call tags, and raw/dangling tool JSON objects from final user-facing text.
         """
         if not text:
             return ""
@@ -2503,12 +2721,20 @@ You have autonomous access to execute live graph traversals, pathway queries, ph
         cleaned = re.sub(r'<tool_call\s+name="[^"]+"\s*>.*?</tool_call>', '', cleaned, flags=re.DOTALL | re.IGNORECASE)
         cleaned = re.sub(r'<call\s+tool="[^"]+"\s*>.*?</call>', '', cleaned, flags=re.DOTALL | re.IGNORECASE)
         cleaned = re.sub(r'<action_card\s+type="[^"]+"\s*>.*?</action_card>', '', cleaned, flags=re.DOTALL | re.IGNORECASE)
-        cleaned = re.sub(r'<(?:think|thought|scratchpad|clinical_notes|context|observation)>.*?$', '', cleaned, flags=re.DOTALL | re.IGNORECASE)
+        cleaned = re.sub(r'<(?:think|thought|scratchpad|clinical_notes|context|observation|tool_call|call)>.*?$', '', cleaned, flags=re.DOTALL | re.IGNORECASE)
         cleaned = re.sub(r'(?i)^\s*(?:###?\s*)?(?:Thought(?:\s+Process)?|Scratchpad|Clinical Scratchpad|Internal Reasoning):\s*.*?(?=\n\n|\n[#\*\d]|\Z)', '', cleaned, flags=re.DOTALL | re.MULTILINE)
 
+        # Strip fenced code blocks containing tool calls
+        cleaned = re.sub(r'```(?:json|tool_call)?\s*\{[^{}]*"(?:pmid|query|tool|name|compound_key|dose_mg|target_id|max_results)"[^{}]*\}\s*```', '', cleaned, flags=re.DOTALL | re.IGNORECASE)
+
         # Strip bare JSON tool calls or metadata objects from final text
-        cleaned = re.sub(r'\{[^{}]*"(?:pmid|query|tool|name|compound_key|dose_mg|target_id|max_results)"[^{}]*\}', '', cleaned)
+        cleaned = re.sub(r'\{[^{}]*"(?:pmid|query|tool|name|compound_key|dose_mg|target_id|max_results|cypher)"[^{}]*\}', '', cleaned, flags=re.DOTALL)
         cleaned = re.sub(r'^\s*\{[\s\S]*?\}\s*(?=\n|$)', '', cleaned)
+
+        # Strip dangling tool call fragments and stray JSON lines (e.g. lines with '"max_results":', stray '}', or broken quotes)
+        cleaned = re.sub(r'(?m)^\s*\{?\s*"?(?:query|pmid|tool|name|compound_key|max_results)"?[^\n]*?(?:"max_results"\s*:\s*\d+|"pmid"\s*:\s*"[^"]*")[^\n]*\}?\s*$', '', cleaned)
+        cleaned = re.sub(r'(?m)^\s*\}?\s*"[^"\n]*"(?:,\s*"max_results"\s*:\s*\d+)?\s*\}?\s*$', '', cleaned)
+        cleaned = re.sub(r'(?m)^\s*[\{\}]\s*$', '', cleaned)
 
         # Clean inline drafting questions and bracketed citation self-talk
         cleaned = re.sub(
@@ -2527,10 +2753,11 @@ You have autonomous access to execute live graph traversals, pathway queries, ph
             cleaned = re.sub(pat, '', cleaned)
 
         # If text contains a markdown section header after an untagged thinking preamble, strip the preamble
-        header_match = re.search(r'(?:^|\n)(#{1,4}\s+|(?:\*\*(?:Executive|Risk|Biomarker|Primary|Identified|Targeted|Protocol|Circadian|1\.|2\.|3\.|4\.)))', cleaned)
+        header_match = re.search(r'(?:^|\n)(#{1,4}\s+|(?:\*\*(?:Executive|Risk|Biomarker|Primary|Identified|Targeted|Protocol|Circadian|Clinical|Summary|1\.|2\.|3\.|4\.)))', cleaned)
         if header_match and header_match.start() > 0:
-            preamble = cleaned[:header_match.start()].lower()
-            if any(p in preamble for p in ["we need", "need to", "need answer", "need decide", "need strict", "thinking process", "let's think", "user asks"]):
+            preamble = cleaned[:header_match.start()].strip()
+            # If preamble contains meta-cognition or any tool-like artifacts, strip it
+            if any(p in preamble.lower() for p in ["we need", "need to", "need answer", "need decide", "need strict", "thinking process", "let's think", "user asks"]) or any(k in preamble for k in ['"pmid"', '"query"', '"max_results"', '}', '{']):
                 cleaned = cleaned[header_match.start():]
         elif any(p in cleaned.lower() for p in ["we need answer user's request", "need decide stack", "need strict zero-bro-science", "user asks structured circadian schedule"]):
             # Entire text is meta-cognition
@@ -2544,6 +2771,8 @@ You have autonomous access to execute live graph traversals, pathway queries, ph
             return str(obs)[:150]
         if "error" in obs:
             return f"Notice: {obs['error']}"
+        if "subagent_summary" in obs:
+            return f"Subagent Extracted Findings: {str(obs['subagent_summary'])[:150]}..."
         if tool_name in ("check_cyp450_conflicts", "analyze_stack_conflicts"):
             return f"Cumulative risk score: {obs.get('cumulative_risk_score', 0)}/100 ({obs.get('risk_band', 'minimal')}). {obs.get('summary', '')}"
         elif tool_name == "query_pathway_cascade":
@@ -2611,53 +2840,53 @@ You have autonomous access to execute live graph traversals, pathway queries, ph
     @classmethod
     def format_deterministic_protocol_markdown(cls, proposal: Dict[str, Any], persona: str = "architect") -> str:
         """
-        Formats a clean, publication-grade markdown protocol from deterministic StackIntentEngine proposal.
+        Formats a clean JSON blocks protocol from deterministic StackIntentEngine proposal.
         """
         goal_title = proposal.get("goal_title", "Clinical Protocol")
         compounds = proposal.get("compounds", [])
 
-        depots = [c for c in compounds if c.get("route") in ("intramuscular", "subcutaneous") or "weekly" in str(c.get("frequency", "")).lower()]
-        daily_oral = [c for c in compounds if c not in depots]
-
-        md_lines = [
-            f"### ⚡ HealthAI {persona.upper()} Grounded Protocol: {goal_title}\n",
-            f"**Executive Assessment**: Calibrated protocol targeting {goal_title.lower()} with quantitative chronobiological alignment, organ protection co-factors, and zero bro-science.\n",
-            "**Key Protocol Components**:",
-        ]
+        # Build formatted compounds
+        formatted_compounds = []
         for c in compounds:
             route_str = c.get("route") or "oral"
-            if route_str in ("intramuscular", "im"):
-                route_disp = "IM"
-            elif route_str in ("subcutaneous", "subq"):
-                route_disp = "SubQ"
-            else:
-                route_disp = route_str
-            freq_raw = c.get("frequency")
-            freq_str = f", {freq_raw.replace('_', ' ')}" if freq_raw and freq_raw != "daily" else ""
-            cite_str = f" [{c['citation_str']}]" if c.get("citation_str") else (f" [PMID: {c['pmid']}]" if c.get("pmid") else "")
-            md_lines.append(f"- **{c['name']}** ({c['dose']}{c.get('unit', 'mg')} {route_disp}{freq_str}): {c.get('target', '')} — {c.get('rationale', '')}{cite_str}")
+            freq_raw = c.get("frequency", "daily")
+            freq_str = freq_raw.replace("_", " ") if freq_raw and freq_raw != "daily" else freq_raw
+            cite_str = f"PMID: {c['pmid']}" if c.get("pmid") else ""
+            if c.get("citation_str"):
+                cite_str = c["citation_str"]
+            
+            formatted_compounds.append({
+                "key": c.get("key", ""),
+                "name": c.get("name", ""),
+                "dose": c.get("dose", 100),
+                "unit": c.get("unit", "mg"),
+                "route": route_str,
+                "frequency": freq_str,
+                "timing": c.get("timing", "Morning"),
+                "target": c.get("target", ""),
+                "rationale": c.get("rationale", ""),
+                "citations": [cite_str] if cite_str else []
+            })
 
-        if depots:
-            md_lines.append("\n**Depot Injections (Weekly / Split Protocol)**:")
-            for d in depots:
-                d_route = d.get("route", "intramuscular")
-                d_freq = str(d.get("frequency", "twice weekly")).replace("_", " ")
-                d_cite = f" [{d['citation_str']}]" if d.get("citation_str") else (f" [PMID: {d['pmid']}]" if d.get("pmid") else "")
-                md_lines.append(f"- **{d['name']}**: {d['dose']}{d.get('unit', 'mg')} ({d_route}) {d_freq} (e.g. Mon / Thu split). Rationale: {d.get('target', 'Target receptor')}.{d_cite}")
-
-        if daily_oral:
-            md_lines.append("\n**Daily Circadian Administration Schedule**:")
-            md_lines.append("| Window | Compound | Dose & Route | Pharmacokinetic & Chronobiological Rationale |")
-            md_lines.append("|---|---|---|---|")
-            for c in daily_oral:
-                c_route = c.get("route", "oral")
-                cite_cell = f" [{c['citation_str']}]" if c.get("citation_str") else (f" [PMID: {c['pmid']}]" if c.get("pmid") else "")
-                md_lines.append(f"| {str(c.get('timing', 'Morning')).title()} | {c['name']} | {c['dose']}{c.get('unit', 'mg')} ({c_route}) | {c.get('target', 'Target receptor')}{cite_cell} |")
-
-        md_lines.append("\n**Clinical Titration & Safety Notes**:")
-        md_lines.append("- Baseline & Follow-up Biomarkers: Re-assess comprehensive metabolic panel (CMP), lipid panel (ApoB/Triglycerides), and resting blood pressure at 4–8 week intervals.")
-        md_lines.append("- Multi-Organ Protection: Protective co-factors maintain renal podocyte perfusion and endothelial nitric oxide release without diminishing target efficacy.")
-
+        # Build standard diff payload with full compound parameters
+        diff = {
+            "add": [
+                {
+                    "key": fc["key"],
+                    "name": fc["name"],
+                    "dose": fc["dose"],
+                    "unit": fc["unit"],
+                    "timing": fc["timing"],
+                    "frequency": fc["frequency"],
+                    "route": fc["route"],
+                    "target": fc["target"],
+                }
+                for fc in formatted_compounds if fc.get("key")
+            ],
+            "modify": [],
+            "remove": []
+        }
+            
         source_collector = CopilotSourceCollector()
         for c in compounds:
             if c.get("pmid") or c.get("citation_str"):
@@ -2667,12 +2896,40 @@ You have autonomous access to execute live graph traversals, pathway queries, ph
                     clinical_finding=f"Target: {c.get('target', '')}. {c.get('rationale', '')}",
                 )
 
-        sources_md = source_collector.format_sources_markdown()
-        if sources_md:
-            md_lines.append(sources_md)
+        sources = []
+        if source_collector.literature_studies:
+            for source in source_collector.literature_studies.values():
+                sources.append({"badge": f"[PMID: {source['pmid']}]" if source.get("pmid") else "[DOI]", "description": source.get("title", "")})
 
-        md_lines.append("\n*Review proposed modifications in the action card below and click to apply them directly to your workbench stack.*")
-        return "\n".join(md_lines)
+        sources_text = ""
+        if sources:
+            sources_text = "\n\n### 📚 Sources & Scientific Evidence Base\n" + "\n".join([f"- **{s['badge']}**: {s['description']}" for s in sources])
+
+        payload = {
+            "blocks": [
+                {
+                    "type": "text",
+                    "content": f"### ⚡ HealthAI {persona.upper()} Grounded Protocol: {goal_title}\n\n**Executive Assessment**: Calibrated protocol targeting {goal_title.lower()} with quantitative chronobiological alignment, organ protection co-factors, and zero bro-science.{sources_text}"
+                },
+                {
+                    "type": "protocol_proposal",
+                    "data": {
+                        "goal_title": goal_title,
+                        "persona": persona.upper(),
+                        "summary": f"Deterministic protocol for {goal_title}",
+                        "compounds": formatted_compounds,
+                        "safety_notes": [
+                            "Baseline & Follow-up Biomarkers: Re-assess comprehensive metabolic panel (CMP), lipid panel (ApoB/Triglycerides), and resting blood pressure at 4–8 week intervals.",
+                            "Multi-Organ Protection: Protective co-factors maintain renal podocyte perfusion and endothelial nitric oxide release without diminishing target efficacy."
+                        ],
+                        "sources": sources,
+                        "diff": diff
+                    }
+                }
+            ]
+        }
+        
+        return json.dumps(payload, indent=2, ensure_ascii=False)
 
     @classmethod
     def synthesize_deterministic_fallback_response(
@@ -2731,14 +2988,32 @@ You have autonomous access to execute live graph traversals, pathway queries, ph
                             if k not in [p.get("key") for p in prev_proposals] and k not in [a.get("key") for a in new_adds]:
                                 dose_val, unit = MarkdownProtocolParser._parse_dose_and_unit(user_query, comp)
                                 route, freq = infer_compound_route_and_frequency(k)
+                                timing_val = MarkdownProtocolParser._extract_timing_from_string(user_query)
+                                freq_val = MarkdownProtocolParser._extract_frequency_from_string(user_query) or freq
+                                if not timing_val:
+                                    if freq_val in ("every_other_day", "eod", "qod"):
+                                        timing_val = "Every Other Day (EOD)"
+                                    elif freq_val in ("three_times_weekly", "3x_weekly"):
+                                        timing_val = "Three Times Weekly (Mon / Wed / Fri)"
+                                    elif freq_val in ("twice_weekly", "twice weekly"):
+                                        timing_val = "Twice Weekly (Mon / Thu)"
+                                    elif freq_val in ("weekly", "once_weekly"):
+                                        timing_val = "Weekly"
+                                    elif freq_val in ("biweekly", "every_2_weeks"):
+                                        timing_val = "Bi-Weekly (Every 2 Weeks)"
+                                    elif freq_val in ("as_needed", "prn"):
+                                        timing_val = "As Needed (PRN)"
+                                    else:
+                                        timing_val = "Morning"
+
                                 new_adds.append({
                                     "key": k,
                                     "name": comp.get("name") or k.replace("_", " ").title(),
                                     "dose": dose_val,
                                     "unit": unit,
                                     "route": route,
-                                    "frequency": freq,
-                                    "timing": "morning"
+                                    "frequency": freq_val,
+                                    "timing": timing_val
                                 })
 
             combined_compounds = []
@@ -2996,6 +3271,7 @@ You have autonomous access to execute live graph traversals, pathway queries, ph
         stack_list = stack or []
         biometrics_dict = biometrics or {}
         user_queries = [str(m.get("content", "")) for m in messages if m.get("role") == "user"]
+        latest_user_query = user_queries[-1] if user_queries else ""
         source_collector = CopilotSourceCollector()
         source_collector.record_grounding_context(
             has_ddi=bool(stack_list or persona == "auditor"),
@@ -3004,6 +3280,10 @@ You have autonomous access to execute live graph traversals, pathway queries, ph
             has_pathway=bool(persona == "tutor"),
             has_synergy=bool(len(stack_list) > 1 or protocol_goal is not None),
         )
+
+        if max_exploration_steps >= 12:
+            extra_directive = f"\n\n**USER EXPLICITLY REQUESTED EXHAUSTIVE RESEARCH**: The user has granted you an exploration budget of {max_exploration_steps} tool calls. You MUST aggressively use `search_pubmed_titles`, `read_paper_abstract`, and graph search tools to find mechanistic evidence before answering. DO NOT stop at your first discovery; verify findings across multiple pathways and sources. Dig deep into the literature."
+            custom_instructions = (custom_instructions + extra_directive) if custom_instructions else extra_directive
 
         system_prompt = await asyncio.to_thread(
             cls.build_system_context,
@@ -3088,6 +3368,14 @@ You have autonomous access to execute live graph traversals, pathway queries, ph
                 tool_args = tool_call.get("arguments", {})
 
                 yield {
+                    "event": "tool_call",
+                    "data": {
+                        "step": step,
+                        "tool": tool_name,
+                        "arguments": tool_args
+                    }
+                }
+                yield {
                     "event": "reasoning",
                     "data": f"\n🔍 [Step {step}] Querying Graph: Executing tool '{tool_name}' with arguments {json.dumps(tool_args)}..."
                 }
@@ -3095,8 +3383,60 @@ You have autonomous access to execute live graph traversals, pathway queries, ph
                 # Deterministically execute the requested tool
                 obs = await asyncio.to_thread(cls.execute_tool, tool_name, tool_args)
                 source_collector.record_tool_execution(tool_name, tool_args, obs)
+
+                # --- SUBAGENT DELEGATION (Context Window Protection) ---
+                goal = tool_args.get("goal")
+                if goal and tool_name in ("read_paper_abstract", "fetch_paper_abstract", "read_paper_section", "search_biomedical_literature", "hybrid_rag_search", "search_pubmed_titles"):
+                    try:
+                        from app.services.ai_service import ask_local_llm
+                        sub_sys = (
+                            "You are a clinical research subagent. Read the raw research data provided by the user. "
+                            "Extract ONLY the information directly relevant to the assigned GOAL. "
+                            "Ignore completely irrelevant background information to save token space. "
+                            "Format your response as a pure JSON object with a single key 'summary' containing your extracted markdown."
+                        )
+                        # We only send a slice of the raw observation to prevent blowing up the subagent context
+                        sub_user = f"GOAL: {goal}\n\nRAW TOOL OUTPUT:\n{json.dumps(obs)[:24000]}"
+                        
+                        yield {
+                            "event": "reasoning",
+                            "data": f"\n🤖 [Subagent] Delegating massive text payload ({len(json.dumps(obs))} bytes) to summarization subagent to extract goal-relevant info...\n"
+                        }
+                        
+                        sub_res = await ask_local_llm(
+                            system_prompt=sub_sys,
+                            user_prompt=sub_user,
+                            api_key=user_api_key
+                        )
+                        
+                        extracted_summary = sub_res.get("summary") or str(sub_res)
+                        
+                        # Replace the massive raw 'obs' payload with the lightweight summary structure
+                        # We keep essential routing keys so downstream formatters (like `_summarize_observation`) still work
+                        obs = {
+                            "subagent_summary": extracted_summary,
+                            "original_tool": tool_name,
+                            "pmid": obs.get("pmid"),
+                            "query": obs.get("query"),
+                            "note": "Raw data was compressed by subagent."
+                        }
+                    except Exception as e:
+                        yield {
+                            "event": "reasoning",
+                            "data": f"\n⚠️ [Subagent Warning] Summarization failed, falling back to raw payload: {str(e)}\n"
+                        }
+                # -------------------------------------------------------
+
                 obs_summary = cls._summarize_observation(tool_name, obs)
 
+                yield {
+                    "event": "tool_result",
+                    "data": {
+                        "step": step,
+                        "tool": tool_name,
+                        "summary": obs_summary
+                    }
+                }
                 yield {
                     "event": "reasoning",
                     "data": f"📍 [Step {step}] Graph Observation: {obs_summary}\n"

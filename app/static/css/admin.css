@@ -26,6 +26,26 @@
         padding: 28px 20px 60px;
       }
 
+      /* Lucide Icons */
+      .lucide, svg.lucide, .lucide-icon {
+        display: inline-block;
+        vertical-align: -0.125em;
+        stroke-width: 2px;
+        stroke: currentColor;
+        fill: none;
+        stroke-linecap: round;
+        stroke-linejoin: round;
+        flex-shrink: 0;
+      }
+      button .lucide, button svg.lucide, .btn .lucide, .btn svg.lucide, .nav-link .lucide, .nav-link svg.lucide {
+        vertical-align: middle;
+        align-self: center;
+      }
+      .icon-xs { width: 12px !important; height: 12px !important; }
+      .icon-sm { width: 15px !important; height: 15px !important; }
+      .icon-md { width: 19px !important; height: 19px !important; }
+      .icon-lg { width: 24px !important; height: 24px !important; }
+
       .topbar {
         display: flex;
         justify-content: space-between;

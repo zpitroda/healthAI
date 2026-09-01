@@ -8,8 +8,10 @@ import os
 from pathlib import Path
 import re
 import sqlite3
+import threading
 import time
 from typing import Any, Dict, List, Optional, Set, Tuple
+from cachetools import LRUCache
 
 logger = logging.getLogger("healthai.catalog_service")
 
@@ -172,39 +174,90 @@ CORE_SUPPLEMENT_LIBRARY: Dict[str, Dict[str, Any]] = {
         ],
     },
     "l_carnitine": {
-        "name": "L-Carnitine",
-        "canonical_name": "L-Carnitine (ALCAR)",
-        "synonyms": ["alcar", "acetyllcarnitine", "carnitine", "lcarnitine", "lcarnitinetartrate"],
+        "name": "L-Carnitine L-Tartrate",
+        "canonical_name": "L-Carnitine (ALCAR / LCLT)",
+        "canonical_key": "l_carnitine",
+        "synonyms": ["alcar", "acetyllcarnitine", "carnitine", "lcarnitine", "lcarnitinetartrate", "l_carnitine_l_tartrate", "injectable_l_carnitine", "injectable l carnitine", "carnitinetartrate"],
         "drug_class": "Dietary Supplement / Fatty Acid Shuttle",
-        "categories": ["Dietary Supplement", "Mitochondrial Support"],
+        "categories": ["Dietary Supplement", "Mitochondrial Support", "Fatty Acid Shuttle", "TMA Precursor"],
         "molecular_weight": 161.20,
         "logp": -3.1,
         "oral_bioavailability": 0.15,
         "volume_of_distribution": 0.7,
         "protein_binding": 0.0,
+        "t_half_numeric": 15.0,
+        "half_life": "15 hours",
+        "standard_dose": "2000 mg oral daily (or 300-500 mg IM daily)",
+        "mechanism": "Translocates long-chain fatty acyl-CoA across the inner mitochondrial membrane via CPT1A/CPT2 for beta-oxidation and upregulates androgen receptor density post-exercise.",
         "receptor_targets": [
-            {"target": "Carnitine Palmitoyltransferase (CPT1A / CPT2)", "action": "agonist", "family": "Enzyme / Fatty Acid Oxidation"},
-            {"target": "Gut Microbiota Carnitine TMA-Lyase (CntA/CntB / yeaW/yeaX)", "action": "substrate", "family": "Gut Microbiota / Microbial Lyase", "is_microbial": True}
+            {"target": "Carnitine Palmitoyltransferase (CPT1A / CPT2)", "action": "agonist", "family": "Enzyme / Fatty Acid Oxidation", "gene_symbol": "CPT1A"},
+            {"target": "Gut Microbiota Carnitine TMA-Lyase (CntA/CntB / yeaW/yeaX)", "action": "substrate", "family": "Gut Microbiota / Microbial Lyase", "is_microbial": True, "gene_symbol": "CNTA"}
         ],
     },
     "allicin": {
         "name": "Allicin",
         "canonical_name": "Allicin (Garlic Extract / Allium sativum)",
-        "synonyms": ["allicin", "garlic", "garlicextract", "alliumsativum", "agedgarlicextract", "diallylthiosulfinate"],
+        "canonical_key": "allicin",
+        "synonyms": ["allicin", "garlic", "garlicextract", "alliumsativum", "agedgarlicextract", "diallylthiosulfinate", "aged_garlic_extract", "garlic_extract"],
         "drug_class": "Dietary Supplement / Organosulfur Botanical / Microbial Lyase Inhibitor",
-        "categories": ["Dietary Supplement", "Antioxidant", "Cardiovascular Support", "Gut Microbiome Modulator"],
+        "categories": ["Dietary Supplement", "Antioxidant", "Cardiovascular Support", "Gut Microbiome Modulator", "TMA Lyase Inhibitor"],
         "molecular_weight": 162.27,
         "logp": 1.35,
         "oral_bioavailability": 0.80,
         "volume_of_distribution": 0.8,
         "protein_binding": 45.0,
+        "t_half_numeric": 6.0,
+        "half_life": "6 hours",
+        "standard_dose": "20 mg oral daily (or 600-1200 mg Aged Garlic Extract)",
+        "mechanism": "Inactivates bacterial trimethylamine lyase (CntA/CntB / CutC) in the gut lumen, blocking the conversion of oral carnitine/choline to TMA and preventing downstream hepatic FMO3 oxidation to atherogenic TMAO.",
         "receptor_targets": [
-            {"target": "Gut Microbiota Carnitine TMA-Lyase (CntA/CntB / yeaW/yeaX)", "action": "inhibitor", "family": "Gut Microbiota / Microbial Lyase", "inhibition_ic50": 0.05, "is_microbial": True},
-            {"target": "HMG-CoA Reductase (HMGCR)", "action": "inhibitor", "family": "Enzyme / Lipid", "inhibition_ic50": 1.2},
-            {"target": "Endothelial Nitric Oxide Synthase (eNOS / NOS3)", "action": "agonist", "family": "Vascular Endothelium"},
+            {"target": "Gut Microbiota Carnitine TMA-Lyase (CntA/CntB / yeaW/yeaX)", "action": "inhibitor", "family": "Gut Microbiota / Microbial Lyase", "inhibition_ic50": 0.05, "is_microbial": True, "gene_symbol": "CNTA"},
+            {"target": "HMG-CoA Reductase (HMGCR)", "action": "inhibitor", "family": "Enzyme / Lipid", "inhibition_ic50": 1.2, "gene_symbol": "HMGCR"},
+            {"target": "Endothelial Nitric Oxide Synthase (eNOS / NOS3)", "action": "agonist", "family": "Vascular Endothelium", "gene_symbol": "NOS3"},
             {"target": "Glutathione Biosynthesis & Cellular Antioxidant Defense (System xc- / Nrf2 / GCL)", "action": "agonist", "family": "Antioxidant Defense"}
         ],
         "cyp_enzymes": {"substrates": [], "inhibitors": ["CYP2E1"], "inducers": []},
+    },
+    "ezetimibe": {
+        "name": "Ezetimibe",
+        "canonical_name": "Ezetimibe (Zetia)",
+        "canonical_key": "ezetimibe",
+        "synonyms": ["ezetimibe", "ezetim", "zetia", "ezetrol", "ezedoc", "sch58235", "npc1l1inhibitor"],
+        "drug_class": "Prescription / Selective Cholesterol Absorption Inhibitor",
+        "categories": ["Prescription", "Cardiovascular Support", "Lipid Management", "ApoB Reducer"],
+        "molecular_weight": 409.43,
+        "logp": 4.5,
+        "oral_bioavailability": 0.65,
+        "volume_of_distribution": 1.4,
+        "protein_binding": 99.7,
+        "t_half_numeric": 22.0,
+        "half_life": "22 hours (Ezetimibe-glucuronide active metabolite)",
+        "standard_dose": "10 mg oral daily",
+        "mechanism": "Selectively inhibits the Niemann-Pick C1-Like 1 (NPC1L1) transporter in the intestinal brush border, reducing dietary and biliary cholesterol absorption by ~54% and clearing circulating atherogenic ApoB/LDL particles.",
+        "receptor_targets": [
+            {"target": "NPC1L1 (Niemann-Pick C1-Like 1 Cholesterol Transporter)", "action": "inhibitor", "family": "Transporter / Lipid", "gene_symbol": "NPC1L1"}
+        ],
+        "phase2_enzymes": {"substrates": ["UGT1A1", "UGT1A3", "UGT2B7"], "inhibitors": [], "inducers": []},
+    },
+    "creatine": {
+        "name": "Creatine Monohydrate",
+        "canonical_name": "Creatine Monohydrate",
+        "canonical_key": "creatine",
+        "synonyms": ["creatine", "creatine monohydrate", "creatinemonohydrate", "creatine_monohydrate", "creatineanhydrous", "creatine_hcl", "creatinehcl"],
+        "drug_class": "Dietary Supplement / Ergogenic Phosphagen Buffer",
+        "categories": ["Dietary Supplement", "Ergogenic Aid", "Muscle Bioenergetics", "Cellular Hydration"],
+        "molecular_weight": 131.13,
+        "logp": -1.8,
+        "oral_bioavailability": 0.99,
+        "volume_of_distribution": 0.7,
+        "protein_binding": 0.0,
+        "t_half_numeric": 3.0,
+        "half_life": "3 hours (Intramuscular pool retention ~4-6 weeks)",
+        "standard_dose": "5000 mg oral daily",
+        "mechanism": "Phosphorylated into phosphocreatine (PCr) to donate high-energy phosphate groups for rapid ADP-to-ATP re-synthesis during anaerobic muscular contractions while expanding intracellular hydration.",
+        "receptor_targets": [
+            {"target": "Skeletal Muscle ATP-PCr Phosphagen System (CKM / SLC6A8)", "action": "substrate", "family": "Phosphagen System", "gene_symbol": "SLC6A8"}
+        ],
     },
     "l_theanine": {
         "name": "L-Theanine",
@@ -341,7 +394,7 @@ CORE_SUPPLEMENT_LIBRARY: Dict[str, Dict[str, Any]] = {
         },
         "reason": "Expands intramuscular phosphocreatine reserves to accelerate ATP resynthesis during high-intensity resistance training.",
         "receptor_targets": [
-            {"target": "Skeletal Muscle ATP-PCr Phosphagen System (CKM / SLC6A8)", "action": "agonist", "family": "Phosphagen System"}
+            {"target": "Skeletal Muscle ATP-PCr Phosphagen System (CKM / SLC6A8)", "action": "substrate", "target_class": "Enzyme", "family": "Phosphagen System"}
         ],
     },
     "caffeine": {
@@ -908,6 +961,8 @@ CORE_ESTER_LIBRARY: Dict[str, Dict[str, Any]] = {
         "synonyms": ["testosteronebase", "freetestosterone", "unesterifiedtestosterone"],
         "drug_class": "Androgen / Anabolic Steroid",
         "categories": ["Anabolic Steroid", "Hormone Replacement", "Androgen"],
+        "smiles": "CC12CCC3C(C1CCC2O)CCC4=CC(=O)CCC34C",
+        "inchikey": "MUMGGOZAMZWBGS-UHFFFAOYSA-N",
         "molecular_weight": 288.42,
         "logp": 3.3,
         "oral_bioavailability": 0.05,
@@ -933,6 +988,7 @@ CORE_ESTER_LIBRARY: Dict[str, Dict[str, Any]] = {
         "synonyms": ["testc", "testcyp", "testosteronecypionate", "depotestosterone"],
         "drug_class": "Androgen / Anabolic Steroid Ester",
         "categories": ["Anabolic Steroid", "Hormone Replacement", "Prodrug Depot"],
+        "smiles": "CCC1CCC2C(C1)CC(=O)OCC1CCC2(C)C",
         "molecular_weight": 412.61,
         "logp": 6.3,
         "oral_bioavailability": 0.05,
@@ -953,6 +1009,7 @@ CORE_ESTER_LIBRARY: Dict[str, Dict[str, Any]] = {
         "synonyms": ["teste", "testenan", "testosteroneenanthate", "delatestryl"],
         "drug_class": "Androgen / Anabolic Steroid Ester",
         "categories": ["Anabolic Steroid", "Hormone Replacement", "Prodrug Depot"],
+        "smiles": "CCCCCCC(=O)OC1CCC2C1(CCC3C2CCC4=CC(=O)CCC34C)C",
         "molecular_weight": 400.59,
         "logp": 6.0,
         "oral_bioavailability": 0.05,
@@ -973,6 +1030,7 @@ CORE_ESTER_LIBRARY: Dict[str, Dict[str, Any]] = {
         "synonyms": ["testp", "testprop", "testosteronepropionate", "testoviron"],
         "drug_class": "Androgen / Anabolic Steroid Ester",
         "categories": ["Anabolic Steroid", "Hormone Replacement", "Short-Acting Ester"],
+        "smiles": "CCC(=O)OC1CCC2C1(CCC3C2CCC4=CC(=O)CCC34C)C",
         "molecular_weight": 344.49,
         "logp": 4.9,
         "oral_bioavailability": 0.05,
@@ -993,6 +1051,7 @@ CORE_ESTER_LIBRARY: Dict[str, Dict[str, Any]] = {
         "synonyms": ["testu", "testundec", "testosteroneundecanoate", "aveed", "nebido", "androdiol"],
         "drug_class": "Androgen / Anabolic Steroid Ester",
         "categories": ["Anabolic Steroid", "Hormone Replacement", "Ultra Long-Acting Ester"],
+        "smiles": "CCCCCCCCCCCC(=O)OC1CCC2C1(CCC3C2CCC4=CC(=O)CCC34C)C",
         "molecular_weight": 456.70,
         "logp": 7.5,
         "oral_bioavailability": 0.07,
@@ -1065,6 +1124,7 @@ CORE_ESTER_LIBRARY: Dict[str, Dict[str, Any]] = {
         "synonyms": ["trenace", "trena", "finajet", "finaplix", "trenboloneacetate"],
         "drug_class": "19-Nor Anabolic Steroid Ester",
         "categories": ["Anabolic Steroid", "19-Nor Derivative", "Short-Acting Depot Ester"],
+        "smiles": "CC(=O)OC1CCC2C1(C=CC3=C4CCC(=O)C=C4CCC23)C",
         "molecular_weight": 312.41,
         "logp": 4.5,
         "oral_bioavailability": 0.03,
@@ -1085,6 +1145,7 @@ CORE_ESTER_LIBRARY: Dict[str, Dict[str, Any]] = {
         "synonyms": ["trene", "trenenanthate", "trenboloneenanthate"],
         "drug_class": "19-Nor Anabolic Steroid Ester",
         "categories": ["Anabolic Steroid", "19-Nor Derivative", "Long-Acting Depot Ester"],
+        "smiles": "CCCCCCC(=O)OC1CCC2C1(C=CC3=C4CCC(=O)C=C4CCC23)C",
         "molecular_weight": 382.54,
         "logp": 6.1,
         "oral_bioavailability": 0.03,
@@ -1105,6 +1166,7 @@ CORE_ESTER_LIBRARY: Dict[str, Dict[str, Any]] = {
         "synonyms": ["parabolan", "trenhex", "trenbolonecyclohexylmethylcarbonate"],
         "drug_class": "19-Nor Anabolic Steroid Ester",
         "categories": ["Anabolic Steroid", "19-Nor Derivative", "Extended Depot Ester"],
+        "smiles": "C1CCC(CC1)COC(=O)OC2CCC3C2(C=CC4=C5CCC(=O)C=C5CCC34)C",
         "molecular_weight": 410.55,
         "logp": 6.5,
         "oral_bioavailability": 0.03,
@@ -1125,6 +1187,8 @@ CORE_ESTER_LIBRARY: Dict[str, Dict[str, Any]] = {
         "synonyms": ["nandrolonebase", "19nortestosterone"],
         "drug_class": "19-Nor Anabolic Steroid / Progestin",
         "categories": ["Anabolic Steroid", "19-Nor Derivative"],
+        "smiles": "C12CCC3C(C1CCC2O)CCC4=CC(=O)CCC34",
+        "inchikey": "NPAGDVCDWIYMMC-UHFFFAOYSA-N",
         "molecular_weight": 274.40,
         "logp": 2.6,
         "is_ester": False,
@@ -1141,6 +1205,7 @@ CORE_ESTER_LIBRARY: Dict[str, Dict[str, Any]] = {
         "synonyms": ["deca", "durabolin", "decadurabolin", "nandrolonedecanoate"],
         "drug_class": "19-Nor Anabolic Steroid Ester",
         "categories": ["Anabolic Steroid", "19-Nor Derivative", "Prodrug Depot"],
+        "smiles": "CCCCCCCCCC(=O)OC1CCC2C1(CCC3C2CCC4=CC(=O)CCC34)",
         "molecular_weight": 428.65,
         "logp": 6.8,
         "half_life": "12 days (288 hours)",
@@ -1150,6 +1215,7 @@ CORE_ESTER_LIBRARY: Dict[str, Dict[str, Any]] = {
         "parent_compound_id": "nandrolone",
         "ester_weight_factor": 0.640,
     },
+
     "drostanolone": {
         "name": "Drostanolone",
         "canonical_name": "Drostanolone Base",
@@ -1487,6 +1553,10 @@ CANONICAL_SYNONYM_MAP: Dict[str, str] = {
     "carnitine": "l_carnitine",
     "lcarnitine": "l_carnitine",
     "lcarnitinetartrate": "l_carnitine",
+    "injectablelcarnitine": "l_carnitine",
+    "injectable_l_carnitine": "l_carnitine",
+    "l_carnitine_injectable": "l_carnitine",
+    "injectablecarnitine": "l_carnitine",
     "allicin": "allicin",
     "garlic": "allicin",
     "garlicextract": "allicin",
@@ -1722,7 +1792,8 @@ def _levenshtein_distance(s1: str, s2: str) -> int:
     return previous_row[-1]
 
 
-_CATALOG_MEMORY_CACHE: Dict[Tuple[str, str], Dict[str, Any]] = {}
+_INIT_LOCK = threading.Lock()
+_CATALOG_MEMORY_CACHE: LRUCache = LRUCache(maxsize=1000)
 _CATALOG_ALL_COMPOUNDS: Dict[str, List[Dict[str, Any]]] = {}
 _CATALOG_VARIANTS: Dict[str, Dict[str, List[Dict[str, Any]]]] = {}
 _INITIALIZED_DATABASES: Set[str] = set()
@@ -1732,13 +1803,26 @@ class CatalogService:
     def __init__(self, database_path: str | None = None):
         self._custom_database_path = database_path
         if self.database_path not in _INITIALIZED_DATABASES:
-            self._ensure_database()
-            self.sync_seed_compounds()
-            _INITIALIZED_DATABASES.add(self.database_path)
+            with _INIT_LOCK:
+                if self.database_path not in _INITIALIZED_DATABASES:
+                    self._ensure_database()
+                    if self._is_empty():
+                        self.sync_seed_compounds()
+                    _INITIALIZED_DATABASES.add(self.database_path)
+
+    def _is_empty(self) -> bool:
+        try:
+            with self._connect() as conn:
+                count = conn.execute("SELECT count(*) FROM compounds").fetchone()[0]
+                return count == 0
+        except Exception:
+            return True
 
     def sync_seed_compounds(self) -> None:
-        for compound in _get_default_compounds():
-            self.upsert_compound(compound)
+        with self._connect() as conn:
+            for compound in _get_default_compounds():
+                self.upsert_compound(compound, ext_conn=conn)
+            conn.commit()
 
     @property
     def database_path(self) -> str:
@@ -1753,8 +1837,14 @@ class CatalogService:
         db_dir = os.path.dirname(self.database_path)
         if db_dir:
             os.makedirs(db_dir, exist_ok=True)
-        connection = sqlite3.connect(self.database_path, timeout=30.0)
+        connection = sqlite3.connect(self.database_path, timeout=60.0)
         connection.row_factory = sqlite3.Row
+        try:
+            connection.execute("PRAGMA journal_mode=WAL;")
+            connection.execute("PRAGMA busy_timeout=60000;")
+            connection.execute("PRAGMA synchronous=NORMAL;")
+        except Exception:
+            pass
         return connection
 
     def _ensure_database(self) -> None:
@@ -2126,8 +2216,9 @@ class CatalogService:
         _INITIALIZED_DATABASES.add(self.database_path)
 
     def seed_default_compounds(self) -> None:
-        for compound in _get_default_compounds():
-            self.upsert_compound(compound)
+        with self._connect() as conn:
+            for compound in _get_default_compounds():
+                self.upsert_compound(compound, ext_conn=conn)
 
     def _serialize(self, value: Any) -> str:
         return json.dumps(value, ensure_ascii=False)
@@ -2140,7 +2231,7 @@ class CatalogService:
         except json.JSONDecodeError:
             return default if default is not None else []
 
-    def upsert_compound(self, compound: Dict[str, Any]) -> Dict[str, Any]:
+    def upsert_compound(self, compound: Dict[str, Any], ext_conn: Optional[sqlite3.Connection] = None) -> Dict[str, Any]:
         key = str(compound.get("key") or compound.get("name") or "compound").strip() or "compound"
         canonical_key = self._resolve_canonical_key(compound)
         if canonical_key:
@@ -2225,9 +2316,9 @@ class CatalogService:
             "ester_weight_factor": float(compound.get("ester_weight_factor") if compound.get("ester_weight_factor") is not None else 1.0),
         }
 
-        with self._connect() as conn:
-            row = self._merge_duplicate_record(conn, compound, row)
-            conn.execute(
+        def _do_upsert(c: sqlite3.Connection) -> Dict[str, Any]:
+            final_row = self._merge_duplicate_record(c, compound, row)
+            c.execute(
                 """
                 INSERT INTO compounds (
                     key, name, canonical_name, canonical_key, inchikey, smiles, logp, tpsa,
@@ -2339,18 +2430,23 @@ class CatalogService:
                     ester_weight_factor = COALESCE(excluded.ester_weight_factor, compounds.ester_weight_factor),
                     updated_at = CURRENT_TIMESTAMP
                 """,
-                row,
+                final_row,
             )
-            conn.commit()
-
-        # Invalidate path cache
-        self._invalidate_path_cache()
-        comp = self._row_to_compound(row)
-        for alias in [comp.get("key"), comp.get("name"), comp.get("canonical_name"), comp.get("canonical_key"), comp.get("inchikey")] + list(comp.get("synonyms") or []):
-            if alias:
-                _CATALOG_MEMORY_CACHE[(self.database_path, _normalize_compound_name(alias))] = comp
-
-        return copy.deepcopy(comp)
+            # Invalidate path cache
+            self._invalidate_path_cache()
+            comp = self._row_to_compound(final_row)
+            for alias in [comp.get("key"), comp.get("name"), comp.get("canonical_name"), comp.get("canonical_key"), comp.get("inchikey")] + list(comp.get("synonyms") or []):
+                if alias:
+                    _CATALOG_MEMORY_CACHE[(self.database_path, _normalize_compound_name(alias))] = comp
+            return copy.deepcopy(comp)
+            
+        if ext_conn:
+            return _do_upsert(ext_conn)
+        else:
+            with self._connect() as conn:
+                res = _do_upsert(conn)
+                conn.commit()
+                return res
 
     def _invalidate_path_cache(self) -> None:
         _CATALOG_ALL_COMPOUNDS.pop(self.database_path, None)
@@ -2415,6 +2511,20 @@ class CatalogService:
                     existing = _CATALOG_MEMORY_CACHE.get((db_path, norm_alias))
                     if existing is None:
                         _CATALOG_MEMORY_CACHE[(db_path, norm_alias)] = comp
+
+        # Pass 4: Verified clinical definitions from CORE_SUPPLEMENT_LIBRARY override legacy/truncated DB cache entries
+        for core_k, core_data in CORE_SUPPLEMENT_LIBRARY.items():
+            core_comp = dict(core_data)
+            core_comp["key"] = core_k
+            core_comp["canonical_key"] = core_data.get("canonical_key") or core_k
+            core_comp["canonical_name"] = core_data.get("canonical_name") or core_data.get("name") or core_k.title()
+            norm_ck = _normalize_compound_name(core_k)
+            _CATALOG_MEMORY_CACHE[(db_path, norm_ck)] = core_comp
+            _CATALOG_MEMORY_CACHE[(db_path, str(core_k).lower())] = core_comp
+            for alias in [core_comp.get("name"), core_comp.get("canonical_name"), core_comp.get("canonical_key")] + list(core_comp.get("synonyms") or []):
+                if alias:
+                    norm_al = _normalize_compound_name(alias)
+                    _CATALOG_MEMORY_CACHE[(db_path, norm_al)] = core_comp
 
         _CATALOG_ALL_COMPOUNDS[db_path] = compounds_list
         return compounds_list
@@ -2651,8 +2761,7 @@ class CatalogService:
         words = [w for w in tgt_kw.split() if len(w) >= 3 and w not in generic_stopwords]
 
         results: List[Dict[str, Any]] = []
-        with sqlite3.connect(self.database_path) as conn:
-            conn.row_factory = sqlite3.Row
+        with self._connect() as conn:
             all_rows = conn.execute("SELECT * FROM compounds").fetchall()
             for r in all_rows:
                 comp = self._row_to_compound(dict(r))
@@ -2761,7 +2870,7 @@ class CatalogService:
                     new_entry["key"] = comp.get("key") or raw_key
                     new_entry["canonical_key"] = comp.get("canonical_key") or comp.get("key")
                     new_entry["canonical_name"] = comp.get("canonical_name") or comp.get("name")
-                    new_entry["name"] = comp.get("name") or item.get("name") or comp.get("canonical_name")
+                    new_entry["name"] = item.get("name") or comp.get("name") or comp.get("canonical_name")
                     new_entry["drug_class"] = comp.get("drug_class") or item.get("drug_class")
                     new_entry["inchikey"] = comp.get("inchikey")
                 else:
@@ -2773,7 +2882,8 @@ class CatalogService:
                 is_inj_pep = any(w in raw_k_lower for w in ["semaglutide", "tirzepatide", "retatrutide", "liraglutide", "bpc-157", "bpc_157", "tb-500", "tb_500", "somatropin", "hgh", "ipamorelin", "cjc"])
                 default_route = "intramuscular" if is_inj_aas else ("subcutaneous" if is_inj_pep else "oral")
                 new_entry["route"] = str(item.get("route") or (comp.get("route") if comp else None) or (comp.get("default_route") if comp else None) or default_route).strip().lower()
-                merged_by_canonical[canonical_id] = new_entry
+                from app.services.pharmacology_enricher import PharmacologyEnricher
+                merged_by_canonical[canonical_id] = PharmacologyEnricher.enrich_compound(new_entry)
 
         return list(merged_by_canonical.values())
 

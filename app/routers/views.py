@@ -33,8 +33,9 @@ def serve_graph() -> FileResponse:
     return FileResponse(STATIC_DIR / "graph.html", headers=NO_CACHE_HEADERS)
 
 
+@router.get("/compound")
 @router.get("/compound/{compound_key}")
-def serve_compound_page(compound_key: str) -> FileResponse:
+def serve_compound_page(compound_key: str = "caffeine") -> FileResponse:
     """Serve the deep-dive profile page for an individual compound."""
     return FileResponse(STATIC_DIR / "compound.html", headers=NO_CACHE_HEADERS)
 

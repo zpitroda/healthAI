@@ -291,13 +291,16 @@ def execute_ai_tool(request: ToolExecutionRequest):
 
 
 @router.post("/api/ai/build-stack-from-scratch")
-def build_stack_from_scratch(request: BuildStackFromScratchRequest) -> Dict[str, Any]:
+async def build_stack_from_scratch(request: BuildStackFromScratchRequest) -> Dict[str, Any]:
     """
     Generates a scientifically validated, calibrated compound stack from scratch
     tailored to the user's primary goal, preferences, and biometrics.
+    Uses StackIntentEngine for the optimal clinical baseline, then runs an Agentic pass
+    to simulate downstream effects and adjust organically.
     """
     try:
-        return StackIntentEngine.build_scratch_stack_proposal(
+        # 1. Get the pre-validated optimal mathematical baseline from the Intent Engine
+        proposal = StackIntentEngine.build_scratch_stack_proposal(
             goal_id=request.goal,
             biometrics=request.biometrics or {},
             preferences=request.preferences or {},
@@ -305,6 +308,99 @@ def build_stack_from_scratch(request: BuildStackFromScratchRequest) -> Dict[str,
             exclusions=request.exclusions,
             requested_compounds=request.requested_compounds,
         )
+
+        # 2. Check if we need an Organic Agentic Pass (Simulation Loop)
+        # We run this if the user provided ANY custom parameters, biometrics, or requested a custom stack.
+        needs_optimization = bool(
+            request.custom_instructions or 
+            request.exclusions or 
+            (request.biometrics and any(v for k,v in request.biometrics.items() if v)) or
+            request.requested_compounds or
+            request.goal == "custom"
+        )
+
+        if needs_optimization:
+            logger.info("Custom parameters detected. Triggering Agentic Deep Generation Mode with Unchained Tool Calls.")
+            
+            stack_keys = [c["key"] for c in proposal.get("compounds", [])]
+            
+            prompt = f"""
+            You are the autonomous backend compiler for the Quick Stack Builder.
+            A baseline stack has been generated based on the user's intent. Your job is to run a deep analysis on it using your tools, and output the final validated stack in JSON format.
+            
+            BASELINE STACK KEYS: {', '.join(stack_keys)}
+            BIOMETRICS: {json.dumps(request.biometrics or {})}
+            CUSTOM INSTRUCTIONS/NOTES: {request.custom_instructions}
+            
+            INSTRUCTIONS:
+            1. Use your tools (`evaluate_synergies`, `check_cyp450_conflicts`, `simulate_pkpd`) to deeply analyze this stack.
+            2. If you detect risks (e.g., high BP in biometrics causing conflicts, or enzyme clashes), iteratively adjust the stack and run tools again until you are satisfied.
+            3. You may add protective countermeasures or remove conflicting compounds.
+            4. Once you are completely satisfied with the stack, output the FINAL list of compounds as a JSON array inside a <final_stack_json> block.
+            
+            FORMAT REQUIRED:
+            <final_stack_json>
+            [
+              {{
+                "key": "compound_key",
+                "name": "Compound Name",
+                "base_dose": "optimal dose",
+                "unit": "",
+                "timing": "e.g., morning",
+                "frequency": "daily",
+                "route": "oral",
+                "target": "reason for inclusion",
+                "rationale": "clinical reasoning",
+                "is_stimulant": false
+              }}
+            ]
+            </final_stack_json>
+            
+            Do not ask questions to the user. Execute the tools necessary and output the final JSON block.
+            """
+            
+            import re
+            
+            # Execute the unchained ReAct loop, allowing up to 5 tool-calling passes
+            result = await CopilotAgent.chat_copilot_turn(
+                messages=[{"role": "user", "content": prompt}],
+                persona="architect",
+                max_exploration_steps=5,
+            )
+            
+            response_text = result.get("message", "")
+            match = re.search(r"<final_stack_json>\s*(\[.*?\])\s*</final_stack_json>", response_text, re.DOTALL)
+            
+            if match:
+                try:
+                    final_compounds = json.loads(match.group(1))
+                    proposal["compounds"] = final_compounds
+                    proposal["goal_description"] = proposal.get("goal_description", "") + "\n\n**Agentic Optimization Applied:** The AI Copilot autonomously simulated this stack using dynamic tool calls, adjusted dosages and countermeasures, and finalized this protocol."
+                except Exception as e:
+                    logger.error(f"Failed to parse final_stack_json: {e}")
+            else:
+                logger.error("No final_stack_json found in CopilotAgent response. Falling back to baseline.")
+                
+            # Rebuild the action card based on the final updated compounds
+            proposal["action_card"] = {
+                "action_card": "stack_diff",
+                "add": [
+                    {
+                        "key": c.get("key", ""),
+                        "name": c.get("name", ""),
+                        "dose": c.get("base_dose", ""),
+                        "unit": c.get("unit", ""),
+                        "timing": c.get("timing", ""),
+                        "frequency": c.get("frequency", ""),
+                        "route": c.get("route", "")
+                    }
+                    for c in proposal["compounds"]
+                ],
+                "modify": [],
+                "remove": []
+            }
+
+        return proposal
     except Exception as e:
         logger.error(f"Error building stack from scratch: {e}")
         raise HTTPException(status_code=500, detail=str(e))

@@ -4,6 +4,13 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>HealthAI // Pharmacology Lab & Collision Matrix Engine</title>
+    <link rel="icon" type="image/x-icon" href="/favicon.ico" />
+    <link rel="icon" type="image/png" sizes="32x32" href="/static/favicon-32x32.png" />
+    <link rel="icon" type="image/png" sizes="16x16" href="/static/favicon-16x16.png" />
+    <link rel="icon" type="image/svg+xml" href="/static/favicon.svg" />
+    <link rel="apple-touch-icon" sizes="180x180" href="/static/apple-touch-icon.png" />
+    <link rel="manifest" href="/static/site.webmanifest" />
+    <meta name="theme-color" content="#050811" />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link
@@ -11,8 +18,54 @@
       rel="stylesheet"
     />
     <link rel="stylesheet" href="/static/css/styles.css" />
+    <link rel="stylesheet" href="/static/css/disclaimer.css" />
+    <script src="https://unpkg.com/lucide@latest/dist/umd/lucide.js"></script>
+    <script>
+      window.iconSvg = function iconSvg(name, options = {}) {
+        if (!name) return '';
+        if (typeof name === 'string' && name.trim().startsWith('<')) return name;
+        const aliasMap = {
+          'warning': 'alert-triangle', 'warn': 'alert-triangle', 'danger': 'alert-circle',
+          'error': 'alert-circle', 'info': 'info', 'success': 'check', 'done': 'check',
+          'delete': 'trash-2', 'remove': 'x', 'close': 'x', 'graph': 'network',
+          'dna': 'dna', 'preset': 'zap', 'copilot': 'sparkles', 'ai': 'sparkles',
+          'user': 'user', 'profile': 'user', 'organ': 'shield-check', 'shield': 'shield-check',
+          'flame': 'flame', 'fire': 'flame', 'brain': 'brain', 'heart': 'heart-pulse',
+          'cardio': 'heart-pulse', 'pill': 'pill', 'sleep': 'moon', 'moon': 'moon',
+          'sun': 'sun', 'edit': 'pencil', 'key': 'key', 'settings': 'sliders',
+          'flask': 'flask-conical', 'science': 'flask-conical', 'search': 'search',
+          'crosshair': 'crosshair', 'target': 'target', 'clock': 'clock',
+          'repeat': 'repeat', 'droplet': 'droplet', 'syringe': 'syringe',
+          'microscope': 'microscope', 'activity': 'activity', 'layers': 'layers',
+          'scale': 'scale', 'check': 'check', 'x': 'x', 'building': 'building-2',
+          'institution': 'building-2', 'fda': 'building-2', 'book': 'book-open',
+          'paper': 'file-text', 'pmid': 'file-text', 'doi': 'globe', 'globe': 'globe',
+          'send': 'send', 'bot': 'bot', 'lightbulb': 'lightbulb', 'sparkles': 'sparkles'
+        };
+        const raw = String(name).toLowerCase().trim();
+        const lookupName = aliasMap[raw] || raw;
+        if (window.lucide && window.lucide.icons && window.lucide.icons[lookupName]) {
+          const size = options.size || (options.class?.includes('icon-xs') ? 12 : options.class?.includes('icon-sm') ? 15 : options.class?.includes('icon-lg') ? 24 : options.class?.includes('icon-xl') ? 32 : 16);
+          return window.lucide.icons[lookupName].toSvg({
+            class: `lucide-icon ${options.class || ''}`.trim(),
+            width: size,
+            height: size,
+            'stroke-width': options.strokeWidth || 2,
+            ...(options.attrs || {})
+          });
+        }
+        return `<i data-lucide="${lookupName}" class="${options.class || ''}"></i>`;
+      };
+    </script>
+    <script src="/static/cytoscape.min.js"></script>
+    <script>
+      if (!window.cytoscape) {
+        document.write('<script src="https://cdn.jsdelivr.net/npm/cytoscape@3.29.0/dist/cytoscape.min.js"><\/script>');
+      }
+    </script>
   </head>
   <body>
+    <div id="global-loading-bar" class="slim-loading-bar"></div>
     <div class="app-wrapper">
       <!-- TOPBAR -->
       <header class="topbar">
@@ -25,15 +78,29 @@
         </div>
 
         <div class="topbar-actions">
-          <!-- PROTOCOL COPILOT BTN -->
+          <!-- PROTOCOL COPILOT BTN (FLAGSHIP #1) -->
           <button class="btn-header-action" id="protocol-copilot-btn" title="AI-powered dose adjustments and risk mitigation" style="border-color: rgba(16, 185, 129, 0.4); background: rgba(16, 185, 129, 0.1);">
-            <span style="color: var(--accent-teal);">✨ Protocol Copilot</span>
+            <span style="color: var(--accent-teal); display: inline-flex; align-items: center; gap: 6px;">
+              <i data-lucide="sparkles" class="icon-sm icon-teal"></i>
+              Protocol Copilot
+            </span>
+          </button>
+          <!-- KNOWLEDGE GRAPH QUICK BTN -->
+          <button class="btn-header-action" id="header-graph-btn" title="Open Interactive Biological Knowledge Graph (6-Tier Cascades & Receptor Occupancy)" style="border-color: rgba(0, 242, 254, 0.4); background: rgba(0, 242, 254, 0.1);">
+            <span style="color: var(--accent-cyan); display: flex; align-items: center; gap: 6px;">
+              <i data-lucide="network" class="icon-sm icon-cyan"></i>
+              Graph View
+              <span class="header-flagship-tag">2.0</span>
+            </span>
           </button>
           <!-- PRESET STACKS MENU -->
           <div class="preset-dropdown-wrap">
             <button class="btn-header-action" id="preset-menu-btn" title="Load real-world clinical & performance stacks">
-              <span>⚡ Example Stacks</span>
-              <span style="font-size: 0.68rem; opacity: 0.7;">▼</span>
+              <span style="display: inline-flex; align-items: center; gap: 6px;">
+                <i data-lucide="layers" class="icon-sm icon-cyan"></i>
+                Example Stacks
+              </span>
+              <i data-lucide="chevron-down" class="icon-xs" style="opacity: 0.7;"></i>
             </button>
             <div class="preset-menu" id="preset-menu">
               <div class="preset-menu-header">
@@ -41,59 +108,110 @@
                 <span>6 Presets</span>
               </div>
               
-              <div class="preset-item" onclick="loadPreset('focus')">
+              <div class="preset-item" onclick="loadPreset('focus')" tabindex="0" role="button" onkeydown="if(event.key === 'Enter' || event.key === ' ') { event.preventDefault(); loadPreset('focus'); }">
                 <div class="preset-item-title">
-                  <span>🧠 Focus & Nootropic Surge</span>
+                  <span style="display: inline-flex; align-items: center; gap: 6px;">
+                    <i data-lucide="brain" class="icon-sm icon-cyan"></i> Focus & Nootropic Surge
+                  </span>
                   <span class="preset-badge">PK Synergy</span>
                 </div>
                 <div class="preset-item-desc">Caffeine + L-Theanine + Bacopa + L-Carnitine (Adenosine, GABA-A balance, calm clarity)</div>
               </div>
 
-              <div class="preset-item" onclick="loadPreset('cardio_shield')">
+              <div class="preset-item" onclick="loadPreset('cardio_shield')" tabindex="0" role="button" onkeydown="if(event.key === 'Enter' || event.key === ' ') { event.preventDefault(); loadPreset('cardio_shield'); }">
                 <div class="preset-item-title">
-                  <span>🫀 Cardiometabolic & Endothelial Shield</span>
+                  <span style="display: inline-flex; align-items: center; gap: 6px;">
+                    <i data-lucide="heart-pulse" class="icon-sm icon-rose"></i> Cardiometabolic & Endothelial Shield
+                  </span>
                   <span class="preset-badge">Organ Protection</span>
                 </div>
                 <div class="preset-item-desc">Telmisartan + Citrus Bergamot + CoQ10 + Tadalafil (AT1 blockade, lipids, eNOS)</div>
               </div>
 
-              <div class="preset-item" onclick="loadPreset('trt_balance')">
+              <div class="preset-item" onclick="loadPreset('trt_balance')" tabindex="0" role="button" onkeydown="if(event.key === 'Enter' || event.key === ' ') { event.preventDefault(); loadPreset('trt_balance'); }">
                 <div class="preset-item-title">
-                  <span>🛡️ Complete TRT & Endocrine Balance</span>
+                  <span style="display: inline-flex; align-items: center; gap: 6px;">
+                    <i data-lucide="shield-check" class="icon-sm icon-emerald"></i> Complete TRT & Endocrine Balance
+                  </span>
                   <span class="preset-badge">Equilibrium Flagship</span>
                 </div>
                 <div class="preset-item-desc">Testosterone + Anastrozole + Telmisartan + TUDCA (E2 counterpoise & BP shield)</div>
               </div>
 
-              <div class="preset-item" onclick="loadPreset('thermogenic_shield')">
+              <div class="preset-item" onclick="loadPreset('thermogenic_shield')" tabindex="0" role="button" onkeydown="if(event.key === 'Enter' || event.key === ' ') { event.preventDefault(); loadPreset('thermogenic_shield'); }">
                 <div class="preset-item-title">
-                  <span>🔥 Thermogenesis + Cardioselective Shield</span>
+                  <span style="display: inline-flex; align-items: center; gap: 6px;">
+                    <i data-lucide="flame" class="icon-sm icon-amber"></i> Thermogenesis + Cardioselective Shield
+                  </span>
                   <span class="preset-badge">&beta;1/&beta;2 Counterbalance</span>
                 </div>
                 <div class="preset-item-desc">Clenbuterol + Nebivolol + Taurine (Fat oxidation with cardioselective heart protection)</div>
               </div>
 
-              <div class="preset-item" onclick="loadPreset('bioenhancement')">
+              <div class="preset-item" onclick="loadPreset('bioenhancement')" tabindex="0" role="button" onkeydown="if(event.key === 'Enter' || event.key === ' ') { event.preventDefault(); loadPreset('bioenhancement'); }">
                 <div class="preset-item-title">
-                  <span>⚡ Bioenhancer & Longevity Cascade</span>
+                  <span style="display: inline-flex; align-items: center; gap: 6px;">
+                    <i data-lucide="zap" class="icon-sm icon-cyan"></i> Bioenhancer & Longevity Cascade
+                  </span>
                   <span class="preset-badge">+2000% AUC Surge</span>
                 </div>
                 <div class="preset-item-desc">Curcumin + Piperine + NAC (Intestinal P-gp/UGT1A1 multiplier + cellular redox)</div>
               </div>
 
-              <div class="preset-item" onclick="loadPreset('sleep_recovery')">
+              <div class="preset-item" onclick="loadPreset('sleep_recovery')" tabindex="0" role="button" onkeydown="if(event.key === 'Enter' || event.key === ' ') { event.preventDefault(); loadPreset('sleep_recovery'); }">
                 <div class="preset-item-title">
-                  <span>🌙 Neuro-Sleep & Cortisol Reset</span>
+                  <span style="display: inline-flex; align-items: center; gap: 6px;">
+                    <i data-lucide="moon" class="icon-sm icon-indigo"></i> Neuro-Sleep & Cortisol Reset
+                  </span>
                   <span class="preset-badge">GABA / Melatonin</span>
                 </div>
                 <div class="preset-item-desc">Magnesium + L-Theanine + Melatonin + Tart Cherry (NMDA calm & circadian sync)</div>
+              </div>
+              
+              <div class="preset-item" onclick="loadPreset('gut_microbiome')" tabindex="0" role="button" onkeydown="if(event.key === 'Enter' || event.key === ' ') { event.preventDefault(); loadPreset('gut_microbiome'); }">
+                <div class="preset-item-title">
+                  <span style="display: inline-flex; align-items: center; gap: 6px;">
+                    <i data-lucide="activity" class="icon-sm icon-emerald"></i> Gut Lining & Microbiome Reset
+                  </span>
+                  <span class="preset-badge">GI Integrity</span>
+                </div>
+                <div class="preset-item-desc">BPC-157 + L-Glutamine + Tributyrin (Tight junctions & short-chain fatty acids)</div>
+              </div>
+
+              <div class="preset-item" onclick="loadPreset('immune_defense')" tabindex="0" role="button" onkeydown="if(event.key === 'Enter' || event.key === ' ') { event.preventDefault(); loadPreset('immune_defense'); }">
+                <div class="preset-item-title">
+                  <span style="display: inline-flex; align-items: center; gap: 6px;">
+                    <i data-lucide="shield" class="icon-sm icon-blue"></i> Immune Defense & Resilience
+                  </span>
+                  <span class="preset-badge">Cellular Redox</span>
+                </div>
+                <div class="preset-item-desc">Vitamin D3 + Zinc Picolinate + Vitamin C + NAC (T-cell support & viral shielding)</div>
+              </div>
+
+              <div class="preset-item" onclick="loadPreset('longevity_ampk')" tabindex="0" role="button" onkeydown="if(event.key === 'Enter' || event.key === ' ') { event.preventDefault(); loadPreset('longevity_ampk'); }">
+                <div class="preset-item-title">
+                  <span style="display: inline-flex; align-items: center; gap: 6px;">
+                    <i data-lucide="dna" class="icon-sm icon-teal"></i> Longevity, AMPK & Autophagy
+                  </span>
+                  <span class="preset-badge">mTOR Inhibition</span>
+                </div>
+                <div class="preset-item-desc">Rapamycin + Metformin + Spermidine (Cellular cleanup & senescence delay)</div>
               </div>
             </div>
           </div>
 
           <!-- TOUR / HELP BUTTON -->
           <button class="btn-header-action" id="how-it-works-btn" title="View interactive guide on how to use HealthAI">
-            <span>❔ Guide</span>
+            <span style="display: inline-flex; align-items: center; gap: 5px;">
+              <i data-lucide="help-circle" class="icon-sm"></i> Guide
+            </span>
+          </button>
+
+          <!-- MEDICAL & LEGAL DISCLAIMER BUTTON -->
+          <button class="btn-header-action btn-disclaimer-topbar" id="topbar-disclaimer-btn" onclick="HealthAIDisclaimer.open('medical')" title="Review Medical, Scientific & Legal Disclaimers">
+            <span style="display: inline-flex; align-items: center; gap: 5px;">
+              <i data-lucide="alert-triangle" class="icon-sm icon-amber"></i> Disclaimer
+            </span>
           </button>
 
           <!-- MODE TOGGLE -->
@@ -103,12 +221,15 @@
           </div>
 
           <button class="mobile-menu-toggle" id="mobile-menu-toggle" aria-label="Toggle navigation menu">
-            <span>☰</span>
+            <i data-lucide="menu" class="icon-md"></i>
           </button>
 
           <nav class="nav-links" id="nav-links">
             <a href="/" class="nav-link active">Safety Lab</a>
-            <a href="/graph" class="nav-link" id="nav-graph-link">Knowledge Graph</a>
+            <a href="/graph" class="nav-link" id="nav-graph-link">
+              <span>Knowledge Graph</span>
+              <span class="nav-flagship-tag">2.0</span>
+            </a>
             <a href="/compound?key=caffeine" class="nav-link">Compound DB</a>
             <a href="/admin" class="nav-link">Catalog DB</a>
             <a href="/debug" class="nav-link">Debug Workbench</a>
@@ -151,6 +272,10 @@
               <span class="stat-chip-label">Active Stack</span>
               <span id="stat-compounds-count" class="stat-chip-val">0</span>
             </div>
+            <div class="stat-chip stat-chip-graph" id="stat-graph-chip" onclick="switchToGraphTab()" title="Click to inspect live 6-tier biological cascade network" style="cursor: pointer; border-color: rgba(0, 242, 254, 0.35); background: rgba(0, 242, 254, 0.07);">
+              <span class="stat-chip-label" style="color: var(--accent-cyan); display: inline-flex; align-items: center; gap: 4px;"><i data-lucide="network" class="icon-xs"></i> Biological Network</span>
+              <span id="stat-graph-nodes" class="stat-chip-val" style="color: #38bdf8;">0 Nodes</span>
+            </div>
             <div class="stat-chip">
               <span class="stat-chip-label">Interactions / Conflicts</span>
               <span id="stat-conflicts-count" class="stat-chip-val" style="color: var(--severity-high);">0</span>
@@ -178,34 +303,51 @@
             </h3>
           </div>
 
-          <!-- FLAGSHIP AI STACK BUILDER FEATURE HERO BANNER -->
-          <div class="ai-stack-builder-hero-banner" id="open-ai-stack-builder-btn" role="button" tabindex="0" title="Open AI Stack Builder: Design personalized protocols from scratch">
-            <div class="hero-ai-spark-icon">✨</div>
+          <!-- FLAGSHIP AI STACK BUILDER FEATURE HERO BANNER (FLAGSHIP #1) -->
+          <div class="ai-stack-builder-hero-banner" id="open-ai-stack-builder-btn" role="button" tabindex="0" title="Open AI Stack Builder: Design personalized protocols from scratch" onkeydown="if(event.key === 'Enter' || event.key === ' ') { event.preventDefault(); openAiStackBuilderModal(); }">
+            <div class="hero-ai-spark-icon"><i data-lucide="sparkles" class="icon-md icon-teal"></i></div>
             <div class="hero-ai-content">
               <div class="hero-ai-title">
                 <span>AI Stack Builder</span>
-                <span class="hero-ai-badge">Flagship AI</span>
               </div>
               <div class="hero-ai-subtitle">Design complete, synergistic protocols from scratch calibrated to your demographics</div>
             </div>
-            <div class="hero-ai-arrow">➔</div>
+            <div class="hero-ai-arrow"><i data-lucide="arrow-right" class="icon-sm"></i></div>
+          </div>
+
+          <!-- BIOLOGICAL KNOWLEDGE GRAPH SPOTLIGHT CARD -->
+          <div class="kg-spotlight-card" id="open-kg-spotlight-card" onclick="switchToGraphTab()" onkeydown="if(event.key === 'Enter' || event.key === ' ') { event.preventDefault(); switchToGraphTab(); }" role="button" tabindex="0" title="Inspect 6-Tier Molecular Cascades & Receptor Binding in the Knowledge Graph">
+            <div class="kg-spotlight-icon"><i data-lucide="network" class="icon-md icon-cyan"></i></div>
+            <div class="kg-spotlight-content">
+              <div class="kg-spotlight-title">
+                <span>Biological Knowledge Graph</span>
+              </div>
+              <div class="kg-spotlight-subtitle">Multi-tier cascade propagation, target receptor occupancy & kinetic timeline modeling</div>
+            </div>
+            <div class="kg-spotlight-actions">
+              <span class="kg-spotlight-quick-btn" title="View interactive graph in workbench"><i data-lucide="zap" class="icon-xs icon-cyan"></i> View Graph</span>
+              <a href="/graph" target="_blank" class="kg-spotlight-ext-btn" onclick="event.stopPropagation();" title="Open full-screen knowledge graph in dedicated window" style="display:inline-flex; align-items:center; justify-content:center;"><i data-lucide="external-link" class="icon-xs"></i></a>
+            </div>
           </div>
 
           <!-- 1-CLICK QUICK PRESETS STRIP -->
           <div class="workbench-presets-bar">
-            <span style="font-size: 0.72rem; color: var(--text-muted); font-weight: 700; display: flex; align-items: center; gap: 4px; margin: 0 2px;">⚡ Quick Presets:</span>
-            <button class="preset-chip-btn" onclick="loadPreset('focus')">🧠 Focus</button>
-            <button class="preset-chip-btn" onclick="loadPreset('cardio_shield')">🫀 Cardio</button>
-            <button class="preset-chip-btn" onclick="loadPreset('trt_balance')">🛡️ TRT Balance</button>
-            <button class="preset-chip-btn" onclick="loadPreset('thermogenic_shield')">🔥 Thermo Shield</button>
-            <button class="preset-chip-btn" onclick="loadPreset('bioenhancement')">⚡ Bioenhancer</button>
-            <button class="preset-chip-btn" onclick="loadPreset('sleep_recovery')">🌙 Sleep</button>
+            <span style="font-size: 0.72rem; color: var(--text-muted); font-weight: 700; display: flex; align-items: center; gap: 4px; margin: 0 2px;"><i data-lucide="zap" class="icon-xs"></i> Quick Presets:</span>
+            <button class="preset-chip-btn" onclick="loadPreset('focus')"><i data-lucide="brain" class="icon-xs icon-cyan"></i> Focus</button>
+            <button class="preset-chip-btn" onclick="loadPreset('cardio_shield')"><i data-lucide="heart-pulse" class="icon-xs icon-rose"></i> Cardio</button>
+            <button class="preset-chip-btn" onclick="loadPreset('trt_balance')"><i data-lucide="shield-check" class="icon-xs icon-emerald"></i> TRT Balance</button>
+            <button class="preset-chip-btn" onclick="loadPreset('thermogenic_shield')"><i data-lucide="flame" class="icon-xs icon-amber"></i> Thermo Shield</button>
+            <button class="preset-chip-btn" onclick="loadPreset('bioenhancement')"><i data-lucide="zap" class="icon-xs icon-cyan"></i> Bioenhancer</button>
+            <button class="preset-chip-btn" onclick="loadPreset('sleep_recovery')"><i data-lucide="moon" class="icon-xs icon-indigo"></i> Sleep</button>
+            <button class="preset-chip-btn" onclick="loadPreset('gut_microbiome')"><i data-lucide="activity" class="icon-xs icon-emerald"></i> Gut</button>
+            <button class="preset-chip-btn" onclick="loadPreset('immune_defense')"><i data-lucide="shield" class="icon-xs icon-blue"></i> Immune</button>
+            <button class="preset-chip-btn" onclick="loadPreset('longevity_ampk')"><i data-lucide="dna" class="icon-xs icon-teal"></i> Longevity</button>
           </div>
 
           <!-- AUTOCOMPLETE SEARCH -->
           <div class="search-container">
             <div class="search-input-wrapper">
-              <span class="search-icon">🔍</span>
+              <span class="search-icon"><i data-lucide="search" class="icon-sm"></i></span>
               <input
                 type="text"
                 id="compound-search-input"
@@ -221,11 +363,11 @@
           <div class="quick-tags-section">
             <div class="quick-tags-nav">
               <button class="quick-cat-btn active" onclick="switchQuickCat('all', this)">All</button>
-              <button class="quick-cat-btn" onclick="switchQuickCat('nootropic', this)">🧠 Focus</button>
-              <button class="quick-cat-btn" onclick="switchQuickCat('cardio', this)">🫀 Cardio</button>
-              <button class="quick-cat-btn" onclick="switchQuickCat('metabolic', this)">⚡ Metabolic</button>
-              <button class="quick-cat-btn" onclick="switchQuickCat('endocrine', this)">🛡️ Endocrine</button>
-              <button class="quick-cat-btn" onclick="switchQuickCat('recovery', this)">🌿 Recovery</button>
+              <button class="quick-cat-btn" onclick="switchQuickCat('nootropic', this)"><i data-lucide="brain" class="icon-xs"></i> Focus</button>
+              <button class="quick-cat-btn" onclick="switchQuickCat('cardio', this)"><i data-lucide="heart-pulse" class="icon-xs"></i> Cardio</button>
+              <button class="quick-cat-btn" onclick="switchQuickCat('metabolic', this)"><i data-lucide="zap" class="icon-xs"></i> Metabolic</button>
+              <button class="quick-cat-btn" onclick="switchQuickCat('endocrine', this)"><i data-lucide="shield-check" class="icon-xs"></i> Endocrine</button>
+              <button class="quick-cat-btn" onclick="switchQuickCat('recovery', this)"><i data-lucide="leaf" class="icon-xs"></i> Recovery</button>
             </div>
             <div id="quick-tags-wrap" class="quick-tags-wrap">
               <button class="quick-tag" data-cat="nootropic" data-key="caffeine">+ Caffeine</button>
@@ -259,23 +401,31 @@
           <div class="stack-list-section">
             <div id="stack-items-wrap" class="stack-items-wrap">
               <div id="empty-stack-placeholder" class="stack-empty-card ai-builder-empty-card" style="padding: 16px 12px; text-align: center; border: 1px dashed rgba(0, 242, 254, 0.35); background: linear-gradient(180deg, rgba(0, 242, 254, 0.05) 0%, rgba(5, 12, 22, 0.6) 100%);">
-                <div style="font-size: 1.5rem; margin-bottom: 4px;">✨</div>
+                <div style="margin-bottom: 6px;"><i data-lucide="sparkles" class="icon-lg icon-teal"></i></div>
                 <div style="font-size: 0.92rem; font-weight: 800; color: #f8fafc; margin-bottom: 4px;">Build Stack with AI Copilot</div>
                 <div style="font-size: 0.76rem; color: var(--text-secondary); line-height: 1.35; margin-bottom: 10px;">
                   Let the AI Copilot design a synergistic protocol tailored to your biomarkers and clinical goals.
                 </div>
-                <button type="button" class="btn-primary" id="empty-state-ai-builder-btn" style="width: 100%; margin-bottom: 10px; padding: 8px 12px; font-size: 0.82rem; display: flex; align-items: center; justify-content: center; gap: 6px; background: linear-gradient(135deg, #00f2fe 0%, #4f46e5 100%); border: none; font-weight: 800; box-shadow: 0 0 15px rgba(0,242,254,0.3); cursor: pointer;">
-                  <span>✨ Open AI Stack Builder</span>
+                <button type="button" class="btn-primary" id="empty-state-ai-builder-btn" style="width: 100%; margin-bottom: 8px; padding: 8px 12px; font-size: 0.82rem; display: flex; align-items: center; justify-content: center; gap: 6px; background: linear-gradient(135deg, #00f2fe 0%, #4f46e5 100%); border: none; font-weight: 800; box-shadow: 0 0 15px rgba(0,242,254,0.3); cursor: pointer;">
+                  <i data-lucide="sparkles" class="icon-sm"></i>
+                  <span>Open AI Stack Builder</span>
+                </button>
+                <button type="button" class="btn-secondary" onclick="switchToGraphTab()" style="width: 100%; margin-bottom: 10px; padding: 7px 12px; font-size: 0.76rem; display: flex; align-items: center; justify-content: center; gap: 6px; background: rgba(0, 242, 254, 0.08); border: 1px solid rgba(0, 242, 254, 0.3); color: var(--accent-cyan); font-weight: 700; cursor: pointer;">
+                  <i data-lucide="network" class="icon-sm icon-cyan"></i>
+                  <span>Explore Biological Knowledge Graph</span>
                 </button>
                 <div style="font-size: 0.68rem; color: var(--text-muted); font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 6px;">Or 1-Click Goal Protocols:</div>
-                <div style="display: flex; flex-wrap: wrap; gap: 4px; justify-content: center;">
-                  <button type="button" class="preset-chip-btn" onclick="quickBuildStackFromScratch('cognitive_focus')" style="font-size: 0.7rem; padding: 2px 7px;">🧠 Focus</button>
-                  <button type="button" class="preset-chip-btn" onclick="quickBuildStackFromScratch('longevity_autophagy')" style="font-size: 0.7rem; padding: 2px 7px;">🧬 Longevity</button>
-                  <button type="button" class="preset-chip-btn" onclick="quickBuildStackFromScratch('cardiovascular_lipid')" style="font-size: 0.7rem; padding: 2px 7px;">🫀 Cardio</button>
-                  <button type="button" class="preset-chip-btn" onclick="quickBuildStackFromScratch('anabolic_physique')" style="font-size: 0.7rem; padding: 2px 7px;">🏋️ Muscle</button>
-                  <button type="button" class="preset-chip-btn" onclick="quickBuildStackFromScratch('sleep_stress_recovery')" style="font-size: 0.7rem; padding: 2px 7px;">🌙 Sleep</button>
-                  <button type="button" class="preset-chip-btn" onclick="quickBuildStackFromScratch('fat_loss_metabolic')" style="font-size: 0.7rem; padding: 2px 7px;">🔥 Fat Loss</button>
-                  <button type="button" class="preset-chip-btn" onclick="quickBuildStackFromScratch('post_therapy_reset')" style="font-size: 0.7rem; padding: 2px 7px;">🔄 Reset</button>
+                <div style="display: flex; flex-wrap: wrap; gap: 5px; justify-content: center;">
+                  <button type="button" class="preset-chip-btn" onclick="quickBuildStackFromScratch('cognitive_focus')"><i data-lucide="brain" class="icon-xs icon-cyan"></i> <span>Focus</span></button>
+                  <button type="button" class="preset-chip-btn" onclick="quickBuildStackFromScratch('longevity_autophagy')"><i data-lucide="dna" class="icon-xs icon-teal"></i> <span>Longevity</span></button>
+                  <button type="button" class="preset-chip-btn" onclick="quickBuildStackFromScratch('cardiovascular_lipid')"><i data-lucide="heart-pulse" class="icon-xs icon-rose"></i> <span>Cardio</span></button>
+                  <button type="button" class="preset-chip-btn" onclick="quickBuildStackFromScratch('anabolic_physique')"><i data-lucide="dumbbell" class="icon-xs icon-indigo"></i> <span>Muscle</span></button>
+                  <button type="button" class="preset-chip-btn" onclick="quickBuildStackFromScratch('sleep_stress_recovery')"><i data-lucide="moon" class="icon-xs icon-blue"></i> <span>Sleep</span></button>
+                  <button type="button" class="preset-chip-btn" onclick="quickBuildStackFromScratch('fat_loss_metabolic')"><i data-lucide="flame" class="icon-xs icon-amber"></i> <span>Fat Loss</span></button>
+                  <button type="button" class="preset-chip-btn" onclick="quickBuildStackFromScratch('gut_microbiome')"><i data-lucide="activity" class="icon-xs icon-emerald"></i> <span>Gut</span></button>
+                  <button type="button" class="preset-chip-btn" onclick="quickBuildStackFromScratch('immune_defense')"><i data-lucide="shield" class="icon-xs icon-blue"></i> <span>Immune</span></button>
+                  <button type="button" class="preset-chip-btn" onclick="quickBuildStackFromScratch('hair_skin_derm')"><i data-lucide="sparkles" class="icon-xs icon-rose"></i> <span>Derm</span></button>
+                  <button type="button" class="preset-chip-btn" onclick="quickBuildStackFromScratch('post_therapy_reset')"><i data-lucide="refresh-cw" class="icon-xs icon-emerald"></i> <span>Reset</span></button>
                 </div>
               </div>
             </div>
@@ -283,9 +433,9 @@
 
           <!-- BIOMARKER ACCORDION / PATIENT PROFILE -->
           <div class="biomarker-card" style="border-color: rgba(0, 242, 254, 0.25); background: linear-gradient(180deg, rgba(10, 24, 44, 0.7) 0%, rgba(5, 12, 22, 0.85) 100%);">
-            <div class="biomarker-header" onclick="toggleBiomarkerDrawer()">
+            <div class="biomarker-header" onclick="toggleBiomarkerDrawer()" tabindex="0" role="button" onkeydown="if(event.key === 'Enter' || event.key === ' ') { event.preventDefault(); toggleBiomarkerDrawer(); }">
               <div style="display: flex; align-items: center; gap: 6px; min-width: 0; flex: 1;">
-                <span style="min-width: 0; word-break: break-word;">👤 Demographics & AI Biometrics</span>
+                <span style="min-width: 0; word-break: break-word; display: inline-flex; align-items: center; gap: 4px;"><i data-lucide="user" class="icon-xs icon-cyan"></i> Demographics & AI Biometrics</span>
                 <span id="biomarker-toggle-icon" style="font-size: 0.75rem; color: var(--accent-cyan); flex-shrink: 0;">▼</span>
               </div>
               <span style="font-size: 0.7rem; background: rgba(0,242,254,0.12); border: 1px solid rgba(0,242,254,0.25); border-radius: 4px; padding: 1px 6px; color: var(--accent-cyan); font-weight: 700; flex-shrink: 0;" id="biometric-sync-badge">Live Sync</span>
@@ -341,7 +491,7 @@
                 </div>
               </div>
               <button type="button" class="btn-primary" onclick="openAiStackBuilderModal()" style="width: 100%; margin-top: 10px; padding: 7px 10px; font-size: 0.76rem; font-weight: 800; display: flex; align-items: center; justify-content: center; gap: 6px; background: linear-gradient(135deg, rgba(0,242,254,0.25), rgba(79,70,229,0.35)); border: 1px solid var(--accent-cyan); color: #fff; cursor: pointer; border-radius: var(--radius-sm);">
-                <span>✨ Launch AI Stack Builder for this Profile</span>
+                <i data-lucide="sparkles" class="icon-xs icon-cyan"></i> <span>Launch AI Stack Builder for this Profile</span>
               </button>
             </div>
           </div>
@@ -352,11 +502,21 @@
           </div>
         </aside>
 
-        <!-- RIGHT PANEL: COLLISION MATRIX & DEEP DIVE TABS -->
+        <!-- RIGHT PANEL: COLLISION MATRIX, KNOWLEDGE GRAPH & DEEP DIVE TABS -->
         <section class="panel">
           <div class="tabs-nav">
             <button class="tab-btn active" data-tab="balance-tab">
-              <span>⚖️ Full Stack Equilibrium</span>
+              <span style="display:inline-flex; align-items:center; gap:6px;">
+                <i data-lucide="scale" class="icon-sm"></i> Full Stack Equilibrium
+              </span>
+            </button>
+            <!-- KNOWLEDGE GRAPH TAB -->
+            <button class="tab-btn tab-btn-graph-featured" data-tab="graph-tab" id="tab-btn-graph" title="Inspect 6-Tier Molecular Cascades & Receptor Occupancy in the Interactive Knowledge Graph">
+              <span style="display:flex; align-items:center; gap:6px;">
+                <i data-lucide="network" class="icon-sm icon-cyan"></i>
+                Knowledge Graph
+              </span>
+              <span id="tab-graph-badge" class="tab-badge tab-badge-graph">0 Nodes</span>
             </button>
             <button class="tab-btn" data-tab="matrix-tab">
               <span>Collision Matrix (N×N)</span>
@@ -367,8 +527,8 @@
               <span id="tab-conflicts-badge" class="tab-badge" style="display:none;"></span>
             </button>
             <a href="/graph" target="_blank" class="tab-btn-link" id="open-full-graph-btn" title="Open full-screen interactive biological network in a dedicated tab">
-              <span>🧬 Knowledge Graph</span>
-              <span style="font-size: 0.75rem; opacity: 0.85;">↗</span>
+              <span>Fullscreen Graph</span>
+              <i data-lucide="external-link" class="icon-xs" style="opacity: 0.85;"></i>
             </a>
           </div>
 
@@ -381,7 +541,103 @@
             </div>
           </div>
 
-          <!-- TAB 2: COLLISION MATRIX -->
+          <!-- TAB 2: EMBEDDED BIOLOGICAL KNOWLEDGE GRAPH (2ND FLAGSHIP FEATURE) -->
+          <div id="graph-tab" class="tab-pane" style="display: none;">
+            <!-- EMBEDDED GRAPH TOOLBAR & CONTROLS -->
+            <div class="embedded-graph-toolbar">
+              <div class="embedded-graph-controls-left">
+                <div class="embedded-search-wrap">
+                  <span class="embedded-search-icon"><i data-lucide="search" class="icon-xs"></i></span>
+                  <input type="text" id="embedded-graph-search" class="embedded-graph-search-input" placeholder="Search nodes, targets, pathways..." autocomplete="off" />
+                </div>
+                
+                <select id="embedded-layout-select" class="embedded-graph-select" title="Graph Layout Engine">
+                  <option value="tier_flow" selected>Cascade Tier Flow (L-to-R)</option>
+                  <option value="cose">Physics Network (COSE)</option>
+                  <option value="breadthfirst">Directed Hierarchy (Tree)</option>
+                  <option value="concentric">Concentric Orbits</option>
+                  <option value="circle">Circular Ring</option>
+                </select>
+
+                <select 
+                  id="embedded-timeline-select" 
+                  class="embedded-graph-select" 
+                  title="Kinetic Timeline Horizon for Cascade Prediction"
+                  onchange="if (typeof setGraphTimeline === 'function') setGraphTimeline(this.value);"
+                >
+                  <option value="1_day">1 Day (Acute)</option>
+                  <option value="3_days">3 Days (Early)</option>
+                  <option value="1_week">1 Week (Sub-acute)</option>
+                  <option value="2_weeks">2 Weeks (Endocrine)</option>
+                  <option value="1_month">1 Month (Lipids)</option>
+                  <option value="2_months">2 Months (Reticulocyte)</option>
+                  <option value="3_months">3 Months (HbA1c & RBC)</option>
+                  <option value="steady_state" selected>Steady State (Full Eq)</option>
+                </select>
+
+                <button type="button" id="embedded-btn-simulate" class="btn-graph-tool btn-graph-simulate" title="Simulate biological signal propagation down multi-tier cascades" style="display:inline-flex; align-items:center; gap:4px;">
+                  <i data-lucide="zap" class="icon-xs"></i> Simulate Signal
+                </button>
+                <button type="button" id="embedded-btn-convergence" class="btn-graph-tool" title="Filter to molecular targets with multiple compound inputs" style="display:inline-flex; align-items:center; gap:4px;">
+                  <i data-lucide="crosshair" class="icon-xs"></i> Converging Targets
+                </button>
+              </div>
+
+              <div class="embedded-graph-controls-right">
+                <button type="button" id="embedded-btn-fit" class="btn-graph-tool" title="Fit network to canvas">Fit</button>
+                <button type="button" id="embedded-btn-zoomin" class="btn-graph-tool" title="Zoom In">+</button>
+                <button type="button" id="embedded-btn-zoomout" class="btn-graph-tool" title="Zoom Out">−</button>
+                <button type="button" id="embedded-btn-toggle-inspector" class="btn-graph-tool" title="Toggle Node Inspector Drawer">Inspector</button>
+                <a href="/graph" target="_blank" class="btn-graph-tool btn-graph-fullscreen" id="embedded-btn-fullscreen" title="Open Full-Screen Knowledge Graph in dedicated window" style="display:inline-flex; align-items:center; gap:4px;">
+                  <span>Fullscreen</span> <i data-lucide="external-link" class="icon-xs"></i>
+                </a>
+              </div>
+            </div>
+
+            <!-- CASCADE PREVIEW CHIPS STRIP -->
+            <div class="embedded-cascade-strip" id="embedded-cascade-strip">
+              <span class="embedded-cascade-title" style="display:inline-flex; align-items:center; gap:4px;"><i data-lucide="zap" class="icon-xs icon-cyan"></i> Multi-Tier Cascades:</span>
+              <div id="embedded-cascade-chips" class="embedded-cascade-chips-wrap">
+                <span class="cascade-badge">Add compounds to compute 6-tier biological cascade predictions…</span>
+              </div>
+            </div>
+
+            <!-- GRAPH CANVAS WORKSPACE & SPLIT INSPECTOR -->
+            <div class="embedded-graph-workspace">
+              <div id="embedded-graph-canvas" class="embedded-graph-canvas" aria-label="Interactive biological knowledge graph canvas"></div>
+              
+              <!-- EMBEDDED NODE INSPECTOR DRAWER -->
+              <aside class="embedded-node-inspector hidden" id="embedded-node-inspector">
+                <div class="embedded-inspector-header">
+                  <div style="display:flex; align-items:center; gap:6px;">
+                    <i data-lucide="network" class="icon-sm icon-cyan"></i>
+                    <span class="embedded-inspector-title" id="embedded-inspector-title">Node Inspector</span>
+                  </div>
+                  <button type="button" id="embedded-inspector-close-btn" class="embedded-inspector-close">&times;</button>
+                </div>
+                <div class="embedded-inspector-tabs">
+                  <div class="embedded-inspector-tab active" data-tab="overview">Overview</div>
+                  <div class="embedded-inspector-tab" data-tab="pharmacodynamics">Receptor PD</div>
+                  <div class="embedded-inspector-tab" data-tab="cascade">Cascades</div>
+                  <div class="embedded-inspector-tab" data-tab="evidence">Evidence</div>
+                </div>
+                <div class="embedded-inspector-body" id="embedded-inspector-body">
+                  <div class="stack-empty-card" style="padding:20px; font-size:0.8rem;">
+                    Click any node or interaction edge in the network to inspect detailed receptor affinities, saturation dials, and cascade predictions.
+                  </div>
+                </div>
+              </aside>
+
+              <!-- HOVER TOOLTIP -->
+              <div id="embedded-graph-tooltip" class="graph-tooltip">
+                <div class="tooltip-title" id="embedded-tooltip-title">Node</div>
+                <div class="tooltip-sub" id="embedded-tooltip-sub">Sub</div>
+                <div id="embedded-tooltip-badge"></div>
+              </div>
+            </div>
+          </div>
+
+          <!-- TAB 3: COLLISION MATRIX -->
           <div id="matrix-tab" class="tab-pane" style="display: none;">
             <!-- MATRIX LEGEND -->
             <div class="matrix-legend-row">
@@ -402,7 +658,7 @@
             </div>
           </div>
 
-          <!-- TAB 3: BREAKDOWN CARDS -->
+          <!-- TAB 4: BREAKDOWN CARDS -->
           <div id="breakdown-tab" class="tab-pane" style="display: none;">
             <div id="breakdowns-container" class="breakdown-grid">
               <div class="stack-empty-card">
@@ -450,15 +706,21 @@
               <span class="modal-section-title">Scientific Provenance & Citations</span>
               <div id="modal-citations-wrap" style="display:flex; flex-direction:column; gap:6px; margin-top:6px;"></div>
             </div>
+
+            <!-- TRACE IN KNOWLEDGE GRAPH ACTION -->
+            <div style="margin-top: 14px; padding-top: 12px; border-top: 1px solid var(--border-subtle); display: flex; justify-content: flex-end; align-items: center;">
+              <button type="button" class="btn-primary" id="modal-trace-graph-btn" style="background: linear-gradient(135deg, rgba(0,242,254,0.25), rgba(79,70,229,0.35)); border: 1px solid var(--accent-cyan); color: #fff; font-weight: 800; font-size: 0.8rem; display: inline-flex; align-items: center; gap: 6px; padding: 7px 14px; border-radius: var(--radius-sm); cursor: pointer; box-shadow: 0 0 12px rgba(0,242,254,0.25);">
+                <i data-lucide="dna" class="icon-xs icon-cyan"></i> <span>Trace Pathway in Knowledge Graph</span> <i data-lucide="arrow-right" class="icon-xs"></i>
+              </button>
+            </div>
           </div>
         </div>
       </div>
 
       <!-- HOW IT WORKS / QUICK GUIDE MODAL -->
       <div id="guide-modal" class="modal-backdrop">
-        <div class="modal-dialog" style="max-width: 640px;">
+        <div class="modal-dialog" style="max-width: 660px;">
           <div class="modal-header">
-            <div class="modal-title-group">
               <span class="modal-title">Welcome to HealthAI Pharmacology Lab</span>
               <span class="modal-subtitle">Interactive Quick-Start Guide</span>
             </div>
@@ -466,34 +728,42 @@
           </div>
           <div class="modal-body" style="gap: 14px;">
             <div style="display: flex; gap: 12px; align-items: flex-start; background: rgba(0, 242, 254, 0.08); padding: 12px; border-radius: var(--radius-md); border: 1px solid rgba(0, 242, 254, 0.2);">
-              <span style="font-size: 1.5rem;">1️⃣</span>
+              <span class="guide-step-badge" style="background: rgba(0,242,254,0.2); color: #00f2fe; width: 26px; height: 26px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-weight: 800; font-size: 0.85rem; flex-shrink: 0;">1</span>
               <div>
-                <strong style="color: var(--accent-cyan); font-size: 0.92rem;">Build Your Stack</strong>
-                <p style="font-size: 0.84rem; color: var(--text-secondary); margin-top: 2px;">Search from over 90+ validated compounds or click <strong>⚡ Quick Presets</strong> to instantly load clinically effective protocols (Focus, Cardiometabolic Shield, TRT Balance, Thermogenic Shield).</p>
+                <strong style="color: var(--accent-cyan); font-size: 0.92rem;">Build Your Stack (AI Stack Builder)</strong>
+                <p style="font-size: 0.84rem; color: var(--text-secondary); margin-top: 2px;">Search 90+ validated compounds or click <strong>AI Stack Builder</strong> to generate tailored protocols from scratch calibrated to your personal demographics and biomarkers.</p>
+              </div>
+            </div>
+
+            <div style="display: flex; gap: 12px; align-items: flex-start; background: rgba(0, 242, 254, 0.05); padding: 12px; border-radius: var(--radius-md); border: 1px solid rgba(0, 242, 254, 0.25);">
+              <span class="guide-step-badge" style="background: rgba(56,189,248,0.2); color: #38bdf8; width: 26px; height: 26px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-weight: 800; font-size: 0.85rem; flex-shrink: 0;">2</span>
+              <div>
+                <strong style="color: #38bdf8; font-size: 0.92rem;">Explore the Biological Knowledge Graph</strong>
+                <p style="font-size: 0.84rem; color: var(--text-secondary); margin-top: 2px;">Switch to the <strong>Knowledge Graph</strong> tab to visualize continuous 6-tier signaling cascades: Compounds ➔ Molecular Receptors/Enzymes ➔ Intracellular Cascades ➔ Organ Physiology ➔ Clinical Biomarkers ➔ Phenotypic Outcomes.</p>
+              </div>
+            </div>
+
+            <div style="display: flex; gap: 12px; align-items: flex-start; background: rgba(16, 185, 129, 0.05); padding: 12px; border-radius: var(--radius-md); border: 1px solid rgba(16, 185, 129, 0.25);">
+              <span class="guide-step-badge" style="background: rgba(16,185,129,0.2); color: var(--accent-teal); width: 26px; height: 26px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-weight: 800; font-size: 0.85rem; flex-shrink: 0;">3</span>
+              <div>
+                <strong style="color: var(--accent-teal); font-size: 0.92rem;">Consult the Protocol Copilot (Multi-Turn AI GraphRAG)</strong>
+                <p style="font-size: 0.84rem; color: var(--text-secondary); margin-top: 2px;">Press <kbd style="font-family: 'JetBrains Mono', monospace; background: rgba(255,255,255,0.08); padding: 1px 5px; border-radius: 3px;">Ctrl+K</kbd> or click <strong>Protocol Copilot</strong> to converse with 4 specialized clinical AI personas (Architect, Auditor, Tutor, Labs) grounded in causal biological graphs.</p>
               </div>
             </div>
 
             <div style="display: flex; gap: 12px; align-items: flex-start; background: rgba(255, 255, 255, 0.03); padding: 12px; border-radius: var(--radius-md); border: 1px solid var(--border-subtle);">
-              <span style="font-size: 1.5rem;">2️⃣</span>
+              <span class="guide-step-badge" style="background: rgba(255,255,255,0.1); color: #f8fafc; width: 26px; height: 26px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-weight: 800; font-size: 0.85rem; flex-shrink: 0;">4</span>
               <div>
-                <strong style="color: #f8fafc; font-size: 0.92rem;">Tune Dosing & Administration Route</strong>
-                <p style="font-size: 0.84rem; color: var(--text-secondary); margin-top: 2px;">Customize exact dosages, administration frequency (Daily, Weekly, BID, PRN), and route (Oral, Sublingual, SubQ, IM). The engine calculates continuous effective exposure automatically.</p>
+                <strong style="color: #f8fafc; font-size: 0.92rem;">Full Stack Equilibrium & Collision Matrix</strong>
+                <p style="font-size: 0.84rem; color: var(--text-secondary); margin-top: 2px;">The <strong>Equilibrium Engine</strong> and <strong>N×N Collision Matrix</strong> model net physiological axes (Blood Pressure, Lipids, HPTA, Transaminases) and uncover multi-agent counterbalances.</p>
               </div>
             </div>
 
-            <div style="display: flex; gap: 12px; align-items: flex-start; background: rgba(255, 255, 255, 0.03); padding: 12px; border-radius: var(--radius-md); border: 1px solid var(--border-subtle);">
-              <span style="font-size: 1.5rem;">3️⃣</span>
+            <div style="display: flex; gap: 12px; align-items: flex-start; background: rgba(245, 158, 11, 0.08); padding: 12px; border-radius: var(--radius-md); border: 1px solid rgba(245, 158, 11, 0.3);">
+              <i data-lucide="alert-triangle" class="icon-md icon-amber" style="flex-shrink: 0; margin-top: 2px;"></i>
               <div>
-                <strong style="color: #f8fafc; font-size: 0.92rem;">Explore Full Stack Equilibrium</strong>
-                <p style="font-size: 0.84rem; color: var(--text-secondary); margin-top: 2px;">The <strong>⚖️ Equilibrium Engine</strong> evaluates holistic network dynamics across physiological axes (blood pressure, lipid profile, sex hormones, transaminases) and demonstrates how co-administered agents counterbalance potential risks.</p>
-              </div>
-            </div>
-
-            <div style="display: flex; gap: 12px; align-items: flex-start; background: rgba(255, 255, 255, 0.03); padding: 12px; border-radius: var(--radius-md); border: 1px solid var(--border-subtle);">
-              <span style="font-size: 1.5rem;">4️⃣</span>
-              <div>
-                <strong style="color: #f8fafc; font-size: 0.92rem;">Standard vs. Power User Mode</strong>
-                <p style="font-size: 0.84rem; color: var(--text-secondary); margin-top: 2px;">Toggle between <strong>Standard Mode</strong> for straightforward safety summaries or <strong>Power User Mode</strong> to unlock raw AUC multipliers, $p_5–p_{95}$ variance distributions, and enzyme clearance curves.</p>
+                <strong style="color: #fbbf24; font-size: 0.92rem;">Medical & Scientific Disclaimers</strong>
+                <p style="font-size: 0.84rem; color: var(--text-secondary); margin-top: 2px;">HealthAI is an experimental simulation tool for research and education. It does NOT provide medical advice. <a href="javascript:void(0)" onclick="HealthAIDisclaimer.open('medical')" style="color: var(--accent-cyan); text-decoration: underline; font-weight: 700;">Review full medical & legal disclaimers ➔</a></p>
               </div>
             </div>
 
@@ -512,7 +782,7 @@
           <div class="modal-header" style="border-bottom: 1px solid rgba(0, 242, 254, 0.2); padding-bottom: 12px;">
             <div class="modal-title-group">
               <div style="display: flex; align-items: center; gap: 8px;">
-                <span style="font-size: 1.3rem;">✨</span>
+                <i data-lucide="sparkles" class="icon-md icon-teal"></i>
                 <span class="modal-title" style="color: #fff; font-size: 1.15rem;">AI Stack Builder: Protocol from Scratch</span>
               </div>
               <span class="modal-subtitle" style="color: var(--accent-cyan); margin-top: 2px;">Zero Bro-Science • Pharmacokinetic & Circadian Grounding</span>
@@ -524,47 +794,63 @@
             <!-- GOAL SELECTION GRID -->
             <div>
               <span class="modal-section-title" style="margin-bottom: 8px; display: flex; align-items: center; gap: 6px;">
-                <span>🎯 Select Primary Protocol Goal</span>
+                <i data-lucide="target" class="icon-xs icon-cyan"></i>
+                <span>Select Primary Protocol Goal</span>
                 <span style="font-size: 0.72rem; color: var(--text-muted); font-weight: 500;">(Choose or customize)</span>
               </span>
               <div id="builder-goals-grid" style="display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 8px;">
-                <div class="builder-goal-card active" data-goal="cognitive_focus">
-                  <div style="font-size: 1.4rem;">🧠</div>
+                <div class="builder-goal-card active" tabindex="0" role="button" data-goal="cognitive_focus">
+                  <div style="margin-bottom: 6px;"><i data-lucide="brain" class="icon-lg icon-cyan"></i></div>
                   <div class="builder-goal-name">Cognitive Focus</div>
                   <div class="builder-goal-sub">Focus & Memory</div>
                 </div>
-                <div class="builder-goal-card" data-goal="longevity_autophagy">
-                  <div style="font-size: 1.4rem;">🧬</div>
+                <div class="builder-goal-card" tabindex="0" role="button" data-goal="longevity_autophagy">
+                  <div style="margin-bottom: 6px;"><i data-lucide="dna" class="icon-lg icon-teal"></i></div>
                   <div class="builder-goal-name">Longevity & Autophagy</div>
                   <div class="builder-goal-sub">AMPK / Sirtuins</div>
                 </div>
-                <div class="builder-goal-card" data-goal="cardiovascular_lipid">
-                  <div style="font-size: 1.4rem;">🫀</div>
+                <div class="builder-goal-card" tabindex="0" role="button" data-goal="cardiovascular_lipid">
+                  <div style="margin-bottom: 6px;"><i data-lucide="heart-pulse" class="icon-lg icon-rose"></i></div>
                   <div class="builder-goal-name">Cardio & Lipids</div>
                   <div class="builder-goal-sub">BP & ApoB Shield</div>
                 </div>
-                <div class="builder-goal-card" data-goal="anabolic_physique">
-                  <div style="font-size: 1.4rem;">🏋️</div>
+                <div class="builder-goal-card" tabindex="0" role="button" data-goal="anabolic_physique">
+                  <div style="margin-bottom: 6px;"><i data-lucide="dumbbell" class="icon-lg icon-blue"></i></div>
                   <div class="builder-goal-name">Muscle & Physique</div>
                   <div class="builder-goal-sub">Hypertrophy / Energy</div>
                 </div>
-                <div class="builder-goal-card" data-goal="sleep_stress_recovery">
-                  <div style="font-size: 1.4rem;">🌙</div>
+                <div class="builder-goal-card" tabindex="0" role="button" data-goal="sleep_stress_recovery">
+                  <div style="margin-bottom: 6px;"><i data-lucide="moon" class="icon-lg icon-indigo"></i></div>
                   <div class="builder-goal-name">Sleep & Recovery</div>
                   <div class="builder-goal-sub">GABA / Deep Sleep</div>
                 </div>
-                <div class="builder-goal-card" data-goal="fat_loss_metabolic">
-                  <div style="font-size: 1.4rem;">🔥</div>
+                <div class="builder-goal-card" tabindex="0" role="button" data-goal="fat_loss_metabolic">
+                  <div style="margin-bottom: 6px;"><i data-lucide="flame" class="icon-lg icon-amber"></i></div>
                   <div class="builder-goal-name">Fat Loss & Output</div>
                   <div class="builder-goal-sub">Metabolic & Lipolysis</div>
                 </div>
-                <div class="builder-goal-card" data-goal="post_therapy_reset">
-                  <div style="font-size: 1.4rem;">🔄</div>
+                <div class="builder-goal-card" tabindex="0" role="button" data-goal="gut_microbiome">
+                  <div style="margin-bottom: 6px;"><i data-lucide="activity" class="icon-lg icon-emerald"></i></div>
+                  <div class="builder-goal-name">Gut Microbiome</div>
+                  <div class="builder-goal-sub">GI Integrity</div>
+                </div>
+                <div class="builder-goal-card" tabindex="0" role="button" data-goal="immune_defense">
+                  <div style="margin-bottom: 6px;"><i data-lucide="shield" class="icon-lg icon-blue"></i></div>
+                  <div class="builder-goal-name">Immune Defense</div>
+                  <div class="builder-goal-sub">Cellular Resilience</div>
+                </div>
+                <div class="builder-goal-card" tabindex="0" role="button" data-goal="hair_skin_derm">
+                  <div style="margin-bottom: 6px;"><i data-lucide="sparkles" class="icon-lg icon-rose"></i></div>
+                  <div class="builder-goal-name">Dermatology</div>
+                  <div class="builder-goal-sub">Hair & Skin</div>
+                </div>
+                <div class="builder-goal-card" tabindex="0" role="button" data-goal="post_therapy_reset">
+                  <div style="margin-bottom: 6px;"><i data-lucide="refresh-cw" class="icon-lg icon-emerald"></i></div>
                   <div class="builder-goal-name">Post-Therapy Reset</div>
                   <div class="builder-goal-sub">PCT / Liver / Lipids</div>
                 </div>
-                <div class="builder-goal-card" data-goal="custom">
-                  <div style="font-size: 1.4rem;">✍️</div>
+                <div class="builder-goal-card" tabindex="0" role="button" data-goal="custom">
+                  <div style="margin-bottom: 6px;"><i data-lucide="edit-3" class="icon-lg icon-cyan"></i></div>
                   <div class="builder-goal-name">Custom Goal</div>
                   <div class="builder-goal-sub">User Defined</div>
                 </div>
@@ -574,110 +860,108 @@
             <!-- PREFERENCES & CLINICAL CONSTRAINTS -->
             <div>
               <span class="modal-section-title" style="margin-bottom: 8px; display: flex; align-items: center; gap: 6px;">
-                <span>⚙️ Protocol Customization & Safety Profile</span>
+                <i data-lucide="sliders" class="icon-xs icon-cyan"></i>
+                <span>Protocol Customization & Safety Profile</span>
               </span>
               <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 10px; background: rgba(0, 0, 0, 0.25); padding: 12px; border-radius: var(--radius-sm); border: 1px solid var(--border-subtle);">
                 <div>
-                  <label style="display: block; font-size: 0.74rem; font-weight: 700; color: var(--text-secondary); margin-bottom: 4px;">🛡️ Risk Tolerance</label>
+                  <label style="display: block; font-size: 0.74rem; font-weight: 700; color: var(--text-secondary); margin-bottom: 4px;">Risk Tolerance</label>
                   <select id="builder-risk-pref" class="biomarker-input" style="width: 100%; font-size: 0.8rem; padding: 6px 8px;">
-                    <option value="" selected>-- Select (Default / Unspecified) --</option>
+                    <option value="" selected>-- Select (Unspecified) --</option>
                     <option value="conservative">Conservative (Max Safety & Low Doses)</option>
                     <option value="balanced">Balanced (Standard Clinical Efficacy)</option>
                     <option value="aggressive">Aggressive (Max Potency & High Range)</option>
                   </select>
                 </div>
+
                 <div>
-                  <label style="display: block; font-size: 0.74rem; font-weight: 700; color: var(--text-secondary); margin-bottom: 4px;">⚡ Stimulant Profile</label>
+                  <label style="display: block; font-size: 0.74rem; font-weight: 700; color: var(--text-secondary); margin-bottom: 4px;">Stimulant Profile</label>
                   <select id="builder-stim-pref" class="biomarker-input" style="width: 100%; font-size: 0.8rem; padding: 6px 8px;">
-                    <option value="" selected>-- Select (Default / Unspecified) --</option>
-                    <option value="standard">Standard (Balanced 100–150mg)</option>
-                    <option value="mild">Mild (Low Dose &lt; 50mg)</option>
-                    <option value="free">Stimulant-Free (Zero Caffeine)</option>
+                    <option value="" selected>-- Select (Unspecified) --</option>
+                    <option value="stim_free">Stimulant-Free Only (Zero Caffeine / Adrenergics)</option>
+                    <option value="low_stim">Low Stimulant (Max 100mg Caffeine or equivalent)</option>
+                    <option value="moderate_stim">Moderate Stimulant (100–250mg Caffeine eq)</option>
+                    <option value="high_stim">High Stimulant / Thermogenic Permitted</option>
                   </select>
                 </div>
+
                 <div>
-                  <label style="display: block; font-size: 0.74rem; font-weight: 700; color: var(--text-secondary); margin-bottom: 4px;">📦 Complexity & Stack Size</label>
+                  <label style="display: block; font-size: 0.74rem; font-weight: 700; color: var(--text-secondary); margin-bottom: 4px;">Complexity & Stack Size</label>
                   <select id="builder-complexity-pref" class="biomarker-input" style="width: 100%; font-size: 0.8rem; padding: 6px 8px;">
-                    <option value="" selected>-- Select (Default / Unspecified) --</option>
-                    <option value="standard">Comprehensive (3–5 Compounds + Co-factors)</option>
-                    <option value="minimalist">Minimalist Essential (2–3 Core Compounds)</option>
-                    <option value="maximum">Full Stack (5+ Synergistic Multi-Agents)</option>
+                    <option value="" selected>-- Select (Unspecified) --</option>
+                    <option value="minimalist">Minimalist (2–3 Flagship Compounds)</option>
+                    <option value="moderate">Moderate & Balanced (3–5 Synergistic Compounds)</option>
+                    <option value="comprehensive">Comprehensive Biohacking Stack (5–8 Compounds)</option>
                   </select>
                 </div>
+
                 <div>
-                  <label style="display: block; font-size: 0.74rem; font-weight: 700; color: var(--text-secondary); margin-bottom: 4px;">🌿 Substance Style</label>
+                  <label style="display: block; font-size: 0.74rem; font-weight: 700; color: var(--text-secondary); margin-bottom: 4px;">Substance Style</label>
                   <select id="builder-style-pref" class="biomarker-input" style="width: 100%; font-size: 0.8rem; padding: 6px 8px;">
-                    <option value="" selected>-- Select (Default / Unspecified) --</option>
-                    <option value="hybrid">Hybrid (Rx & Supplements)</option>
-                    <option value="natural">Natural Only (Botanicals & Nutrients)</option>
+                    <option value="" selected>-- Select (Unspecified) --</option>
+                    <option value="natural_supplements">Natural & Nutraceuticals Only (Supplements / Adaptogens)</option>
+                    <option value="pharma_allowed">Pharmaceuticals & Peptides Permitted (Rx / Research)</option>
+                    <option value="hybrid">Hybrid Efficacy (Best of Both Worlds)</option>
                   </select>
                 </div>
+
                 <div>
-                  <label style="display: block; font-size: 0.74rem; font-weight: 700; color: var(--text-secondary); margin-bottom: 4px;">💊 Route & Delivery</label>
+                  <label style="display: block; font-size: 0.74rem; font-weight: 700; color: var(--text-secondary); margin-bottom: 4px;">Route & Delivery</label>
                   <select id="builder-route-pref" class="biomarker-input" style="width: 100%; font-size: 0.8rem; padding: 6px 8px;">
-                    <option value="" selected>-- Select (Default / Unspecified) --</option>
-                    <option value="all">Any Modality (Oral, Sublingual, Injectable)</option>
-                    <option value="oral_only">Oral Only (Capsules & Powders)</option>
-                    <option value="capsules_only">Capsules / Tablets Only (Zero Powders)</option>
+                    <option value="" selected>-- Select (Unspecified) --</option>
+                    <option value="oral_only">Oral Only (Capsules, Tablets, Powders)</option>
+                    <option value="sublingual_oral">Oral + Sublingual / Topical Allowed</option>
+                    <option value="injectable_allowed">Injectables Permitted (SubQ / IM)</option>
                   </select>
                 </div>
+
                 <div>
-                  <label style="display: block; font-size: 0.74rem; font-weight: 700; color: var(--text-secondary); margin-bottom: 4px;">⏰ Dosing Schedule</label>
+                  <label style="display: block; font-size: 0.74rem; font-weight: 700; color: var(--text-secondary); margin-bottom: 4px;">Dosing Schedule</label>
                   <select id="builder-schedule-pref" class="biomarker-input" style="width: 100%; font-size: 0.8rem; padding: 6px 8px;">
-                    <option value="" selected>-- Select (Default / Unspecified) --</option>
-                    <option value="circadian">Circadian Split (Morning + Bedtime)</option>
-                    <option value="morning_only">Morning Only (Single-Dose Adherence)</option>
+                    <option value="" selected>-- Select (Unspecified) --</option>
+                    <option value="morning_only">Morning Only (1x Daily Convenience)</option>
+                    <option value="circadian_split">Circadian Optimized (Morning AM + Bedtime PM)</option>
+                    <option value="multi_split">Multi-Split (AM / Midday / Pre-workout / PM)</option>
                   </select>
                 </div>
+
                 <div>
-                  <label style="display: block; font-size: 0.74rem; font-weight: 700; color: var(--text-secondary); margin-bottom: 4px;">🛡️ Organ Shield Priority</label>
+                  <label style="display: block; font-size: 0.74rem; font-weight: 700; color: var(--text-secondary); margin-bottom: 4px;">Organ Shield Priority</label>
                   <select id="builder-organ-pref" class="biomarker-input" style="width: 100%; font-size: 0.8rem; padding: 6px 8px;">
-                    <option value="" selected>-- Select (Default / Unspecified) --</option>
-                    <option value="auto">Auto-Detect from Biometrics</option>
-                    <option value="cardiovascular">Cardio & Lipid Shield (BP / ApoB)</option>
-                    <option value="hepatic">Hepatic & Phase II Detox (Liver / ALT)</option>
-                    <option value="neuro_recovery">Neuro & Adrenal Recovery (HPA / GABA)</option>
+                    <option value="" selected>-- Select (Unspecified) --</option>
+                    <option value="cardio_bp">Cardiovascular & Blood Pressure Shield Priority</option>
+                    <option value="hepatic_liver">Hepatic / Liver Protection Priority (TUDCA / NAC / Milk Thistle)</option>
+                    <option value="renal_kidney">Renal / Kidney Filtration Priority</option>
+                    <option value="lipid_apob">Lipid & ApoB / Atherogenic Plaque Priority</option>
                   </select>
                 </div>
+
                 <div>
-                  <label style="display: block; font-size: 0.74rem; font-weight: 700; color: var(--text-secondary); margin-bottom: 4px;">💰 Sourcing & Bioavailability</label>
+                  <label style="display: block; font-size: 0.74rem; font-weight: 700; color: var(--text-secondary); margin-bottom: 4px;">Sourcing & Bioavailability</label>
                   <select id="builder-budget-pref" class="biomarker-input" style="width: 100%; font-size: 0.8rem; padding: 6px 8px;">
-                    <option value="" selected>-- Select (Default / Unspecified) --</option>
-                    <option value="standard">Premium Bioavailability (Ubiquinol, KSM-66)</option>
-                    <option value="essential">Cost-Conscious High-ROI Essentials</option>
+                      <option value="" selected>-- Select (Unspecified) --</option>
+                      <option value="standard">Standard Formulations</option>
+                      <option value="premium">Premium / Enhanced Bioavailability (Liposomal, Phytosome, etc.)</option>
                   </select>
                 </div>
-              </div>
-            </div>
 
-            <!-- BIOMETRIC & DEMOGRAPHIC CALIBRATION PANEL (INTERACTIVE) -->
-            <div class="builder-bio-panel">
-              <div class="builder-bio-header">
-                <div>
-                  <div style="display: flex; align-items: center; gap: 6px;">
-                    <span style="font-size: 0.9rem;">👤</span>
-                    <span style="font-size: 0.82rem; font-weight: 800; color: #fff;">Personal Demographics & Baseline Metrics</span>
+                <div style="grid-column: 1 / -1; margin-top: 6px; padding-top: 10px; border-top: 1px solid var(--border-subtle); display: flex; flex-direction: column; gap: 4px;">
+                  <div style="display: flex; justify-content: space-between; align-items: center;">
+                    <label style="font-size: 0.74rem; font-weight: 700; color: var(--text-secondary);">Research Depth (AI Steps)</label>
+                    <span id="builder-research-depth-label" style="font-size: 0.7rem; color: var(--accent-cyan); font-weight: 700;">Standard (8 steps)</span>
                   </div>
-                  <div style="font-size: 0.7rem; color: var(--text-muted); margin-top: 1px;">
-                    Calibrates clearance half-lives, organ vulnerability curves, and tailored compound titration.
-                  </div>
+                  <input type="range" id="builder-research-depth" min="4" max="20" step="4" value="8" style="width: 100%; cursor: pointer;" oninput="document.getElementById('builder-research-depth-label').innerText = (this.value == 4 ? 'Quick (' : this.value == 8 ? 'Standard (' : this.value == 12 ? 'Deep (' : this.value == 16 ? 'Exhaustive (' : 'Architect (') + this.value + ' steps)'">
                 </div>
-                <button type="button" class="builder-bio-toggle-btn" id="builder-bio-toggle-btn">
-                  <span id="builder-bio-toggle-icon">✏️</span> <span id="builder-bio-toggle-text">Edit Metrics</span>
-                </button>
+
               </div>
 
-              <!-- Live Profile Summary Chips -->
-              <div id="builder-bio-summary" style="font-size: 0.76rem; color: var(--text-secondary); line-height: 1.45;">
-                <!-- Populated dynamically by syncAllBiometrics -->
-              </div>
-
-              <!-- Collapsible Inline Metrics Editor -->
-              <div id="builder-bio-editor" style="display: none; flex-direction: column; gap: 8px;">
-                <div class="builder-bio-tip">
-                  💡 <strong>How Demographics Shape AI Protocols:</strong> Weight & Age scale clearance rates; BP & eGFR auto-inject organ protection; ALT/Liver markers calibrate phase II clearance.
-                </div>
-                <div class="builder-bio-grid">
+              <!-- PATIENT DEMOGRAPHICS (Copied for Builder context) -->
+              <div style="margin-top: 16px;">
+                <span class="modal-section-title" style="margin-bottom: 8px; display: flex; align-items: center; gap: 6px;">
+                  <i data-lucide="user-check" class="icon-xs icon-cyan"></i>
+                  <span>Patient Demographics & Clearance Biomarkers</span>
+                </span>
+                <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 10px; background: rgba(0, 0, 0, 0.2); padding: 12px; border-radius: var(--radius-sm); border: 1px solid var(--border-subtle);">
                   <div class="biomarker-field">
                     <label class="biomarker-label" for="builder-bio-sex">Sex</label>
                     <select id="builder-bio-sex" class="biomarker-input" style="font-size: 0.78rem; padding: 5px 8px;">
@@ -728,7 +1012,7 @@
 
             <!-- CUSTOM NOTES / CONSTRAINTS -->
             <div>
-              <label for="builder-custom-notes" style="display: block; font-size: 0.76rem; font-weight: 700; color: var(--text-secondary); margin-bottom: 4px;">📝 Custom Instructions or Personal Constraints (Optional)</label>
+              <label for="builder-custom-notes" style="display: block; font-size: 0.76rem; font-weight: 700; color: var(--text-secondary); margin-bottom: 4px;">Custom Instructions or Personal Constraints (Optional)</label>
               <textarea id="builder-custom-notes" class="copilot-custom-notes-input" placeholder="e.g. Sensitive to stomach upset, prefer bedtime relaxing herbs, avoid high stimulants, take with morning meal..." style="width: 100%; height: 55px; resize: none; font-size: 0.8rem;"></textarea>
             </div>
 
@@ -736,7 +1020,8 @@
             <div style="display: flex; gap: 10px; justify-content: flex-end; margin-top: 4px;">
               <button type="button" class="btn-secondary" id="builder-cancel-btn" style="padding: 8px 16px; font-size: 0.84rem;">Cancel</button>
               <button type="button" class="btn-primary" id="builder-generate-btn" style="padding: 8px 20px; font-size: 0.84rem; display: flex; align-items: center; gap: 6px; background: linear-gradient(135deg, #00f2fe 0%, #4f46e5 100%); border: none; font-weight: 800; box-shadow: 0 0 15px rgba(0,242,254,0.3); cursor: pointer;">
-                <span>🚀 Generate Protocol with AI Copilot</span>
+                <i data-lucide="sparkles" class="icon-sm"></i>
+                <span>Generate Protocol with AI Copilot</span>
               </button>
             </div>
 
@@ -749,7 +1034,7 @@
         <div class="modal-card" style="max-width: 500px; width: 92%;">
           <div class="modal-header" style="border-bottom: 1px solid var(--border-subtle); padding-bottom: 12px; margin-bottom: 14px;">
             <div style="display: flex; align-items: center; gap: 8px;">
-              <span style="font-size: 1.25rem;">🔑</span>
+              <i data-lucide="key" class="icon-md icon-cyan"></i>
               <div>
                 <h3 style="margin: 0; font-size: 1.02rem; font-weight: 800; color: #fff;">OpenRouter / AI API Key</h3>
                 <div style="font-size: 0.72rem; color: var(--text-muted); margin-top: 2px;">Bring Your Own Key (BYOK) for Live Webpage AI Inference</div>
@@ -760,7 +1045,7 @@
 
           <div class="modal-body" style="display: flex; flex-direction: column; gap: 14px;">
             <div style="background: rgba(0, 242, 254, 0.05); border: 1px solid rgba(0, 242, 254, 0.2); border-radius: var(--radius-sm); padding: 10px 12px; font-size: 0.78rem; color: var(--text-secondary); line-height: 1.45;">
-              <span>💡 <strong>Host Quota Notice:</strong> If the server's OpenRouter token quota has run out, or if you prefer using your personal token budget, enter your OpenRouter (or OpenAI) key below. Your key is stored securely in your browser's <code style="color: var(--accent-cyan);">localStorage</code> and never saved to the server database.</span>
+              <span><strong>Host Quota Notice:</strong> If the server's OpenRouter token quota has run out, or if you prefer using your personal token budget, enter your OpenRouter (or OpenAI) key below. Your key is stored securely in your browser's <code style="color: var(--accent-cyan);">localStorage</code> and never saved to the server database.</span>
             </div>
 
             <div>
@@ -770,14 +1055,14 @@
               </label>
               <div style="display: flex; gap: 6px; align-items: center;">
                 <input type="password" id="user-api-key-input" class="biomarker-input" placeholder="sk-or-v1-..." style="flex: 1; font-family: 'JetBrains Mono', monospace; font-size: 0.8rem; padding: 7px 10px; background: rgba(0,0,0,0.35); border-color: var(--border-subtle);" />
-                <button type="button" id="toggle-key-visibility-btn" class="btn-secondary" style="padding: 7px 10px; font-size: 0.8rem;" title="Toggle Show/Hide Key">👁️</button>
+                <button type="button" id="toggle-key-visibility-btn" class="btn-secondary" style="padding: 7px 10px; font-size: 0.8rem; display: inline-flex; align-items: center; justify-content: center;" title="Toggle Show/Hide Key"><i data-lucide="eye" class="icon-xs"></i></button>
               </div>
               <div id="key-validation-feedback" style="font-size: 0.72rem; margin-top: 6px; min-height: 18px; line-height: 1.35;"></div>
             </div>
 
             <div style="display: flex; justify-content: space-between; align-items: center; font-size: 0.74rem; padding-top: 4px; border-top: 1px solid rgba(255,255,255,0.06);">
               <a href="https://openrouter.ai/keys" target="_blank" rel="noopener noreferrer" style="color: var(--accent-cyan); text-decoration: none; font-weight: 700; display: inline-flex; align-items: center; gap: 4px;">
-                <span>🌐 Get OpenRouter Key (openrouter.ai)</span> <span>↗</span>
+                <span>Get OpenRouter Key (openrouter.ai)</span> <i data-lucide="external-link" class="icon-xs"></i>
               </a>
               <button type="button" id="clear-api-key-btn" style="background: none; border: none; color: #f87171; font-size: 0.72rem; cursor: pointer; text-decoration: underline;">
                 Reset to Server Default
@@ -788,10 +1073,12 @@
             <div style="display: flex; gap: 8px; justify-content: flex-end; margin-top: 6px;">
               <button type="button" class="btn-secondary" id="api-key-cancel-btn" style="padding: 6px 14px; font-size: 0.78rem;">Cancel</button>
               <button type="button" class="btn-secondary" id="test-api-key-btn" style="padding: 6px 14px; font-size: 0.78rem; display: inline-flex; align-items: center; gap: 4px;">
-                <span>🧪 Test Key</span>
+                <i data-lucide="flask-conical" class="icon-xs"></i>
+                <span>Test Key</span>
               </button>
               <button type="button" class="btn-primary" id="save-api-key-btn" style="padding: 6px 16px; font-size: 0.78rem; font-weight: 800; display: inline-flex; align-items: center; gap: 4px;">
-                <span>💾 Save Key</span>
+                <i data-lucide="save" class="icon-xs"></i>
+                <span>Save Key</span>
               </button>
             </div>
           </div>
@@ -801,7 +1088,7 @@
       <!-- FLOATING COPILOT TRIGGER PILL -->
       <div class="floating-copilot-pill" id="floating-copilot-trigger" title="Open AI Clinical Copilot (Ctrl+K)">
         <div class="copilot-pulse-dot"></div>
-        <span style="font-weight: 800; font-size: 0.84rem; color: #fff;">🤖 AI Copilot</span>
+        <span style="font-weight: 800; font-size: 0.84rem; color: #fff; display: inline-flex; align-items: center; gap: 6px;"><i data-lucide="bot" class="icon-sm icon-cyan"></i> AI Copilot</span>
         <span style="font-size: 0.72rem; color: var(--accent-cyan); font-family: 'JetBrains Mono', monospace; font-weight: 700; background: rgba(0, 242, 254, 0.15); padding: 2px 6px; border-radius: 4px;">Ctrl+K</span>
       </div>
 
@@ -817,7 +1104,7 @@
         <div class="copilot-header">
           <div class="copilot-header-top">
             <div class="copilot-title-wrap">
-              <div class="copilot-title-icon">✨</div>
+              <div class="copilot-title-icon"><i data-lucide="sparkles" class="icon-md icon-teal"></i></div>
               <div>
                 <div style="font-weight: 800; font-size: 0.96rem; color: var(--text-primary); display:flex; align-items:center; gap:8px;">
                   <span>HealthAI Copilot</span>
@@ -828,13 +1115,16 @@
             </div>
             <div style="display: flex; align-items: center; gap: 6px;">
               <button class="btn-secondary" id="copilot-api-key-btn" title="Configure OpenRouter / OpenAI API Key" style="padding: 4px 8px; font-size: 0.72rem; background: rgba(255,255,255,0.04); border: 1px solid var(--border-subtle); color: var(--text-secondary); border-radius: 4px; cursor: pointer; display: flex; align-items: center; gap: 4px;">
-                <span id="copilot-key-icon">🔑</span> <span id="copilot-key-badge-text">API Key</span>
+                <span id="copilot-key-icon" style="display:inline-flex; align-items:center;"><i data-lucide="key" class="icon-xs icon-cyan"></i></span> <span id="copilot-key-badge-text">API Key</span>
               </button>
-              <button class="btn-secondary" id="copilot-drawer-expand" title="Toggle Expanded / Standard Width (⤢)" style="padding: 4px 8px; font-size: 0.72rem; background: rgba(255,255,255,0.04); border: 1px solid var(--border-subtle); color: var(--text-secondary); border-radius: 4px; cursor: pointer; display: flex; align-items: center; gap: 4px;">
-                <span id="copilot-expand-icon">⤢</span> <span id="copilot-expand-text">Wide</span>
+              <button class="btn-secondary" id="copilot-drawer-expand" title="Toggle Expanded / Standard Width" style="padding: 4px 8px; font-size: 0.72rem; background: rgba(255,255,255,0.04); border: 1px solid var(--border-subtle); color: var(--text-secondary); border-radius: 4px; cursor: pointer; display: flex; align-items: center; gap: 4px;">
+                <span id="copilot-expand-icon" style="display:inline-flex; align-items:center;"><i data-lucide="maximize-2" class="icon-xs"></i></span> <span id="copilot-expand-text">Wide</span>
               </button>
-              <button class="btn-secondary" id="copilot-clear-chat" title="Clear conversation history" style="padding: 4px 8px; font-size: 0.72rem; background: transparent;">
-                🗑️ Clear
+              <button class="btn-secondary" id="copilot-toggle-settings-btn" title="Toggle Configuration Panel" style="padding: 4px 8px; font-size: 0.72rem; background: rgba(255,255,255,0.04); border: 1px solid var(--border-subtle); color: var(--text-secondary); border-radius: 4px; cursor: pointer; display: flex; align-items: center; gap: 4px;" onclick="const p = document.getElementById('copilot-settings-collapsible'); const isHidden = p.style.display === 'none'; p.style.display = isHidden ? 'block' : 'none'; this.style.background = isHidden ? 'rgba(0, 242, 254, 0.1)' : 'rgba(255,255,255,0.04)'; this.style.borderColor = isHidden ? 'rgba(0, 242, 254, 0.4)' : 'var(--border-subtle)'; this.style.color = isHidden ? 'var(--accent-cyan)' : 'var(--text-secondary)';">
+                <i data-lucide="sliders" class="icon-xs"></i> Config
+              </button>
+              <button class="btn-secondary" id="copilot-clear-chat" title="Clear conversation history" style="padding: 4px 8px; font-size: 0.72rem; background: transparent; display: inline-flex; align-items: center; gap: 4px;">
+                <i data-lucide="trash-2" class="icon-xs"></i> Clear
               </button>
               <button class="modal-close-btn" id="copilot-drawer-close" title="Close Drawer (Esc)" style="font-size: 1.25rem; width: 28px; height: 28px; display: flex; align-items: center; justify-content: center;">&times;</button>
             </div>
@@ -843,18 +1133,24 @@
           <!-- PERSONA MODE SELECTOR TABS -->
           <div class="copilot-mode-bar" id="copilot-mode-bar">
             <button class="copilot-mode-btn active" data-mode="architect" title="Circadian Chronobiology & Synergy">
-              <span>🏛️ Architect</span>
+              <span style="display:inline-flex; align-items:center; gap:5px;"><i data-lucide="landmark" class="icon-xs"></i> Architect</span>
             </button>
             <button class="copilot-mode-btn" data-mode="auditor" title="CYP450 & Toxicology Auditor">
-              <span>🛡️ Auditor</span>
+              <span style="display:inline-flex; align-items:center; gap:5px;"><i data-lucide="shield-check" class="icon-xs"></i> Auditor</span>
             </button>
             <button class="copilot-mode-btn" data-mode="tutor" title="Receptor Affinities & Mechanisms">
-              <span>🔬 Tutor</span>
+              <span style="display:inline-flex; align-items:center; gap:5px;"><i data-lucide="microscope" class="icon-xs"></i> Tutor</span>
             </button>
             <button class="copilot-mode-btn" data-mode="labs" title="Bloodwork & Biomarker Panels">
-              <span>🩸 Labs</span>
+              <span style="display:inline-flex; align-items:center; gap:5px;"><i data-lucide="droplet" class="icon-xs"></i> Labs</span>
             </button>
           </div>
+        </div>
+
+        <!-- COPILOT SAFETY & RESEARCH DISCLAIMER BANNER -->
+        <div class="copilot-disclaimer-banner">
+          <span style="display:inline-flex; align-items:center; gap:4px;"><i data-lucide="alert-triangle" class="icon-xs icon-amber"></i> <strong>Research Engine:</strong> Informational/simulation only. Not medical advice.</span>
+          <button type="button" class="disclaimer-link-btn" onclick="HealthAIDisclaimer.open('medical')">Terms</button>
         </div>
 
         <!-- STACK CONTEXT BAR -->
@@ -867,20 +1163,21 @@
           </div>
         </div>
 
-        <!-- DEMOGRAPHICS & BIOMETRICS BAR (COPILOT PROFILE) -->
-        <div class="copilot-demographics-bar" id="copilot-demographics-bar">
+        <div id="copilot-settings-collapsible" style="display: none;">
+          <!-- DEMOGRAPHICS & BIOMETRICS BAR (COPILOT PROFILE) -->
+          <div class="copilot-demographics-bar" id="copilot-demographics-bar">
           <div class="copilot-demographics-summary" id="copilot-bio-summary">
-            <span style="color: var(--text-muted);">👤 Profile: Reference (75kg, 30y)</span>
+            <span style="color: var(--text-muted); display:inline-flex; align-items:center; gap:4px;"><i data-lucide="user" class="icon-xs icon-cyan"></i> Biometrics Unspecified</span>
           </div>
           <button type="button" class="copilot-bio-toggle-btn" id="copilot-bio-toggle-btn" title="View / edit personal demographics and biometrics in Copilot">
-            <span id="copilot-bio-toggle-icon">✏️</span> <span id="copilot-bio-toggle-text">Set Metrics</span>
+            <span id="copilot-bio-toggle-icon" style="display:inline-flex; align-items:center;"><i data-lucide="pencil" class="icon-xs"></i></span> <span id="copilot-bio-toggle-text">Set Metrics</span>
           </button>
         </div>
 
         <!-- COLLAPSIBLE COPILOT BIOMETRICS QUICK-DRAWER -->
         <div class="copilot-bio-drawer" id="copilot-bio-drawer" style="display: none;">
           <div style="display: flex; justify-content: space-between; align-items: center;">
-            <span style="font-size: 0.76rem; font-weight: 800; color: #fff;">👤 Patient Demographics & Modifiers</span>
+            <span style="font-size: 0.76rem; font-weight: 800; color: #fff; display:inline-flex; align-items:center; gap:4px;"><i data-lucide="user" class="icon-xs icon-cyan"></i> Patient Demographics & Modifiers</span>
             <span style="font-size: 0.68rem; color: var(--accent-cyan);">Live Sync to AI Engine</span>
           </div>
           <div style="font-size: 0.7rem; color: var(--text-muted); line-height: 1.35;">
@@ -934,7 +1231,8 @@
           </div>
           <div style="display: flex; gap: 8px; justify-content: flex-end; margin-top: 4px;">
             <button type="button" class="btn-primary" onclick="openAiStackBuilderModal()" style="padding: 5px 12px; font-size: 0.74rem; font-weight: 800; display: inline-flex; align-items: center; gap: 4px; background: linear-gradient(135deg, rgba(0,242,254,0.25), rgba(79,70,229,0.35)); border: 1px solid var(--accent-cyan); color: #fff; cursor: pointer; border-radius: var(--radius-sm);">
-              <span>✨ Open Full AI Stack Builder Modal</span>
+              <i data-lucide="sparkles" class="icon-xs"></i>
+              <span>Open Full AI Stack Builder Modal</span>
             </button>
           </div>
         </div>
@@ -943,28 +1241,39 @@
         <div class="copilot-goal-bar" id="copilot-goal-bar">
           <div class="copilot-goal-top">
             <div class="copilot-goal-select-wrap">
-              <span style="font-size: 0.82rem;">🎯</span>
+              <span style="font-size: 0.82rem; display:inline-flex; align-items:center;"><i data-lucide="target" class="icon-xs icon-cyan"></i></span>
               <select class="copilot-goal-select" id="copilot-goal-select">
-                <option value="auto">🤖 Auto-Infer Protocol Purpose</option>
-                <option value="anabolic_physique">🏋️ Physique & Anabolic Hypertrophy</option>
-                <option value="cognitive_focus">🧠 Cognitive Focus & Neuroprotection</option>
-                <option value="cardiovascular_lipid">❤️ Cardiovascular & Lipid Health</option>
-                <option value="longevity_autophagy">🧬 Longevity & Cellular Autophagy</option>
-                <option value="sleep_stress_recovery">🌙 Sleep Architecture & Stress Recovery</option>
-                <option value="fat_loss_metabolic">🔥 Metabolic Output & Fat Loss</option>
-                <option value="post_therapy_reset">🔄 Post-Therapy Restoration (PCT / Reset)</option>
-                <option value="custom">✍️ Custom User Objective...</option>
+                <option value="auto">Auto-Infer Protocol Purpose</option>
+                <option value="anabolic_physique">Physique & Anabolic Hypertrophy</option>
+                <option value="cognitive_focus">Cognitive Focus & Neuroprotection</option>
+                <option value="cardiovascular_lipid">Cardiovascular & Lipid Health</option>
+                <option value="longevity_autophagy">Longevity & Cellular Autophagy</option>
+                <option value="sleep_stress_recovery">Sleep Architecture & Stress Recovery</option>
+                <option value="fat_loss_metabolic">Metabolic Output & Fat Loss</option>
+                <option value="gut_microbiome">Gut Microbiome & Intestinal Barrier</option>
+                <option value="immune_defense">Immune Defense & Cellular Resilience</option>
+                <option value="hair_skin_derm">Dermatology & Hair Follicle Health</option>
+                <option value="post_therapy_reset">Post-Therapy Restoration (PCT / Reset)</option>
+                <option value="custom">Custom User Objective...</option>
               </select>
             </div>
             <span class="copilot-goal-badge auto" id="copilot-goal-status-badge">Auto</span>
-            <button class="btn-toggle-notes" id="copilot-toggle-notes-btn" title="Add specific custom constraints or notes">📝 Notes</button>
+            <button class="btn-toggle-notes" id="copilot-toggle-notes-btn" title="Add specific custom constraints or notes" style="display:inline-flex; align-items:center; gap:4px;"><i data-lucide="file-text" class="icon-xs"></i> Notes</button>
           </div>
           <div id="copilot-custom-notes-wrap" style="display: none;">
             <textarea class="copilot-custom-notes-input" id="copilot-custom-notes" placeholder="Enter custom constraints (e.g. keep resting BP < 125/80, preserve eGFR > 90, avoid prolactin issues)..." rows="2"></textarea>
           </div>
           <div id="copilot-inferred-summary" style="font-size: 0.72rem; color: var(--text-muted); line-height: 1.35; display: flex; align-items: center; gap: 4px;">
-            <span style="color: var(--accent-cyan); font-weight: 700;">⚡ Purpose:</span> <span id="copilot-inferred-text">Building stack profile...</span>
+            <span style="color: var(--accent-cyan); font-weight: 700; display:inline-flex; align-items:center; gap:3px;"><i data-lucide="zap" class="icon-xs"></i> Purpose:</span> <span id="copilot-inferred-text">Building stack profile...</span>
           </div>
+          <div id="copilot-research-depth-wrap" style="margin-top: 8px; padding-top: 8px; border-top: 1px solid rgba(255,255,255,0.05); display: flex; flex-direction: column; gap: 4px;">
+            <div style="display: flex; justify-content: space-between; align-items: center;">
+              <span style="font-size: 0.72rem; color: var(--text-muted); display:inline-flex; align-items:center; gap:4px;"><i data-lucide="cpu" class="icon-xs"></i> Research Depth</span>
+              <span id="research-depth-label" style="font-size: 0.7rem; color: var(--accent-cyan); font-weight: 700;">Standard (8 steps)</span>
+            </div>
+            <input type="range" id="copilot-research-depth" min="4" max="20" step="4" value="8" style="width: 100%; cursor: pointer;" oninput="document.getElementById('research-depth-label').innerText = (this.value == 4 ? 'Quick (' : this.value == 8 ? 'Standard (' : this.value == 12 ? 'Deep (' : this.value == 16 ? 'Exhaustive (' : 'Architect (') + this.value + ' steps)'">
+          </div>
+        </div>
         </div>
 
         <!-- QUICK PROMPT CHIPS (HORIZONTALLY SCROLLABLE) -->
@@ -977,12 +1286,15 @@
           <!-- Initial Welcome Card -->
           <div class="chat-msg assistant">
             <div class="chat-msg-header">
-              <span>🤖 HealthAI Copilot</span>
+              <span style="display:inline-flex; align-items:center; gap:5px;"><i data-lucide="bot" class="icon-xs icon-cyan"></i> HealthAI Copilot</span>
               <span style="color: var(--accent-teal);">• Ready</span>
             </div>
             <div class="chat-msg-bubble">
               <p>Welcome to the <strong>HealthAI Clinical Copilot</strong>. Grounded in continuous PK/PD modeling, CYP450 interaction matrices, and 3-hop biological causal networks.</p>
               <p style="margin-top: 6px; font-size: 0.84rem; color: var(--text-secondary);">Select an expert persona above or click any quick prompt below. I can optimize circadian schedules, red-team hepatic/renal bottlenecks, explain receptor binding mechanics, or correlate blood panels.</p>
+              <div style="margin-top: 8px; padding: 6px 10px; background: rgba(245, 158, 11, 0.08); border-left: 2px solid #f59e0b; border-radius: 0 4px 4px 0; font-size: 0.74rem; color: #fde68a;">
+                <i data-lucide="alert-triangle" class="icon-xs icon-amber" style="vertical-align: -0.15em;"></i> <em>Notice: HealthAI is an in silico simulation platform for educational/research purposes. Not medical advice. <a href="javascript:void(0)" onclick="HealthAIDisclaimer.open('medical')" style="color:var(--accent-cyan); text-decoration:underline;">Disclaimers</a></em>
+              </div>
             </div>
           </div>
         </div>
@@ -991,11 +1303,11 @@
         <div class="copilot-input-area">
           <div class="copilot-input-wrap">
             <textarea class="copilot-textarea" id="copilot-chat-input" placeholder="Ask anything about your stack, CYP interactions, or titration..." rows="1"></textarea>
-            <button class="copilot-send-btn" id="copilot-chat-send-btn" title="Send (Enter)">➤</button>
+            <button class="copilot-send-btn" id="copilot-chat-send-btn" title="Send (Enter)" style="display:inline-flex; align-items:center; justify-content:center;"><i data-lucide="send" class="icon-xs"></i></button>
           </div>
           <div style="display: flex; justify-content: space-between; align-items: center; font-size: 0.7rem; color: var(--text-muted); padding: 0 4px;">
             <span>Press <kbd style="font-family: 'JetBrains Mono', monospace; background: rgba(255,255,255,0.06); padding: 1px 4px; border-radius: 3px;">Enter</kbd> to send, <kbd style="font-family: 'JetBrains Mono', monospace; background: rgba(255,255,255,0.06); padding: 1px 4px; border-radius: 3px;">Shift+Enter</kbd> for newline</span>
-            <span id="copilot-status-indicator" style="color: var(--accent-teal);">● Local Engine Online</span>
+            <span id="copilot-status-indicator" style="color: var(--accent-teal); display:inline-flex; align-items:center; gap:4px;"><i data-lucide="activity" class="icon-xs icon-teal"></i> Local Engine Online</span>
           </div>
         </div>
       </div>
@@ -1005,6 +1317,17 @@
     </div>
 
     <!-- WORKBENCH JAVASCRIPT LOGIC -->
-    <script src="/static/js/app.js"></script>
+    <script src="/static/js/app-state.js"></script>
+    <script src="/static/js/app-ui.js"></script>
+    <script src="/static/js/app-api.js"></script>
+    <script src="/static/js/app-copilot.js"></script>
+    <script src="/static/js/disclaimer.js"></script>
+    <script>
+      document.addEventListener('DOMContentLoaded', () => {
+        if (window.lucide && typeof window.lucide.createIcons === 'function') {
+          window.lucide.createIcons();
+        }
+      });
+    </script>
   </body>
 </html>

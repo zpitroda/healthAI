@@ -4,7 +4,53 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>healthAI // Debug & Logging Workbench</title>
+    <link rel="icon" type="image/x-icon" href="/favicon.ico" />
+    <link rel="icon" type="image/png" sizes="32x32" href="/static/favicon-32x32.png" />
+    <link rel="icon" type="image/png" sizes="16x16" href="/static/favicon-16x16.png" />
+    <link rel="icon" type="image/svg+xml" href="/static/favicon.svg" />
+    <link rel="apple-touch-icon" sizes="180x180" href="/static/apple-touch-icon.png" />
+    <link rel="manifest" href="/static/site.webmanifest" />
+    <meta name="theme-color" content="#050811" />
     <link rel="stylesheet" href="/static/css/debug.css" />
+    <link rel="stylesheet" href="/static/css/disclaimer.css" />
+    <script src="https://unpkg.com/lucide@latest/dist/umd/lucide.js"></script>
+    <script>
+      window.iconSvg = function iconSvg(name, options = {}) {
+        if (!name) return '';
+        if (typeof name === 'string' && name.trim().startsWith('<')) return name;
+        const aliasMap = {
+          'warning': 'alert-triangle', 'warn': 'alert-triangle', 'danger': 'alert-circle',
+          'error': 'alert-circle', 'info': 'info', 'success': 'check', 'done': 'check',
+          'delete': 'trash-2', 'remove': 'x', 'close': 'x', 'graph': 'network',
+          'dna': 'dna', 'preset': 'zap', 'copilot': 'sparkles', 'ai': 'sparkles',
+          'user': 'user', 'profile': 'user', 'organ': 'shield-check', 'shield': 'shield-check',
+          'flame': 'flame', 'fire': 'flame', 'brain': 'brain', 'heart': 'heart-pulse',
+          'cardio': 'heart-pulse', 'pill': 'pill', 'sleep': 'moon', 'moon': 'moon',
+          'sun': 'sun', 'edit': 'pencil', 'key': 'key', 'settings': 'sliders',
+          'flask': 'flask-conical', 'science': 'flask-conical', 'search': 'search',
+          'crosshair': 'crosshair', 'target': 'target', 'clock': 'clock',
+          'repeat': 'repeat', 'droplet': 'droplet', 'syringe': 'syringe',
+          'microscope': 'microscope', 'activity': 'activity', 'layers': 'layers',
+          'scale': 'scale', 'check': 'check', 'x': 'x', 'building': 'building-2',
+          'institution': 'building-2', 'fda': 'building-2', 'book': 'book-open',
+          'paper': 'file-text', 'pmid': 'file-text', 'doi': 'globe', 'globe': 'globe',
+          'send': 'send', 'bot': 'bot', 'lightbulb': 'lightbulb', 'sparkles': 'sparkles'
+        };
+        const raw = String(name).toLowerCase().trim();
+        const lookupName = aliasMap[raw] || raw;
+        if (window.lucide && window.lucide.icons && window.lucide.icons[lookupName]) {
+          const size = options.size || (options.class?.includes('icon-xs') ? 12 : options.class?.includes('icon-sm') ? 15 : options.class?.includes('icon-lg') ? 24 : options.class?.includes('icon-xl') ? 32 : 16);
+          return window.lucide.icons[lookupName].toSvg({
+            class: `lucide-icon ${options.class || ''}`.trim(),
+            width: size,
+            height: size,
+            'stroke-width': options.strokeWidth || 2,
+            ...(options.attrs || {})
+          });
+        }
+        return `<i data-lucide="${lookupName}" class="${options.class || ''}"></i>`;
+      };
+    </script>
 </head>
 <body>
     <header>
@@ -16,7 +62,7 @@
             </div>
         </div>
         <button class="mobile-menu-toggle" id="mobile-menu-toggle" aria-label="Toggle navigation menu">
-            <span>☰</span>
+            <i data-lucide="menu" class="icon-md"></i>
         </button>
         <nav class="nav-links" id="nav-links">
             <a href="/">Safety Lab</a>
@@ -24,6 +70,7 @@
             <a href="/compound?key=caffeine">Compound DB</a>
             <a href="/admin">Catalog DB</a>
             <a href="/debug" class="active">Debug Workbench</a>
+            <a href="javascript:void(0)" onclick="HealthAIDisclaimer.open('medical')" style="color:#fbbf24; font-weight:700; display:inline-flex; align-items:center; gap:4px;"><i data-lucide="alert-triangle" class="icon-xs icon-amber"></i> Disclaimer</a>
         </nav>
     </header>
 
@@ -130,5 +177,13 @@
     </div>
 
     <script src="/static/js/debug.js"></script>
+    <script src="/static/js/disclaimer.js"></script>
+    <script>
+      document.addEventListener('DOMContentLoaded', () => {
+        if (window.lucide && typeof window.lucide.createIcons === 'function') {
+          window.lucide.createIcons();
+        }
+      });
+    </script>
 </body>
 </html>

@@ -4,7 +4,53 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>healthAI Catalog Admin</title>
+    <link rel="icon" type="image/x-icon" href="/favicon.ico" />
+    <link rel="icon" type="image/png" sizes="32x32" href="/static/favicon-32x32.png" />
+    <link rel="icon" type="image/png" sizes="16x16" href="/static/favicon-16x16.png" />
+    <link rel="icon" type="image/svg+xml" href="/static/favicon.svg" />
+    <link rel="apple-touch-icon" sizes="180x180" href="/static/apple-touch-icon.png" />
+    <link rel="manifest" href="/static/site.webmanifest" />
+    <meta name="theme-color" content="#050811" />
     <link rel="stylesheet" href="/static/css/admin.css" />
+    <link rel="stylesheet" href="/static/css/disclaimer.css" />
+    <script src="https://unpkg.com/lucide@latest/dist/umd/lucide.js"></script>
+    <script>
+      window.iconSvg = function iconSvg(name, options = {}) {
+        if (!name) return '';
+        if (typeof name === 'string' && name.trim().startsWith('<')) return name;
+        const aliasMap = {
+          'warning': 'alert-triangle', 'warn': 'alert-triangle', 'danger': 'alert-circle',
+          'error': 'alert-circle', 'info': 'info', 'success': 'check', 'done': 'check',
+          'delete': 'trash-2', 'remove': 'x', 'close': 'x', 'graph': 'network',
+          'dna': 'dna', 'preset': 'zap', 'copilot': 'sparkles', 'ai': 'sparkles',
+          'user': 'user', 'profile': 'user', 'organ': 'shield-check', 'shield': 'shield-check',
+          'flame': 'flame', 'fire': 'flame', 'brain': 'brain', 'heart': 'heart-pulse',
+          'cardio': 'heart-pulse', 'pill': 'pill', 'sleep': 'moon', 'moon': 'moon',
+          'sun': 'sun', 'edit': 'pencil', 'key': 'key', 'settings': 'sliders',
+          'flask': 'flask-conical', 'science': 'flask-conical', 'search': 'search',
+          'crosshair': 'crosshair', 'target': 'target', 'clock': 'clock',
+          'repeat': 'repeat', 'droplet': 'droplet', 'syringe': 'syringe',
+          'microscope': 'microscope', 'activity': 'activity', 'layers': 'layers',
+          'scale': 'scale', 'check': 'check', 'x': 'x', 'building': 'building-2',
+          'institution': 'building-2', 'fda': 'building-2', 'book': 'book-open',
+          'paper': 'file-text', 'pmid': 'file-text', 'doi': 'globe', 'globe': 'globe',
+          'send': 'send', 'bot': 'bot', 'lightbulb': 'lightbulb', 'sparkles': 'sparkles'
+        };
+        const raw = String(name).toLowerCase().trim();
+        const lookupName = aliasMap[raw] || raw;
+        if (window.lucide && window.lucide.icons && window.lucide.icons[lookupName]) {
+          const size = options.size || (options.class?.includes('icon-xs') ? 12 : options.class?.includes('icon-sm') ? 15 : options.class?.includes('icon-lg') ? 24 : options.class?.includes('icon-xl') ? 32 : 16);
+          return window.lucide.icons[lookupName].toSvg({
+            class: `lucide-icon ${options.class || ''}`.trim(),
+            width: size,
+            height: size,
+            'stroke-width': options.strokeWidth || 2,
+            ...(options.attrs || {})
+          });
+        }
+        return `<i data-lucide="${lookupName}" class="${options.class || ''}"></i>`;
+      };
+    </script>
   </head>
   <body>
     <div class="container">
@@ -15,7 +61,7 @@
         </div>
 
         <button class="mobile-menu-toggle" id="mobile-menu-toggle" aria-label="Toggle navigation menu">
-          <span>☰</span>
+          <i data-lucide="menu" class="icon-md"></i>
         </button>
 
         <nav class="nav-links" id="nav-links">
@@ -24,7 +70,8 @@
           <a href="/compound?key=caffeine" class="nav-link">Compound DB</a>
           <a href="/admin" class="nav-link active">Catalog DB</a>
           <a href="/debug" class="nav-link">Debug Workbench</a>
-          <a href="/docs" target="_blank" class="nav-link">API Docs ↗</a>
+          <a href="javascript:void(0)" onclick="HealthAIDisclaimer.open('medical')" class="nav-link" style="color:#fbbf24; font-weight:700; display:inline-flex; align-items:center; gap:4px;"><i data-lucide="alert-triangle" class="icon-xs icon-amber"></i> Disclaimer</a>
+          <a href="/docs" target="_blank" class="nav-link" style="display:inline-flex; align-items:center; gap:4px;"><span>API Docs</span> <i data-lucide="external-link" class="icon-xs"></i></a>
         </nav>
       </header>
 
@@ -218,7 +265,7 @@
 
         <aside class="panel">
           <div class="db-panel" style="margin-top:0; border-top:none; padding-top:0;">
-            <h3>⚡ Async Ingestion & Live WebSockets Manager</h3>
+            <h3 style="display:inline-flex; align-items:center; gap:6px;"><i data-lucide="zap" class="icon-sm icon-cyan"></i> Async Ingestion & Live WebSockets Manager</h3>
             <div style="background:rgba(9, 20, 29, 0.8); border:1px solid var(--border); border-radius:12px; padding:14px; margin-bottom:18px;">
               <div style="font-size:0.82rem; color:var(--accent-2); font-weight:700; margin-bottom:8px; text-transform:uppercase; letter-spacing:0.05em;">Submit Batch Enrichment Job</div>
               <div style="display:flex; gap:8px; margin-bottom:10px;">
@@ -282,5 +329,13 @@
     </div>
 
     <script src="/static/js/admin.js"></script>
+    <script src="/static/js/disclaimer.js"></script>
+    <script>
+      document.addEventListener('DOMContentLoaded', () => {
+        if (window.lucide && typeof window.lucide.createIcons === 'function') {
+          window.lucide.createIcons();
+        }
+      });
+    </script>
   </body>
 </html>

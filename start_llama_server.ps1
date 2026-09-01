@@ -87,7 +87,7 @@ $ServerArgs = @(
     "-ctv", "q4_0",
     "--jinja",
     "--reasoning-format", "deepseek",
-    "--load-mode", "mlock",
+    "--host", "0.0.0.0",
     "--port", "8080"
 ) + $SpecArgs
 

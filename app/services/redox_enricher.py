@@ -17,7 +17,15 @@ logger = logging.getLogger(__name__)
 
 import httpx
 
+from app.services.chemical_structure_engine import (
+    is_17a_alkylated,
+    is_19nor_steroid,
+    is_steroidal_androgen,
+    resolve_compound_structure,
+)
+
 # Cache for online API responses to prevent redundant network calls
+
 _ONLINE_EVIDENCE_CACHE: Dict[str, Dict[str, Any]] = {}
 
 
@@ -157,76 +165,29 @@ class RedoxEnricher:
 
         # 2. Algorithmic Drug Class & Organ Burden Stress Components
         class_stress = 0.0
-        
-        is_17aa_structural = any(
-            w in drug_class_lower or w in mech_lower or w in c_name_lower
-            for w in [
-                "17alpha",
-                "17a-alkylated",
-                "c17-alkylated",
-                "17-alkylated",
-                "17-hydroxy-17-methyl",
-                "17a-methyl",
-                "17-methyl",
-                "alkylated steroid",
-                "methyldrostanolone",
-                "methasteron",
-                "superdrol",
-                "methandrostenolone",
-                "methandienone",
-                "dianabol",
-                "oxymetholone",
-                "anadrol",
-                "stanozolol",
-                "winstrol",
-                "methyltestosterone",
-                "fluoxymesterone",
-                "halotestin",
-                "turinabol",
-                "epistane",
-            ]
-        )
 
-        is_conjugated_19nor = (
-            any(
-                w in drug_class_lower or w in mech_lower or w in c_name_lower
-                for w in [
-                    "trenbolone",
-                    "trienolone",
-                    "finajet",
-                    "parabolan",
-                    "trienone",
-                    "19-nor-delta9",
-                ]
-            )
-            or any("trenbolone" in str(t.get("target", "")).lower() for t in targets)
+        comp_dict = {
+            "name": compound_name,
+            "drug_class": drug_class,
+            "mechanism": mechanism_text,
+            "receptor_targets": targets,
+        }
+
+        is_17aa_structural = is_17a_alkylated(comp_dict)
+        struct_analysis = resolve_compound_structure(comp_dict)
+        is_conjugated_19nor = bool(
+            is_19nor_steroid(comp_dict) and struct_analysis.get("is_conjugated_triene")
         )
 
         is_synthetic_androgen = (
-            any(
-                w in drug_class_lower or w in mech_lower or w in c_name_lower
-                for w in [
-                    "anabolic steroid",
-                    "synthetic androgen",
-                    "selective androgen receptor modulator",
-                    "sarm",
-                    "19-nor",
-                    "estrene derivative",
-                    "androstane derivative",
-                    "gonane derivative",
-                    "anabolic-androgenic",
-                    "drostanolone",
-                    "nandrolone",
-                    "boldenone",
-                    "methenolone",
-                    "rad140",
-                    "lgd4033",
-                    "ostarine",
-                    "andarine",
-                ]
+            (is_steroidal_androgen(comp_dict) or "sarm" in drug_class_lower or "androgen" in drug_class_lower)
+            and not (
+                str(compound_name).lower() in ("testosterone", "freetestosterone")
+                and not is_17aa_structural
             )
-            or any("androgen receptor" in str(t.get("target", "")).lower() and str(t.get("action", "")).lower() in ["agonist", "substrate"] for t in targets)
-        ) and not ("testosterone" in c_name_lower and not any(w in c_name_lower for w in ["synthetic", "derivative", "17alpha", "methyl", "alkylated"]))
+        )
+
+
 
         is_direct_uncoupler = any(
             w in drug_class_lower or w in mech_lower or w in c_name_lower
@@ -255,7 +216,8 @@ class RedoxEnricher:
             class_stress += 0.40
 
         # Hepatic Organ Burden contribution (Severe DILI strain)
-        hep_burden = organ_burdens.get("hepatic", "none").lower()
+        hep_val = organ_burdens.get("hepatic", "none")
+        hep_burden = hep_val.get("level", "none").lower() if isinstance(hep_val, dict) else str(hep_val).lower()
         if hep_burden in ["high", "severe"]:
             class_stress += 0.20
         elif hep_burden in ["moderate"]:

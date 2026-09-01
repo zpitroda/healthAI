@@ -55,7 +55,9 @@ def parse_compound_spec(spec: Any) -> Dict[str, Any]:
         freq_mult = get_frequency_multiplier(frequency)
         k_low = key.lower()
         is_test_k = "testosterone" in k_low and not any(w in k_low for w in ["trenbolone", "nandrolone", "drostanolone", "oxandrolone", "boldenone", "stanozolol", "dihydrotestosterone", "epitestosterone", "sarm", "rad140", "lgd", "ostarine", "s-4", "yk-11"])
-        route = str(spec.get("route") or spec.get("route_of_administration") or spec.get("default_route") or ("intramuscular" if is_test_k else "oral")).strip().lower()
+        n_low = str(spec.get("name") or "").lower()
+        inferred_route = "intramuscular" if (is_test_k or "injectable" in k_low or "injectable" in n_low) else "oral"
+        route = str(spec.get("route") or spec.get("route_of_administration") or spec.get("default_route") or inferred_route).strip().lower()
 
         if isinstance(dose, (int, float)) and float(dose) > 0:
             val = float(dose)
@@ -80,6 +82,7 @@ def parse_compound_spec(spec: Any) -> Dict[str, Any]:
             eff_display = f"{eff_daily:g} mg/day" if eff_daily >= 1.0 else f"{eff_daily * 1000.0:g} μg/day"
             return {
                 "key": key,
+                "name": spec.get("name") or spec.get("compound") or key,
                 "dose_mg": dose_mg,
                 "dose_val": val,
                 "dose_unit": unit_clean,
@@ -92,6 +95,7 @@ def parse_compound_spec(spec: Any) -> Dict[str, Any]:
             }
         elif isinstance(dose, str) and dose.strip():
             p = parse_compound_spec(f"{key}:{dose.strip()}:{frequency}:{route}")
+            p["name"] = spec.get("name") or spec.get("compound") or p.get("name") or p.get("key")
             return p
         else:
             default_info = get_default_compound_dose(key)
@@ -100,6 +104,7 @@ def parse_compound_spec(spec: Any) -> Dict[str, Any]:
             eff_display = f"{eff_daily:g} mg/day" if eff_daily >= 1.0 else f"{eff_daily * 1000.0:g} μg/day"
             return {
                 "key": key,
+                "name": spec.get("name") or spec.get("compound") or key,
                 "dose_mg": dose_mg,
                 "dose_val": default_info["dose_val"],
                 "dose_unit": default_info["dose_unit"],
@@ -140,10 +145,9 @@ def parse_compound_spec(spec: Any) -> Dict[str, Any]:
         "route": (
             parsed.get("route")
             if parsed.get("route") and (parsed.get("route") != "oral" or ":oral" in spec_str.lower())
-            else ("intramuscular" if ("testosterone" in str(parsed.get("key", "")).lower() and not any(w in str(parsed.get("key", "")).lower() for w in ["trenbolone", "nandrolone", "drostanolone", "oxandrolone", "boldenone", "stanozolol", "dihydrotestosterone", "epitestosterone", "sarm", "rad140", "lgd", "ostarine", "s-4", "yk-11"])) else "oral")
+            else ("intramuscular" if ("testosterone" in str(parsed.get("key", "")).lower() and not any(w in str(parsed.get("key", "")).lower() for w in ["trenbolone", "nandrolone", "drostanolone", "oxandrolone", "boldenone", "stanozolol", "dihydrotestosterone", "epitestosterone", "sarm", "rad140", "lgd", "ostarine", "s-4", "yk-11"])) or "injectable" in str(parsed.get("key", "")).lower() or "injectable" in str(parsed.get("name", "")).lower() or "injectable" in spec_str.lower() else "oral")
         ),
     }
-
 
 
 def resolve_stack_to_catalog_keys(stack: List[Any] | None, catalog_service: CatalogService | None = None) -> List[str]:
@@ -366,72 +370,21 @@ from app.services.dosing_service import CLINICAL_REFERENCE_DOSES_MG, get_default
 DEFAULT_THERAPEUTIC_DOSES_MG: Dict[str, float] = CLINICAL_REFERENCE_DOSES_MG
 
 
+from app.services.chemical_structure_engine import (
+    is_17a_alkylated,
+    is_19nor_steroid,
+    is_5alpha_reductase_substrate as cse_is_5alpha_reductase_substrate,
+    is_aromatizable_androgen as cse_is_aromatizable_androgen,
+    is_steroidal_androgen as cse_is_steroidal_androgen,
+)
+
+
 def is_steroidal_androgen(compound: Dict[str, Any]) -> bool:
     """
-    Determine if a compound is a steroidal androgen using structured target actions,
-    ATC hierarchy, USAN stems, and tokenized pharmacology without brittle substring matching.
+    Determine if a compound is a steroidal androgen using exact chemical topology,
+    structured target actions, and ATC hierarchy without brittle substring matching.
     """
-    if not isinstance(compound, dict):
-        return False
-
-    # 1. Inspect structured targets: if compound is an inhibitor of steroidogenic enzymes or PDE5, it is NOT an androgen
-    receptor_targets = compound.get("receptor_targets") or []
-    for t in receptor_targets:
-        if isinstance(t, dict):
-            t_name = str(t.get("target", "")).lower()
-            t_action = str(t.get("action", "")).lower()
-            t_gene = str(t.get("gene_symbol", "")).upper()
-            if t_action in ("inhibitor", "antagonist", "negative allosteric modulator"):
-                if t_gene in ("SRD5A1", "SRD5A2", "CYP19A1", "PDE5A", "AR", "NR3C4") or any(w in t_name for w in ["5-alpha reductase", "aromatase", "phosphodiesterase", "pde5", "androgen receptor"]):
-                    return False
-
-    # 2. Check USAN stem
-    meta = compound.get("metadata") or {}
-    usan = str(compound.get("usan_stem") or (meta.get("usan_stem") if isinstance(meta, dict) else "") or "").lower()
-    if usan:
-        if any(usan.endswith(s) or usan.startswith(s) for s in ["afil", "sartan", "olol", "steride", "statin", "tide", "gliflozin"]):
-            return False
-        if any(usan.endswith(s) or usan.startswith(s) for s in ["olone", "sterone", "stan", "bol", "andr"]):
-            return True
-
-    # 3. Check ATC hierarchy codes
-    ext = compound.get("external_ids") or {}
-    atc_codes = [str(c).upper() for c in (ext.get("atc_codes") or [])]
-    if any(c.startswith(("G04BE", "G04CB", "C02KX", "C07", "C08", "C09", "A10", "L02BG", "N02", "B01")) for c in atc_codes):
-        return False
-    if any(c.startswith(("G03B", "G03BA", "G03BB", "A14A", "A14AA", "A14AB")) for c in atc_codes):
-        return True
-
-    drug_class = str(compound.get("drug_class") or "").lower()
-    mech = str(compound.get("mechanism") or "").lower()
-    key = str(compound.get("key") or "").lower()
-    name = str(compound.get("name") or "").lower()
-    cats = [str(c).lower() for c in (compound.get("categories") or [])]
-    all_text = f"{key} {name} {drug_class} {mech} {' '.join(cats)}"
-
-    # 4. Immediate exclusion of non-androgens / enzyme inhibitors / vasodilators
-    exclusion_patterns = [
-        r"\baromatase inhibitor\b", r"\b5-alpha reductase\b", r"\b5-alpha-reductase\b",
-        r"\b5ar inhibitor\b", r"\b5ari\b", r"\breductase inhibitor\b", r"\bpde5\b",
-        r"\bpde-5\b", r"\bphosphodiesterase\b", r"\bvasodilator\b", r"\berectile dysfunction\b",
-        r"\bglucocorticoid\b", r"\bmineralocorticoid\b", r"\bcorticosteroid\b",
-        r"\bestrogen receptor modulator\b", r"\bserm\b", r"\bantiandrogen\b",
-        r"\bandrogen receptor antagonist\b", r"\bnon-steroidal\b", r"\bsarm\b",
-        r"\bselective androgen receptor\b", r"\bamino acid\b", r"\bnootropic\b", r"\bbeta-blocker\b"
-    ]
-    if any(re.search(p, all_text) for p in exclusion_patterns):
-        return False
-
-    # 5. Check true androgen keywords with word boundaries
-    androgen_patterns = [
-        r"\bandrogen\b", r"\banabolic steroid\b", r"\bandrogenic steroid\b", r"\bandrostan\b",
-        r"\btestosterone\b", r"\bnandrolone\b", r"\btrenbolone\b", r"\bdrostanolone\b",
-        r"\bmasteron\b", r"\bprimobolan\b", r"\bmethenolone\b", r"\bboldenone\b",
-        r"\boxandrolone\b", r"\banavar\b", r"\bstanozolol\b", r"\bwinstrol\b",
-        r"\bsuperdrol\b", r"\bdianabol\b", r"\banadrol\b", r"\bmethandrostenolone\b",
-        r"\bturinabol\b", r"\bmesterolone\b", r"\bproviron\b"
-    ]
-    return any(re.search(p, all_text) for p in androgen_patterns)
+    return cse_is_steroidal_androgen(compound)
 
 
 def is_aromatizable_androgen(compound: Dict[str, Any]) -> bool:
@@ -439,57 +392,17 @@ def is_aromatizable_androgen(compound: Dict[str, Any]) -> bool:
     Determine if a compound is chemically capable of being aromatized to estradiol by CYP19A1.
     CYP19A1 requires a steroidal C19-methyl Delta-4-3-one or 3-hydroxy-Delta-5 sterol A-ring structure
     (e.g., testosterone, androstenedione, boldenone, DHEA).
-    
-    Non-aromatizable compounds include:
-    1. Non-steroidal AR agonists (SARMs: RAD140, LGD-4033, Ostarine, etc.)
-    2. 5-Alpha reduced / Androstane DHT derivatives (Drostanolone, Oxandrolone, Stanozolol, Methenolone, Mesterolone)
-    3. Highly conjugated / modified non-aromatizable 19-nor trienes (Trenbolone)
     """
-    if not is_steroidal_androgen(compound):
-        return False
-    
-    drug_class = str(compound.get("drug_class") or "").lower()
-    mech = str(compound.get("mechanism") or "").lower()
-    key = str(compound.get("key") or "").lower()
-    name = str(compound.get("name") or "").lower()
-    parent = str(compound.get("parent_compound_id") or "").lower()
-    smiles = str(compound.get("smiles") or "")
-    
-    # 1. Check chemical classification / ATC taxonomy
-    if "androstan" in drug_class or "dht" in drug_class or "dihydrotestosterone" in drug_class:
-        return False
-    if "androstan" in mech or "dht derivative" in mech:
-        return False
-    if any(k in key or k in name for k in ["drostanolone", "masteron", "primobolan", "methenolone", "oxandrolone", "anavar", "stanozolol", "winstrol", "superdrol", "trenbolone"]):
-        return False
-    if parent in ("testosterone", "boldenone", "dianabol", "methandrostenolone") or any(k in key or k in name for k in ["testosterone", "boldenone", "dianabol", "dbol", "methandrostenolone"]):
-        return True
-    
-    # 2. Check SMILES structural features for delta-4-3-one steroid ring
-    if smiles:
-        # Check for conjugated triene (e.g. trenbolone)
-        if "C=CC3=C" in smiles or bool(re.search(r"=C\d*C=C\d*C=C", smiles)):
-            return False
-        # Check for delta-4-3-one enone (e.g., C4=CC(=O)CCC)
-        has_delta4_enone = bool(re.search(r"(=CC\(=O\)|C\(=O\)C=C|C=C\d*C\(=O\)|C\(=O\)CCC\d*=C)", smiles, re.IGNORECASE))
-        if not has_delta4_enone:
-            return False
-            
-    return True
+    return cse_is_aromatizable_androgen(compound)
 
 
 def is_5alpha_reductase_substrate(compound: Dict[str, Any]) -> bool:
     """
     Determine if a compound is a substrate for 5-Alpha Reductase (SRD5A1/2).
     5AR reduces the 4,5-double bond of Delta-4-3-keto steroids into 5-alpha reduced metabolites.
-    5-alpha reduced androstanes, 19-nor trienes, and non-steroidal SARMs cannot undergo 5-alpha reduction.
     """
-    if not is_steroidal_androgen(compound):
-        return False
-    drug_class = str(compound.get("drug_class") or "").lower()
-    if "androstan" in drug_class or "dht" in drug_class or "dihydrotestosterone" in drug_class:
-        return False
-    return is_aromatizable_androgen(compound)
+    return cse_is_5alpha_reductase_substrate(compound)
+
 
 
 def build_selected_compound_graph(stack: List[Any], catalog_service: CatalogService | None = None) -> BiologicalGraph:
@@ -564,7 +477,7 @@ def build_selected_compound_graph(stack: List[Any], catalog_service: CatalogServ
             compound = PharmacologyEnricher().enrich_compound({"key": compound_key, "name": compound_key.title()})
 
         compound_id = str(compound.get("key") or compound_key)
-        compound_label = str(compound.get("name") or compound_id)
+        compound_label = str(compound_entry.get("name") or compound.get("name") or compound_id)
 
         # 1. Add Compound Node
         def _parse_numeric(val: Any) -> Optional[float]:
@@ -639,6 +552,13 @@ def build_selected_compound_graph(stack: List[Any], catalog_service: CatalogServ
         mechanism_text = str(compound.get("mechanism") or "").lower()
         c_name_lower = str(compound.get("canonical_name") or compound.get("name") or compound_key).lower()
         drug_class_lower = str(compound.get("drug_class") or "").lower()
+
+        c_route = str(compound_entry.get("route") or compound.get("route") or "oral").lower().strip()
+        if c_route in ["intramuscular", "im", "subcutaneous", "subq", "iv", "intravenous"]:
+            receptor_targets = [
+                t for t in receptor_targets
+                if not (isinstance(t, dict) and (t.get("is_microbial") or "gut microbiota" in str(t.get("target", "")).lower() or "tma-lyase" in str(t.get("target", "")).lower()))
+            ]
 
         # Connect exogenous bioidentical testosterone to circulating hormone pool (scaling with effective daily continuous rate)
         is_bioidentical_test = "testosterone" in c_name_lower and not any(w in c_name_lower for w in ["trenbolone", "nandrolone", "drostanolone", "oxandrolone", "boldenone", "stanozolol", "dihydrotestosterone", "epitestosterone", "sarm", "rad140", "lgd"])
@@ -814,6 +734,7 @@ def build_selected_compound_graph(stack: List[Any], catalog_service: CatalogServ
             receptor_targets.append({
                 "target": "Carnosine Synthase 1 (CARNS1 / Intramuscular Carnosine Pool)",
                 "action": "substrate",
+                "target_class": "Enzyme",
                 "family": "Skeletal Muscle / Buffer",
                 "intrinsic_efficacy": carns_eff,
                 "pre_computed_stress": True,
@@ -822,6 +743,7 @@ def build_selected_compound_graph(stack: List[Any], catalog_service: CatalogServ
                 receptor_targets.append({
                     "target": "Mas-Related G-Protein Coupled Receptor Member D (MRGPRD / Cutaneous Paresthesia)",
                     "action": "agonist",
+                    "target_class": "Receptor",
                     "family": "GPCR / Sensory",
                     "intrinsic_efficacy": paresthesia_eff,
                     "pre_computed_stress": True,
@@ -851,7 +773,7 @@ def build_selected_compound_graph(stack: List[Any], catalog_service: CatalogServ
                 })
 
         # 19-nor progestogenic stimulation (Trenbolone, Nandrolone)
-        is_19nor = any(w in c_name_lower or w in drug_class_lower or w in mechanism_text for w in ["19-nor", "nandrolone", "trenbolone", "nortestosterone", "progest"])
+        is_19nor = is_19nor_steroid(compound)
         if is_19nor and not any(t.get("gene_symbol") == "PGR" for t in receptor_targets if isinstance(t, dict)):
             receptor_targets.append({
                 "target": "Progesterone Receptor (PGR / NR3C3)",
@@ -860,6 +782,7 @@ def build_selected_compound_graph(stack: List[Any], catalog_service: CatalogServ
                 "intrinsic_efficacy": 0.85,
                 "pre_computed_stress": True,
             })
+
 
         # Dopamine Agonist prolactin suppression (Cabergoline, Pramipexole)
         is_d2_agonist = any(w in c_name_lower or w in drug_class_lower or w in mechanism_text for w in ["cabergoline", "pramipexole", "bromocriptine", "dopamine agonist"])
@@ -1000,9 +923,10 @@ def build_selected_compound_graph(stack: List[Any], catalog_service: CatalogServ
         clearance_routes = str(compound.get("clearance_routes") or "").lower()
         logp_val = float(compound.get("logp") or 0.0)
         warnings_text = str(compound.get("warnings") or "").lower()
-        is_17aa = any(w in c_name_lower for w in ["methyl", "stanozolol", "superdrol", "anadrol", "oxymetholone", "halotestin", "fluoxymesterone", "dianabol", "methandrostenolone", "turinabol", "winstrol"])
+        is_17aa = is_17a_alkylated(compound)
 
         is_blocker = any(w in drug_class_lower for w in ["blocker", "antagonist", "inhibitor"])
+
         comp_class_lower = str(compound.get("compound_class") or "").lower()
         is_antioxidant = any(
             w in drug_class_lower or w in mechanism_text or w in comp_class_lower or w in c_name_lower
@@ -1241,13 +1165,15 @@ def build_selected_compound_graph(stack: List[Any], catalog_service: CatalogServ
                 )
 
             cascade_node_type = str(matched_cascade.get("node_type", "")).lower() if matched_cascade else ""
+            target_class = str(receptor.get("target_class") or "").lower()
             target_fam = str(receptor.get("family") or "").lower()
             target_lower = target_id.lower()
 
             # Instantiate accurate biological node type (Enzyme, Transporter, Ion Channel, or Receptor)
             if (
                 cascade_node_type == "enzyme"
-                or any(w in target_lower or w in target_fam for w in ["enzyme", "synthase", "reductase", "aromatase", "cyp", "cox", "pde", "kinase", "esterase", "oxygenase", "dehydrogenase", "lyase"])
+                or target_class == "enzyme"
+                or any(w in target_lower or w in target_fam for w in ["enzyme", "synthase", "reductase", "aromatase", "cyp", "cox", "pde", "kinase", "esterase", "oxygenase", "dehydrogenase", "lyase", "ligase", "isomerase", "hydroxylase", "transferase", "peptidase", "protease", "hydrolase", "phosphagen", "carns1", "ckm", "ckmt2"])
             ):
                 target_node = EnzymeNode(
                     node_id=target_id,
@@ -1258,7 +1184,8 @@ def build_selected_compound_graph(stack: List[Any], catalog_service: CatalogServ
                 )
             elif (
                 cascade_node_type == "transporter"
-                or any(w in target_lower or w in target_fam for w in ["transporter", "sert", "dat", "net", "vmat", "p-gp", "oat", "oct", "mrp", "bcrp", "slc", "abc"])
+                or target_class == "transporter"
+                or any(w in target_lower or w in target_fam for w in ["transporter", "sert", "dat", "net", "vmat", "p-gp", "oat", "oct", "mrp", "bcrp", "slc", "abc", "carrier", "slc6a8", "slc6a3", "slc6a4", "slc6a2", "slc5a7", "octn2"])
             ):
                 target_node = TransporterNode(
                     node_id=target_id,
@@ -1267,7 +1194,8 @@ def build_selected_compound_graph(stack: List[Any], catalog_service: CatalogServ
                 )
             elif (
                 cascade_node_type == "ion_channel"
-                or any(w in target_lower or w in target_fam for w in ["channel", "herg", "kcnh2", "cav", "nav"])
+                or target_class in ("ion_channel", "ion channel")
+                or any(w in target_lower or w in target_fam for w in ["channel", "herg", "kcnh2", "cav", "nav", "gria1", "ampa", "nmda"])
             ):
                 target_node = IonChannelNode(
                     node_id=target_id,

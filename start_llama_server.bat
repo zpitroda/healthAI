@@ -84,10 +84,9 @@ echo     - Physical Batch Size: -b 2048 -ub 1024
 echo     - Jinja Template Parser (--jinja)
 echo     - Reasoning Stream Extractor (--reasoning-format deepseek)
 echo     - Speculative MTP Decoding: %SPEC_MSG%
-echo     - Memory Lock (--load-mode mlock)
 echo.
 
-"%LLAMA_EXE%" -m "%MODEL_PATH%" %SPEC_FLAGS% -ngl 99 -c %LLAMA_CTX% -b 2048 -ub 1024 -fa on -ctk q4_0 -ctv q4_0 --jinja --reasoning-format deepseek --load-mode mlock --port 8080
+"%LLAMA_EXE%" -m "%MODEL_PATH%" %SPEC_FLAGS% -ngl 99 -c %LLAMA_CTX% -b 2048 -ub 1024 -fa on -ctk q4_0 -ctv q4_0 --jinja --reasoning-format deepseek --host 0.0.0.0 --port 8080
 
 if %errorlevel% neq 0 (
     echo.

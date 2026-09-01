@@ -6,12 +6,19 @@ import re
 from typing import Any, Dict, List, Optional, Set, Tuple
 
 from app.services.catalog_service import CatalogService
-from app.services.dosing_service import get_default_compound_dose, parse_dose_string_or_spec
-from app.services.graph_service import (
+from app.services.chemical_structure_engine import (
+    is_17a_alkylated,
+    is_19nor_steroid,
     is_aromatizable_androgen,
     is_steroidal_androgen,
-    parse_compound_spec,
 )
+from app.services.dosing_service import (
+    get_default_compound_dose,
+    infer_compound_route_and_frequency,
+    normalize_dosing_frequency,
+    parse_dose_string_or_spec,
+)
+from app.services.graph_service import parse_compound_spec
 from app.services.interaction_engine import InteractionEngine
 
 logger = logging.getLogger("healthai.action_card_validator")
@@ -75,13 +82,15 @@ class ActionCardValidator:
         sanitized_additions = []
         for item in additions:
             sanitized_item, notes = cls._sanitize_compound_entry(item, catalog, biometrics)
-            sanitized_additions.append(sanitized_item)
+            if sanitized_item is not None:
+                sanitized_additions.append(sanitized_item)
             audit_log.extend(notes)
 
         sanitized_modifications = []
         for item in modifications:
             sanitized_item, notes = cls._sanitize_compound_entry(item, catalog, biometrics)
-            sanitized_modifications.append(sanitized_item)
+            if sanitized_item is not None:
+                sanitized_modifications.append(sanitized_item)
             audit_log.extend(notes)
 
         sanitized_removals = []
@@ -130,12 +139,17 @@ class ActionCardValidator:
         entry: Dict[str, Any],
         catalog: CatalogService,
         biometrics: Dict[str, Any],
-    ) -> Tuple[Dict[str, Any], List[str]]:
+    ) -> Tuple[Optional[Dict[str, Any]], List[str]]:
         notes: List[str] = []
-        raw_key = str(entry.get("key") or entry.get("name") or "").strip().lower()
+        raw_key = str(entry.get("id") or entry.get("key") or entry.get("chembl_id") or entry.get("name") or "").strip().lower()
+        if not raw_key:
+            return None, ["⚠️ Discarded empty compound entry in action card."]
 
         # Canonicalize compound record
         comp_record = catalog.get_compound(raw_key, auto_enrich=False) or catalog.find_by_synonym(raw_key)
+        if not comp_record and entry.get("chembl_id"):
+            comp_record = catalog.get_compound(str(entry["chembl_id"]).strip(), auto_enrich=False)
+
         if not comp_record:
             spec = parse_compound_spec(raw_key)
             spec_key = spec.get("key", raw_key)
@@ -156,8 +170,17 @@ class ActionCardValidator:
                         comp_record = c
                         break
 
-        canonical_key = comp_record.get("key", raw_key) if comp_record else raw_key
-        canonical_name = comp_record.get("name", entry.get("name", raw_key.title())) if comp_record else entry.get("name", raw_key.title())
+        if not comp_record:
+            # Attempt live enrichment for legitimate non-fragment identifiers
+            if len(raw_key) >= 4:
+                comp_record = catalog.get_compound(raw_key, auto_enrich=True)
+
+        if not comp_record:
+            notes.append(f"⚠️ Discarded unrecognized entity '{raw_key}' (not found in pharmacology catalog or verified registries).")
+            return None, notes
+
+        canonical_key = comp_record.get("key", raw_key)
+        canonical_name = comp_record.get("name", entry.get("name", raw_key.title()))
 
         # Extract and normalize dose & unit
         raw_dose = entry.get("dose") or entry.get("dose_mg")
@@ -196,14 +219,51 @@ class ActionCardValidator:
                 or 0.0
             )
 
-        route = str(entry.get("route") or (comp_record.get("route") if comp_record else "oral")).strip().lower()
-        timing = str(entry.get("timing") or "morning").strip().lower()
-        frequency = str(entry.get("frequency") or "").strip().lower()
+        raw_route = entry.get("route") or (comp_record.get("route") if (comp_record and comp_record.get("route")) else "oral")
+        route = str(raw_route).strip().lower() if raw_route and str(raw_route).strip().lower() != "none" else "oral"
+        raw_timing = str(entry.get("timing") or "").strip()
+        raw_frequency = str(entry.get("frequency") or "").strip().lower()
+        
+        inferred_route, inferred_freq = infer_compound_route_and_frequency(canonical_key)
+        frequency = normalize_dosing_frequency(raw_frequency) if raw_frequency else (inferred_freq or "daily")
+        
+        if raw_timing and raw_timing.lower() not in ("morning", ""):
+            timing = raw_timing
+        elif frequency == "every_other_day":
+            timing = "Every Other Day (EOD)"
+        elif frequency == "three_times_weekly":
+            timing = "Three Times Weekly (Mon / Wed / Fri)"
+        elif frequency == "twice_weekly":
+            timing = "Twice Weekly (Mon / Thu)"
+        elif frequency == "weekly":
+            timing = "Weekly"
+        elif frequency == "biweekly":
+            timing = "Bi-Weekly (Every 2 Weeks)"
+        elif frequency == "monthly":
+            timing = "Monthly"
+        elif frequency == "as_needed":
+            timing = "As Needed (PRN)"
+        else:
+            timing = raw_timing or "morning"
 
         # If t_half >= 72 hours (e.g. Testosterone Cypionate ~ 192h, Decanoate ~ 240h), enforce depot scheduling
         is_long_half_life = t_half_h >= 72.0 or any(
             ester in canonical_key for ester in ["cypionate", "enanthate", "decanoate", "undecylenate", "depot"]
         )
+
+        # Check if compound is an aromatase inhibitor or irreversible suicide inactivator
+        drug_class_str = str((comp_record.get("drug_class") if comp_record else "") or "")
+        mech_str = str((comp_record.get("mechanism") if comp_record else "") or "")
+        cats_list = (comp_record.get("categories") if comp_record else []) or []
+        cats_str = " ".join(str(c) for c in cats_list)
+        combined_meta_text = f"{drug_class_str} {mech_str} {cats_str}".lower()
+
+        is_ai_or_suicide_inactivator = (
+            any(w in canonical_key for w in ["anastrozole", "exemestane", "letrozole", "aromasin", "arimidex", "femara"])
+            or any(w in combined_meta_text for w in ["aromatase inhibitor", "aromatase inactivator", "cyp19a1"])
+        )
+
+        daily_timing_keywords = ["morning", "midday", "bedtime", "evening", "with breakfast", "with dinner", "daily"]
 
         if is_long_half_life:
             # Route must be injectable (intramuscular or subcutaneous)
@@ -213,31 +273,64 @@ class ActionCardValidator:
                 )
                 route = "intramuscular"
 
-            # Frequency must be weekly or split-weekly, NOT daily
-            daily_timing_keywords = ["morning", "midday", "bedtime", "evening", "with breakfast", "with dinner", "daily"]
-            is_daily_scheduled = timing in daily_timing_keywords and frequency in ("", "daily", "once daily", "qd")
+            # Frequency must be non-daily
+            is_daily_scheduled = timing.lower() in daily_timing_keywords and frequency in ("daily", "twice_daily", "three_times_daily", "four_times_daily")
             
             if is_daily_scheduled:
                 notes.append(
                     f"📅 Pharmacokinetic Schedule Law: Long-acting depot '{canonical_name}' (t1/2 ~ {round(t_half_h, 1) if t_half_h else 168}h) schedule adjusted from daily to 'Twice Weekly (Split Depot Protocol)'."
                 )
                 timing = "Twice Weekly (Mon / Thu)"
-                frequency = "twice weekly"
+                frequency = "twice_weekly"
             elif not frequency:
-                frequency = "twice weekly"
+                frequency = "twice_weekly"
+
+        elif is_ai_or_suicide_inactivator:
+            # AIs must NOT default to daily on harm-reduction stacks
+            is_daily_scheduled = timing.lower() in daily_timing_keywords and frequency in ("daily", "twice_daily", "three_times_daily", "four_times_daily")
+            if is_daily_scheduled:
+                notes.append(
+                    f"📅 Pharmacokinetic Enzyme Inactivation Law: Aromatase inhibitor / enzyme modulator '{canonical_name}' schedule adjusted from daily to 'Twice Weekly (Mon / Thu)' to prevent severe estradiol ablation."
+                )
+                timing = "Twice Weekly (Mon / Thu)"
+                frequency = "twice_weekly"
+            elif not frequency:
+                frequency = "twice_weekly"
+
+        # Dynamic authoritative target and receptor hydration
+        target_str = str(entry.get("target") or "").strip()
+        if not target_str or target_str.lower() in ("molecular target", "molecular target / receptor", "molecular target / pathway", "target receptor / enzyme"):
+            tgts = comp_record.get("receptor_targets") or []
+            if isinstance(tgts, list) and len(tgts) > 0 and isinstance(tgts[0], dict):
+                t_first = tgts[0]
+                t_act = str(t_first.get("action", "modulator")).title()
+                t_name = str(t_first.get("target", "Target Receptor"))
+                target_str = f"{t_name} ({t_act})" if t_act else t_name
+            elif comp_record.get("mechanism") and len(str(comp_record.get("mechanism"))) >= 10:
+                target_str = str(comp_record.get("mechanism"))
+            elif comp_record.get("drug_class"):
+                target_str = str(comp_record.get("drug_class"))
+            else:
+                target_str = "Pharmacological Modifier"
 
         sanitized_entry = {
             "key": canonical_key,
+            "id": canonical_key,
             "name": canonical_name,
             "dose": round(dose_val, 2),
             "unit": raw_unit,
             "route": route,
             "timing": timing,
+            "target": target_str,
         }
+        if comp_record.get("chembl_id"):
+            sanitized_entry["chembl_id"] = comp_record["chembl_id"]
+        if comp_record.get("receptor_targets"):
+            sanitized_entry["receptor_targets"] = comp_record["receptor_targets"]
         if frequency:
             sanitized_entry["frequency"] = frequency
-        if entry.get("clinical_purpose"):
-            sanitized_entry["clinical_purpose"] = entry["clinical_purpose"]
+        if entry.get("clinical_purpose") or entry.get("rationale"):
+            sanitized_entry["rationale"] = entry.get("clinical_purpose") or entry.get("rationale")
 
         return sanitized_entry, notes
 
@@ -320,20 +413,19 @@ class ActionCardValidator:
         total_androgen_dose = 0.0
 
         for comp in enriched_stack:
-            drug_class = str(comp.get("drug_class") or "").lower()
-            key_name = str(comp.get("key") or comp.get("name") or "").lower()
-            mech = str(comp.get("mechanism") or "").lower()
-            targets = [str(t.get("target", "")).lower() if isinstance(t, dict) else str(t).lower() for t in (comp.get("receptor_targets") or [])]
             dose = float(comp.get("dose") or comp.get("dose_mg") or 0.0)
 
-            if is_steroidal_androgen(comp) or "androgen" in drug_class or "anabolic" in drug_class:
+            if is_steroidal_androgen(comp):
                 total_androgen_dose += dose
                 if is_aromatizable_androgen(comp):
                     has_aromatizable_androgen = True
-                if any(w in key_name or w in mech for w in ["nandrolone", "trenbolone", "deca", "trestolone", "19-nor"]) or any("progesterone" in t or "pr" in t for t in targets):
+                if is_19nor_steroid(comp):
                     has_19nor_androgen = True
-                if any(w in key_name or w in mech or w in drug_class for w in ["17aa", "17a-", "17-alpha", "methyl", "dianabol", "methandrostenolone", "stanozolol", "winstrol", "oxandrolone", "anavar", "oxymetholone", "anadrol", "fluoxymesterone", "halotestin", "turinabol"]):
+                if is_17a_alkylated(comp):
                     has_17a_alkylated = True
+            elif is_17a_alkylated(comp):
+                has_17a_alkylated = True
+
 
         shield_active = False
 

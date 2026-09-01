@@ -4,6 +4,13 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Compound Intelligence & PK/PD Network // HealthAI</title>
+    <link rel="icon" type="image/x-icon" href="/favicon.ico" />
+    <link rel="icon" type="image/png" sizes="32x32" href="/static/favicon-32x32.png" />
+    <link rel="icon" type="image/png" sizes="16x16" href="/static/favicon-16x16.png" />
+    <link rel="icon" type="image/svg+xml" href="/static/favicon.svg" />
+    <link rel="apple-touch-icon" sizes="180x180" href="/static/apple-touch-icon.png" />
+    <link rel="manifest" href="/static/site.webmanifest" />
+    <meta name="theme-color" content="#050811" />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link
@@ -11,13 +18,52 @@
       rel="stylesheet"
     />
     <link rel="stylesheet" href="/static/css/compound.css" />
+    <link rel="stylesheet" href="/static/css/disclaimer.css" />
+    <script src="https://unpkg.com/lucide@latest/dist/umd/lucide.js"></script>
+    <script>
+      window.iconSvg = function iconSvg(name, options = {}) {
+        if (!name) return '';
+        if (typeof name === 'string' && name.trim().startsWith('<')) return name;
+        const aliasMap = {
+          'warning': 'alert-triangle', 'warn': 'alert-triangle', 'danger': 'alert-circle',
+          'error': 'alert-circle', 'info': 'info', 'success': 'check', 'done': 'check',
+          'delete': 'trash-2', 'remove': 'x', 'close': 'x', 'graph': 'network',
+          'dna': 'dna', 'preset': 'zap', 'copilot': 'sparkles', 'ai': 'sparkles',
+          'user': 'user', 'profile': 'user', 'organ': 'shield-check', 'shield': 'shield-check',
+          'flame': 'flame', 'fire': 'flame', 'brain': 'brain', 'heart': 'heart-pulse',
+          'cardio': 'heart-pulse', 'pill': 'pill', 'sleep': 'moon', 'moon': 'moon',
+          'sun': 'sun', 'edit': 'pencil', 'key': 'key', 'settings': 'sliders',
+          'flask': 'flask-conical', 'science': 'flask-conical', 'search': 'search',
+          'crosshair': 'crosshair', 'target': 'target', 'clock': 'clock',
+          'repeat': 'repeat', 'droplet': 'droplet', 'syringe': 'syringe',
+          'microscope': 'microscope', 'activity': 'activity', 'layers': 'layers',
+          'scale': 'scale', 'check': 'check', 'x': 'x', 'building': 'building-2',
+          'institution': 'building-2', 'fda': 'building-2', 'book': 'book-open',
+          'paper': 'file-text', 'pmid': 'file-text', 'doi': 'globe', 'globe': 'globe',
+          'send': 'send', 'bot': 'bot', 'lightbulb': 'lightbulb', 'sparkles': 'sparkles'
+        };
+        const raw = String(name).toLowerCase().trim();
+        const lookupName = aliasMap[raw] || raw;
+        if (window.lucide && window.lucide.icons && window.lucide.icons[lookupName]) {
+          const size = options.size || (options.class?.includes('icon-xs') ? 12 : options.class?.includes('icon-sm') ? 15 : options.class?.includes('icon-lg') ? 24 : options.class?.includes('icon-xl') ? 32 : 16);
+          return window.lucide.icons[lookupName].toSvg({
+            class: `lucide-icon ${options.class || ''}`.trim(),
+            width: size,
+            height: size,
+            'stroke-width': options.strokeWidth || 2,
+            ...(options.attrs || {})
+          });
+        }
+        return `<i data-lucide="${lookupName}" class="${options.class || ''}"></i>`;
+      };
+    </script>
   </head>
   <body>
     <div class="container">
       <!-- TOPBAR -->
       <header class="topbar">
         <div class="brand-wrap">
-          <div class="brand-logo">🧬</div>
+          <div class="brand-logo" style="display:inline-flex; align-items:center; justify-content:center;"><i data-lucide="network" class="icon-md icon-cyan"></i></div>
           <div>
             <div class="brand-title" id="topbarTitle">Compound Intelligence</div>
           </div>
@@ -25,7 +71,7 @@
         </div>
 
         <button class="mobile-menu-toggle" id="mobile-menu-toggle" aria-label="Toggle navigation menu">
-          <span>☰</span>
+          <i data-lucide="menu" class="icon-md"></i>
         </button>
 
         <nav class="nav-links" id="nav-links">
@@ -34,7 +80,8 @@
           <a href="/compound?key=caffeine" class="nav-link active">Compound DB</a>
           <a href="/admin" class="nav-link">Catalog DB</a>
           <a href="/debug" class="nav-link">Debug Workbench</a>
-          <a href="#" id="openInGraphBtn" class="nav-link btn-primary">Open in Graph Studio ↗</a>
+          <a href="javascript:void(0)" onclick="HealthAIDisclaimer.open('medical')" class="nav-link" style="color:#fbbf24; font-weight:700; display:inline-flex; align-items:center; gap:4px;"><i data-lucide="alert-triangle" class="icon-xs icon-amber"></i> Disclaimer</a>
+          <a href="#" id="openInGraphBtn" class="nav-link btn-primary" style="display:inline-flex; align-items:center; gap:5px;"><span>Open in Graph Studio</span> <i data-lucide="external-link" class="icon-xs"></i></a>
         </nav>
       </header>
 
@@ -52,7 +99,7 @@
                 <div style="display:flex; align-items:center; gap:10px;">
                   <h1 id="compoundName" class="hero-title">Compound</h1>
                   <button id="btnDeepEnrich" type="button" title="Perform multi-source structured biomedical enrichment (PubChem, ChEMBL Activity, Reactome)" style="display:inline-flex; align-items:center; gap:6px; padding:6px 12px; font-size:0.75rem; background:linear-gradient(135deg,#00f2fe 0%,#3b82f6 100%); color:#050811; font-weight:800; border:none; border-radius:7px; cursor:pointer; box-shadow:0 0 12px rgba(0,242,254,0.3); transition:all 0.15s ease;">
-                    ⚡ Full PK/PD Enrich
+                    <i data-lucide="zap" class="icon-xs"></i> Full PK/PD Enrich
                   </button>
                 </div>
                 <div id="compoundSubtitle" class="subtitle"></div>
@@ -66,7 +113,7 @@
 
             <!-- DYNAMIC PK/PD SIMULATION DASHBOARD -->
             <div class="section-heading" style="display:flex; justify-content:space-between; align-items:center;">
-              <span>📈 Dynamic Pharmacokinetic & Pharmacodynamic Simulation</span>
+              <span style="display:inline-flex; align-items:center; gap:6px;"><i data-lucide="trending-up" class="icon-sm icon-cyan"></i> Dynamic Pharmacokinetic & Pharmacodynamic Simulation</span>
               <span class="brand-tag" id="simModeTag">Bateman Steady-State</span>
             </div>
             <div class="sim-card" style="background:var(--bg-card); border:1px solid var(--border-subtle); border-radius:12px; padding:16px; margin-bottom:16px;">
@@ -135,21 +182,21 @@
             </div>
 
             <!-- PHARMACOKINETICS ADMET PROFILE -->
-            <div class="section-heading">💊 Pharmacokinetics & ADMET Dynamics</div>
+            <div class="section-heading" style="display:inline-flex; align-items:center; gap:6px;"><i data-lucide="pill" class="icon-sm icon-cyan"></i> Pharmacokinetics & ADMET Dynamics</div>
             <div class="detail-grid" id="pkOverviewGrid"></div>
 
             <!-- CYP & TRANSPORTER METABOLISM PROFILE -->
-            <div class="section-heading">🧬 Hepatic Metabolism & Transporters</div>
+            <div class="section-heading" style="display:inline-flex; align-items:center; gap:6px;"><i data-lucide="dna" class="icon-sm icon-teal"></i> Hepatic Metabolism & Transporters</div>
             <div class="detail-grid" id="cypTransporterGrid"></div>
 
             <!-- CHEMICAL PROPERTIES -->
-            <div class="section-heading">🧪 Physicochemical Properties</div>
+            <div class="section-heading" style="display:inline-flex; align-items:center; gap:6px;"><i data-lucide="flask-conical" class="icon-sm icon-amber"></i> Physicochemical Properties</div>
             <div class="detail-grid" id="physicochemicalGrid"></div>
 
             <!-- MECHANISM OF ACTION -->
             <div class="list-box">
               <div class="header">
-                <span>⚡ Pharmacodynamic Mechanism</span>
+                <span style="display:inline-flex; align-items:center; gap:6px;"><i data-lucide="zap" class="icon-xs icon-cyan"></i> Pharmacodynamic Mechanism</span>
               </div>
               <div class="body">
                 <div id="compoundMechanism"></div>
@@ -159,7 +206,7 @@
             <!-- RECEPTOR TARGETS -->
             <div class="list-box">
               <div class="header">
-                <span>🎯 Molecular Targets & Receptors</span>
+                <span style="display:inline-flex; align-items:center; gap:6px;"><i data-lucide="target" class="icon-xs icon-rose"></i> Molecular Targets & Receptors</span>
               </div>
               <div class="body compact">
                 <div id="compoundTargets" class="target-links"></div>
@@ -169,7 +216,7 @@
             <!-- INDICATIONS -->
             <div class="list-box">
               <div class="header">
-                <span>📋 Clinical Indications</span>
+                <span style="display:inline-flex; align-items:center; gap:6px;"><i data-lucide="clipboard-list" class="icon-xs icon-teal"></i> Clinical Indications</span>
               </div>
               <div class="body compact">
                 <ul id="compoundIndications" class="bullet-list"></ul>
@@ -179,7 +226,7 @@
             <!-- WARNINGS -->
             <div class="list-box">
               <div class="header" style="color:#fca5a5;">
-                <span>⚠️ Safety Warnings & Precautions</span>
+                <span style="display:inline-flex; align-items:center; gap:6px;"><i data-lucide="alert-triangle" class="icon-xs icon-rose"></i> Safety Warnings & Precautions</span>
               </div>
               <div class="body compact">
                 <ul id="compoundWarnings" class="bullet-list"></ul>
@@ -189,7 +236,7 @@
             <!-- SIDE EFFECTS & INTERACTIONS -->
             <div class="list-box">
               <div class="header">
-                <span>⚡ Adverse Effects</span>
+                <span style="display:inline-flex; align-items:center; gap:6px;"><i data-lucide="alert-circle" class="icon-xs icon-amber"></i> Adverse Effects</span>
               </div>
               <div class="body compact">
                 <ul id="compoundSideEffects" class="bullet-list"></ul>
@@ -198,7 +245,7 @@
 
             <div class="list-box">
               <div class="header">
-                <span>🔄 Known Drug-Drug Interactions</span>
+                <span style="display:inline-flex; align-items:center; gap:6px;"><i data-lucide="repeat" class="icon-xs icon-cyan"></i> Known Drug-Drug Interactions</span>
               </div>
               <div class="body compact">
                 <ul id="compoundInteractions" class="bullet-list"></ul>
@@ -207,14 +254,14 @@
 
             <!-- EVIDENCE, LITERATURE & CITATION GRAPH SECTION -->
             <div class="section-heading" style="margin-top:24px; display:flex; justify-content:space-between; align-items:center;">
-              <span>📚 Scientific Evidence, Literature & Citation Graph</span>
+              <span style="display:inline-flex; align-items:center; gap:6px;"><i data-lucide="book-open" class="icon-sm icon-cyan"></i> Scientific Evidence, Literature & Citation Graph</span>
               <span class="brand-tag" id="evidenceCountTag">0 Verified Studies</span>
             </div>
 
             <!-- LANDMARK STUDIES -->
             <div class="list-box">
               <div class="header" style="display:flex; justify-content:space-between; align-items:center;">
-                <span>🔬 Landmark Clinical Trials & Meta-Analyses</span>
+                <span style="display:inline-flex; align-items:center; gap:6px;"><i data-lucide="microscope" class="icon-xs icon-teal"></i> Landmark Clinical Trials & Meta-Analyses</span>
                 <span style="font-size:0.7rem; color:var(--text-muted);">PubMed / Europe PMC Grounded</span>
               </div>
               <div class="body" style="padding:12px;">
@@ -227,7 +274,7 @@
             <!-- CHRONOLOGICAL DISCOVERY TIMELINE -->
             <div class="list-box">
               <div class="header">
-                <span>⏳ Chronological Discovery & Validation Timeline</span>
+                <span style="display:inline-flex; align-items:center; gap:6px;"><i data-lucide="clock" class="icon-xs icon-cyan"></i> Chronological Discovery & Validation Timeline</span>
               </div>
               <div class="body" style="padding:14px 16px;">
                 <div id="timelineTrack" class="timeline-track">
@@ -239,7 +286,7 @@
             <!-- SCIENTIFIC CONTROVERSIES & CONFLICTING EVIDENCE RADAR -->
             <div class="list-box" id="controversiesBox">
               <div class="header" style="color:#fbbf24;">
-                <span>⚠️ Scientific Controversies & Conflicting Evidence</span>
+                <span style="display:inline-flex; align-items:center; gap:6px;"><i data-lucide="alert-triangle" class="icon-xs icon-amber"></i> Scientific Controversies & Conflicting Evidence</span>
               </div>
               <div class="body" style="padding:12px;">
                 <div id="controversiesGrid">
@@ -254,21 +301,21 @@
         <aside class="panel graph-panel">
           <div class="graph-header">
             <div class="graph-title-wrap">
-              <span style="font-size:1.1rem;">🧬</span>
+              <i data-lucide="network" class="icon-md icon-cyan"></i>
               <h2 class="graph-title">PK/PD Interaction Network</h2>
             </div>
 
             <div class="graph-toolbar">
               <select id="layoutSelect" class="select-custom" title="Layout Engine">
-                <option value="tier_flow" selected>⚡ Cascade Tier Flow</option>
-                <option value="concentric">🎯 Concentric Radar</option>
-                <option value="cose">🌐 Physics Network (COSE)</option>
-                <option value="breadthfirst">🌲 Hierarchy (Tree)</option>
-                <option value="circle">⭕ Circular Ring</option>
+                <option value="tier_flow" selected>Cascade Tier Flow</option>
+                <option value="concentric">Concentric Radar</option>
+                <option value="cose">Physics Network (COSE)</option>
+                <option value="breadthfirst">Hierarchy (Tree)</option>
+                <option value="circle">Circular Ring</option>
               </select>
 
-              <button id="btnSimulateFlow" class="btn-icon btn-flow" title="Simulate signal and clearance wave">
-                ⚡ Simulate Flow
+              <button id="btnSimulateFlow" class="btn-icon btn-flow" title="Simulate signal and clearance wave" style="display:inline-flex; align-items:center; gap:4px;">
+                <i data-lucide="zap" class="icon-xs"></i> Simulate Flow
               </button>
               <button id="zoomIn" class="btn-icon" title="Zoom In">+</button>
               <button id="zoomOut" class="btn-icon" title="Zoom Out">−</button>
@@ -279,9 +326,9 @@
           <!-- PK/PD FILTER PILLS -->
           <div class="graph-filter-matrix">
             <button class="filter-btn active" data-filter="all">All Interactions</button>
-            <button class="filter-btn" data-filter="pd">⚡ Pharmacodynamics (PD)</button>
-            <button class="filter-btn" data-filter="pk">💊 Pharmacokinetics (PK)</button>
-            <button class="filter-btn" data-filter="outcomes">📊 Biomarkers & Outcomes</button>
+            <button class="filter-btn" data-filter="pd">Pharmacodynamics (PD)</button>
+            <button class="filter-btn" data-filter="pk">Pharmacokinetics (PK)</button>
+            <button class="filter-btn" data-filter="outcomes">Biomarkers & Outcomes</button>
           </div>
 
           <!-- CANVAS WRAPPER -->
@@ -313,7 +360,7 @@
       <div class="target-modal-card">
         <div class="target-modal-header">
           <h3 id="targetModalTitle" class="target-modal-title">Target details</h3>
-          <button type="button" id="targetModalClose" class="btn-icon">✕ Close</button>
+          <button type="button" id="targetModalClose" class="btn-icon" style="display:inline-flex; align-items:center; gap:4px;"><i data-lucide="x" class="icon-xs"></i> Close</button>
         </div>
         <div id="targetModalContent" class="target-modal-grid"></div>
       </div>
@@ -327,5 +374,13 @@
       }
     </script>
     <script src="/static/js/compound.js"></script>
+    <script src="/static/js/disclaimer.js"></script>
+    <script>
+      document.addEventListener('DOMContentLoaded', () => {
+        if (window.lucide && typeof window.lucide.createIcons === 'function') {
+          window.lucide.createIcons();
+        }
+      });
+    </script>
   </body>
 </html>

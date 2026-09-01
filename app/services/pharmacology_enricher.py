@@ -970,7 +970,7 @@ class PharmacologyEnricher:
         usan_stem = str(chembl_meta.get("usan_stem") or "").strip().lower().replace("'", "").replace("-", "")
         atc_codes = chembl_meta.get("atc_codes") or []
         level_1_atc = str(chembl_meta.get("level_1_atc") or "").strip()
-        mechanism_text = str(compound.get("mechanism") or "").lower()
+        mechanism_text = f"{str(compound.get('mechanism') or '')} {str(compound.get('drug_class') or '')} {name_lower} {key}".lower()
 
         # Extract existing properties
         matched_cyp_sub: Set[str] = set()
@@ -1095,6 +1095,13 @@ class PharmacologyEnricher:
                 if cls._severity_rank(matched_organ_burdens["cns_stimulant"]) < cls._severity_rank("moderate"):
                     matched_organ_burdens["cns_stimulant"] = "moderate"
 
+        # Direct Sympathomimetic & Ephedrine Class Extraction
+        if any(w in mechanism_text for w in ["ephedrine", "pseudoephedrine", "synephrine", "sympathomimetic"]):
+            if cls._severity_rank(matched_organ_burdens["cardiovascular"]) < cls._severity_rank("high"):
+                matched_organ_burdens["cardiovascular"] = "high"
+            if cls._severity_rank(matched_organ_burdens["cns_stimulant"]) < cls._severity_rank("high"):
+                matched_organ_burdens["cns_stimulant"] = "high"
+
         # Adrenergic & Beta-Agonist Mechanism Extraction
         if any(w in mechanism_text for w in ["beta-2", "beta-1", "beta adrenergic", "adrb2", "adrb1", "adrenoreceptor agonist", "adrenergic receptor agonist", "bronchodilator"]):
             if "antagonist" not in mechanism_text and "blocker" not in mechanism_text and "inhibit" not in mechanism_text:
@@ -1106,13 +1113,13 @@ class PharmacologyEnricher:
                     matched_cyp_sub.update(["CYP2D6", "CYP3A4"])
 
         # Alpha-2 Antagonist & Adenosine Antagonist Mechanism Extraction
-        if "alpha-2" in mechanism_text and any(act in mechanism_text for act in ["antagonist", "blocker", "inhibition"]):
+        if ("alpha-2" in mechanism_text and any(act in mechanism_text for act in ["antagonist", "blocker", "inhibition"])) or any(w in mechanism_text for w in ["yohimbine", "rauwolscine"]):
             if cls._severity_rank(matched_organ_burdens["cardiovascular"]) < cls._severity_rank("high"):
                 matched_organ_burdens["cardiovascular"] = "high"
             if cls._severity_rank(matched_organ_burdens["cns_stimulant"]) < cls._severity_rank("high"):
                 matched_organ_burdens["cns_stimulant"] = "high"
 
-        if "adenosine" in mechanism_text and any(act in mechanism_text for act in ["antagonist", "blocker"]):
+        if ("adenosine" in mechanism_text and any(act in mechanism_text for act in ["antagonist", "blocker"])) or any(w in mechanism_text for w in ["caffeine", "methylxanthine", "theophylline"]):
             if cls._severity_rank(matched_organ_burdens["cardiovascular"]) < cls._severity_rank("moderate"):
                 matched_organ_burdens["cardiovascular"] = "moderate"
             if cls._severity_rank(matched_organ_burdens["cns_stimulant"]) < cls._severity_rank("high"):
@@ -1129,36 +1136,56 @@ class PharmacologyEnricher:
                 matched_cyp_sub.add(cyp_name)
 
         # 4. Merge with Existing Record Data
+        def _merge_named_items(existing_items: Any, matched_set: Set[str], key_name: str) -> List[Any]:
+            res = []
+            seen = set()
+            if isinstance(existing_items, (list, set, tuple)):
+                for it in existing_items:
+                    if isinstance(it, dict):
+                        val = str(it.get(key_name) or it.get("name") or it.get("enzyme") or it.get("transporter") or "")
+                        if val:
+                            seen.add(val.upper())
+                        res.append(it)
+                    elif isinstance(it, str):
+                        if it.upper() not in seen:
+                            seen.add(it.upper())
+                            res.append(it)
+            elif isinstance(existing_items, str):
+                seen.add(existing_items.upper())
+                res.append(existing_items)
+
+            for m in matched_set:
+                if m.upper() not in seen:
+                    seen.add(m.upper())
+                    res.append(m)
+            return sorted(res, key=lambda x: (x if isinstance(x, str) else str(x.get(key_name) or x.get('name') or '')))
+
         existing_cyp = compound.get("cyp_enzymes") or {}
         if not isinstance(existing_cyp, dict):
             existing_cyp = {}
 
-        cur_sub = set(existing_cyp.get("substrates") or [])
-        cur_inh = set(existing_cyp.get("inhibitors") or [])
-        cur_ind = set(existing_cyp.get("inducers") or [])
-
         enriched["cyp_enzymes"] = {
-            "substrates": sorted(cur_sub.union(matched_cyp_sub)),
-            "inhibitors": sorted(cur_inh.union(matched_cyp_inh)),
-            "inducers": sorted(cur_ind.union(matched_cyp_ind)),
+            "substrates": _merge_named_items(existing_cyp.get("substrates"), matched_cyp_sub, "enzyme"),
+            "inhibitors": _merge_named_items(existing_cyp.get("inhibitors"), matched_cyp_inh, "enzyme"),
+            "inducers": _merge_named_items(existing_cyp.get("inducers"), matched_cyp_ind, "enzyme"),
         }
 
         existing_trans = compound.get("transporters") or {}
         if not isinstance(existing_trans, dict):
             existing_trans = {}
         enriched["transporters"] = {
-            "substrates": sorted(set(existing_trans.get("substrates") or []).union(matched_trans_sub)),
-            "inhibitors": sorted(set(existing_trans.get("inhibitors") or []).union(matched_trans_inh)),
-            "inducers": sorted(set(existing_trans.get("inducers") or [])),
+            "substrates": _merge_named_items(existing_trans.get("substrates"), matched_trans_sub, "transporter"),
+            "inhibitors": _merge_named_items(existing_trans.get("inhibitors"), matched_trans_inh, "transporter"),
+            "inducers": _merge_named_items(existing_trans.get("inducers"), set(), "transporter"),
         }
 
         existing_phase2 = compound.get("phase2_enzymes") or {}
         if not isinstance(existing_phase2, dict):
             existing_phase2 = {}
         enriched["phase2_enzymes"] = {
-            "substrates": sorted(set(existing_phase2.get("substrates") or []).union(matched_phase2_sub)),
-            "inhibitors": sorted(set(existing_phase2.get("inhibitors") or []).union(matched_phase2_inh)),
-            "inducers": sorted(set(existing_phase2.get("inducers") or [])),
+            "substrates": _merge_named_items(existing_phase2.get("substrates"), matched_phase2_sub, "enzyme"),
+            "inhibitors": _merge_named_items(existing_phase2.get("inhibitors"), matched_phase2_inh, "enzyme"),
+            "inducers": _merge_named_items(existing_phase2.get("inducers"), set(), "enzyme"),
         }
 
         existing_organs = compound.get("organ_burdens") or {}

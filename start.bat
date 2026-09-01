@@ -63,7 +63,7 @@ echo.
 start "" cmd /c "ping 127.0.0.1 -n 3 >nul & start http://localhost:8000"
 
 :: Start Uvicorn via run_server.py
-"%PYTHON_EXE%" run_server.py --host 127.0.0.1 --port 8000
+"%PYTHON_EXE%" run_server.py --host 0.0.0.0 --port 8000
 
 if %errorlevel% neq 0 (
     echo.

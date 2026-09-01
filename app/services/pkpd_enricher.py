@@ -4,10 +4,12 @@ import json
 import logging
 import math
 import urllib.parse
-from typing import Any, Dict, List, Optional
 import httpx
 
+from app.services.chemical_structure_engine import is_17a_alkylated, is_steroidal_androgen
+
 logger = logging.getLogger("healthai.pkpd_enricher")
+
 
 
 # STRUCTURED CLINICAL USAN STEM QUANTITATIVE PK/PD REFERENCE BENCHMARKS
@@ -507,11 +509,12 @@ class PKPDEnricher:
         d_class_lower = str(compound.get("drug_class") or "").lower()
 
         # Structural & Pharmacological Class Detection
-        is_17aa = any(w in c_name_lower for w in ["methyl", "stanozolol", "superdrol", "anadrol", "oxymetholone", "halotestin", "fluoxymesterone", "dianabol", "methandrostenolone", "turinabol", "winstrol", "oxandrolone", "anavar"])
-        is_steroidal_androgen = ("androgen" in d_class_lower or "anabolic" in d_class_lower or any(w in c_name_lower for w in ["testosterone", "nandrolone", "trenbolone", "boldenone", "drostanolone", "methenolone", "primobolan", "masteron", "deca", "equipoise", "sustanon", "cypionate", "enanthate", "propionate", "undecanoate"]))
+        is_17aa = is_17a_alkylated(compound)
+        is_androgen = is_steroidal_androgen(compound)
         is_peptide = (mw > 800 or any(w in c_name_lower or w in d_class_lower for w in ["peptide", "semaglutide", "tirzepatide", "liraglutide", "glucagon", "somatropin", "hgh", "bpc-157", "tb-500", "insulin"]))
 
-        if is_steroidal_androgen and not is_17aa:
+        if is_androgen and not is_17aa:
+
             # Unalkylated androgens undergo near-complete (>96-98%) intestinal & hepatic first-pass glucuronidation / 17b-HSD oxidation
             base_f = 0.03
         elif is_peptide:

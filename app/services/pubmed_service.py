@@ -1013,7 +1013,7 @@ class PubMedService:
 
         return 0
 
-    def search_literature(self, query: str, max_results: int = 4) -> List[Dict[str, Any]]:
+    def search_literature(self, query: str, max_results: int = 4, online_fallback: bool = True) -> List[Dict[str, Any]]:
         """
         Searches PubMed / Europe PMC for peer-reviewed studies matching query.
         Returns list of structured citations with PMIDs and DOIs.
@@ -1089,6 +1089,9 @@ class PubMedService:
                     self._cache[cache_key] = uniq_scored[:max_results]
                     _GLOBAL_LITERATURE_CACHE[cache_key] = uniq_scored[:max_results]
                     return uniq_scored[:max_results]
+
+        if not online_fallback:
+            return []
 
         results: List[Dict[str, Any]] = []
 
@@ -1571,6 +1574,29 @@ class PubMedService:
         cleaned_query = query.strip().lower()
         if not cleaned_query:
             return []
+
+        # -- LLM Semantic Query Expansion --
+        try:
+            import asyncio
+            from app.services.ai_service import ask_local_llm
+            async def _expand():
+                sys_prompt = "You are a PubMed MeSH Query Expansion agent. Translate layman biomedical queries into advanced PubMed boolean queries. If the query combines a toxic compound with a protective goal (e.g. 'trenbolone neuroprotection'), you must explicitly output a query that searches for the exact mechanism of toxicity of that compound (e.g. 'Trenbolone AND (oxidative stress OR neurotoxicity OR amyloid)'). Output pure JSON: {\"expanded_query\": \"...\"}"
+                user_prompt = f"Expand this query: {cleaned_query}"
+                resp = await ask_local_llm(sys_prompt, user_prompt, max_tokens=150)
+                return resp.get("expanded_query", cleaned_query)
+            
+            try:
+                asyncio.get_running_loop()
+                # If an event loop is already running, we can't easily asyncio.run().
+                # But this function is typically called via asyncio.to_thread, so it should be fine.
+            except RuntimeError:
+                expanded = asyncio.run(_expand())
+                if expanded and len(expanded) > 3:
+                    logger.info(f"Query expanded from '{cleaned_query}' to '{expanded}'")
+                    cleaned_query = expanded.lower()
+        except Exception as e:
+            logger.warning(f"Query expansion failed, falling back to original: {e}")
+        # -----------------------------------
 
         cache_key = f"titles:{cleaned_query}:{max_results}"
         if cache_key in self._cache:

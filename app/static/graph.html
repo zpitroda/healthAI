@@ -4,6 +4,13 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Biological Knowledge Graph & Cascade Engine // HealthAI</title>
+    <link rel="icon" type="image/x-icon" href="/favicon.ico" />
+    <link rel="icon" type="image/png" sizes="32x32" href="/static/favicon-32x32.png" />
+    <link rel="icon" type="image/png" sizes="16x16" href="/static/favicon-16x16.png" />
+    <link rel="icon" type="image/svg+xml" href="/static/favicon.svg" />
+    <link rel="apple-touch-icon" sizes="180x180" href="/static/apple-touch-icon.png" />
+    <link rel="manifest" href="/static/site.webmanifest" />
+    <meta name="theme-color" content="#050811" />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link
@@ -11,38 +18,82 @@
       rel="stylesheet"
     />
     <link rel="stylesheet" href="/static/css/graph.css" />
+    <link rel="stylesheet" href="/static/css/disclaimer.css" />
+    <script src="https://unpkg.com/lucide@latest/dist/umd/lucide.js"></script>
+    <script>
+      window.iconSvg = function iconSvg(name, options = {}) {
+        if (!name) return '';
+        if (typeof name === 'string' && name.trim().startsWith('<')) return name;
+        const aliasMap = {
+          'warning': 'alert-triangle', 'warn': 'alert-triangle', 'danger': 'alert-circle',
+          'error': 'alert-circle', 'info': 'info', 'success': 'check', 'done': 'check',
+          'delete': 'trash-2', 'remove': 'x', 'close': 'x', 'graph': 'network',
+          'dna': 'dna', 'preset': 'zap', 'copilot': 'sparkles', 'ai': 'sparkles',
+          'user': 'user', 'profile': 'user', 'organ': 'shield-check', 'shield': 'shield-check',
+          'flame': 'flame', 'fire': 'flame', 'brain': 'brain', 'heart': 'heart-pulse',
+          'cardio': 'heart-pulse', 'pill': 'pill', 'sleep': 'moon', 'moon': 'moon',
+          'sun': 'sun', 'edit': 'pencil', 'key': 'key', 'settings': 'sliders',
+          'flask': 'flask-conical', 'science': 'flask-conical', 'search': 'search',
+          'crosshair': 'crosshair', 'target': 'target', 'clock': 'clock',
+          'repeat': 'repeat', 'droplet': 'droplet', 'syringe': 'syringe',
+          'microscope': 'microscope', 'activity': 'activity', 'layers': 'layers',
+          'scale': 'scale', 'check': 'check', 'x': 'x', 'building': 'building-2',
+          'institution': 'building-2', 'fda': 'building-2', 'book': 'book-open',
+          'paper': 'file-text', 'pmid': 'file-text', 'doi': 'globe', 'globe': 'globe',
+          'send': 'send', 'bot': 'bot', 'lightbulb': 'lightbulb', 'sparkles': 'sparkles'
+        };
+        const raw = String(name).toLowerCase().trim();
+        const lookupName = aliasMap[raw] || raw;
+        if (window.lucide && window.lucide.icons && window.lucide.icons[lookupName]) {
+          const size = options.size || (options.class?.includes('icon-xs') ? 12 : options.class?.includes('icon-sm') ? 15 : options.class?.includes('icon-lg') ? 24 : options.class?.includes('icon-xl') ? 32 : 16);
+          return window.lucide.icons[lookupName].toSvg({
+            class: `lucide-icon ${options.class || ''}`.trim(),
+            width: size,
+            height: size,
+            'stroke-width': options.strokeWidth || 2,
+            ...(options.attrs || {})
+          });
+        }
+        return `<i data-lucide="${lookupName}" class="${options.class || ''}"></i>`;
+      };
+    </script>
   </head>
   <body>
     <div class="app-shell">
       <!-- TOPBAR -->
       <header class="toolbar">
         <div class="brand-wrap">
-          <div class="brand-logo">🧬</div>
+          <div class="brand-logo" style="display:inline-flex; align-items:center; justify-content:center;"><i data-lucide="network" class="icon-md icon-cyan"></i></div>
           <div>
             <div class="brand-title">Biological Knowledge Graph</div>
           </div>
-          <span class="brand-tag">Dynamic Multi-Tier Engine</span>
+          <span class="brand-tag">6-Tier Cascade Engine</span>
         </div>
 
         <div class="controls-bar">
+          <a href="/" class="btn-icon" style="background:linear-gradient(135deg, rgba(0,242,254,0.15), rgba(79,70,229,0.25)); border-color:rgba(0,242,254,0.4); color:#00f2fe; text-decoration:none; font-weight:800; display:inline-flex; align-items:center; gap:6px;" title="Return to Safety Lab & AI Stack Builder">
+            <i data-lucide="arrow-left" class="icon-xs"></i>
+            <span>Stack Builder</span>
+          </a>
+
           <div class="search-box">
-            <span class="search-icon">🔍</span>
+            <span class="search-icon"><i data-lucide="search" class="icon-xs"></i></span>
             <input id="searchInput" class="search-input" type="search" placeholder="Search nodes or targets..." />
           </div>
 
           <select id="layoutSelect" class="select-custom" title="Graph Layout Engine">
-            <option value="tier_flow" selected>⚡ Cascade Tier Flow (Left-to-Right)</option>
-            <option value="cose">🌐 Physics Network (COSE)</option>
-            <option value="breadthfirst">🌲 Directed Hierarchy (Tree)</option>
-            <option value="concentric">🎯 Concentric Orbits</option>
-            <option value="circle">⭕ Circular Ring</option>
+            <option value="tier_flow" selected>Cascade Tier Flow (Left-to-Right)</option>
+            <option value="cose">Physics Network (COSE)</option>
+            <option value="breadthfirst">Directed Hierarchy (Tree)</option>
+            <option value="concentric">Concentric Orbits</option>
+            <option value="circle">Circular Ring</option>
           </select>
 
-          <button id="btnSimulate" class="btn-icon btn-action-glow" title="Simulate biological signal propagation down cascades">
-            ⚡ Simulate Signal
+          <button id="btnSimulate" class="btn-icon btn-action-glow" title="Simulate biological signal propagation down cascades" style="display:inline-flex; align-items:center; gap:4px;">
+            <i data-lucide="zap" class="icon-xs"></i> Simulate Signal
           </button>
-          <button id="btnTracePath" class="btn-icon" title="Find biological path between two nodes">
-            📍 Trace Path
+          <button id="btnTracePath" class="btn-icon" title="Find biological path between two nodes" style="display:inline-flex; align-items:center; gap:4px;">
+            <i data-lucide="git-branch" class="icon-xs"></i> Trace Path
           </button>
           <button id="zoomIn" class="btn-icon" title="Zoom In">+</button>
           <button id="zoomOut" class="btn-icon" title="Zoom Out">−</button>
@@ -52,15 +103,19 @@
         </div>
 
         <button class="mobile-menu-toggle" id="mobile-menu-toggle" aria-label="Toggle navigation menu">
-          <span>☰</span>
+          <i data-lucide="menu" class="icon-md"></i>
         </button>
 
         <nav class="nav-links" id="nav-links">
           <a href="/" class="nav-link">Safety Lab</a>
-          <a href="/graph" class="nav-link active">Knowledge Graph</a>
+          <a href="/graph" class="nav-link active">
+            <span>Knowledge Graph</span>
+            <span style="font-size:0.62rem; font-family:'JetBrains Mono',monospace; padding:1px 5px; border-radius:4px; background:rgba(0,242,254,0.2); border:1px solid rgba(0,242,254,0.45); color:#00f2fe; margin-left:4px; font-weight:800;">2.0</span>
+          </a>
           <a href="/compound?key=caffeine" class="nav-link">Compound DB</a>
           <a href="/admin" class="nav-link">Catalog DB</a>
           <a href="/debug" class="nav-link">Debug Workbench</a>
+          <a href="javascript:void(0)" onclick="HealthAIDisclaimer.open('medical')" class="nav-link" style="color:#fbbf24; font-weight:700; display:inline-flex; align-items:center; gap:4px;"><i data-lucide="alert-triangle" class="icon-xs icon-amber"></i> Disclaimer</a>
         </nav>
       </header>
 
@@ -86,7 +141,7 @@
       <!-- CASCADE PREVIEW STRIP -->
       <div id="cascadeResultsBar" class="cascade-strip" style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:8px;">
         <div style="display:flex; align-items:center; gap:8px; flex-wrap:wrap; flex:1;">
-          <span class="cascade-title">⚡ Cascade Effects:</span>
+          <span class="cascade-title" style="display:inline-flex; align-items:center; gap:4px;"><i data-lucide="zap" class="icon-xs icon-cyan"></i> Cascade Effects:</span>
           <div id="cascadeChipsList" style="display:inline-flex; gap:5px; flex-wrap:wrap;">
             <span class="cascade-badge">Computing multi-tier cascade predictions…</span>
           </div>
@@ -120,16 +175,16 @@
         <div class="hud-top-filters">
           <div class="graph-filter-matrix" id="domainFilters">
             <button class="filter-btn active" data-filter="all">All Interactions</button>
-            <button class="filter-btn" data-filter="convergence" id="btnFilterConvergence" title="Show molecular targets with multiple compound inputs">⚔️ Converging Targets</button>
-            <button class="filter-btn" id="btnToggleControversies" title="Highlight scientifically debated relationships with low consensus scores">⚠️ Controversies Radar</button>
+            <button class="filter-btn" data-filter="convergence" id="btnFilterConvergence" title="Show molecular targets with multiple compound inputs" style="display:inline-flex; align-items:center; gap:4px;"><i data-lucide="crosshair" class="icon-xs"></i> Converging Targets</button>
+            <button class="filter-btn" id="btnToggleControversies" title="Highlight scientifically debated relationships with low consensus scores" style="display:inline-flex; align-items:center; gap:4px;"><i data-lucide="alert-triangle" class="icon-xs icon-amber"></i> Controversies Radar</button>
             <div class="filter-btn" style="display:inline-flex; align-items:center; gap:6px; background:rgba(8,13,25,0.9); cursor:default;">
-              <span style="font-size:0.68rem; color:var(--text-secondary);">⏳ Discovery Horizon:</span>
+              <span style="font-size:0.68rem; color:var(--text-secondary); display:inline-flex; align-items:center; gap:3px;"><i data-lucide="clock" class="icon-xs"></i> Discovery Horizon:</span>
               <input type="range" id="temporalYearSlider" min="1990" max="2026" value="2026" style="width:70px; height:4px; accent-color:#00f2fe; cursor:pointer;" />
               <strong id="temporalYearDisplay" style="color:#00f2fe; font-size:0.72rem; font-family:'JetBrains Mono';">2026</strong>
             </div>
-            <button class="filter-btn" data-filter="pd">⚡ Pharmacodynamics (PD)</button>
-            <button class="filter-btn" data-filter="pk">💊 Pharmacokinetics (PK)</button>
-            <button class="filter-btn" data-filter="outcomes">📊 Biomarkers & Outcomes</button>
+            <button class="filter-btn" data-filter="pd">Pharmacodynamics (PD)</button>
+            <button class="filter-btn" data-filter="pk">Pharmacokinetics (PK)</button>
+            <button class="filter-btn" data-filter="outcomes">Biomarkers & Outcomes</button>
           </div>
           <div class="hud-tier-filters" id="typeFilters"></div>
         </div>
@@ -150,7 +205,7 @@
         <!-- FLOATING INSPECTOR DRAWER 2.0 -->
         <aside class="inspector-drawer hidden" id="nodePanelContainer">
           <div class="inspector-header">
-            <span class="inspector-title" id="inspectorHeaderTitle">🧬 Node Inspector</span>
+            <span class="inspector-title" id="inspectorHeaderTitle" style="display:inline-flex; align-items:center; gap:6px;"><i data-lucide="network" class="icon-sm icon-cyan"></i> Node Inspector</span>
             <button id="inspectorCloseBtn" class="inspector-close-btn" title="Close drawer">&times;</button>
           </div>
           
@@ -181,5 +236,13 @@
       }
     </script>
     <script src="/static/js/graph.js"></script>
+    <script src="/static/js/disclaimer.js"></script>
+    <script>
+      document.addEventListener('DOMContentLoaded', () => {
+        if (window.lucide && typeof window.lucide.createIcons === 'function') {
+          window.lucide.createIcons();
+        }
+      });
+    </script>
   </body>
 </html>

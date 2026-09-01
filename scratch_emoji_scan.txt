@@ -1,0 +1,27 @@
+=== app/static\index.html (3 matches) ===
+  Line 404: ['0x25bc'] -> <span id="biomarker-toggle-icon" style="font-size: 0.75rem; color: var(--accent-cyan); flex-shrink: 0;">▼</span>
+  Line 707: ['0x2794', '0x2794', '0x2794', '0x2794', '0x2794'] -> <p style="font-size: 0.84rem; color: var(--text-secondary); margin-top: 2px;">Switch to the <strong>Knowledge Graph</str
+  Line 731: ['0x2794'] -> <p style="font-size: 0.84rem; color: var(--text-secondary); margin-top: 2px;">HealthAI is an experimental simulation too
+=== app/static\js\app-api.js (2 matches) ===
+  Line 799: ['0x2794'] -> <span>${iconSvg('network', { class: 'icon-xs' })} Trace Pathway in Knowledge Graph</span> ➔
+  Line 822: ['0x27f7'] -> document.getElementById('modal-pair-title').textContent = `${srcName} ⟷ ${tgtName}`;
+=== app/static\js\app-copilot.js (6 matches) ===
+  Line 532: ['0x2699', '0xfe0f', '0x1f6aa', '0x1f9ec', '0x26a1', '0x1f3af', '0x1f9ea'] -> if (lower.startsWith('⚙️') || lower.startsWith('🚪') || lower.startsWith('🧬') || lower.startsWith('⚡') || lower.startsWit
+  Line 2195: ['0x1f511'] -> <p style="margin-top: 6px; font-size: 0.76rem; color: var(--text-muted);">Ensure local AI engine (llama-server on port 8
+  Line 2249: ['0x2794'] -> <span style="color: var(--text-muted); font-size: 0.74rem;">➔ ${escapeHtml(m.dose)}${escapeHtml(m.unit || 'mg')} • ${esc
+  Line 2479: ['0x1f6e1', '0xfe0f'] -> tagPills.push(`<span style="background: rgba(16,185,129,0.15); border: 1px solid rgba(16,185,129,0.3); border-radius: 4p
+  Line 2481: ['0x26a1'] -> tagPills.push(`<span style="background: rgba(245,158,11,0.15); border: 1px solid rgba(245,158,11,0.3); border-radius: 4p
+  Line 2483: ['0x1f6e1', '0xfe0f'] -> tagPills.push(`<span style="background: rgba(0,242,254,0.1); border: 1px solid rgba(0,242,254,0.25); border-radius: 4px;
+=== app/static\js\app-ui.js (1 matches) ===
+  Line 533: ['0x1f50d'] -> const name = ins.querySelector('.copilot-inspector-title span')?.textContent?.replace('🔍 ', '') || 'Compound';
+=== app/static\js\compound.js (3 matches) ===
+  Line 109: ['0x26a0', '0xfe0f'] -> ['Therapeutic Precision', compound.therapeutic_index ? `TI: ${compound.therapeutic_index}x (MEC: ${compound.mec_ng_ml ||
+  Line 192: ['0x2699', '0xfe0f', '0x1f6aa', '0x26a1', '0x1f9ec', '0x1f3af'] -> const icon = tClass.includes('enzyme') ? '⚙️ ' : (tClass.includes('transporter') || tClass.includes('slc') ? '🚪 ' : (tCl
+  Line 425: ['0x25cf'] -> quickCardTitle.innerHTML = `<span style="color:${colorForNode(nodeData.node_type)};">●</span> ${nodeData.label || nodeId
+=== app/static\js\graph.js (6 matches) ===
+  Line 579: ['0x1f6e1', '0xfe0f', '0x26a0', '0xfe0f', '0x1f3af'] -> const icon = isSuppressed ? '🛡️' : (p.severity === 'high' || p.severity === 'critical' ? '⚠️' : '🎯');
+  Line 800: ['0x26a0', '0xfe0f'] -> <div style="font-size:0.75rem; font-weight:800; color:#fbbf24;">⚠️ Disputed Relationship (Consensus: ${consensus}%)</div
+  Line 811: ['0x2794'] -> <div class="node-hero-title" style="font-size:1.1rem; margin-top:2px;">${src} ➔ ${tgt}</div>
+  Line 918: ['0x26a1'] -> ⚡ ${name}: <strong>${p.status || 'ACTIVE'}</strong>
+  Line 927: ['0x1f6e1', '0xfe0f', '0x26a0', '0xfe0f', '0x1f3af'] -> const icon = isSuppressed ? '🛡️' : (isSevere ? '⚠️' : '🎯');
+  Line 1167: ['0x2694', '0xfe0f'] -> badgesHtml += `<span class="tooltip-badge" style="background:${netCol}22; color:${netCol}; border:1px solid ${netCol}66;

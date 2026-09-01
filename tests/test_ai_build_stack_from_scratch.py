@@ -58,7 +58,8 @@ def test_build_scratch_stack_proposal_cognitive():
     keys = [c["key"] for c in proposal["compounds"]]
     assert "caffeine" in keys
     assert "l_theanine" in keys
-    assert "bacopa" in keys
+    assert "modafinil" in keys
+    assert "alpha_gpc" in keys
 
     # Verify action card diff format
     action_card = proposal["action_card"]
@@ -168,10 +169,15 @@ def test_anabolic_physique_enhanced_scratch_stack_includes_ai_and_depot_schedule
     assert test_cyp["route"] in ("intramuscular", "subcutaneous")
     assert test_cyp["dose"] in (175, 350)
 
-    # Verify AI has twice-weekly frequency and oral route
+    # Verify AI has twice-weekly frequency and oral route (NEVER daily)
     ai_cand = next(c for c in proposal["compounds"] if c["key"] in ("anastrozole", "exemestane"))
-    assert ai_cand["frequency"] in ("twice_weekly", "every_other_day", "daily")
+    assert ai_cand["frequency"] in ("twice_weekly", "every_other_day", "weekly")
+    assert ai_cand["frequency"] != "daily"
+    assert "weekly" in ai_cand["timing"].lower() or "twice" in ai_cand["timing"].lower() or "every other" in ai_cand["timing"].lower()
     assert ai_cand["route"] == "oral"
+    # Ensure AI is in intermittent schedule and NOT in daily morning pill bucket
+    assert any(c["key"] in ("anastrozole", "exemestane") for c in proposal["schedule"].get("intermittent", []))
+    assert not any(c["key"] in ("anastrozole", "exemestane") for c in proposal["schedule"].get("morning", []))
 
 
 def test_therapeutic_gap_detects_missing_ai_for_testosterone_stack():
@@ -220,6 +226,37 @@ def test_dosing_service_depot_androgen_route_and_frequency_defaults():
     assert parsed_weekly["frequency"] == "weekly"
     assert parsed_weekly["dose_mg"] == 350.0
     assert parsed_weekly["effective_daily_dose_mg"] == 50.0
+
+
+def test_exemestane_with_350mg_testosterone_weekly_defaults_to_twice_weekly_and_not_daily():
+    """Verify AI copilot stack builder and intent engine schedule Exemestane as twice-weekly / intermittent on a 350mg testosterone cycle, NOT daily."""
+    proposal = StackIntentEngine.build_scratch_stack_proposal(
+        goal_id="anabolic_physique",
+        biometrics={"weight_kg": 80.0, "blood_pressure": 120.0, "alt_u_l": 25.0, "egfr": 95.0},
+        custom_notes="Stack 350mg testosterone cypionate weekly with exemestane for estrogen management",
+    )
+    exem = next(c for c in proposal["compounds"] if c["key"] == "exemestane")
+    assert exem["frequency"] in ("twice_weekly", "twice weekly")
+    assert exem["frequency"] != "daily"
+    assert "weekly" in exem["timing"].lower() or "twice" in exem["timing"].lower()
+    assert exem["route"] == "oral"
+    assert exem["dose"] == 12.5 or exem["dose"] == 12
+
+    # Check protocol representation has Exemestane with twice weekly timing
+    md = CopilotAgent.format_deterministic_protocol_markdown(proposal, persona="architect")
+    assert "Exemestane" in md
+    assert "twice weekly" in md.lower() or "twice_weekly" in md.lower() or "mon / thu" in md.lower()
+
+    # Check action card validator ensures twice weekly
+    from app.services.action_card_validator import ActionCardValidator
+    raw_card = {
+        "add": [{"key": "exemestane", "dose": 12.5, "unit": "mg", "timing": "morning", "route": "oral"}],
+        "modify": [],
+        "remove": [],
+    }
+    sanitized, notes = ActionCardValidator.validate_and_sanitize_card("stack_diff", raw_card)
+    assert sanitized["add"][0]["frequency"] in ("twice weekly", "twice_weekly")
+    assert "twice weekly" in sanitized["add"][0]["timing"].lower()
 
 
 def test_build_scratch_stack_proposal_risk_tolerance_conservative_vs_aggressive():
@@ -324,7 +361,8 @@ def test_build_scratch_stack_proposal_exclusion_caffeine_focus():
     keys = [c["key"] for c in proposal["compounds"]]
     assert "caffeine" not in keys
     assert "l_theanine" in keys
-    assert "bacopa" in keys
+    assert "modafinil" in keys
+    assert "alpha_gpc" in keys
     assert any("caffeine" in e.lower() for e in proposal["applied_exclusions"])
 
 

@@ -1,3 +1,7 @@
+var iconSvg = window.iconSvg || function(name, options = {}) {
+  if (typeof window.iconSvg === 'function') return window.iconSvg(name, options);
+  return `<i data-lucide="${name}" class="${options.class || ''}"></i>`;
+};
 const graphContainer = document.getElementById('graph-canvas');
       const statusEl = document.getElementById('status');
       const nodePanel = document.getElementById('nodePanel');
@@ -66,11 +70,12 @@ const graphContainer = document.getElementById('graph-canvas');
       function getFrequencyMultiplierClient(freq) {
         const f = (freq || '').toLowerCase().replace(/[^a-z0-9]/g, '_');
         if (f.includes('bid') || (f.includes('twice') && !f.includes('week'))) return 2.0;
-        if (f.includes('tid') || f.includes('three')) return 3.0;
+        if (f.includes('tiw') || f.includes('3x_week') || (f.includes('three') && f.includes('week'))) return 3.0 / 7.0;
+        if (f.includes('tid') || (f.includes('three') && !f.includes('week'))) return 3.0;
         if (f.includes('qid') || f.includes('four')) return 4.0;
-        if (f.includes('qod') || f.includes('other')) return 0.5;
-        if (f.includes('biw') || (f.includes('twice') && f.includes('week'))) return 2.0 / 7.0;
-        if (f.includes('qw') || (f.includes('week') && !f.includes('2') && !f.includes('bi'))) return 1.0 / 7.0;
+        if (f.includes('qod') || f.includes('eod') || f.includes('other') || f.includes('alternate')) return 0.5;
+        if (f.includes('biw') || (f.includes('twice') && f.includes('week')) || f.includes('2x_week')) return 2.0 / 7.0;
+        if (f.includes('qw') || (f.includes('week') && !f.includes('2') && !f.includes('bi') && !f.includes('three') && !f.includes('3'))) return 1.0 / 7.0;
         if (f.includes('q2w') || f.includes('2_week') || f.includes('biweek')) return 1.0 / 14.0;
         if (f.includes('qm') || f.includes('month')) return 1.0 / 30.0;
         if (f.includes('prn') || f.includes('needed')) return 0.5;
@@ -263,7 +268,7 @@ const graphContainer = document.getElementById('graph-canvas');
           <div class="convergence-card">
             <div class="convergence-header">
               <span class="convergence-tag">
-                ⚔️ Receptor Saturation & PD • ${dynamicCombined.ligand_count} Compound${dynamicCombined.ligand_count > 1 ? 's' : ''}
+                Receptor Saturation & PD • ${dynamicCombined.ligand_count} Compound${dynamicCombined.ligand_count > 1 ? 's' : ''}
               </span>
               <span class="receptor-state-badge ${stateClass}">
                 ${dynamicCombined.receptor_state}
@@ -310,7 +315,7 @@ const graphContainer = document.getElementById('graph-canvas');
             <!-- MECHANISM SUMMARY -->
             <div class="mechanism-summary-card">
               <div style="font-weight:700; color:#38bdf8; margin-bottom:3px; display:flex; align-items:center; gap:4px;">
-                🔬 Pharmacodynamic Convergence
+                Pharmacodynamic Convergence
               </div>
               ${dynamicCombined.pharmacological_summary}
             </div>
@@ -350,7 +355,7 @@ const graphContainer = document.getElementById('graph-canvas');
           ? outgoing.map(edge => `
               <div class="neighbor-pill" onclick="focusAndSelectNode('${edge.target}')">
                 <strong>${edge.type || 'MODULATES'}</strong>
-                <span style="color:var(--text-secondary); font-size:0.72rem;">to ${edge.target} ${edge.is_bridge ? '⚡ Cross-Talk Bridge' : ''}</span>
+                <span style="color:var(--text-secondary); font-size:0.72rem;">to ${edge.target} ${edge.is_bridge ? 'Cross-Talk Bridge' : ''}</span>
               </div>
             `).join('')
           : '<div style="color:var(--text-muted); font-size:0.75rem;">No downstream targets.</div>';
@@ -372,7 +377,7 @@ const graphContainer = document.getElementById('graph-canvas');
           compoundGlobalDoseCard = `
             <div class="global-dose-card">
               <div style="font-size:0.68rem; text-transform:uppercase; font-weight:700; color:#38bdf8; letter-spacing:0.04em; margin-bottom:6px; display:flex; justify-content:space-between; align-items:center;">
-                <span>💊 Global Regimen & Dose</span>
+                <span>Global Regimen & Dose</span>
                 <span style="font-family:'JetBrains Mono',monospace; color:var(--text-muted); font-size:0.62rem;">Applies network-wide</span>
               </div>
               <div style="display:flex; align-items:center; justify-content:space-between; gap:8px;">
@@ -416,7 +421,7 @@ const graphContainer = document.getElementById('graph-canvas');
             compoundConvergingTargetsHtml = `
               <div class="convergence-card" style="margin-top:4px;">
                 <div class="convergence-header">
-                  <span class="convergence-tag">⚔️ Converging Target Receptors</span>
+                  <span class="convergence-tag">${iconSvg('activity', { class: 'icon-xs icon-rose' })} Converging Target Receptors</span>
                 </div>
                 <div style="display:flex; flex-direction:column; gap:5px;">
                   ${targets.map(t => {
@@ -544,7 +549,7 @@ const graphContainer = document.getElementById('graph-canvas');
                   ${p5p95Str ? `
                   <div class="biomarker-meta-row" style="margin-top:-2px;">
                     <span style="color:#00f2fe; font-family:'JetBrains Mono',monospace; font-size:0.68rem;" title="90% Population Percentile Distribution Curve (p5 to p95)">
-                      📊 p5–p95 Curve: <strong>${p5p95Str}</strong>
+                      p5–p95 Curve: <strong>${p5p95Str}</strong>
                     </span>
                     <span>Net Shift: <strong>${b.net_shift > 0 ? '+' : ''}${b.net_shift}</strong></span>
                   </div>
@@ -555,7 +560,7 @@ const graphContainer = document.getElementById('graph-canvas');
                   </div>
                   `}
                   <div class="biomarker-meta-row" style="margin-top:1px; font-size:0.65rem; color:#38bdf8; border-top:1px dashed rgba(255,255,255,0.06); padding-top:2px;" title="${b.time_course_description || ''}">
-                    <span>⏱️ Steady-State: <strong>~${b.time_to_steady_state_weeks || 1} wks</strong> (t½: ${b.half_time_days || 3}d)</span>
+                    <span>Steady-State: <strong>~${b.time_to_steady_state_weeks || 1} wks</strong> (t½: ${b.half_time_days || 3}d)</span>
                     <span style="text-transform:capitalize; color:var(--text-muted);">${(b.kinetic_profile || '').replace(/_/g, ' ')}</span>
                   </div>
                   ${contribPills ? `<div class="contrib-chips-list">${contribPills}</div>` : ''}
@@ -592,7 +597,7 @@ const graphContainer = document.getElementById('graph-canvas');
                   </div>
                   ${pDistStr ? `
                   <div style="font-size:0.66rem; color:#00f2fe; font-family:'JetBrains Mono', monospace; margin-top:2px;" title="90% Inter-individual Risk Shift Distribution (p5 to p95)">
-                    📊 p5–p95 Risk Band: <strong>${pDistStr}</strong>
+                    p5–p95 Risk Band: <strong>${pDistStr}</strong>
                   </div>
                   ` : ''}
                   ${p.description ? `<p style="font-size:0.68rem; color:var(--text-muted); margin:0;">${p.description}</p>` : ''}
@@ -609,7 +614,7 @@ const graphContainer = document.getElementById('graph-canvas');
               const isDown = pw.status === 'DOWNREGULATED';
               return `
                 <div style="display:flex; justify-content:space-between; align-items:center; padding:6px 9px; background:rgba(13,20,38,0.75); border:1px solid rgba(255,255,255,0.06); border-radius:6px; font-size:0.72rem; cursor:pointer;" onclick="focusAndSelectNode('${pw.pathway_id}')" title="Click to focus pathway node">
-                  <span style="font-weight:600; color:var(--text-primary);">⚡ ${pw.label || pw.name}</span>
+                  <span style="font-weight:600; color:var(--text-primary); display:inline-flex; align-items:center; gap:4px;">${iconSvg('zap', { class: 'icon-xs icon-cyan' })} ${pw.label || pw.name}</span>
                   <span class="compound-action-pill ${isUp ? 'pill-agonist' : (isDown ? 'pill-antagonist' : 'pill-modulator')}">${pw.status || 'ACTIVE'}</span>
                 </div>
               `;
@@ -623,7 +628,7 @@ const graphContainer = document.getElementById('graph-canvas');
             </div>
             <div style="background:rgba(12,24,38,0.85); border:1px solid rgba(0,242,254,0.25); border-radius:8px; padding:10px 12px; display:flex; flex-direction:column; gap:6px;">
               <div style="display:flex; justify-content:space-between; align-items:center;">
-                <span style="font-size:0.75rem; font-weight:700; color:#38bdf8; display:flex; align-items:center; gap:4px;">⏱️ Timeline Horizon:</span>
+                <span style="font-size:0.75rem; font-weight:700; color:#38bdf8; display:flex; align-items:center; gap:4px;">Timeline Horizon:</span>
                 <select 
                   class="chip-unit-select" 
                   style="background:rgba(0,0,0,0.4); border:1px solid rgba(0,242,254,0.3); color:#00f2fe; font-weight:700; padding:2px 8px; border-radius:6px; font-size:0.72rem;"
@@ -648,7 +653,7 @@ const graphContainer = document.getElementById('graph-canvas');
             <div class="cascade-dashboard">
               <div>
                 <div class="cascade-section-title">
-                  <span>🩸 Quantitative Biomarker Predictions</span>
+                  <span>Quantitative Biomarker Predictions</span>
                   <span style="font-size:0.65rem; color:var(--text-muted); font-weight:normal;">Baseline vs Projected</span>
                 </div>
                 <div style="display:flex; flex-direction:column; gap:7px; margin-top:6px;">
@@ -658,7 +663,7 @@ const graphContainer = document.getElementById('graph-canvas');
 
               <div>
                 <div class="cascade-section-title">
-                  <span>🎯 Clinical Outcome & Risk Forecast</span>
+                  <span>Clinical Outcome & Risk Forecast</span>
                   <span style="font-size:0.65rem; color:var(--text-muted); font-weight:normal;">Safety Endpoints</span>
                 </div>
                 <div style="display:flex; flex-direction:column; gap:7px; margin-top:6px;">
@@ -668,7 +673,7 @@ const graphContainer = document.getElementById('graph-canvas');
 
               <div>
                 <div class="cascade-section-title">
-                  <span>⚡ Intracellular Signaling Pathways</span>
+                  <span>Intracellular Signaling Pathways</span>
                   <span style="font-size:0.65rem; color:var(--text-muted); font-weight:normal;">Reactome/KEGG</span>
                 </div>
                 <div style="display:flex; flex-direction:column; gap:5px; margin-top:6px;">
@@ -703,7 +708,7 @@ const graphContainer = document.getElementById('graph-canvas');
               let outHtml = '';
               if (conflicts.length > 0) {
                 outHtml += `<div style="background:rgba(245,158,11,0.08); border:1px solid rgba(245,158,11,0.3); border-radius:8px; padding:10px;">
-                  <div style="font-size:0.78rem; font-weight:800; color:#fbbf24;">⚠️ Active Scientific Controversies</div>`;
+                  <div style="font-size:0.78rem; font-weight:800; color:#fbbf24;">Active Scientific Controversies</div>`;
                 conflicts.forEach(cf => {
                   outHtml += `
                     <div style="font-size:0.72rem; color:var(--text-secondary); margin-top:6px; line-height:1.35;">
@@ -733,14 +738,14 @@ const graphContainer = document.getElementById('graph-canvas');
 
               if (cites.length > 0 || trials.length > 0) {
                 outHtml += `<div>
-                  <div style="font-size:0.75rem; font-weight:700; color:#10b981; margin-bottom:6px;">🔬 Peer-Reviewed Grounding (${cites.length + trials.length} Studies)</div>
+                  <div style="font-size:0.75rem; font-weight:700; color:#10b981; margin-bottom:6px;">Peer-Reviewed Grounding (${cites.length + trials.length} Studies)</div>
                   <div style="display:flex; flex-direction:column; gap:6px;">`;
                 cites.slice(0, 5).forEach(c => {
                   outHtml += `
                     <div style="font-size:0.72rem; padding:8px 10px; background:rgba(8,13,25,0.7); border:1px solid var(--border-subtle); border-radius:6px;">
                       <div style="font-weight:700; color:#ffffff;">${c.title}</div>
                       <div style="font-size:0.65rem; color:var(--text-muted); margin-top:2px;">${c.journal || 'Journal'} (${c.pub_year || 'N/A'}) &bull; ${c.evidence_tier || 'Study'}</div>
-                      ${c.key_findings ? `<div style="font-size:0.68rem; color:#94a3b8; margin-top:3px;">💡 ${c.key_findings}</div>` : ''}
+                      ${c.key_findings ? `<div style="font-size:0.68rem; color:#94a3b8; margin-top:3px;">${c.key_findings}</div>` : ''}
                       ${c.pmid ? `<div style="margin-top:4px;"><a href="https://pubmed.ncbi.nlm.nih.gov/${c.pmid}/" target="_blank" rel="noopener" style="color:#38bdf8; font-size:0.68rem; text-decoration:none;">PubMed: ${c.pmid} ↗</a></div>` : ''}
                     </div>
                   `;
@@ -763,7 +768,7 @@ const graphContainer = document.getElementById('graph-canvas');
         const nodePanelContainer = document.getElementById('nodePanelContainer');
         const inspectorHeaderTitle = document.getElementById('inspectorHeaderTitle');
 
-        if (inspectorHeaderTitle) inspectorHeaderTitle.textContent = '⚡ Interaction Provenance';
+        if (inspectorHeaderTitle) inspectorHeaderTitle.innerHTML = `${iconSvg('zap', { class: 'icon-xs icon-cyan' })} Interaction Provenance`;
         if (nodePanelContainer) nodePanelContainer.classList.remove('hidden');
 
         const src = edgeData.source;
@@ -827,7 +832,7 @@ const graphContainer = document.getElementById('graph-canvas');
           tab.classList.add('active');
           state.selectedTab = tab.dataset.tab;
           const inspectorHeaderTitle = document.getElementById('inspectorHeaderTitle');
-          if (inspectorHeaderTitle) inspectorHeaderTitle.textContent = '🧬 Node Inspector';
+          if (inspectorHeaderTitle) inspectorHeaderTitle.innerHTML = `${iconSvg('dna', { class: 'icon-xs icon-cyan' })} Node Inspector`;
           renderNodePanel();
         });
       });
@@ -1194,7 +1199,7 @@ const graphContainer = document.getElementById('graph-canvas');
 
           state.selectedNode = nodeId;
           const inspectorHeaderTitle = document.getElementById('inspectorHeaderTitle');
-          if (inspectorHeaderTitle) inspectorHeaderTitle.textContent = '🧬 Node Inspector';
+          if (inspectorHeaderTitle) inspectorHeaderTitle.innerHTML = `${iconSvg('dna', { class: 'icon-xs icon-cyan' })} Node Inspector`;
           renderNodePanel();
         });
 
@@ -1422,7 +1427,7 @@ const graphContainer = document.getElementById('graph-canvas');
         if (!state.cy || state.simulating) return;
         state.simulating = true;
         btnSimulate.classList.add('active');
-        btnSimulate.textContent = '🌊 Propagating Signal…';
+        btnSimulate.innerHTML = `${iconSvg('activity', { class: 'icon-xs' })} Propagating Signal…`;
 
         const cy = state.cy;
         const tiers = [0, 1, 2, 3, 4, 5];
@@ -1437,7 +1442,7 @@ const graphContainer = document.getElementById('graph-canvas');
               cy.elements().removeClass('faded').removeClass('highlighted');
               state.simulating = false;
               btnSimulate.classList.remove('active');
-              btnSimulate.textContent = '⚡ Simulate Signal';
+              btnSimulate.innerHTML = `${iconSvg('zap', { class: 'icon-xs' })} Simulate Signal`;
               statusEl.textContent = 'Signal cascade simulation complete.';
             }, 600);
             return;

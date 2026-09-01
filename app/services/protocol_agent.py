@@ -44,7 +44,7 @@ Your sole responsibility is to analyze a compound stack, patient biometrics, and
 ```
 """
 
-async def optimize_protocol(stack: List[str], biometrics: Dict[str, Any]) -> Dict[str, Any]:
+async def optimize_protocol(stack: List[str], biometrics: Dict[str, Any], history: str = "") -> Dict[str, Any]:
     """
     Orchestrates the 3-step optimization process:
     1. GraphRAG Context Extraction
@@ -67,6 +67,9 @@ async def optimize_protocol(stack: List[str], biometrics: Dict[str, Any]) -> Dic
         logger.error(f"Error extracting GraphRAG context: {e}")
         graph_text = f"Error retrieving graph context: {str(e)}"
 
+    # Format the history block if provided
+    history_block = f"\n### PREVIOUS OPTIMIZATION PASSES (MEMORY)\n{history}\nReview the history to understand why the current stack looks the way it does. Verify if any countermeasures you previously added have introduced new conflicts that now need to be resolved or adjusted." if history else ""
+
     # 2. Construct Grounded Prompt
     user_prompt = f"""
 ### PATIENT BIOMETRICS
@@ -79,6 +82,7 @@ async def optimize_protocol(stack: List[str], biometrics: Dict[str, Any]) -> Dic
 
 ### ACTIVE COMPOUND STACK
 {', '.join(stack)}
+{history_block}
 
 {graph_text}
 

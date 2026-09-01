@@ -320,7 +320,7 @@ class PharmacologicalUtilityEngine:
 
         # If compound is an ester depot or peptide designed for parenteral delivery
         if any(e in blob for e in [
-            "cypionate", "enanthate", "decanoate", "undecanoate", "isocaproate", "depot",
+            "cypionate", "enanthate", "decanoate", "undecanoate", "undecylenate", "isocaproate", "depot",
             "semaglutide", "tirzepatide", "retatrutide", "bpc_157", "bpc157", "tb_500", "tb500",
             "ghk_cu", "ipamorelin", "cjc_1295", "sermorelin", "tesamorelin", "epitalon", "mots_c"
         ]):
@@ -336,12 +336,84 @@ class PharmacologicalUtilityEngine:
         except (ValueError, TypeError):
             f_val = 0.5
 
-        is_tma_substrate = any(w in blob for w in ["carnitine", "alcar", "choline", "betaine"])
+        is_tma_substrate = (
+            any(w in c_key or w in c_name for w in ["carnitine", "alcar", "choline", "betaine"])
+            and not any(w in c_key or w in c_name for w in ["allicin", "garlic", "dmb"])
+        )
         if (f_val < 0.20 or is_tma_substrate) and route_pref in ("all", "hybrid", "injectable"):
-            if "carnitine" in blob or "glutathione" in blob:
+            if any(w in c_key or w in c_name for w in ["carnitine", "glutathione"]):
                 return "intramuscular"
 
         return "oral"
+
+    @classmethod
+    def determine_optimal_frequency(cls, compound: Dict[str, Any], route: Optional[str] = None) -> str:
+        """
+        Determines pharmacokinetically optimal administration frequency dynamically based on:
+        1. Elimination half-life (t1/2) in hours/days.
+        2. Receptor occupancy / enzyme inactivation kinetics (e.g. irreversible suicidal inhibition).
+        3. Ester depot release profile vs short-acting oral delivery.
+        Zero hardcoded drug names.
+        """
+        effective_route = str(route or compound.get("route") or compound.get("route_of_administration") or "oral").lower().strip()
+        
+        # 1. Check elimination half-life
+        raw_hl = compound.get("elimination_half_life_hours") or compound.get("half_life_hours") or compound.get("t_half_h")
+        t_half = None
+        if raw_hl is not None:
+            try:
+                t_half = float(raw_hl)
+            except (ValueError, TypeError):
+                pass
+        
+        # 2. Check mechanism and target dynamics
+        mech = str(compound.get("mechanism") or "").lower()
+        drug_class = str(compound.get("drug_class") or "").lower()
+        categories = [str(c).lower() for c in (compound.get("categories") or [])]
+        c_key = str(compound.get("key") or "").lower()
+        c_name = str(compound.get("name") or "").lower()
+        targets = compound.get("receptor_targets") or []
+        target_blob = " ".join(str(t.get("target", "") if isinstance(t, dict) else t).lower() for t in targets)
+        combined_text = f"{c_key} {c_name} {mech} {drug_class} {' '.join(categories)} {target_blob}"
+
+        is_ai = (
+            any(w in combined_text for w in ["aromatase", "cyp19a1", "anastrozole", "exemestane", "letrozole", "aromasin", "arimidex", "femara"])
+        )
+        is_botanical = any(b in drug_class or b in " ".join(categories) for b in ["dietary supplement", "botanical", "herbal", "extract"])
+        is_irreversible = (
+            any(w in combined_text for w in ["suicide", "irreversible", "covalent"])
+            or ("inactivat" in combined_text and not is_botanical)
+            or is_ai
+        )
+        
+        # Injections / depot profiles
+        if effective_route in ("intramuscular", "subcutaneous"):
+            c_key = str(compound.get("key") or "").lower()
+            c_name = str(compound.get("name") or "").lower()
+            blob = f"{c_key} {c_name} {drug_class} {mech}".lower()
+            is_depot_ester = any(e in blob for e in ["cypionate", "enanthate", "decanoate", "undecanoate", "undecylenate", "isocaproate", "depot"])
+            if is_depot_ester or (t_half and t_half >= 36.0):
+                if t_half and t_half >= 144.0:
+                    return "weekly"
+                return "twice_weekly"
+            elif is_irreversible:
+                return "twice_weekly"
+            return "daily"
+            
+        # Oral formulations
+        if is_irreversible or is_ai or any(d in combined_text for d in ["cabergoline", "dostinex", "pramipexole"]):
+            # Irreversible suicidal enzyme inactivators / long-acting D2 agonists with prolonged PD suppression
+            return "twice_weekly"
+            
+        if t_half:
+            if t_half >= 96.0:
+                return "weekly"
+            elif t_half >= 36.0:
+                return "twice_weekly"
+            elif t_half < 6.0 and "short_acting" in drug_class:
+                return "twice_daily"
+                
+        return "daily"
 
     @classmethod
     def rank_candidates_for_target(

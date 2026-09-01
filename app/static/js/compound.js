@@ -1,4 +1,11 @@
-const compoundKey = decodeURIComponent(window.location.pathname.split('/').filter(Boolean).slice(-1)[0] || '');
+var iconSvg = window.iconSvg || function(name, options = {}) {
+  if (typeof window.iconSvg === 'function') return window.iconSvg(name, options);
+  return `<i data-lucide="${name}" class="${options.class || ''}"></i>`;
+};
+      const urlParams = new URLSearchParams(window.location.search);
+      let pathCompound = decodeURIComponent(window.location.pathname.split('/').filter(Boolean).slice(-1)[0] || '');
+      if (pathCompound === 'compound') pathCompound = '';
+      const compoundKey = urlParams.get('key') || pathCompound || 'caffeine';
       const compoundLoading = document.getElementById('compoundLoading');
       const compoundError = document.getElementById('compoundError');
       const compoundContent = document.getElementById('compoundContent');
@@ -181,7 +188,9 @@ const compoundKey = decodeURIComponent(window.location.pathname.split('/').filte
         targetField.innerHTML = targets.map((target, index) => {
           const label = typeof target === 'string' ? target : (target.name || target.gene || target.target || `Target ${index + 1}`);
           const action = typeof target === 'object' && target.action ? ` (${target.action})` : '';
-          return `<button type="button" class="target-link" data-target-index="${index}">${label}${action}</button>`;
+          const tClass = typeof target === 'object' && (target.target_class || target.family || '') ? String(target.target_class || target.family).toLowerCase() : '';
+          const icon = tClass.includes('enzyme') ? '⚙️ ' : (tClass.includes('transporter') || tClass.includes('slc') ? '🚪 ' : (tClass.includes('channel') ? '⚡ ' : (tClass.includes('receptor') ? '🧬 ' : '🎯 ')));
+          return `<button type="button" class="target-link" data-target-index="${index}">${icon}${label}${action}</button>`;
         }).join('');
 
         targetField.querySelectorAll('.target-link').forEach((button) => {
@@ -215,7 +224,7 @@ const compoundKey = decodeURIComponent(window.location.pathname.split('/').filte
         const detail = typeof target === 'string' ? { name: target } : target;
         const rows = [
           ['Name', detail.name || detail.target || detail.label || 'Molecular Target'],
-          ['Category / Class', detail.category || detail.type || detail.target_type || detail.receptor_family || detail.enzyme_family || '—'],
+          ['Category / Class', detail.target_class || detail.category || detail.type || detail.target_type || detail.receptor_family || detail.enzyme_family || '—'],
           ['Pharmacological Action', detail.action || detail.mechanism || '—'],
           ['Binding Affinity (Ki)', detail.affinity_ki ? `${detail.affinity_ki} nM` : '—'],
           ['Inhibitory Potency (IC50)', detail.inhibition_ic50 ? `${detail.inhibition_ic50} nM` : '—'],
@@ -546,7 +555,7 @@ const compoundKey = decodeURIComponent(window.location.pathname.split('/').filte
         if (!state.cy || state.simulating) return;
         state.simulating = true;
         btnSimulateFlow.classList.add('active');
-        btnSimulateFlow.textContent = '🌊 Propagating…';
+        btnSimulateFlow.innerHTML = `${iconSvg('activity', { class: 'icon-xs' })} Propagating…`;
 
         const cy = state.cy;
         let step = 0;
@@ -559,7 +568,7 @@ const compoundKey = decodeURIComponent(window.location.pathname.split('/').filte
               cy.elements().removeClass('faded').removeClass('highlighted');
               state.simulating = false;
               btnSimulateFlow.classList.remove('active');
-              btnSimulateFlow.textContent = '⚡ Simulate Flow';
+              btnSimulateFlow.innerHTML = `${iconSvg('zap', { class: 'icon-xs' })} Simulate Flow`;
             }, 500);
             return;
           }
@@ -869,18 +878,18 @@ const compoundKey = decodeURIComponent(window.location.pathname.split('/').filte
           fetch(`/api/compounds/${encodeURIComponent(compoundKey)}/enrich-full`, { method: 'POST' })
             .then(res => res.json())
             .then(updated => {
-              btnDeepEnrich.textContent = '✅ Enriched & Saved';
+              btnDeepEnrich.innerHTML = `${iconSvg('check', { class: 'icon-xs icon-emerald' })} Enriched & Saved`;
               btnDeepEnrich.style.opacity = '1';
               renderCompound(updated);
               setTimeout(() => {
-                btnDeepEnrich.textContent = '⚡ Full PK/PD Enrich';
+                btnDeepEnrich.innerHTML = `${iconSvg('zap', { class: 'icon-xs' })} Full PK/PD Enrich`;
               }, 2500);
             })
             .catch(err => {
               console.error('Enrichment failed', err);
-              btnDeepEnrich.textContent = '❌ Enrichment Error';
+              btnDeepEnrich.innerHTML = `${iconSvg('alert-circle', { class: 'icon-xs icon-rose' })} Enrichment Error`;
               setTimeout(() => {
-                btnDeepEnrich.textContent = '⚡ Full PK/PD Enrich';
+                btnDeepEnrich.innerHTML = `${iconSvg('zap', { class: 'icon-xs' })} Full PK/PD Enrich`;
                 btnDeepEnrich.style.opacity = '1';
               }, 2500);
             });
@@ -943,11 +952,11 @@ const compoundKey = decodeURIComponent(window.location.pathname.split('/').filte
                         <span class="study-badge ${tierClass}">${tier}</span>
                       </div>
                       <div class="study-meta">
-                        <span>📖 ${c.journal || 'Peer-Reviewed Journal'} (${c.pub_year || 'N/A'})</span>
-                        ${auth ? `<span>👥 ${auth}</span>` : ''}
+                        <span style="display:inline-flex; align-items:center; gap:4px;">${iconSvg('book-open', { class: 'icon-xs icon-cyan' })} ${c.journal || 'Peer-Reviewed Journal'} (${c.pub_year || 'N/A'})</span>
+                        ${auth ? `<span style="display:inline-flex; align-items:center; gap:4px;">${iconSvg('users', { class: 'icon-xs' })} ${auth}</span>` : ''}
                         ${n}
                       </div>
-                      ${c.key_findings ? `<div class="study-finding">💡 ${c.key_findings}</div>` : ''}
+                      ${c.key_findings ? `<div class="study-finding" style="display:flex; align-items:flex-start; gap:5px;"><span style="flex-shrink:0; margin-top:2px;">${iconSvg('lightbulb', { class: 'icon-xs icon-amber' })}</span> <div>${c.key_findings}</div></div>` : ''}
                       <div class="study-links">
                         ${pmid}
                         ${doi}
@@ -964,9 +973,9 @@ const compoundKey = decodeURIComponent(window.location.pathname.split('/').filte
                         <span class="study-badge rct">${t.phase || 'Clinical Trial'} [${t.status || 'COMPLETED'}]</span>
                       </div>
                       <div class="study-meta">
-                        <span>🏛️ ${t.sponsor || 'Clinical Investigation'}</span>
-                        ${t.enrollment ? `<span>👥 Enrollment N = ${t.enrollment.toLocaleString()}</span>` : ''}
-                        ${t.completion_year ? `<span>📅 Year: ${t.completion_year}</span>` : ''}
+                        <span style="display:inline-flex; align-items:center; gap:4px;">${iconSvg('building-2', { class: 'icon-xs icon-cyan' })} ${t.sponsor || 'Clinical Investigation'}</span>
+                        ${t.enrollment ? `<span style="display:inline-flex; align-items:center; gap:4px;">${iconSvg('users', { class: 'icon-xs' })} Enrollment N = ${t.enrollment.toLocaleString()}</span>` : ''}
+                        ${t.completion_year ? `<span style="display:inline-flex; align-items:center; gap:4px;">${iconSvg('calendar', { class: 'icon-xs' })} Year: ${t.completion_year}</span>` : ''}
                       </div>
                       <div class="study-links">
                         <a class="study-link" href="https://clinicaltrials.gov/study/${t.nct_id}" target="_blank" rel="noopener">ClinicalTrials.gov: ${t.nct_id} ↗</a>
@@ -1003,7 +1012,7 @@ const compoundKey = decodeURIComponent(window.location.pathname.split('/').filte
               if (conflicts.length === 0) {
                 controversiesGrid.innerHTML = `
                   <div style="font-size:0.8rem; color:var(--success); display:flex; align-items:center; gap:6px;">
-                    <span>✅</span> High scientific consensus observed across published assays & human clinical trials.
+                    <span>${iconSvg('check', { class: 'icon-xs icon-emerald' })}</span> High scientific consensus observed across published assays & human clinical trials.
                   </div>
                 `;
               } else {
@@ -1013,7 +1022,7 @@ const compoundKey = decodeURIComponent(window.location.pathname.split('/').filte
                   cHtml += `
                     <div class="controversy-card">
                       <div class="controversy-title">
-                        <span>⚡ ${cf.topic || 'Pharmacological Debate'}</span>
+                        <span style="display:inline-flex; align-items:center; gap:4px;">${iconSvg('zap', { class: 'icon-xs icon-amber' })} ${cf.topic || 'Pharmacological Debate'}</span>
                         <span style="font-size:0.7rem; font-weight:600; color:var(--text-muted); margin-left:auto;">Consensus: ${sc}%</span>
                       </div>
                       <div class="consensus-bar-wrap">
@@ -1021,9 +1030,9 @@ const compoundKey = decodeURIComponent(window.location.pathname.split('/').filte
                       </div>
                       <div style="font-size:0.75rem; color:var(--text-secondary); margin-top:6px;">
                         <div>🟢 <strong>Supported Observation</strong>: ${cf.positive_claim || 'Documented efficacy.'}</div>
-                        <div style="margin-top:4px;">🔴 <strong>Opposing / Limiting Finding</strong>: ${cf.opposing_claim || 'Context-dependent attenuation.'}</div>
+                        <div style="margin-top:4px; display:inline-flex; align-items:center; gap:4px;"><span style="color:#f87171;">${iconSvg('alert-circle', { class: 'icon-xs icon-rose' })}</span> <strong>Opposing / Limiting Finding</strong>: ${cf.opposing_claim || 'Context-dependent attenuation.'}</div>
                       </div>
-                      ${cf.divergence_rationale ? `<div style="font-size:0.72rem; color:#f59e0b; margin-top:6px; font-style:italic;">🔍 Rationale: ${cf.divergence_rationale}</div>` : ''}
+                      ${cf.divergence_rationale ? `<div style="font-size:0.72rem; color:#f59e0b; margin-top:6px; font-style:italic; display:inline-flex; align-items:center; gap:4px;"><span>${iconSvg('search', { class: 'icon-xs icon-amber' })}</span> Rationale: ${cf.divergence_rationale}</div>` : ''}
                     </div>
                   `;
                 });

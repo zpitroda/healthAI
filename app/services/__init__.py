@@ -7,6 +7,15 @@ and clinical AI reasoning services.
 from __future__ import annotations
 
 from .catalog_service import CatalogService
+from .chemical_structure_engine import (
+    ChemicalStructureEngine,
+    is_17a_alkylated,
+    is_19nor_steroid,
+    is_5alpha_reductase_substrate,
+    is_aromatizable_androgen,
+    is_steroidal_androgen,
+    resolve_compound_structure,
+)
 from .copilot_agent import CopilotAgent
 from .dosing_service import get_default_compound_dose, parse_dose_string_or_spec
 from .graph_service import build_selected_compound_graph, filter_graph_by_stack
@@ -25,6 +34,13 @@ from .synergy_engine import SynergyEngine
 
 __all__ = [
     "CatalogService",
+    "ChemicalStructureEngine",
+    "is_17a_alkylated",
+    "is_19nor_steroid",
+    "is_steroidal_androgen",
+    "is_aromatizable_androgen",
+    "is_5alpha_reductase_substrate",
+    "resolve_compound_structure",
     "CopilotAgent",
     "get_default_compound_dose",
     "parse_dose_string_or_spec",
@@ -43,3 +59,4 @@ __all__ = [
     "StackIntentEngine",
     "SynergyEngine",
 ]
+

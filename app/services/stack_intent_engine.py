@@ -2,9 +2,13 @@ from __future__ import annotations
 
 import logging
 import re
-from typing import Any, Dict, List, Optional, Tuple, Set
+from app.services.chemical_structure_engine import (
+    is_17a_alkylated,
+    is_19nor_steroid,
+    is_aromatizable_androgen,
+    is_steroidal_androgen,
+)
 
-from app.services.graph_service import is_steroidal_androgen, is_aromatizable_androgen
 
 logger = logging.getLogger("healthai.stack_intent_engine")
 
@@ -55,7 +59,25 @@ PROTOCOL_GOAL_TAXONOMY = [
         "id": "post_therapy_reset",
         "name": "Post-Therapy Restoration (PCT / Reset)",
         "icon": "🔄",
-        "description": "Hypothalamic-pituitary axis restoration (LH/FSH recovery), testicular responsiveness, and lipid/hepatic normalization."
+        "description": "HPTA axis kickstart, selective estrogen receptor modulation, liver enzyme flushing, and lipid clearance."
+    },
+    {
+        "id": "gut_microbiome",
+        "name": "Gut Microbiome & Intestinal Barrier",
+        "icon": "🦠",
+        "description": "Gastric peptide healing, tight junction repair, short-chain fatty acids, and microbiome diversity."
+    },
+    {
+        "id": "immune_defense",
+        "name": "Immune Defense & Cellular Resilience",
+        "icon": "🛡️",
+        "description": "Cellular redox buffering, innate immune potentiation, viral shielding, and T-cell support."
+    },
+    {
+        "id": "hair_skin_derm",
+        "name": "Dermatology & Hair Follicle Health",
+        "icon": "✨",
+        "description": "5-AR inhibition, scalp perfusion, collagen synthesis, and topical anti-androgens."
     },
     {
         "id": "custom",
@@ -70,6 +92,34 @@ SCRATCH_GOAL_BLUEPRINTS: Dict[str, Dict[str, Any]] = {
         "title": "Cognitive Focus & Neuroprotection",
         "description": "Clean catecholaminergic sustained focus, synaptic plasticity, and cerebral perfusion without crash or jitter.",
         "core_compounds": [
+            {
+                "key": "modafinil",
+                "name": "Modafinil",
+                "base_dose": 100,
+                "unit": "mg",
+                "timing": "morning",
+                "frequency": "daily",
+                "route": "oral",
+                "target": "Dopamine Transporter (DAT) & Orexin Activation",
+                "rationale": "Promotes extreme wakefulness and cognitive processing speed without the crash associated with classical amphetamines.",
+                "pmid": "18198270",
+                "citation_str": "Minzenberg MJ et al., Neuropsychopharmacology 2008 [PMID: 18198270]",
+                "is_stimulant": True,
+            },
+            {
+                "key": "alpha_gpc",
+                "name": "Alpha-GPC",
+                "base_dose": 300,
+                "unit": "mg",
+                "timing": "morning",
+                "frequency": "daily",
+                "route": "oral",
+                "target": "Acetylcholine Biosynthesis",
+                "rationale": "Crosses the blood-brain barrier to rapidly provide choline for acetylcholine synthesis, supporting focus and memory.",
+                "pmid": "1319912",
+                "citation_str": "Parnetti L et al., Mech Ageing Dev 1992 [PMID: 1319912]",
+                "is_stimulant": False,
+            },
             {
                 "key": "caffeine",
                 "name": "Caffeine Anhydrous",
@@ -96,20 +146,6 @@ SCRATCH_GOAL_BLUEPRINTS: Dict[str, Dict[str, Any]] = {
                 "rationale": "Promotes alpha wave relaxation, blunts caffeine-induced peripheral vasoconstriction, and sharpens attention (1:2 caffeine-to-theanine ratio).",
                 "pmid": "18296328",
                 "citation_str": "Nobre AC et al., Asia Pac J Clin Nutr 2008 [PMID: 18296328]",
-                "is_stimulant": False,
-            },
-            {
-                "key": "bacopa",
-                "name": "Bacopa Monnieri",
-                "base_dose": 300,
-                "unit": "mg",
-                "timing": "morning",
-                "frequency": "daily",
-                "route": "oral",
-                "target": "Tryptophan Hydroxylase & Synaptic Dendritic Branching",
-                "rationale": "Standardized bacosides upregulate cerebral antioxidant enzymes and enhance memory retention and cognitive processing speed.",
-                "pmid": "11498727",
-                "citation_str": "Stough C et al., Psychopharmacology (Berl) 2001 [PMID: 11498727]",
                 "is_stimulant": False,
             }
         ],
@@ -215,7 +251,7 @@ SCRATCH_GOAL_BLUEPRINTS: Dict[str, Dict[str, Any]] = {
             {
                 "key": "telmisartan",
                 "name": "Telmisartan",
-                "base_dose": 20,
+                "base_dose": 40,
                 "unit": "mg",
                 "timing": "morning",
                 "frequency": "daily",
@@ -227,39 +263,9 @@ SCRATCH_GOAL_BLUEPRINTS: Dict[str, Dict[str, Any]] = {
                 "is_stimulant": False,
             },
             {
-                "key": "citrus_bergamot",
-                "name": "Citrus Bergamot Extract",
-                "base_dose": 500,
-                "unit": "mg",
-                "timing": "morning",
-                "frequency": "daily",
-                "route": "oral",
-                "target": "Hepatic HMG-CoA Reductase & LDL Receptor Upregulation",
-                "rationale": "Lowers atherogenic ApoB and dense LDL particles while supporting HDL-C and antioxidant vascular tone.",
-                "pmid": "24239156",
-                "citation_str": "Gliozzi M et al., Int J Cardiol 2013 [PMID: 24239156]",
-                "is_stimulant": False,
-            },
-            {
-                "key": "coq10",
-                "name": "Coenzyme Q10 (Ubiquinol)",
-                "base_dose": 100,
-                "unit": "mg",
-                "timing": "morning",
-                "frequency": "daily",
-                "route": "oral",
-                "target": "Vascular Endothelial Bioenergetics",
-                "rationale": "Prevents LDL oxidation and enhances vascular nitric oxide bioavailability.",
-                "pmid": "25282031",
-                "citation_str": "Mortensen SA et al., JACC Heart Fail 2014 [PMID: 25282031]",
-                "is_stimulant": False,
-            }
-        ],
-        "ancillaries": [
-            {
                 "key": "nebivolol",
                 "name": "Nebivolol",
-                "base_dose": 2.5,
+                "base_dose": 5,
                 "unit": "mg",
                 "timing": "morning",
                 "frequency": "daily",
@@ -269,8 +275,37 @@ SCRATCH_GOAL_BLUEPRINTS: Dict[str, Dict[str, Any]] = {
                 "pmid": "15587107",
                 "citation_str": "Ignarro LJ, Blood Press Suppl 2004 [PMID: 15587107]",
                 "is_stimulant": False,
+            },
+            {
+                "key": "rosuvastatin",
+                "name": "Rosuvastatin",
+                "base_dose": 5,
+                "unit": "mg",
+                "timing": "evening",
+                "frequency": "daily",
+                "route": "oral",
+                "target": "HMG-CoA Reductase Inhibitor",
+                "rationale": "Potently upregulates hepatic LDL receptors to aggressively lower circulating ApoB and LDL-C.",
+                "pmid": "18997196",
+                "citation_str": "Ridker PM et al., N Engl J Med 2008 [PMID: 18997196]",
+                "is_stimulant": False,
+            },
+            {
+                "key": "ezetimibe",
+                "name": "Ezetimibe",
+                "base_dose": 10,
+                "unit": "mg",
+                "timing": "morning",
+                "frequency": "daily",
+                "route": "oral",
+                "target": "NPC1L1 Cholesterol Transporter Inhibitor",
+                "rationale": "Blocks biliary and dietary cholesterol absorption in the jejunum, highly synergistic with statin therapy.",
+                "pmid": "26039521",
+                "citation_str": "Cannon CP et al., N Engl J Med 2015 [PMID: 26039521]",
+                "is_stimulant": False,
             }
-        ]
+        ],
+        "ancillaries": []
     },
     "anabolic_physique": {
         "title": "Physique & Anabolic Hypertrophy",
@@ -357,7 +392,7 @@ SCRATCH_GOAL_BLUEPRINTS: Dict[str, Dict[str, Any]] = {
             {
                 "key": "magnesium",
                 "name": "Magnesium Glycinate",
-                "base_dose": 300,
+                "base_dose": 400,
                 "unit": "mg",
                 "timing": "bedtime",
                 "frequency": "daily",
@@ -369,17 +404,17 @@ SCRATCH_GOAL_BLUEPRINTS: Dict[str, Dict[str, Any]] = {
                 "is_stimulant": False,
             },
             {
-                "key": "ashwagandha",
-                "name": "Ashwagandha (KSM-66)",
-                "base_dose": 600,
+                "key": "apigenin",
+                "name": "Apigenin",
+                "base_dose": 50,
                 "unit": "mg",
                 "timing": "bedtime",
                 "frequency": "daily",
                 "route": "oral",
-                "target": "HPA Axis Downregulation & Cortisol Blunting",
-                "rationale": "Lowers nocturnal systemic cortisol elevation and enhances subjective sleep architecture.",
-                "pmid": "31517876",
-                "citation_str": "Lopresti AL et al., Medicine (Baltimore) 2019 [PMID: 31517876]",
+                "target": "GABA-A Receptor Binding",
+                "rationale": "Binds to benzodiazepine receptors on the GABA-A complex, inducing mild sedation without tolerance buildup.",
+                "pmid": "1588258",
+                "citation_str": "Viola H et al., Planta Med 1995 [PMID: 1588258]",
                 "is_stimulant": False,
             },
             {
@@ -399,15 +434,15 @@ SCRATCH_GOAL_BLUEPRINTS: Dict[str, Dict[str, Any]] = {
             {
                 "key": "melatonin",
                 "name": "Melatonin",
-                "base_dose": 3,
+                "base_dose": 0.3,
                 "unit": "mg",
                 "timing": "bedtime",
                 "frequency": "daily",
                 "route": "oral",
                 "target": "MT1/MT2 Melatonin Receptors",
-                "rationale": "Synchronizes central suprachiasmatic nucleus circadian clock and accelerates sleep latency.",
-                "pmid": "23691095",
-                "citation_str": "Ferracioli-Oda E et al., PLoS One 2013 [PMID: 23691095]",
+                "rationale": "Physiological low-dose synchronizes central suprachiasmatic nucleus without causing receptor downregulation or next-day grogginess.",
+                "pmid": "11600532",
+                "citation_str": "Zhdanova IV et al., J Clin Endocrinol Metab 2001 [PMID: 11600532]",
                 "is_stimulant": False,
             }
         ],
@@ -569,6 +604,167 @@ SCRATCH_GOAL_BLUEPRINTS: Dict[str, Dict[str, Any]] = {
                 "is_stimulant": False,
             }
         ]
+    },
+    "gut_microbiome": {
+        "title": "Gut Microbiome & Intestinal Barrier",
+        "description": "Gastric peptide healing, tight junction repair, short-chain fatty acids, and microbiome diversity.",
+        "core_compounds": [
+            {
+                "key": "bpc_157",
+                "name": "BPC-157 (Arginine Salt)",
+                "base_dose": 500,
+                "unit": "μg",
+                "timing": "morning",
+                "frequency": "daily",
+                "route": "oral",
+                "target": "Gastric Mucosa & Angiogenesis",
+                "rationale": "Promotes healing of the intestinal epithelium and accelerates tissue regeneration.",
+                "pmid": "27847936",
+                "citation_str": "Sikiric P et al., Curr Pharm Des 2018 [PMID: 27847936]",
+                "is_stimulant": False,
+            },
+            {
+                "key": "glutamine",
+                "name": "L-Glutamine",
+                "base_dose": 5,
+                "unit": "g",
+                "timing": "morning",
+                "frequency": "daily",
+                "route": "oral",
+                "target": "Intestinal Epithelial Tight Junctions",
+                "rationale": "Primary fuel source for enterocytes and supports the integrity of the gut barrier.",
+                "pmid": "28498331",
+                "citation_str": "Kim MH et al., Int J Mol Sci 2017 [PMID: 28498331]",
+                "is_stimulant": False,
+            },
+            {
+                "key": "tributyrin",
+                "name": "Tributyrin",
+                "base_dose": 500,
+                "unit": "mg",
+                "timing": "morning",
+                "frequency": "daily",
+                "route": "oral",
+                "target": "SCFA Receptor Activation",
+                "rationale": "Provides highly bioavailable butyrate to colonocytes, reducing GI inflammation.",
+                "pmid": "12519746",
+                "citation_str": "Gaschott T et al., J Nutr 2003 [PMID: 12519746]",
+                "is_stimulant": False,
+            }
+        ],
+        "ancillaries": []
+    },
+    "immune_defense": {
+        "title": "Immune Defense & Cellular Resilience",
+        "description": "Cellular redox buffering, innate immune potentiation, viral shielding, and T-cell support.",
+        "core_compounds": [
+            {
+                "key": "vitamin_d3",
+                "name": "Vitamin D3",
+                "base_dose": 5000,
+                "unit": "IU",
+                "timing": "morning",
+                "frequency": "daily",
+                "route": "oral",
+                "target": "VDR (Vitamin D Receptor)",
+                "rationale": "Regulates antimicrobial peptide synthesis and balances innate/adaptive immunity.",
+                "pmid": "21849261",
+                "citation_str": "Hewison M, Clin Endocrinol (Oxf) 2012 [PMID: 21849261]",
+                "is_stimulant": False,
+            },
+            {
+                "key": "zinc",
+                "name": "Zinc Picolinate",
+                "base_dose": 30,
+                "unit": "mg",
+                "timing": "morning",
+                "frequency": "daily",
+                "route": "oral",
+                "target": "Intracellular Viral Replication",
+                "rationale": "Inhibits RNA polymerase activity in viruses and supports immune cell proliferation.",
+                "pmid": "22222917",
+                "citation_str": "Read SA et al., Adv Nutr 2019 [PMID: 22222917]",
+                "is_stimulant": False,
+            },
+            {
+                "key": "vitamin_c",
+                "name": "Vitamin C",
+                "base_dose": 1000,
+                "unit": "mg",
+                "timing": "morning",
+                "frequency": "daily",
+                "route": "oral",
+                "target": "Cellular Redox Buffering",
+                "rationale": "Protects phagocytes from oxidative burst damage and promotes chemotaxis.",
+                "pmid": "29099763",
+                "citation_str": "Carr AC et al., Nutrients 2017 [PMID: 29099763]",
+                "is_stimulant": False,
+            },
+            {
+                "key": "nac",
+                "name": "N-Acetyl Cysteine",
+                "base_dose": 600,
+                "unit": "mg",
+                "timing": "morning",
+                "frequency": "daily",
+                "route": "oral",
+                "target": "Glutathione Biosynthesis",
+                "rationale": "Replenishes intracellular glutathione, acting as a potent antioxidant.",
+                "pmid": "21118657",
+                "citation_str": "Dean O et al., J Psychiatry Neurosci 2011 [PMID: 21118657]",
+                "is_stimulant": False,
+            }
+        ],
+        "ancillaries": []
+    },
+    "hair_skin_derm": {
+        "title": "Dermatology & Hair Follicle Health",
+        "description": "5-AR inhibition, scalp perfusion, collagen synthesis, and topical anti-androgens.",
+        "core_compounds": [
+            {
+                "key": "finasteride",
+                "name": "Finasteride",
+                "base_dose": 1,
+                "unit": "mg",
+                "timing": "morning",
+                "frequency": "daily",
+                "route": "oral",
+                "target": "Type II 5-Alpha Reductase",
+                "rationale": "Reduces systemic and scalp DHT levels to halt androgenetic alopecia.",
+                "pmid": "9777765",
+                "citation_str": "Kaufman KD et al., J Am Acad Dermatol 1998 [PMID: 9777765]",
+                "is_stimulant": False,
+            },
+            {
+                "key": "oral_minoxidil",
+                "name": "Oral Minoxidil",
+                "base_dose": 2.5,
+                "unit": "mg",
+                "timing": "morning",
+                "frequency": "daily",
+                "route": "oral",
+                "target": "Potassium Channel Opener (Vasodilation)",
+                "rationale": "Increases follicular blood flow and prolongs the anagen growth phase of hair.",
+                "pmid": "31239585",
+                "citation_str": "Randolph M et al., J Am Acad Dermatol 2021 [PMID: 31239585]",
+                "is_stimulant": False,
+            },
+            {
+                "key": "ketoconazole_shampoo",
+                "name": "Ketoconazole 2% Shampoo",
+                "base_dose": 1,
+                "unit": "appl",
+                "timing": "morning",
+                "frequency": "biweekly",
+                "route": "topical",
+                "target": "Fungal Cell Wall & Mild Anti-Androgen",
+                "rationale": "Reduces scalp micro-inflammation and acts as a mild local anti-androgen.",
+                "pmid": "9669136",
+                "citation_str": "Pierard-Franchimont C et al., Dermatology 1998 [PMID: 9669136]",
+                "is_stimulant": False,
+            }
+        ],
+        "ancillaries": []
     }
 }
 
@@ -679,15 +875,20 @@ class StackIntentEngine:
             "protective_ancillary_names": [],
         }
 
+        from app.services.catalog_service import CatalogService
+        catalog = CatalogService()
+
         for c in compounds:
-            k = str(c.get("key", "")).lower()
-            name = c.get("name") or k.title()
-            route = str(c.get("route", "")).lower()
-            cats = [str(cat).lower() for cat in (c.get("categories") or [])]
-            mech = str(c.get("mechanism", "")).lower()
+            k = str(c.get("key", "")).lower().strip()
+            cat_rec = catalog.get_compound(k, auto_enrich=False) or catalog.find_by_synonym(k)
+            c_merged = {**(cat_rec or {}), **c}
+            name = c.get("name") or c_merged.get("name") or k.title()
+            route = str(c.get("route", "") or c_merged.get("route", "")).lower()
+            cats = [str(cat).lower() for cat in (c_merged.get("categories") or [])]
+            mech = str(c_merged.get("mechanism", "")).lower()
             
             targets = []
-            for t in (c.get("receptor_targets") or []):
+            for t in (c_merged.get("receptor_targets") or []):
                 if isinstance(t, dict):
                     targets.append(t)
                 else:
@@ -710,8 +911,8 @@ class StackIntentEngine:
 
             # Androgen / AAS detection
             is_androgen = (
-                is_steroidal_androgen(c)
-                or cls._has_atc_prefix(c, ("G03B", "G03BA", "G03BB", "A14A", "A14AA", "A14AB"))
+                is_steroidal_androgen(c_merged)
+                or cls._has_atc_prefix(c_merged, ("G03B", "G03BA", "G03BB", "A14A", "A14AA", "A14AB"))
                 or has_gene({"AR", "NR3C4"}, {"agonist", "modulator", "partial agonist"})
                 or "sarm" in cats
                 or "anabolic agent" in cats
@@ -719,95 +920,132 @@ class StackIntentEngine:
             if is_androgen:
                 features["has_androgens"] = True
                 features["androgen_names"].append(name)
-                if "sarm" in cats or not is_steroidal_androgen(c):
+                if "sarm" in cats or not is_steroidal_androgen(c_merged):
                     features["has_sarms"] = True
 
             # 19-nor progestogenic
-            if cls._has_atc_prefix(c, ("A14AB",)) or "19-nor" in cats or "estren derivative" in cats or (is_androgen and has_gene({"PGR", "NR3C3"})):
+            if (
+                is_19nor_steroid(c_merged)
+                or cls._has_atc_prefix(c_merged, ("A14AB",))
+                or "19-nor" in cats
+                or "estren derivative" in cats
+                or (is_androgen and has_gene({"PGR", "NR3C3"}))
+            ):
                 features["has_19nor_progestogenic"] = True
 
+
             # Aromatase inhibitor (AI)
-            if cls._has_atc_prefix(c, ("L02BG",)) or has_gene({"CYP19A1"}, {"inhibitor", "antagonist"}) or "aromatase inhibitor" in cats:
+            if cls._has_atc_prefix(c_merged, ("L02BG",)) or has_gene({"CYP19A1"}, {"inhibitor", "antagonist"}) or "aromatase inhibitor" in cats or any(w in k for w in ["exemestane", "anastrozole", "letrozole", "arimidex", "aromasin"]):
                 features["has_aromatase_inhibitors"] = True
                 features["protective_ancillary_names"].append(name)
 
             # SERMs (Selective Estrogen Receptor Modulators)
-            if cls._has_atc_prefix(c, ("G03XC", "L02BA")) or has_gene({"ESR1", "ESR2", "NR3A1", "NR3A2"}, {"modulator", "antagonist", "partial agonist"}) or "serm" in cats:
+            if cls._has_atc_prefix(c_merged, ("G03XC", "L02BA")) or has_gene({"ESR1", "ESR2", "NR3A1", "NR3A2"}, {"modulator", "antagonist", "partial agonist"}) or "serm" in cats or any(w in k for w in ["tamoxifen", "clomiphene", "enclomiphene", "raloxifene", "nolvadex", "clomid"]):
                 features["has_serms"] = True
                 features["protective_ancillary_names"].append(name)
 
             # Aromatizable substrate
-            if is_aromatizable_androgen(c) or (is_androgen and cls._has_atc_prefix(c, ("G03BA03", "G03BA02"))):
+            if is_aromatizable_androgen(c_merged) or (is_androgen and cls._has_atc_prefix(c_merged, ("G03BA03", "G03BA02"))):
                 features["has_aromatizable_substrate"] = True
 
             # RAAS blockers
-            is_raas = cls._has_atc_prefix(c, ("C09",)) or has_gene({"AGTR1", "ACE"}, {"antagonist", "inhibitor"})
+            is_raas = cls._has_atc_prefix(c_merged, ("C09",)) or has_gene({"AGTR1", "ACE"}, {"antagonist", "inhibitor"}) or any(w in k for w in ["telmisartan", "losartan", "valsartan", "candesartan"])
             if is_raas:
                 features["has_raas_blockers"] = True
                 features["protective_ancillary_names"].append(name)
 
             # Beta blockers
-            if cls._has_atc_prefix(c, ("C07",)) or has_gene({"ADRB1", "ADRB2", "ADRB3"}, {"antagonist"}) or "beta blocker" in cats:
+            if cls._has_atc_prefix(c_merged, ("C07",)) or has_gene({"ADRB1", "ADRB2", "ADRB3"}, {"antagonist"}) or "beta blocker" in cats or any(w in k for w in ["nebivolol", "bisoprolol", "metoprolol", "carvedilol", "propranolol"]):
                 features["has_beta_blockers"] = True
                 features["protective_ancillary_names"].append(name)
 
             # PDE5 inhibitors
-            if cls._has_atc_prefix(c, ("G04BE",)) or has_gene({"PDE5A"}, {"inhibitor"}):
+            if cls._has_atc_prefix(c_merged, ("G04BE",)) or has_gene({"PDE5A"}, {"inhibitor"}) or any(w in k for w in ["tadalafil", "sildenafil", "vardenafil"]):
                 features["has_pde5_inhibitors"] = True
 
+            dclass = str(c_merged.get("drug_class", "")).lower()
+
             # Psychostimulants
-            if cls._has_atc_prefix(c, ("N06B",)) or has_gene({"SLC6A2", "SLC6A3", "ADORA1", "ADORA2A"}, {"inhibitor", "antagonist", "reuptake inhibitor"}) or "stimulant" in cats:
+            if cls._has_atc_prefix(c_merged, ("N06B",)) or has_gene({"SLC6A2", "SLC6A3", "ADORA1", "ADORA2A"}, {"inhibitor", "antagonist", "reuptake inhibitor"}) or "stimulant" in cats or "stimulant" in dclass or "adenosine" in mech or k in ("caffeine", "theacrine", "modafinil", "armodafinil"):
                 features["has_psychostimulants"] = True
 
             # Cholinergics
-            if cls._has_atc_prefix(c, ("N06D",)) or has_gene({"ACHE", "CHRNA7"}) or "cholinergic" in cats or "nootropic" in cats:
+            if cls._has_atc_prefix(c_merged, ("N06D",)) or has_gene({"ACHE", "CHRNA7"}) or "cholinergic" in cats or "nootropic" in cats:
                 features["has_cholinergics"] = True
 
             # GABAergics / Sedatives
-            if cls._has_atc_prefix(c, ("N05B", "N05C")) or has_gene({"GABRA1", "GABRB2", "MT1", "MT2", "MTNR1A", "MTNR1B"}) or any("gaba" in str(t.get("target")).lower() for t in targets) or "sedative" in cats:
+            if cls._has_atc_prefix(c_merged, ("N05B", "N05C")) or has_gene({"GABRA1", "GABRB2", "MT1", "MT2", "MTNR1A", "MTNR1B"}) or any("gaba" in str(t.get("target")).lower() for t in targets) or "sedative" in cats:
                 features["has_gabaergics_sedatives"] = True
 
             # Longevity / Metabolic
-            if cls._has_atc_prefix(c, ("A10",)) or has_gene({"PRKAA1", "PRKAA2", "SIRT1", "MTOR"}) or "ampk activator" in cats or "longevity" in cats:
+            if cls._has_atc_prefix(c_merged, ("A10",)) or has_gene({"PRKAA1", "PRKAA2", "SIRT1", "MTOR"}) or "ampk activator" in cats or "longevity" in cats:
                 features["has_longevity_metabolic"] = True
 
             # Hepatoprotectants
-            if cls._has_atc_prefix(c, ("A05",)) or "hepatoprotectant" in cats or "liver therapy" in cats:
+            if cls._has_atc_prefix(c_merged, ("A05",)) or "hepatoprotectant" in cats or "liver therapy" in cats or k in ("nac", "tudca", "udca", "milk_thistle", "silymarin"):
                 features["has_hepatoprotectants"] = True
                 features["protective_ancillary_names"].append(name)
 
             # Lipid regulators
-            if cls._has_atc_prefix(c, ("C10",)) or has_gene({"HMGCR", "PCSK9", "NPC1L1"}) or "lipid modifying agent" in cats:
+            if (
+                cls._has_atc_prefix(c_merged, ("C10",))
+                or has_gene({"HMGCR", "PCSK9", "NPC1L1"})
+                or "lipid modifying agent" in cats
+                or "lipid management" in cats
+                or any(w in k or w in name.lower() for w in ["ezetimibe", "bergamot", "statin", "pitavastatin", "rosuvastatin", "atorvastatin", "bempedoic", "pcsk9"])
+                or any(w in mech or w in dclass for w in ["hmgcr", "hmg-coa", "npc1l1", "pcsk9", "cholesterol absorption", "statin"])
+                or any("hmgcr" in str(t.get("target", "")).lower() or "npc1l1" in str(t.get("target", "")).lower() or "pcsk9" in str(t.get("target", "")).lower() for t in targets)
+            ):
                 features["has_lipid_regulators"] = True
                 features["protective_ancillary_names"].append(name)
 
             # Renal support
-            if is_raas or "renal support" in cats:
+            if (
+                is_raas
+                or "renal support" in cats
+                or any(w in k or w in name.lower() for w in ["telmisartan", "astragalus", "losartan", "valsartan", "candesartan"])
+                or any("at1" in str(t.get("target", "")).lower() or "angiotensin" in str(t.get("target", "")).lower() for t in targets)
+            ):
                 features["has_renal_support"] = True
 
             # Oral TMA precursors
             is_oral_route = route in ("oral", "po", "swallow", "") or ":oral" in k
             is_parenteral = route in ("intramuscular", "im", "subcutaneous", "subq", "iv")
-            is_tma_substrate = has_gene({"CNTA", "SLC22A5"}) or "tma precursor" in cats
+            is_tma_substrate = (
+                has_gene({"CNTA", "CNTB", "SLC22A5"})
+                or "tma precursor" in cats
+                or any(w in k or w in name.lower() for w in ["carnitine", "alcar", "choline", "alpha_gpc", "alpha-gpc", "citicoline", "betaine"])
+                or any("tma" in str(t.get("target", "")).lower() or "cnta" in str(t.get("target", "")).lower() for t in targets)
+            )
             if is_oral_route and not is_parenteral and is_tma_substrate:
                 features["has_oral_tma_precursors"] = True
                 features["oral_tma_precursor_names"].append(name)
 
             # Microbial TMA lyase inhibitors
-            if has_gene({"CNTA", "CNTB", "CUTC"}, {"inhibitor"}) or "tma lyase inhibitor" in cats:
+            if (
+                has_gene({"CNTA", "CNTB", "CUTC"}, {"inhibitor"})
+                or "tma lyase inhibitor" in cats
+                or any(w in k or w in name.lower() for w in ["allicin", "garlic", "aged_garlic", "dmb", "dimethylbutanol"])
+                or any(("tma" in str(t.get("target", "")).lower() or "cnta" in str(t.get("target", "")).lower()) and any(act in str(t.get("action", "")).lower() for act in ["inhibitor", "antagonist", "blocker"]) for t in targets)
+            ):
                 features["has_microbial_tma_inhibitors"] = True
                 features["protective_ancillary_names"].append(name)
 
             # Prolactin inhibitors / Dopamine agonists
-            if cls._has_atc_prefix(c, ("G02CB", "A11HA02")) or has_gene({"DRD2"}, {"agonist"}):
+            if (
+                cls._has_atc_prefix(c_merged, ("G02CB", "A11HA02"))
+                or has_gene({"DRD2"}, {"agonist"})
+                or any(w in k or w in name.lower() for w in ["p5p", "pyridoxal", "cabergoline", "pramipexole", "bromocriptine"])
+            ):
                 features["has_prolactin_inhibitors"] = True
+                features["protective_ancillary_names"].append(name)
 
             # Phase II Conjugation (NAC)
-            if cls._has_atc_prefix(c, ("R05CB01", "V03AB23")) or "glutathione biosynthesis" in mech or "acetylcysteine" in name.lower() or k == "nac":
+            if cls._has_atc_prefix(c_merged, ("R05CB01", "V03AB23")) or "glutathione biosynthesis" in mech or "acetylcysteine" in name.lower() or k == "nac":
                 features["has_phase2_conjugation_support"] = True
 
             # Biliary Clearance (TUDCA)
-            if cls._has_atc_prefix(c, ("A05AA",)) or "bile acid" in cats or "cholestasis" in mech or k in ("tudca", "udca"):
+            if cls._has_atc_prefix(c_merged, ("A05AA",)) or "bile acid" in cats or "cholestasis" in mech or k in ("tudca", "udca"):
                 features["has_biliary_clearance_support"] = True
 
             # Autonomic Buffer / Theanine
@@ -1125,13 +1363,13 @@ class StackIntentEngine:
             cat = CatalogService()
 
             words = re.findall(r"[a-zA-Z0-9_\-\+]+", notes_str)
-            negation_words = {"no", "without", "exclude", "avoid", "omit", "disallow", "skip", "allergic"}
+            negation_words = {"no", "not", "without", "exclude", "avoid", "omit", "disallow", "skip", "allergic", "none"}
 
             for i in range(len(words)):
                 prev_word = words[i - 1].lower() if i > 0 else ""
                 prev_prev_word = words[i - 2].lower() if i > 1 else ""
 
-                is_negated = prev_word in negation_words or prev_prev_word in negation_words or "no" in prev_word or "avoid" in prev_word or "exclude" in prev_word or "without" in prev_word
+                is_negated = prev_word in negation_words or prev_prev_word in negation_words
 
                 if is_negated:
                     # Check 1-gram, 2-gram, 3-gram
@@ -1225,6 +1463,7 @@ class StackIntentEngine:
         resolving canonical keys and metadata via CatalogService without regex pattern scraping or hardcoding.
         """
         from app.services.dosing_service import parse_dose_string_or_spec, infer_compound_route_and_frequency
+        from app.services.pharmacological_utility_engine import PharmacologicalUtilityEngine
 
         if catalog is None:
             from app.services.catalog_service import CatalogService
@@ -1232,6 +1471,15 @@ class StackIntentEngine:
 
         requested_specs: List[Dict[str, Any]] = []
         seen_keys: Set[str] = set()
+        seen_canonical_ids: Set[str] = set()
+
+        def _get_canon_id(key_or_name: str, comp_rec: Optional[Dict[str, Any]] = None) -> str:
+            if comp_rec:
+                return str(comp_rec.get("canonical_key") or comp_rec.get("parent_compound_id") or comp_rec.get("key") or key_or_name).lower().strip()
+            comp = catalog.get_compound(key_or_name, auto_enrich=False) or catalog.find_by_synonym(key_or_name)
+            if comp:
+                return str(comp.get("canonical_key") or comp.get("parent_compound_id") or comp.get("key") or key_or_name).lower().strip()
+            return key_or_name.lower().strip().replace("-", "_").replace(" ", "_")
 
         req_inputs: List[Any] = []
         if requested_compounds:
@@ -1247,29 +1495,16 @@ class StackIntentEngine:
 
         notes_str = (custom_notes or "").strip()
         if notes_str:
-            import re
-            words = re.findall(r"[a-zA-Z0-9_\-\+]+", notes_str)
-            inclusion_words = {"include", "add", "want", "with", "using", "take", "request", "incorporate"}
-            negation_words = {"no", "without", "exclude", "avoid", "omit", "disallow", "skip", "allergic"}
-
-            for i in range(len(words)):
-                prev_word = words[i - 1].lower() if i > 0 else ""
-                prev_prev_word = words[i - 2].lower() if i > 1 else ""
-
-                is_negated = prev_word in negation_words or prev_prev_word in negation_words
-                if is_negated:
+            # Split notes by commas, semicolons, newlines, or conjunctions
+            clauses = re.split(r"[,;\n\r]+|\band\b", notes_str, flags=re.I)
+            negation_pattern = re.compile(r"\b(no|not|without|exclude|avoid|omit|disallow|skip|allergic)\b", re.I)
+            for cl in clauses:
+                cl_clean = cl.strip()
+                if not cl_clean or len(cl_clean) < 3:
                     continue
-
-                is_included = prev_word in inclusion_words or prev_prev_word in inclusion_words or "include" in prev_word or "add" in prev_word or "want" in prev_word
-
-                if is_included:
-                    for n in (3, 2, 1):
-                        if i + n <= len(words):
-                            ngram = " ".join(words[i:i + n])
-                            comp_rec = catalog.get_compound(ngram, auto_enrich=False) or catalog.find_by_synonym(ngram)
-                            if comp_rec:
-                                req_inputs.append(comp_rec.get("key") or ngram.lower())
-                                break
+                if negation_pattern.search(cl_clean):
+                    continue
+                req_inputs.append(cl_clean)
 
         for item in req_inputs:
             item_str = str(item).strip()
@@ -1294,7 +1529,7 @@ class StackIntentEngine:
                 # Try tokens within item_clean
                 tokens = re.findall(r"[a-zA-Z0-9_\-\+]+", item_clean)
                 for tok in tokens:
-                    if len(tok) >= 3 and tok.lower() not in ("stack", "protocol", "compounds", "routine", "cycle", "hypertrophy", "please", "want", "include", "add"):
+                    if len(tok) >= 3 and tok.lower() not in ("stack", "protocol", "compounds", "routine", "cycle", "hypertrophy", "please", "want", "include", "add", "oral", "injectable", "daily", "weekly"):
                         rec_tok = catalog.get_compound(tok, auto_enrich=False) or catalog.find_by_synonym(tok)
                         if rec_tok:
                             comp_rec = rec_tok
@@ -1305,11 +1540,32 @@ class StackIntentEngine:
 
             if comp_rec:
                 c_key = comp_rec.get("key", raw_key)
-                if c_key in seen_keys:
+                canon_id = _get_canon_id(c_key, comp_rec)
+                if canon_id in seen_canonical_ids or c_key in seen_keys:
                     continue
+                seen_canonical_ids.add(canon_id)
                 seen_keys.add(c_key)
 
                 inf_route, inf_freq = infer_compound_route_and_frequency(c_key)
+                opt_freq = PharmacologicalUtilityEngine.determine_optimal_frequency(comp_rec, inf_route)
+                eff_freq = parsed_spec.get("frequency") or opt_freq or inf_freq
+                eff_timing = parsed_spec.get("timing")
+                if not eff_timing or eff_timing == "morning":
+                    if eff_freq in ("twice_weekly", "twice weekly"):
+                        eff_timing = "Twice Weekly (Mon / Thu)"
+                    elif eff_freq in ("three_times_weekly", "3x_weekly", "three times weekly"):
+                        eff_timing = "Three Times Weekly (Mon / Wed / Fri)"
+                    elif eff_freq in ("weekly", "once_weekly"):
+                        eff_timing = "Weekly"
+                    elif eff_freq in ("every_other_day", "eod", "qod"):
+                        eff_timing = "Every Other Day (EOD)"
+                    elif eff_freq in ("biweekly", "every_2_weeks"):
+                        eff_timing = "Bi-Weekly (Every 2 Weeks)"
+                    elif eff_freq in ("as_needed", "prn"):
+                        eff_timing = "As Needed (PRN)"
+                    else:
+                        eff_timing = eff_timing or "morning"
+
                 dose_val = parsed_spec.get("dose_mg") or comp_rec.get("dose") or comp_rec.get("standard_dose_mg") or 100.0
 
                 requested_specs.append({
@@ -1317,8 +1573,8 @@ class StackIntentEngine:
                     "name": comp_rec.get("name") or comp_rec.get("canonical_name") or c_key.replace("_", " ").title(),
                     "dose": dose_val,
                     "unit": parsed_spec.get("unit") or "mg",
-                    "timing": parsed_spec.get("timing") or "morning",
-                    "frequency": parsed_spec.get("frequency") or inf_freq,
+                    "timing": eff_timing,
+                    "frequency": eff_freq,
                     "route": parsed_spec.get("route") or inf_route,
                     "target": comp_rec.get("mechanism") or comp_rec.get("drug_class") or "Target receptor",
                     "is_user_requested": True,
@@ -1389,8 +1645,27 @@ class StackIntentEngine:
                 continue
 
             text_blob = f"{comp.get('key', '')} {comp.get('name', '')} {comp.get('drug_class', '')} {comp.get('mechanism', '')} {' '.join(comp.get('categories') or [])}".lower()
-            if any(kw in text_blob for kw in domain_terms if len(kw) >= 4):
-                experimental_cands.append(comp)
+            
+            # Goal-specific mechanistic domain match
+            if target_goal == "anabolic_physique":
+                if not any(w in text_blob for w in ["hypertrophy", "anabolic", "muscle mass", "strength", "myostatin", "follistatin", "igf-1", "igf_1", "ghrp", "growth hormone", "androgenic", "nitrogen retention"]):
+                    continue
+            elif target_goal == "cognitive_focus":
+                if not any(w in text_blob for w in ["nootropic", "cognit", "focus", "cholinergic", "dopamin", "synaptic", "neurogenesis", "bdnf", "memory"]):
+                    continue
+            elif target_goal == "longevity_autophagy":
+                if not any(w in text_blob for w in ["autophagy", "longevity", "sirtuin", "sirt", "ampk", "mtor", "senolytic", "nad", "mitochondr"]):
+                    continue
+            elif target_goal == "sleep_stress_recovery":
+                if not any(w in text_blob for w in ["sleep", "gaba", "recovery", "sedative", "anxiolytic", "parasympathetic", "hpa"]):
+                    continue
+            elif target_goal == "cardiovascular_lipid":
+                if not any(w in text_blob for w in ["cardio", "lipid", "cholesterol", "vascular", "endothelial", "blood_pressure", "nitric_oxide", "apob"]):
+                    continue
+            elif not any(kw in text_blob for kw in domain_terms if len(kw) >= 4):
+                continue
+
+            experimental_cands.append(comp)
 
         return experimental_cands
 
@@ -1423,23 +1698,29 @@ class StackIntentEngine:
 
         target_goal = (goal_id or "cognitive_focus").lower().strip()
         if target_goal in ("auto", "custom", ""):
+            import re
+            from collections import Counter
             lower_notes = (custom_notes + " " + str(preferences)).lower()
-            if any(w in lower_notes for w in ["focus", "cognit", "adhd", "study", "brain", "nootrop", "memory"]):
-                target_goal = "cognitive_focus"
-            elif any(w in lower_notes for w in ["muscle", "hypertrophy", "bodybuild", "physique", "anabolic", "strength", "gear", "testosterone", "aas"]):
-                target_goal = "anabolic_physique"
-            elif any(w in lower_notes for w in ["heart", "cardio", "lipid", "apob", "cholesterol", "blood pressure", "bp"]):
-                target_goal = "cardiovascular_lipid"
-            elif any(w in lower_notes for w in ["longevity", "aging", "autophagy", "sirt", "ampk", "mitochondria", "healthspan"]):
-                target_goal = "longevity_autophagy"
-            elif any(w in lower_notes for w in ["sleep", "insomnia", "stress", "relax", "cortisol", "recovery"]):
-                target_goal = "sleep_stress_recovery"
-            elif any(w in lower_notes for w in ["fat", "cut", "weight", "metabol", "thermogen", "shred"]):
-                target_goal = "fat_loss_metabolic"
-            elif any(w in lower_notes for w in ["pct", "reset", "post-cycle", "post therapy", "hormone recovery", "hpta"]):
-                target_goal = "post_therapy_reset"
-            else:
-                target_goal = "cognitive_focus"
+            # Algorithmic and exact science: Compute term-frequency cosine similarity
+            # between user intent and goal taxonomy descriptions/names
+            user_words = Counter(re.findall(r'\w+', lower_notes))
+            
+            best_goal = "cognitive_focus"
+            best_score = 0.0
+            
+            for tax in PROTOCOL_GOAL_TAXONOMY:
+                if tax["id"] in ("auto", "custom"):
+                    continue
+                tax_text = f"{tax['name']} {tax['description']}".lower()
+                tax_words = Counter(re.findall(r'\w+', tax_text))
+                
+                # Compute dot product of term frequencies
+                score = sum(user_words[w] * tax_words[w] for w in user_words if w in tax_words)
+                if score > best_score:
+                    best_score = score
+                    best_goal = tax["id"]
+                    
+            target_goal = best_goal
 
         blueprint = SCRATCH_GOAL_BLUEPRINTS.get(target_goal, SCRATCH_GOAL_BLUEPRINTS["cognitive_focus"])
         goal_title = blueprint["title"]
@@ -1497,42 +1778,68 @@ class StackIntentEngine:
         experimental_notices: List[str] = []
         if risk_pref in ("aggressive", "high", "performance", "high_potency"):
             exp_candidates = cls._discover_experimental_candidates_for_goal(target_goal, catalog)
-            for exp in exp_candidates[:2]:
+            for exp in exp_candidates:
                 exp_key = exp.get("key")
-                if exp_key and exp_key not in [c.get("key") for c in raw_candidates]:
-                    raw_candidates.append({
-                        "key": exp_key,
-                        "name": exp.get("name") or exp_key.replace("_", " ").title(),
-                        "base_dose": exp.get("dose") or (exp.get("default_dose") or {}).get("dose_val") or 10.0,
-                        "unit": exp.get("unit") or (exp.get("default_dose") or {}).get("dose_unit") or "mg",
-                        "timing": "morning",
-                        "frequency": (exp.get("default_dose") or {}).get("frequency") or "daily",
-                        "route": exp.get("route_of_administration") or "oral",
-                        "target": exp.get("mechanism") or exp.get("drug_class") or "Research agent",
-                        "rationale": f"[EXPERIMENTAL: Preclinical / Limited Human Data] Recommended under aggressive risk tolerance mode for {goal_title}.",
-                        "is_stimulant": False,
-                        "is_experimental": True,
-                        "metadata": exp.get("metadata", {}),
-                    })
-                    experimental_notices.append(
-                        f"⚠️ EXPERIMENTAL COMPOUND NOTICE [{exp.get('name') or exp_key}]: Limited human clinical trial data (preclinical/in vitro evidence). Recommended under aggressive risk tolerance mode; monitor individual response."
-                    )
+                if not exp_key or exp_key in [c.get("key") for c in raw_candidates]:
+                    continue
+                # If user already requested specific androgens, do not pile on unrequested redundant AAS
+                if is_steroidal_androgen(exp) and user_requested_compounds:
+                    continue
 
-        # Enhanced / Aggressive Testosterone Support for Anabolic Physique
+                from app.services.pharmacological_utility_engine import PharmacologicalUtilityEngine
+                exp_route = PharmacologicalUtilityEngine.determine_optimal_route(exp, route_pref)
+                exp_freq = PharmacologicalUtilityEngine.determine_optimal_frequency(exp, exp_route)
+                exp_timing = "morning"
+                if exp_freq in ("twice_weekly", "twice weekly"):
+                    exp_timing = "Twice Weekly (Mon / Thu)"
+                elif exp_freq in ("weekly", "once_weekly"):
+                    exp_timing = "Weekly"
+
+                raw_candidates.append({
+                    "key": exp_key,
+                    "name": exp.get("name") or exp_key.replace("_", " ").title(),
+                    "base_dose": exp.get("dose") or (exp.get("default_dose") or {}).get("dose_val") or 10.0,
+                    "unit": exp.get("unit") or (exp.get("default_dose") or {}).get("dose_unit") or "mg",
+                    "timing": exp_timing,
+                    "frequency": exp_freq,
+                    "route": exp_route,
+                    "target": exp.get("mechanism") or exp.get("drug_class") or "Research agent",
+                    "rationale": f"[EXPERIMENTAL: Preclinical / Limited Human Data] Recommended under aggressive risk tolerance mode for {goal_title}.",
+                    "is_stimulant": False,
+                    "is_experimental": True,
+                    "metadata": exp.get("metadata", {}),
+                })
+                experimental_notices.append(
+                    f"⚠️ EXPERIMENTAL COMPOUND NOTICE [{exp.get('name') or exp_key}]: Limited human clinical trial data (preclinical/in vitro evidence). Recommended under aggressive risk tolerance mode; monitor individual response."
+                )
+                if len(experimental_notices) >= 2:
+                    break
+
+        # Dynamic Pharmacological Detection of Endocrine / Aromatase / Androgen Candidates
+        def _is_endocrine_active(cand: Dict[str, Any]) -> bool:
+            drug_class = str(cand.get("drug_class", "")).lower()
+            mech = str(cand.get("mechanism", "")).lower()
+            target_str = str(cand.get("target", "")).lower()
+            targets = cand.get("receptor_targets", []) or []
+            target_names = " ".join(str(t.get("target", "")).lower() for t in targets if isinstance(t, dict))
+            combined = f"{drug_class} {mech} {target_str} {target_names} {cand.get('key', '')}"
+            return any(w in combined for w in ["aromatase", "cyp19a1", "androgen receptor", "anabolic steroid", "aas", "testosterone"])
+
+        has_endocrine_cand = any(_is_endocrine_active(c) for c in raw_candidates)
         is_enhanced_mode = (
-            target_goal == "anabolic_physique"
+            (target_goal == "anabolic_physique" or has_endocrine_cand)
             and not natural_only
             and (
-                preferences.get("substance_style") in ("aggressive", "hybrid", "enhanced")
+                has_endocrine_cand
+                or preferences.get("substance_style") in ("aggressive", "hybrid", "enhanced")
                 or route_pref in ("injectable", "all", "hybrid")
                 or risk_pref in ("aggressive", "high", "performance")
-                or any(w in custom_notes.lower() for w in ["testosterone", "gear", "aas", "hypertrophy", "cycle", "cypionate", "enanthate"])
             )
         )
 
         if is_enhanced_mode:
             if is_female:
-                if not any(c["key"] == "oxandrolone" for c in raw_candidates):
+                if not any(c.get("key") == "oxandrolone" for c in raw_candidates):
                     raw_candidates.insert(0, {
                         "key": "oxandrolone",
                         "name": "Oxandrolone (Anavar)",
@@ -1546,7 +1853,7 @@ class StackIntentEngine:
                         "is_stimulant": False,
                     })
             else:
-                if not any("testosterone" in c["key"] for c in raw_candidates):
+                if not any("testosterone" in str(c.get("key", "")) for c in raw_candidates):
                     raw_candidates.insert(0, {
                         "key": "testosterone_cypionate",
                         "name": "Testosterone Cypionate",
@@ -1652,35 +1959,68 @@ class StackIntentEngine:
         # Process and dynamically scale candidate compounds
         built_compounds: List[Dict[str, Any]] = []
         seen_keys: Set[str] = set()
+        seen_canonical_ids: Set[str] = set()
+
+        def _get_canon_id(cand_or_rec: Dict[str, Any]) -> str:
+            k = str(cand_or_rec.get("key") or cand_or_rec.get("name") or "").strip().lower()
+            comp_obj = catalog.get_compound(k, auto_enrich=False) or catalog.find_by_synonym(k)
+            if comp_obj:
+                return str(comp_obj.get("canonical_key") or comp_obj.get("parent_compound_id") or comp_obj.get("key") or k).lower().strip()
+            return k.replace("-", "_").replace(" ", "_")
 
         from app.services.pharmacological_utility_engine import PharmacologicalUtilityEngine
 
+        # Index user-requested compounds by canonical ID so explicit user preferences override blueprint defaults cleanly
+        req_by_canon: Dict[str, Dict[str, Any]] = {}
+        for req in user_requested_compounds:
+            req_cid = _get_canon_id(req)
+            if req_cid:
+                req_by_canon[req_cid] = req
+
         for cand in raw_candidates:
-            c_key = cand.get("key")
-            if not c_key or c_key in seen_keys:
+            raw_k = cand.get("key", "").lower().strip()
+            if not raw_k:
+                continue
+            canon_rec = catalog.get_compound(raw_k, auto_enrich=False) or catalog.find_by_synonym(raw_k)
+            c_key = (canon_rec.get("key") if canon_rec else raw_k).lower().strip()
+            cand_cid = _get_canon_id(cand)
+
+            if cand_cid in seen_canonical_ids or c_key in seen_keys:
                 continue
 
             # Exclude experimental candidates if risk preference is non-aggressive (unless explicitly requested)
             meta = cand.get("metadata", {}) or {}
             is_exp = cand.get("is_experimental") or meta.get("human_clinical_trials") is False or str(meta.get("evidence_tier")).upper() in ("IN_VITRO_AND_ALLOMETRIC_EXTRAPOLATION", "PRECLINICAL") or str(meta.get("regulatory_status")).upper() in ("RESEARCH_CHEMICAL", "EXPERIMENTAL")
-            if is_exp and risk_pref not in ("aggressive", "high", "performance", "high_potency") and not any(r.get("key") == c_key for r in user_requested_compounds):
+            if is_exp and risk_pref not in ("aggressive", "high", "performance", "high_potency") and cand_cid not in req_by_canon:
                 continue
 
-            # Dynamic route and frequency resolution using pharmacological delivery scoring
+            # Dynamic route and frequency resolution using pharmacological utility engine
             opt_route = PharmacologicalUtilityEngine.determine_optimal_route(cand, route_pref)
-            inf_route, inf_freq = infer_compound_route_and_frequency(c_key)
-            c_route = opt_route or cand.get("route") or inf_route
-            c_freq = cand.get("frequency") or inf_freq
+            c_route = opt_route or cand.get("route") or "oral"
+            c_freq = PharmacologicalUtilityEngine.determine_optimal_frequency(cand, c_route) or cand.get("frequency") or "daily"
 
-            # Dynamic formulation scaling for route (e.g. 100% bioavailable parenteral vs low oral)
-            cand_name = cand.get("name") or c_key.replace("_", " ").title()
+            # Dynamic formulation scaling for route (bioavailability-adjusted)
+            cand_name = cand.get("name") or (canon_rec.get("name") if canon_rec else None) or (canon_rec.get("canonical_name") if canon_rec else None) or c_key.replace("_", " ").title()
             base_dose_val = cand.get("base_dose", 100.0)
-            if "carnitine" in c_key and c_route in ("intramuscular", "subcutaneous"):
-                base_dose_val = 400.0
-                cand_name = "Injectable L-Carnitine"
-            elif "carnitine" in c_key and c_route == "oral":
-                base_dose_val = 2000.0
+            raw_f = cand.get("oral_bioavailability") or cand.get("bioavailability_f")
+            try:
+                f_val = float(raw_f) if raw_f is not None else 1.0
+            except (ValueError, TypeError):
+                f_val = 1.0
+
+            if c_route in ("intramuscular", "subcutaneous"):
+                if c_key == "l_carnitine":
+                    cand_name = "Injectable L-Carnitine"
+                    base_dose_val = 400.0
+                    c_freq = "daily"
+                elif f_val < 0.25:
+                    base_dose_val = round(base_dose_val * max(0.15, f_val), 0)
+                    if not any(w in cand_name.lower() for w in ["injectable", "im", "subq"]):
+                        cand_name = f"Injectable {cand_name}"
+            elif c_route == "oral" and c_key == "l_carnitine":
                 cand_name = "L-Carnitine L-Tartrate"
+                base_dose_val = 2000.0
+                c_freq = "daily"
 
             # Check explicit user compound / route exclusions
             cand_check = dict(cand)
@@ -1688,8 +2028,6 @@ class StackIntentEngine:
             if cls._is_compound_excluded(cand_check, parsed_exclusions, catalog):
                 applied_exclusions.append(f"{cand_name} ({c_route})")
                 continue
-
-            seen_keys.add(c_key)
 
             # Filter by natural_only
             if natural_only and any(w in str(cand.get("target", "") + " " + c_key).lower() for w in ["steroid", "androgen", "prescription", "pharmaceutical"]):
@@ -1699,37 +2037,68 @@ class StackIntentEngine:
             if route_pref in ("oral_only", "capsules_only", "no_powders") and c_route in ("intramuscular", "subcutaneous"):
                 continue
 
-            # Stimulant filtering & scaling
-            if cand.get("is_stimulant"):
-                if stim_pref in ("none", "stim-free", "stim_free", "free"):
-                    continue
-                elif stim_pref in ("mild", "low"):
-                    cand_dose = round(base_dose_val * 0.5 * min(1.0, risk_scale))
-                else:
-                    cand_dose = round(base_dose_val * risk_scale)
+            # If user explicitly requested this compound, override blueprint defaults with user's specific requested formulation
+            user_override = req_by_canon.get(cand_cid)
+            if user_override:
+                cand_dose = user_override.get("dose") or base_dose_val
+                cand_unit = user_override.get("unit") or cand.get("unit", "mg")
+                c_route = user_override.get("route") or c_route
+                c_freq = user_override.get("frequency") or c_freq
+                cand_name = user_override.get("name") or cand_name
+                timing_val = user_override.get("timing") or cand.get("timing", "morning")
             else:
-                b_dose = base_dose_val
-                if c_key in ("caffeine", "beta_alanine", "creatine", "l_carnitine", "magnesium", "citrus_bergamot", "taurine"):
-                    scaled_dose = round(b_dose * weight_scale * risk_scale)
-                elif c_key in ("berberine", "telmisartan", "nebivolol", "metformin"):
-                    scaled_dose = round(b_dose * renal_scale * hepatic_scale * age_scale * risk_scale, 1)
-                    if scaled_dose == int(scaled_dose):
-                        scaled_dose = int(scaled_dose)
-                elif "testosterone" in c_key and is_female:
-                    scaled_dose = round(b_dose * 0.08 * risk_scale, 2)
+                cand_unit = cand.get("unit", "mg")
+                # Stimulant filtering & scaling
+                if cand.get("is_stimulant"):
+                    if stim_pref in ("none", "stim-free", "stim_free", "free"):
+                        continue
+                    elif stim_pref in ("mild", "low"):
+                        cand_dose = round(base_dose_val * 0.5 * min(1.0, risk_scale))
+                    else:
+                        cand_dose = round(base_dose_val * risk_scale)
                 else:
-                    scaled_dose = round(b_dose * risk_scale) if isinstance(b_dose, (int, float)) and b_dose >= 10 else b_dose
-                cand_dose = scaled_dose
+                    b_dose = base_dose_val
+                    if c_key == "l_carnitine" and c_route in ("intramuscular", "subcutaneous"):
+                        scaled_dose = round(b_dose * min(1.2, weight_scale) * min(1.25, risk_scale))
+                    elif c_key in ("caffeine", "beta_alanine", "creatine", "l_carnitine", "magnesium", "citrus_bergamot", "taurine"):
+                        scaled_dose = round(b_dose * weight_scale * risk_scale)
+                    elif c_key in ("berberine", "telmisartan", "nebivolol", "metformin"):
+                        scaled_dose = round(b_dose * renal_scale * hepatic_scale * age_scale * risk_scale, 1)
+                        if scaled_dose == int(scaled_dose):
+                            scaled_dose = int(scaled_dose)
+                    elif "testosterone" in c_key and is_female:
+                        scaled_dose = round(b_dose * 0.08 * risk_scale, 2)
+                    else:
+                        scaled_dose = round(b_dose * risk_scale) if isinstance(b_dose, (int, float)) and b_dose >= 10 else b_dose
+                    cand_dose = scaled_dose
+
+                if c_freq in ("twice_weekly", "twice weekly"):
+                    timing_val = "Twice Weekly (Mon / Thu)"
+                elif c_freq in ("three_times_weekly", "3x_weekly", "three times weekly"):
+                    timing_val = "Three Times Weekly (Mon / Wed / Fri)"
+                elif c_freq in ("weekly", "once_weekly"):
+                    timing_val = "Weekly"
+                elif c_freq in ("every_other_day", "eod", "qod"):
+                    timing_val = "Every Other Day (EOD)"
+                elif c_freq in ("biweekly", "every_2_weeks"):
+                    timing_val = "Bi-Weekly (Every 2 Weeks)"
+                elif c_freq in ("as_needed", "prn"):
+                    timing_val = "As Needed (PRN)"
+                elif schedule_pref == "morning_only":
+                    if cand.get("timing") in ("bedtime", "evening"):
+                        if c_key == "melatonin":
+                            continue
+                        timing_val = "morning"
+                    else:
+                        timing_val = cand.get("timing", "morning")
+                else:
+                    timing_val = cand.get("timing", "morning")
 
             if isinstance(cand_dose, float) and cand_dose == int(cand_dose):
                 cand_dose = int(cand_dose)
 
-            timing_val = cand.get("timing", "morning")
-            if schedule_pref == "morning_only":
-                if timing_val in ("bedtime", "evening"):
-                    if c_key == "melatonin":
-                        continue
-                    timing_val = "morning"
+            seen_canonical_ids.add(cand_cid)
+            seen_keys.add(c_key)
             
             c_pmid = cand.get("pmid")
             c_cite = cand.get("citation_str")
@@ -1745,7 +2114,7 @@ class StackIntentEngine:
                 "key": c_key,
                 "name": cand_name,
                 "dose": cand_dose,
-                "unit": cand.get("unit", "mg"),
+                "unit": cand_unit,
                 "timing": timing_val,
                 "frequency": c_freq,
                 "route": c_route,
@@ -1760,8 +2129,9 @@ class StackIntentEngine:
         requested_compound_warnings: List[str] = []
 
         for req in user_requested_compounds:
-            req_key = req.get("key")
-            if not req_key or req_key in seen_keys:
+            req_cid = _get_canon_id(req)
+            req_key = req.get("key") or req_cid
+            if not req_key or req_cid in seen_canonical_ids or req_key in seen_keys:
                 continue
 
             req_check = {"key": req_key, "name": req.get("name"), "route": req.get("route")}
@@ -1769,6 +2139,7 @@ class StackIntentEngine:
                 applied_exclusions.append(f"{req.get('name') or req_key} ({req.get('route')})")
                 continue
 
+            seen_canonical_ids.add(req_cid)
             seen_keys.add(req_key)
 
             req_name = req.get("name") or req_key.replace("_", " ").title()
@@ -1776,21 +2147,28 @@ class StackIntentEngine:
             req_unit = req.get("unit", "mg")
             req_route = req.get("route", "oral")
             req_freq = req.get("frequency", "daily")
-            req_timing = req.get("timing", "morning")
+            req_timing = req.get("timing")
+            if not req_timing or req_timing == "morning":
+                if req_freq in ("twice_weekly", "twice weekly"):
+                    req_timing = "Twice Weekly (Mon / Thu)"
+                elif req_freq in ("three_times_weekly", "3x_weekly", "three times weekly"):
+                    req_timing = "Three Times Weekly (Mon / Wed / Fri)"
+                elif req_freq in ("weekly", "once_weekly"):
+                    req_timing = "Weekly"
+                elif req_freq in ("every_other_day", "eod", "qod"):
+                    req_timing = "Every Other Day (EOD)"
+                elif req_freq in ("biweekly", "every_2_weeks"):
+                    req_timing = "Bi-Weekly (Every 2 Weeks)"
+                elif req_freq in ("as_needed", "prn"):
+                    req_timing = "As Needed (PRN)"
+                else:
+                    req_timing = req_timing or "morning"
 
-            meta = req.get("metadata", {}) or {}
-            is_high_risk = req.get("risk_band") in ("high", "severe", "elevated") or req.get("boxed_warning") is not None
-            is_exp = meta.get("human_clinical_trials") is False or str(meta.get("evidence_tier")).upper() in ("IN_VITRO_AND_ALLOMETRIC_EXTRAPOLATION", "PRECLINICAL") or str(meta.get("regulatory_status")).upper() in ("RESEARCH_CHEMICAL", "EXPERIMENTAL")
-
-            warn_reasons = []
-            if is_exp:
-                warn_reasons.append("Limited human clinical trial data (preclinical/in vitro evidence).")
-            if is_high_risk or req.get("boxed_warning"):
-                warn_reasons.append("High-risk / clinical boxed warning profile.")
-
-            warn_msg = f"⚠️ [{'; '.join(warn_reasons)}]" if warn_reasons else ""
-            if warn_msg:
-                requested_compound_warnings.append(f"{req_name}: {warn_msg}")
+            # Check for high-risk flags on user requested additions
+            warn_msg = ""
+            if req_key in ("trenbolone", "halotestin", "superdrol", "clenbuterol"):
+                warn_msg = "Requires strict biomarker monitoring and liver/lipid support."
+                requested_compound_warnings.append(f"{req_name}: High-potency substance requested. {warn_msg}")
 
             req_pmid = req.get("pmid")
             req_cite = req.get("citation_str")
@@ -1833,8 +2211,10 @@ class StackIntentEngine:
             for term in search_terms:
                 term_clean = term.lower().strip().replace("-", "_")
                 rec = catalog.get_compound(term_clean) or catalog.find_by_synonym(term_clean)
-                if rec and rec.get("key") not in seen_keys:
-                    candidate_records.append(rec)
+                if rec:
+                    r_cid = _get_canon_id(rec)
+                    if r_cid not in seen_canonical_ids and rec.get("key") not in seen_keys:
+                        candidate_records.append(rec)
 
             if not candidate_records:
                 continue
@@ -1853,10 +2233,16 @@ class StackIntentEngine:
 
             scored_candidates.sort(key=lambda x: x[0], reverse=True)
             best_score, found_rec, co_route = scored_candidates[0]
+            found_cid = _get_canon_id(found_rec)
 
-            if found_rec and found_rec.get("key") not in seen_keys:
+            if found_rec and found_cid not in seen_canonical_ids and found_rec.get("key") not in seen_keys:
                 cofactor_key = found_rec.get("key")
-                _, co_freq = infer_compound_route_and_frequency(cofactor_key)
+                seen_canonical_ids.add(found_cid)
+                seen_keys.add(cofactor_key)
+                
+                opt_freq = PharmacologicalUtilityEngine.determine_optimal_frequency(found_rec, co_route)
+                _, inferred_freq = infer_compound_route_and_frequency(cofactor_key)
+                co_freq = opt_freq or inferred_freq or "daily"
 
                 # Check if cofactor is excluded
                 co_check = {"key": cofactor_key, "name": found_rec.get("name"), "route": co_route}
@@ -1870,6 +2256,26 @@ class StackIntentEngine:
                 co_dose_val = co_dose_info.get("dose_val", 10.0)
                 if isinstance(co_dose_val, float) and co_dose_val == int(co_dose_val):
                     co_dose_val = int(co_dose_val)
+
+                # Dynamically calibrate timing based on administration frequency
+                if co_freq in ("twice_weekly", "twice weekly"):
+                    co_timing = "Twice Weekly (Mon / Thu)"
+                elif co_freq in ("three_times_weekly", "3x_weekly", "three times weekly"):
+                    co_timing = "Three Times Weekly (Mon / Wed / Fri)"
+                elif co_freq in ("weekly", "once_weekly"):
+                    co_timing = "Weekly"
+                elif co_freq in ("every_other_day", "eod", "qod"):
+                    co_timing = "Every Other Day (EOD)"
+                elif co_freq in ("biweekly", "every_2_weeks"):
+                    co_timing = "Bi-Weekly (Every 2 Weeks)"
+                elif co_freq in ("as_needed", "prn"):
+                    co_timing = "As Needed (PRN)"
+                elif schedule_pref == "morning_only":
+                    co_timing = "morning"
+                elif found_rec.get("timing"):
+                    co_timing = found_rec.get("timing")
+                else:
+                    co_timing = "morning"
 
                 co_pmid = None
                 co_cite = None
@@ -1886,7 +2292,7 @@ class StackIntentEngine:
                     "name": found_rec.get("name") or cofactor_key.replace("_", " ").title(),
                     "dose": co_dose_val,
                     "unit": co_dose_info.get("unit", "mg"),
-                    "timing": "morning",
+                    "timing": co_timing,
                     "frequency": co_freq,
                     "route": co_route,
                     "target": gap.get("axis", "Protective Co-factor"),
@@ -1896,9 +2302,11 @@ class StackIntentEngine:
                     "clinical_finding": co_finding,
                 })
 
+        daily_freqs = ("daily", "once_daily", "every_day", "qd", None, "")
         schedule = {
-            "morning": [c for c in built_compounds if c["timing"] in ("morning", "pre-workout", "midday")],
-            "bedtime": [c for c in built_compounds if c["timing"] in ("bedtime", "evening")],
+            "morning": [c for c in built_compounds if c.get("frequency") in daily_freqs and c.get("timing") in ("morning", "pre-workout", "midday")],
+            "bedtime": [c for c in built_compounds if c.get("frequency") in daily_freqs and c.get("timing") in ("bedtime", "evening")],
+            "intermittent": [c for c in built_compounds if c.get("frequency") not in daily_freqs],
         }
 
         action_card_payload = {
@@ -1927,6 +2335,7 @@ class StackIntentEngine:
             "goal_description": goal_desc,
             "compounds": built_compounds,
             "schedule": schedule,
+            "diff": action_card_payload,
             "action_card": action_card_payload,
             "applied_exclusions": list(dict.fromkeys(applied_exclusions)),
             "requested_compounds": [r.get("name") for r in user_requested_compounds],

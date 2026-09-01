@@ -116,6 +116,20 @@ def test_html_views_serve():
         assert response.status_code == 200
         assert "text/html" in response.headers.get("content-type", "")
 
+
+def test_favicon_and_manifest_endpoints():
+    ico_res = client.get("/favicon.ico")
+    assert ico_res.status_code == 200
+    assert "image/x-icon" in ico_res.headers.get("content-type", "")
+
+    svg_res = client.get("/favicon.svg")
+    assert svg_res.status_code == 200
+    assert "image/svg+xml" in svg_res.headers.get("content-type", "")
+
+    manifest_res = client.get("/site.webmanifest")
+    assert manifest_res.status_code == 200
+    assert "manifest" in manifest_res.headers.get("content-type", "")
+
     # Verify /graph contains domain filter matrix buttons
     graph_html = client.get("/graph").text
     assert "data-filter=\"all\"" in graph_html

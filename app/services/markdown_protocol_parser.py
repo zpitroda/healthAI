@@ -70,12 +70,13 @@ class MarkdownProtocolParser:
                     parsed_any_card = True
                     for add_item in (card_data.get("add") or card_data.get("additions") or []):
                         if isinstance(add_item, dict):
-                            raw_k = str(add_item.get("key") or add_item.get("name") or "").strip().lower()
+                            raw_k = str(add_item.get("id") or add_item.get("key") or add_item.get("chembl_id") or add_item.get("name") or "").strip().lower()
                             comp_rec = cls._resolve_compound(raw_k, catalog)
                             k = comp_rec["key"] if comp_rec else raw_k.replace(" ", "_")
                             if k and k not in base_keys:
                                 item_copy = dict(add_item)
                                 item_copy["key"] = k
+                                item_copy["id"] = k
                                 if comp_rec and not item_copy.get("name"):
                                     item_copy["name"] = comp_rec.get("name")
                                 proposed_compounds_map[k] = item_copy
@@ -83,20 +84,61 @@ class MarkdownProtocolParser:
 
                     for mod_item in (card_data.get("modify") or card_data.get("modifications") or []):
                         if isinstance(mod_item, dict):
-                            raw_k = str(mod_item.get("key") or mod_item.get("name") or "").strip().lower()
+                            raw_k = str(mod_item.get("id") or mod_item.get("key") or mod_item.get("chembl_id") or mod_item.get("name") or "").strip().lower()
                             comp_rec = cls._resolve_compound(raw_k, catalog)
                             k = comp_rec["key"] if comp_rec else raw_k.replace(" ", "_")
                             if k in proposed_compounds_map:
                                 proposed_compounds_map[k].update(mod_item)
 
                     for rem_item in (card_data.get("remove") or card_data.get("removals") or []):
-                        rem_k = str(rem_item.get("key") if isinstance(rem_item, dict) else rem_item).strip().lower()
+                        if isinstance(rem_item, dict):
+                            rem_k = str(rem_item.get("id") or rem_item.get("key") or rem_item.get("name") or "").strip().lower()
+                        else:
+                            rem_k = str(rem_item).strip().lower()
                         comp_rec = cls._resolve_compound(rem_k, catalog)
                         k = comp_rec["key"] if comp_rec else rem_k.replace(" ", "_")
                         proposed_compounds_map.pop(k, None)
                         removed_keys.add(k)
 
-            # 2. If no explicit action card in this message, extract from text
+            # 1.b Check for PURE JSON protocol_proposal blocks
+            if not parsed_any_card:
+                try:
+                    json_data = cls._extract_first_json_object(content)
+                    if json_data and isinstance(json_data, dict) and "blocks" in json_data:
+                        for block in json_data["blocks"]:
+                            if block.get("type") == "protocol_proposal" and block.get("data"):
+                                pdata = block["data"]
+                                diff = pdata.get("diff") or {}
+                                parsed_any_card = True
+                                
+                                for add_item in (diff.get("add") or []):
+                                    if isinstance(add_item, dict):
+                                        raw_k = str(add_item.get("id") or add_item.get("key") or add_item.get("name") or "").strip().lower()
+                                        comp_rec = cls._resolve_compound(raw_k, catalog)
+                                        k = comp_rec["key"] if comp_rec else raw_k.replace(" ", "_")
+                                        if k and k not in base_keys:
+                                            item_copy = dict(add_item)
+                                            item_copy["key"] = k
+                                            item_copy["id"] = k
+                                            proposed_compounds_map[k] = item_copy
+                                            removed_keys.discard(k)
+
+                                for mod_item in (diff.get("modify") or []):
+                                    if isinstance(mod_item, dict):
+                                        raw_k = str(mod_item.get("id") or mod_item.get("key") or mod_item.get("name") or "").strip().lower()
+                                        comp_rec = cls._resolve_compound(raw_k, catalog)
+                                        k = comp_rec["key"] if comp_rec else raw_k.replace(" ", "_")
+                                        if k in proposed_compounds_map:
+                                            proposed_compounds_map[k].update(mod_item)
+
+                                for rem_item in (diff.get("remove") or []):
+                                    rem_k = str(rem_item.get("id") or rem_item.get("key") or rem_item.get("name") or "").strip().lower() if isinstance(rem_item, dict) else str(rem_item).strip().lower()
+                                    comp_rec = cls._resolve_compound(rem_k, catalog)
+                                    k = comp_rec["key"] if comp_rec else rem_k.replace(" ", "_")
+                                    proposed_compounds_map.pop(k, None)
+                                    removed_keys.add(k)
+                except Exception as e:
+                    pass
             if not parsed_any_card:
                 extracted = cls.extract_from_text(content, base_stack=base_stack)
                 if extracted:
@@ -555,6 +597,7 @@ class MarkdownProtocolParser:
 
         line_timing = cls._extract_timing_from_string(spec_portion) or default_timing
         line_route = cls._extract_route_from_string(spec_portion) or default_route
+        line_freq = cls._extract_frequency_from_string(spec_portion)
 
         for seg in segments:
             seg_clean = seg.strip()
@@ -568,14 +611,37 @@ class MarkdownProtocolParser:
             c_key = comp_rec["key"]
             final_route = seg_route or line_route or comp_rec.get("route") or "oral"
             final_timing = seg_timing or line_timing
+            seg_freq = cls._extract_frequency_from_string(seg_clean) or line_freq
 
             inf_route, inf_freq = infer_compound_route_and_frequency(c_key)
-            if "mon" in str(final_timing).lower() or "twice weekly" in str(final_timing).lower():
-                final_freq = "twice weekly"
+            if seg_freq:
+                final_freq = seg_freq
+            elif "mon/wed" in str(final_timing).lower() or "3x" in str(final_timing).lower() or "three times" in str(final_timing).lower():
+                final_freq = "three_times_weekly"
+            elif "mon" in str(final_timing).lower() or "twice weekly" in str(final_timing).lower():
+                final_freq = "twice_weekly"
+            elif "eod" in str(final_timing).lower() or "every other day" in str(final_timing).lower() or "qod" in str(final_timing).lower():
+                final_freq = "every_other_day"
+            elif "biweekly" in str(final_timing).lower() or "every 2 weeks" in str(final_timing).lower():
+                final_freq = "biweekly"
+            elif "monthly" in str(final_timing).lower():
+                final_freq = "monthly"
+            elif "prn" in str(final_timing).lower() or "as needed" in str(final_timing).lower():
+                final_freq = "as_needed"
             elif "weekly" in str(final_timing).lower():
                 final_freq = "weekly"
             else:
                 final_freq = inf_freq or "daily"
+
+            # Normalize timing string to canonical display
+            if final_timing == "morning" and final_freq == "every_other_day":
+                final_timing = "Every Other Day (EOD)"
+            elif final_timing == "morning" and final_freq == "three_times_weekly":
+                final_timing = "Three Times Weekly (Mon / Wed / Fri)"
+            elif final_timing == "morning" and final_freq == "twice_weekly":
+                final_timing = "Twice Weekly (Mon / Thu)"
+            elif final_timing == "morning" and final_freq == "weekly":
+                final_timing = "Weekly"
 
             results.append({
                 "key": c_key,
@@ -631,7 +697,7 @@ class MarkdownProtocolParser:
             name_candidate = name_candidate[:dm.start()] + " " + name_candidate[dm.end():]
 
         name_candidate = re.sub(
-            r'\b(?:oral|im|subq|intramuscular|subcutaneous|sublingual|topical|transdermal|am|pm|mon/thu|mon|thu|morning|bedtime|evening|daily|twice weekly|split|from|to)\b',
+            r'\b(?:oral|im|subq|intramuscular|subcutaneous|sublingual|topical|transdermal|am|pm|mon/thu|mon|thu|morning|bedtime|evening|daily|twice weekly|split|from|to|eod|qod|mwf|biw|qw|prn|weekly|biweekly|monthly|every other day|3x/week|3x weekly|three times weekly)\b',
             ' ',
             name_candidate,
             flags=re.IGNORECASE,
@@ -670,7 +736,7 @@ class MarkdownProtocolParser:
             'from', 'to', 'mg', 'mcg', 'ug', 'g', 'oral', 'im', 'subq', 'intramuscular', 'subcutaneous',
             'daily', 'weekly', 'twice', 'day', 'days', 'in', 'the', 'morning', 'bedtime', 'evening',
             'am', 'pm', 'with', 'dinner', 'breakfast', 'lunch', 'and', 'for', 'split', 'depot',
-            'protocol', 'table', 'schedule', 'window', 'dose', 'route'
+            'protocol', 'table', 'schedule', 'window', 'dose', 'route', 'eod', 'qod', 'prn', 'mwf'
         }
         words = [w for w in re.findall(r'[a-z0-9]+', q_clean) if len(w) >= 2 and w not in stop_words and not w.isdigit()]
 
@@ -728,24 +794,67 @@ class MarkdownProtocolParser:
         return None
 
     @classmethod
+    def _extract_frequency_from_string(cls, text: str) -> Optional[str]:
+        t_low = text.lower()
+        if re.search(r'\b(?:every\s+other\s+day|every-other-day|eod|qod|alternate\s+days?|every\s+2\s+days|every\s+second\s+day)\b', t_low):
+            return "every_other_day"
+        if re.search(r'\b(?:3x/week|3x\s+weekly|3x\s+a\s+week|three\s+times\s+weekly|three\s+times\s+a\s+week|3\s+times\s+a\s+week|mon/wed/fri|mon\s*/\s*wed\s*/\s*fri|mwf|tiw)\b', t_low):
+            return "three_times_weekly"
+        if re.search(r'\b(?:mon/thu|mon\s*/\s*thu|mon\s+and\s+thu|twice\s+weekly|2x/week|2x\s+weekly|2x\s+a\s+week|twice\s+a\s+week|tue/fri|biw)\b', t_low):
+            return "twice_weekly"
+        if re.search(r'\b(?:biweekly|every\s+2\s+weeks|every\s+two\s+weeks|every\s+other\s+week|q2w)\b', t_low):
+            return "biweekly"
+        if re.search(r'\b(?:monthly|once\s+a\s+month|once\s+monthly|qm)\b', t_low):
+            return "monthly"
+        if re.search(r'\b(?:as\s+needed|as-needed|prn|situational)\b', t_low):
+            return "as_needed"
+        if re.search(r'\b(?:four\s+times\s+daily|4x\s+daily|4x\s+a\s+day|qid)\b', t_low):
+            return "four_times_daily"
+        if re.search(r'\b(?:three\s+times\s+daily|3x\s+daily|3x\s+a\s+day|tid)\b', t_low):
+            return "three_times_daily"
+        if re.search(r'\b(?:twice\s+daily|2x\s+daily|2x\s+a\s+day|bid)\b', t_low):
+            return "twice_daily"
+        if re.search(r'\b(?:once\s+weekly|weekly|1x/week|once\s+a\s+week|qw)\b', t_low):
+            return "weekly"
+        if re.search(r'\b(?:once\s+daily|daily|qd|every\s+day|1x\s+daily)\b', t_low):
+            return "daily"
+        return None
+
+    @classmethod
     def _extract_timing_from_string(cls, text: str) -> Optional[str]:
         t_low = text.lower()
-        if any(w in t_low for w in ["mon/thu", "mon / thu", "mon and thu", "twice weekly"]):
+        if re.search(r'\b(?:every\s+other\s+day|every-other-day|eod|qod|alternate\s+days?)\b', t_low):
+            if re.search(r'\b(?:morning|am|breakfast)\b', t_low):
+                return "Every Other Day (Morning)"
+            if re.search(r'\b(?:bedtime|pm|night|evening)\b', t_low):
+                return "Every Other Day (Bedtime)"
+            return "Every Other Day (EOD)"
+        if re.search(r'\b(?:mon/wed/fri|mon\s*/\s*wed\s*/\s*fri|mwf|3x/week|3x\s+weekly|three\s+times\s+weekly)\b', t_low):
+            return "Three Times Weekly (Mon / Wed / Fri)"
+        if re.search(r'\b(?:mon/thu|mon\s*/\s*thu|mon\s+and\s+thu|twice\s+weekly|2x/week|biw)\b', t_low):
             return "Twice Weekly (Mon / Thu)"
-        if any(w in t_low for w in ["bedtime", "pm", "night", "nocturnal", "with dinner", "evening"]):
+        if re.search(r'\b(?:biweekly|every\s+2\s+weeks|q2w)\b', t_low):
+            return "Bi-Weekly (Every 2 Weeks)"
+        if re.search(r'\b(?:monthly|qm)\b', t_low):
+            return "Monthly"
+        if re.search(r'\b(?:as\s+needed|prn|situational)\b', t_low):
+            return "As Needed (PRN)"
+        if re.search(r'\b(?:bedtime|pm|night|nocturnal|with\s+dinner|evening|before\s+bed)\b', t_low):
             return "bedtime"
-        if any(w in t_low for w in ["midday", "afternoon", "with lunch"]):
+        if re.search(r'\b(?:midday|afternoon|with\s+lunch)\b', t_low):
             return "midday"
-        if any(w in t_low for w in ["pre-workout", "preworkout"]):
+        if re.search(r'\b(?:pre-workout|preworkout)\b', t_low):
             return "pre-workout"
-        if any(w in t_low for w in ["morning", "am", "with breakfast"]):
+        if re.search(r'\b(?:morning|am|with\s+breakfast)\b', t_low):
             return "morning"
+        if re.search(r'\b(?:weekly|qw)\b', t_low):
+            return "Weekly"
         return None
 
     @classmethod
     def _normalize_timing(cls, raw_timing: str) -> str:
         extracted = cls._extract_timing_from_string(raw_timing)
-        return extracted or raw_timing.strip().lower()
+        return extracted or raw_timing.strip()
 
     @classmethod
     def _extract_first_json_object(cls, text: str) -> Optional[Dict[str, Any]]:

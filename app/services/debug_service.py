@@ -267,42 +267,4 @@ class DebugRunner:
             elapsed_ms = round((time.perf_counter() - start) * 1000, 2)
             return {"execution_time_ms": elapsed_ms, "success": False, "error": str(e)}
 
-    @staticmethod
-    def run_code_snippet(code: str) -> Dict[str, Any]:
-        """Runs arbitrary python snippet in controlled namespace for fast debugging."""
-        start = time.perf_counter()
-        local_scope = {}
-        # Pre-import common services for convenience
-        global_scope = {
-            "logging": logging,
-            "asyncio": asyncio,
-            "sqlite3": sqlite3,
-        }
-        try:
-            exec("from app.services.catalog_service import CatalogService\n"
-                 "from app.services.interaction_engine import InteractionEngine\n"
-                 "from app.services.pkpd_engine import PKPDEngine\n"
-                 "from app.knowledge_graph.graph import BiologicalGraph\n"
-                 "from app.services.copilot_agent import CopilotAgent\n"
-                 + code, global_scope, local_scope)
-            elapsed_ms = round((time.perf_counter() - start) * 1000, 2)
-            # Filter non-serializable objects
-            safe_results = {}
-            for k, v in local_scope.items():
-                if k.startswith("_"):
-                    continue
-                try:
-                    import json
-                    json.dumps(v)
-                    safe_results[k] = v
-                except Exception:
-                    safe_results[k] = str(v)
-            return {"execution_time_ms": elapsed_ms, "success": True, "outputs": safe_results}
-        except Exception as e:
-            elapsed_ms = round((time.perf_counter() - start) * 1000, 2)
-            return {
-                "execution_time_ms": elapsed_ms,
-                "success": False,
-                "error": str(e),
-                "traceback": traceback.format_exc(),
-            }
+

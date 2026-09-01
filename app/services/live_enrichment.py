@@ -10,6 +10,94 @@ logger = logging.getLogger("healthai.live_enrichment")
 _GLOBAL_LIVE_CACHE: Dict[str, Any] = {}
 
 
+def infer_target_classification(
+    target_name: str,
+    action: Optional[str] = None,
+    protein_class: Optional[str] = None,
+    target_type: Optional[str] = None,
+    std_type: Optional[str] = None,
+) -> tuple[str, str]:
+    """
+    Dynamically infers (target_class, normalized_action) based on biological ontologies,
+    protein classes, assay types, and enzyme/transporter/receptor keywords.
+    Returns (target_class, normalized_action), e.g. ("Enzyme", "substrate") or ("Transporter", "substrate") or ("Receptor", "agonist").
+    """
+    act_lower = str(action or "").lower()
+    std_upper = str(std_type or "").upper()
+    t_lower = str(target_name or "").lower()
+    p_lower = str(protein_class or "").lower()
+    tt_lower = str(target_type or "").lower()
+
+    # 1. Normalize action type
+    if std_upper == "KM" or any(token in act_lower for token in ["substrate", "metabolized by", "converted by", "cleaved by", "precursor"]):
+        norm_action = "substrate"
+    elif any(token in act_lower for token in ["inhibitor", "inhibits", "inhibition", "blocker", "blocks"]):
+        norm_action = "inhibitor"
+    elif any(token in act_lower for token in ["antagonist", "antagonizes", "inverse agonist"]):
+        norm_action = "antagonist"
+    elif any(token in act_lower for token in ["agonist", "agonizes", "activator", "stimulator", "activates"]):
+        norm_action = "agonist"
+    elif any(token in act_lower for token in ["pam", "positive allosteric"]):
+        norm_action = "pam"
+    elif any(token in act_lower for token in ["nam", "negative allosteric"]):
+        norm_action = "nam"
+    elif any(token in act_lower for token in ["inducer", "induces"]):
+        norm_action = "inducer"
+    elif any(token in act_lower for token in ["cofactor", "coenzyme"]):
+        norm_action = "cofactor"
+    else:
+        norm_action = act_lower or "modulator"
+
+    # 2. Determine target class
+    if (
+        "enzyme" in p_lower
+        or any(w in t_lower for w in [
+            "enzyme", "synthase", "reductase", "aromatase", "cyp", "cox", "pde", "kinase",
+            "esterase", "oxygenase", "dehydrogenase", "lyase", "ligase", "isomerase",
+            "hydroxylase", "transferase", "peptidase", "protease", "hydrolase", "phosphagen",
+            "carns1", "ckm", "ckmt2", "th", "comt", "mao"
+        ])
+    ):
+        target_class = "Enzyme"
+    elif (
+        "transporter" in p_lower
+        or any(w in t_lower for w in [
+            "transporter", "sert", "dat", "net", "vmat", "p-gp", "oat", "oct", "mrp", "bcrp",
+            "slc", "abc transporter", "carrier", "slc6a8", "slc6a3", "slc6a4", "slc6a2", "slc5a7", "octn2"
+        ])
+    ):
+        target_class = "Transporter"
+    elif (
+        "ion channel" in p_lower
+        or "ion_channel" in p_lower
+        or any(w in t_lower for w in ["channel", "herg", "kcnh2", "cav", "nav", "gabaa", "nmda", "ampa", "trpm", "trpv", "gria1"])
+    ):
+        target_class = "Ion Channel"
+    elif (
+        "transcription factor" in p_lower
+        or any(w in t_lower for w in ["transcription factor", "nuclear factor", "nrf2", "nf-kb", "stat", "smad", "foxo"])
+    ):
+        target_class = "Transcription Factor"
+    elif (
+        "receptor" in p_lower
+        or any(w in t_lower for w in [
+            "receptor", "gpcr", "glp1r", "gipr", "gcgr", "ar", "er", "pr", "gr", "mr", "ppar",
+            "adrenergic", "dopamin", "serotonin", "histamine", "cannabinoid", "opioid", "mrgpr", "ghsr", "trkb"
+        ])
+    ):
+        target_class = "Receptor"
+    else:
+        if norm_action == "substrate":
+            target_class = "Metabolic Substrate"
+        elif "cell" in tt_lower or "organism" in tt_lower:
+            target_class = "Physiological Target"
+        else:
+            target_class = "Molecular Target"
+
+    return target_class, norm_action
+
+
+
 class LiveEnrichmentService:
     """
     Live Online Biomedical & Pharmacological Enrichment Service.
@@ -170,6 +258,8 @@ class LiveEnrichmentService:
                             }
 
                             # Fetch target component UniProt accession & Gene Symbol if target_id available
+                            protein_class = None
+                            target_type = None
                             if t_chembl:
                                 try:
                                     t_detail_resp = client.get(f"https://www.ebi.ac.uk/chembl/api/data/target/{t_chembl}?format=json")
@@ -177,6 +267,11 @@ class LiveEnrichmentService:
                                         t_data = t_detail_resp.json()
                                         if t_data.get("pref_name"):
                                             target_entry["target"] = t_data["pref_name"]
+                                        target_type = t_data.get("target_type")
+                                        if t_data.get("protein_class"):
+                                            protein_class = str(t_data["protein_class"])
+                                        if target_type:
+                                            target_entry["target_type"] = target_type
                                         comps = t_data.get("target_components", [])
                                         if comps:
                                             first_comp = comps[0]
@@ -186,8 +281,21 @@ class LiveEnrichmentService:
                                                 if syn.get("syn_type") == "GENE_SYMBOL" and syn.get("component_synonym"):
                                                     target_entry["gene_symbol"] = syn["component_synonym"].upper()
                                                     break
+                                            if not protein_class and first_comp.get("protein_classifications"):
+                                                protein_class = str(first_comp["protein_classifications"])
                                 except Exception as te:
                                     logger.debug("Failed to resolve target %s: %s", t_chembl, te)
+
+                            t_class, norm_act = infer_target_classification(
+                                target_name=target_entry.get("target", ""),
+                                action=action,
+                                protein_class=protein_class,
+                                target_type=target_type,
+                            )
+                            target_entry["target_class"] = t_class
+                            target_entry["action"] = norm_act
+                            if target_entry.get("family") == "ChEMBL Mechanism":
+                                target_entry["family"] = f"{t_class} / {target_type or 'Molecular Target'}"
 
                             result["receptor_targets"].append(target_entry)
 
@@ -322,11 +430,18 @@ class LiveEnrichmentService:
                                     target_entry["affinity_ki"] = affinity_val
 
                                 # Fetch target component UniProt accession & Gene Symbol if target_id available
+                                protein_class = None
+                                target_type = None
                                 if t_chembl:
                                     try:
                                         t_detail_resp = client.get(f"https://www.ebi.ac.uk/chembl/api/data/target/{t_chembl}?format=json")
                                         if t_detail_resp.status_code == 200:
                                             t_data = t_detail_resp.json()
+                                            target_type = t_data.get("target_type")
+                                            if t_data.get("protein_class"):
+                                                protein_class = str(t_data["protein_class"])
+                                            if target_type:
+                                                target_entry["target_type"] = target_type
                                             comps = t_data.get("target_components", [])
                                             if comps:
                                                 first_comp = comps[0]
@@ -336,8 +451,22 @@ class LiveEnrichmentService:
                                                     if syn.get("syn_type") == "GENE_SYMBOL" and syn.get("component_synonym"):
                                                         target_entry["gene_symbol"] = syn["component_synonym"].upper()
                                                         break
+                                                if not protein_class and first_comp.get("protein_classifications"):
+                                                    protein_class = str(first_comp["protein_classifications"])
                                     except Exception as te:
                                         logger.debug("Failed to resolve target %s: %s", t_chembl, te)
+
+                                t_class, norm_act = infer_target_classification(
+                                    target_name=target_entry.get("target", ""),
+                                    action=action_type,
+                                    protein_class=protein_class,
+                                    target_type=target_type,
+                                    std_type=std_type,
+                                )
+                                target_entry["target_class"] = t_class
+                                target_entry["action"] = norm_act
+                                if target_entry.get("family") == "ChEMBL Bioactivity Assay":
+                                    target_entry["family"] = f"{t_class} / {target_type or 'Bioactivity Assay'}"
 
                                 result["receptor_targets"].append(target_entry)
 
@@ -386,13 +515,15 @@ class LiveEnrichmentService:
 
         try:
             with httpx.Client(timeout=self.timeout) as client:
-                url = f"https://pubchem.ncbi.nlm.nih.gov/rest/pug/compound/name/{cleaned_name}/property/MolecularWeight,CanonicalSMILES,InChIKey,XLogP,TPSA/JSON"
+                url = f"https://pubchem.ncbi.nlm.nih.gov/rest/pug/compound/name/{cleaned_name}/property/Title,IUPACName,MolecularWeight,CanonicalSMILES,InChIKey,XLogP,TPSA/JSON"
                 resp = client.get(url)
                 if resp.status_code == 200:
                     props = resp.json().get("PropertyTable", {}).get("Properties", [])
                     if props:
                         p = props[0]
                         result["cid"] = p.get("CID")
+                        result["title"] = p.get("Title")
+                        result["iupac_name"] = p.get("IUPACName")
                         result["smiles"] = p.get("CanonicalSMILES") or p.get("ConnectivitySMILES") or p.get("IsomericSMILES") or p.get("SMILES")
                         result["inchikey"] = p.get("InChIKey")
                         result["molecular_weight"] = float(p.get("MolecularWeight")) if p.get("MolecularWeight") else None
@@ -1237,12 +1368,22 @@ class LiveEnrichmentService:
                     "uniprot_id": "Q96H96",
                 })
 
-        # Enrich target nodes with Open Targets tractability/genetics and AlphaFold 3D structure data
+        # Enrich target nodes with target_class, Open Targets tractability/genetics and AlphaFold 3D structure data
         for target_item in existing_targets:
             if isinstance(target_item, dict):
                 t_name = target_item.get("target", "")
                 uniprot_id = target_item.get("uniprot_id")
                 gene_symbol = target_item.get("gene_symbol")
+                if not target_item.get("target_class"):
+                    t_class, norm_act = infer_target_classification(
+                        target_name=t_name,
+                        action=target_item.get("action"),
+                        protein_class=target_item.get("family"),
+                        target_type=target_item.get("target_type"),
+                    )
+                    target_item["target_class"] = t_class
+                    if not target_item.get("action"):
+                        target_item["action"] = norm_act
                 if t_name:
                     target_item["open_targets"] = self.fetch_open_targets(t_name, uniprot_id=uniprot_id, gene_symbol=gene_symbol)
                     target_item["alphafold_structure"] = self.fetch_alphafold_pdb(uniprot_id=uniprot_id, gene_symbol=gene_symbol, target_name=t_name)
@@ -1417,8 +1558,32 @@ class LiveEnrichmentService:
             primary_tgt = enriched["receptor_targets"][0]
             enriched["mechanism"] = f"{primary_tgt.get('action', 'modulator').title()} at {primary_tgt.get('target', 'Receptor')}"
 
-        if not enriched.get("metadata", {}).get("human_clinical_trials"):
-            enriched["source_tier"] = "research_chemical_enrichment"
+        # For short queries (<= 3 characters), only enrich if it is an established clinical drug with FDA/ChEMBL clinical data
+        if len(cleaned) <= 3:
+            has_clinical_evidence = bool(
+                enriched.get("openfda", {}).get("generic_name")
+                or enriched.get("metadata", {}).get("human_clinical_trials")
+                or (enriched.get("drug_class") and enriched.get("drug_class") != "Therapeutic Agent" and "Research" not in enriched.get("drug_class", ""))
+            )
+            pubchem_t = str(enriched.get("metadata", {}).get("pubchem_title") or pubchem_data.get("title") or "").strip()
+            if not has_clinical_evidence and (not pubchem_t or cleaned.lower() != pubchem_t.lower()):
+                return None
+
+        # Derive canonical name and key from authoritative biomedical registries
+        pubchem_t = str(pubchem_data.get("title") or enriched.get("metadata", {}).get("pubchem_title") or "").strip()
+        auth_name = (
+            fda_data.get("generic_name")
+            or chembl_data.get("pref_name")
+            or (pubchem_t if pubchem_t and len(pubchem_t) >= 3 else display_name)
+            or display_name
+        )
+        if auth_name and auth_name != display_name:
+            enriched["name"] = auth_name
+            enriched["canonical_name"] = auth_name
+            if display_name not in enriched.get("synonyms", []):
+                enriched["synonyms"].append(display_name)
+            if cleaned not in enriched.get("synonyms", []):
+                enriched["synonyms"].append(cleaned)
 
         self._cache[cache_key] = enriched
         _GLOBAL_LIVE_CACHE[cache_key] = enriched

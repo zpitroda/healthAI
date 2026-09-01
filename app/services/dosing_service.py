@@ -197,10 +197,14 @@ SEED_CLINICAL_REFERENCE_DOSES_MG: Dict[str, float] = {
     "tamoxifen": 20.0,        # 20 mg/day oral
     "nolvadex": 20.0,
     "raloxifene": 60.0,       # 60 mg/day oral
-    "evista": 60.0,
     "clomiphene": 25.0,       # 25 mg/day
     "enclomiphene": 12.5,     # 12.5 mg/day
     "hcg": 250.0,             # 250 IU/injection SubQ twice weekly
+    "cabergoline": 0.25,      # 0.25 mg oral twice-weekly
+    "dostinex": 0.25,
+    "pramipexole": 0.25,      # 0.25 mg oral
+    "p5p": 100.0,             # 100 mg oral daily
+    "pyridoxal_5_phosphate": 100.0,
 
     # Anti-inflammatory & Analgesics
     "aspirin": 81.0,          # 81 mg cardioprotective (or 325 mg)
@@ -400,8 +404,14 @@ def _get_db_connection(db_path: Optional[str] = None) -> sqlite3.Connection:
 
 
 def _init_dosing_conn(path: str) -> sqlite3.Connection:
-    conn = sqlite3.connect(path, timeout=30.0)
+    conn = sqlite3.connect(path, timeout=60.0)
     conn.row_factory = sqlite3.Row
+    try:
+        conn.execute("PRAGMA journal_mode=WAL;")
+        conn.execute("PRAGMA busy_timeout=60000;")
+        conn.execute("PRAGMA synchronous=NORMAL;")
+    except Exception:
+        pass
     conn.execute(
         """
         CREATE TABLE IF NOT EXISTS cached_reference_doses (
@@ -718,7 +728,7 @@ def calculate_individualized_dose(
 
     if final_mg < 1.0:
         val = round(final_mg * 1000.0, 2)
-        unit = "μg"
+        unit = "mcg"
     elif final_mg >= 1000.0 and (final_mg % 1000.0 == 0 or final_mg >= 3000.0):
         val = round(final_mg / 1000.0, 2)
         unit = "g"
@@ -726,12 +736,17 @@ def calculate_individualized_dose(
         val = final_mg
         unit = "mg"
 
+    key_name = (compound_spec_or_key.get("key") or compound_spec_or_key.get("name") or "") if isinstance(compound_spec_or_key, dict) else str(compound_spec_or_key)
+    inferred_route, inferred_freq = infer_compound_route_and_frequency(key_name)
+
     return {
         "dose_mg": final_mg,
         "dose_val": val,
         "dose_unit": unit,
         "unit": unit,
         "dose_display": f"{val:g} {unit}",
+        "frequency": inferred_freq,
+        "route": inferred_route,
         "basis": "individualized_biometric_calculation",
     }
 
@@ -825,6 +840,30 @@ DOSING_FREQUENCY_METADATA: Dict[str, Dict[str, Any]] = {
         "daily_doses": 0.5,
         "description": "Every-other-day administration (every 48 hours)",
     },
+    "three_times_weekly": {
+        "key": "three_times_weekly",
+        "label": "Three Times Weekly (3x/wk)",
+        "multiplier": 3.0 / 7.0,
+        "interval_hours": 56.0,
+        "daily_doses": 3.0 / 7.0,
+        "description": "Administered three times weekly (e.g. Mon / Wed / Fri)",
+    },
+    "3x_weekly": {
+        "key": "three_times_weekly",
+        "label": "Three Times Weekly (3x/wk)",
+        "multiplier": 3.0 / 7.0,
+        "interval_hours": 56.0,
+        "daily_doses": 3.0 / 7.0,
+        "description": "Administered three times weekly (e.g. Mon / Wed / Fri)",
+    },
+    "tiw": {
+        "key": "three_times_weekly",
+        "label": "Three Times Weekly (3x/wk)",
+        "multiplier": 3.0 / 7.0,
+        "interval_hours": 56.0,
+        "daily_doses": 3.0 / 7.0,
+        "description": "Administered three times weekly (e.g. Mon / Wed / Fri)",
+    },
     "twice_weekly": {
         "key": "twice_weekly",
         "label": "Twice Weekly (2x/wk)",
@@ -917,24 +956,26 @@ DOSING_FREQUENCY_METADATA: Dict[str, Dict[str, Any]] = {
 
 
 def normalize_dosing_frequency(freq: Any) -> str:
-    """Normalize dosing frequency token to standard key (e.g. 'weekly', 'twice_daily', 'daily')."""
-    raw = str(freq or "").strip().lower().replace("-", "_").replace(" ", "_")
+    """Normalize dosing frequency token to standard key (e.g. 'weekly', 'twice_daily', 'daily', 'every_other_day')."""
+    raw = str(freq or "").strip().lower().replace("-", "_").replace(" ", "_").replace("/", "_")
     if not raw:
         return "daily"
     meta = DOSING_FREQUENCY_METADATA.get(raw)
     if meta:
         return meta["key"]
-    if "bid" in raw or "twice" in raw and "week" not in raw:
+    if "bid" in raw or ("twice" in raw and "week" not in raw):
         return "twice_daily"
-    if "tid" in raw or "three" in raw:
+    if "tiw" in raw or "3x_week" in raw or "3x/week" in raw or ("three" in raw and "week" in raw) or "mon_wed_fri" in raw or "mwf" in raw:
+        return "three_times_weekly"
+    if "tid" in raw or ("three" in raw and "day" in raw) or ("3x" in raw and "day" in raw):
         return "three_times_daily"
     if "qid" in raw or "four" in raw:
         return "four_times_daily"
-    if "qod" in raw or "other" in raw:
+    if "qod" in raw or "eod" in raw or "other" in raw or "alternate" in raw:
         return "every_other_day"
-    if "biw" in raw or "twice" in raw and "week" in raw:
+    if "biw" in raw or ("twice" in raw and "week" in raw) or "2x_week" in raw or "2x/week" in raw or "mon_thu" in raw:
         return "twice_weekly"
-    if "qw" in raw or "week" in raw and "2" not in raw and "bi" not in raw:
+    if "qw" in raw or ("week" in raw and "2" not in raw and "bi" not in raw and "three" not in raw and "3" not in raw):
         return "weekly"
     if "q2w" in raw or "2_week" in raw or "biweek" in raw or "every_2_weeks" in raw:
         return "biweekly"
@@ -994,6 +1035,10 @@ def infer_compound_route_and_frequency(key_or_name: str) -> Tuple[str, str]:
     
     # Aromatase Inhibitors (typically oral twice-weekly or as needed)
     if any(a in blob for a in ["anastrozole", "arimidex", "exemestane", "aromasin", "letrozole", "femara"]):
+        return "oral", "twice_weekly"
+
+    # Dopamine Agonists / Prolactin Control (typically oral twice-weekly)
+    if any(d in blob for d in ["cabergoline", "dostinex", "pramipexole", "mirapex", "bromocriptine"]):
         return "oral", "twice_weekly"
     
     return "oral", "daily"
@@ -1104,6 +1149,92 @@ def parse_dose_string_or_spec(spec_input: Any) -> Dict[str, Any]:
     freq_mult = get_frequency_multiplier(frequency)
 
     if len(parts) == 1:
+        s = spec.strip()
+        # 1. Route extraction
+        r_found = None
+        if re.search(r"\b(injectable|intramuscular|im)\b", s, re.I):
+            r_found = "intramuscular"
+        elif re.search(r"\b(subcutaneous|subq|sc)\b", s, re.I):
+            r_found = "subcutaneous"
+        elif re.search(r"\b(oral|po|sublingual|transdermal|topical)\b", s, re.I):
+            m_r = re.search(r"\b(oral|po|sublingual|transdermal|topical)\b", s, re.I)
+            r_found = m_r.group(1).lower()
+            if r_found == "po":
+                r_found = "oral"
+
+        # 2. Frequency extraction
+        f_found = None
+        if re.search(r"\b(twice\s*weekly|2x\s*/\s*wk|biw|split\s*weekly)\b", s, re.I):
+            f_found = "twice_weekly"
+        elif re.search(r"\b(once\s*weekly|weekly|1x\s*/\s*wk|qw)\b", s, re.I):
+            f_found = "weekly"
+        elif re.search(r"\b(every\s*other\s*day|eod|qod)\b", s, re.I):
+            f_found = "every_other_day"
+        elif re.search(r"\b(twice\s*daily|2x\s*/\s*day|bid)\b", s, re.I):
+            f_found = "twice_daily"
+        elif re.search(r"\b(daily|once\s*daily|qd|every\s*day)\b", s, re.I):
+            f_found = "daily"
+        elif re.search(r"\b(as\s*needed|prn)\b", s, re.I):
+            f_found = "as_needed"
+
+        # 3. Dose & unit extraction
+        dm = re.search(r"\b(\d+(?:\.\d+)?)\s*(mg|g|grams?|ug|mcg|μg|µg|iu)\b", s, re.I)
+        dose_val_extracted = None
+        unit_extracted = "mg"
+        if dm:
+            dose_val_extracted = float(dm.group(1))
+            unit_extracted = dm.group(2).lower()
+
+        # 4. Clean compound name/key
+        clean_name = re.sub(r"\b(injectable|intramuscular|im|subcutaneous|subq|sc|oral|po|sublingual|transdermal|topical)\b", "", s, flags=re.I)
+        clean_name = re.sub(r"\b(twice\s*weekly|once\s*weekly|weekly|every\s*other\s*day|eod|twice\s*daily|daily|once\s*daily|as\s*needed|prn)\b", "", clean_name, flags=re.I)
+        clean_name = re.sub(r"\b(\d+(?:\.\d+)?)\s*(mg|g|grams?|ug|mcg|μg|µg|iu)\b", "", clean_name, flags=re.I)
+        clean_name = re.sub(r"^(?:please\s+|add\s+|include\s+|with\s+|take\s+)", "", clean_name, flags=re.I).strip(" ,:;_-")
+
+        if clean_name:
+            from app.services.catalog_service import CatalogService
+            catalog_svc = CatalogService()
+            comp_obj = catalog_svc.get_compound(clean_name, auto_enrich=False) or catalog_svc.find_by_synonym(clean_name)
+            if comp_obj:
+                key = comp_obj.get("key") or clean_name.lower().replace(" ", "_")
+            else:
+                key = clean_name.lower().replace(" ", "_")
+
+        inferred_route, inferred_freq = infer_compound_route_and_frequency(key)
+        final_route = r_found or route_candidate or inferred_route
+        final_freq = f_found or freq_candidate or inferred_freq
+        frequency = normalize_dosing_frequency(final_freq)
+        freq_mult = get_frequency_multiplier(frequency)
+
+        if dose_val_extracted is not None:
+            if unit_extracted in ("ug", "mcg", "μg", "µg", "microgram", "micrograms"):
+                clean_unit = "μg"
+                dose_mg = dose_val_extracted / 1000.0
+            elif unit_extracted in ("g", "gram", "grams"):
+                clean_unit = "g"
+                dose_mg = dose_val_extracted * 1000.0
+            elif unit_extracted in ("iu", "international_units"):
+                clean_unit = "IU"
+                dose_mg = dose_val_extracted * 0.025
+            else:
+                clean_unit = "mg"
+                dose_mg = dose_val_extracted
+
+            eff_daily = dose_mg * freq_mult
+            eff_display = f"{eff_daily:g} mg/day" if eff_daily >= 1.0 else f"{eff_daily * 1000.0:g} μg/day"
+            return {
+                "key": key,
+                "dose_mg": dose_mg,
+                "dose_val": dose_val_extracted,
+                "dose_unit": clean_unit,
+                "dose_display": f"{dose_val_extracted:g} {clean_unit}",
+                "frequency": frequency,
+                "frequency_multiplier": freq_mult,
+                "effective_daily_dose_mg": round(eff_daily, 4),
+                "effective_daily_display": eff_display,
+                "route": final_route,
+            }
+
         default_info = get_default_compound_dose(key)
         dose_mg = float(default_info["dose_mg"])
         eff_daily = dose_mg * freq_mult
@@ -1118,7 +1249,7 @@ def parse_dose_string_or_spec(spec_input: Any) -> Dict[str, Any]:
             "frequency_multiplier": freq_mult,
             "effective_daily_dose_mg": round(eff_daily, 4),
             "effective_daily_display": eff_display,
-            "route": route_candidate,
+            "route": final_route,
         }
 
     dose_part = parts[1].strip()

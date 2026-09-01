@@ -1,0 +1,329 @@
+/* HealthAI Public Launch Disclaimers & Safety Styling */
+
+.global-disclaimer-footer {
+  margin-top: 40px;
+  padding: 24px 20px;
+  background: rgba(13, 24, 40, 0.75);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid rgba(56, 189, 248, 0.18);
+  border-radius: var(--radius-lg, 18px);
+  box-shadow: 0 10px 30px -10px rgba(0, 0, 0, 0.5);
+  color: var(--text-secondary, #94a9c4);
+  font-size: 0.8rem;
+  line-height: 1.6;
+}
+
+.global-disclaimer-footer-inner {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  max-width: 1400px;
+  margin: 0 auto;
+}
+
+.disclaimer-badge-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 10px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  padding-bottom: 10px;
+}
+
+.disclaimer-badge-title {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-weight: 700;
+  font-size: 0.86rem;
+  color: #f8fafc;
+  letter-spacing: 0.02em;
+}
+
+.disclaimer-pill {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 0.68rem;
+  font-weight: 700;
+  padding: 2px 8px;
+  border-radius: 4px;
+  background: rgba(239, 68, 68, 0.15);
+  border: 1px solid rgba(239, 68, 68, 0.4);
+  color: #fca5a5;
+  text-transform: uppercase;
+}
+
+.disclaimer-nav-links {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+
+.disclaimer-nav-links a,
+.disclaimer-link-btn {
+  color: var(--accent-cyan, #00f2fe);
+  text-decoration: none;
+  font-size: 0.78rem;
+  font-weight: 600;
+  cursor: pointer;
+  background: none;
+  border: none;
+  padding: 0;
+  font-family: inherit;
+  transition: all 0.15s ease;
+}
+
+.disclaimer-nav-links a:hover,
+.disclaimer-link-btn:hover {
+  color: #ffffff;
+  text-decoration: underline;
+}
+
+.disclaimer-text-block {
+  color: var(--text-muted, #94a3b8);
+  font-size: 0.76rem;
+  line-height: 1.55;
+}
+
+.disclaimer-emergency-highlight {
+  background: rgba(239, 68, 68, 0.08);
+  border-left: 3px solid #ef4444;
+  padding: 8px 12px;
+  border-radius: 0 6px 6px 0;
+  color: #fecaca;
+  font-size: 0.75rem;
+  margin-top: 4px;
+}
+
+/* TOPBAR DISCLAIMER BUTTON */
+.btn-disclaimer-topbar {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 6px 12px;
+  font-size: 0.74rem;
+  font-weight: 700;
+  font-family: 'JetBrains Mono', monospace;
+  background: rgba(245, 158, 11, 0.1);
+  border: 1px solid rgba(245, 158, 11, 0.35);
+  color: #fbbf24;
+  border-radius: var(--radius-sm, 8px);
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.btn-disclaimer-topbar:hover {
+  background: rgba(245, 158, 11, 0.2);
+  border-color: #fbbf24;
+  color: #ffffff;
+  transform: translateY(-1px);
+}
+
+/* DISCLAIMER MODAL */
+#disclaimer-modal {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100vw;
+  height: 100vh;
+  background: rgba(4, 8, 15, 0.85);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  display: none;
+  align-items: center;
+  justify-content: center;
+  z-index: 10000;
+  padding: 16px;
+  box-sizing: border-box;
+}
+
+#disclaimer-modal.open {
+  display: flex !important;
+}
+
+#disclaimer-modal .modal-dialog {
+  max-width: 780px;
+  width: 100%;
+  max-height: 90vh;
+  display: flex;
+  flex-direction: column;
+  background: rgba(8, 17, 30, 0.96);
+  backdrop-filter: blur(25px);
+  -webkit-backdrop-filter: blur(25px);
+  border: 1px solid rgba(56, 189, 248, 0.28);
+  box-shadow: 0 20px 50px rgba(0, 0, 0, 0.75), 0 0 30px rgba(0, 242, 254, 0.12);
+  border-radius: var(--radius-lg, 18px);
+  padding: 24px;
+  box-sizing: border-box;
+  overflow: hidden;
+}
+
+.disclaimer-modal-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 16px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.disclaimer-modal-title {
+  font-size: 1.15rem;
+  font-weight: 800;
+  color: #ffffff;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.disclaimer-modal-close-btn {
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  color: #94a9c4;
+  font-size: 1.25rem;
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.disclaimer-modal-close-btn:hover {
+  background: rgba(239, 68, 68, 0.2);
+  color: #ffffff;
+  border-color: #ef4444;
+}
+
+.disclaimer-modal-tabs {
+  display: flex;
+  gap: 8px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  padding: 0 0 12px 0;
+  overflow-x: auto;
+  scrollbar-width: thin;
+}
+
+.disclaimer-tab-btn {
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  color: var(--text-secondary, #94a9c4);
+  padding: 7px 14px;
+  border-radius: 8px;
+  font-size: 0.78rem;
+  font-weight: 600;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: all 0.15s ease;
+}
+
+.disclaimer-tab-btn:hover {
+  background: rgba(255, 255, 255, 0.08);
+  color: #ffffff;
+}
+
+.disclaimer-tab-btn.active {
+  background: rgba(0, 242, 254, 0.15);
+  border-color: var(--accent-cyan, #00f2fe);
+  color: #ffffff;
+  font-weight: 700;
+}
+
+.disclaimer-tab-content {
+  display: none;
+  font-size: 0.82rem;
+  line-height: 1.6;
+  color: var(--text-secondary, #cbd5e1);
+  max-height: 360px;
+  overflow-y: auto;
+  padding: 16px 6px 16px 0;
+}
+
+.disclaimer-tab-content.active {
+  display: block;
+}
+
+.disclaimer-tab-content h4 {
+  color: #ffffff;
+  font-size: 0.92rem;
+  margin: 14px 0 6px 0;
+}
+
+.disclaimer-tab-content h4:first-child {
+  margin-top: 0;
+}
+
+.disclaimer-tab-content p {
+  margin-bottom: 10px;
+}
+
+.disclaimer-tab-content ul {
+  margin-left: 20px;
+  margin-bottom: 12px;
+}
+
+.disclaimer-tab-content li {
+  margin-bottom: 6px;
+}
+
+.disclaimer-modal-footer {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 12px;
+  padding-top: 14px;
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+  margin-top: auto;
+}
+
+.disclaimer-ack-checkbox-wrap {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.8rem;
+  color: var(--text-primary, #f8fafc);
+  cursor: pointer;
+}
+
+.btn-accept-disclaimer {
+  background: linear-gradient(135deg, var(--accent-cyan, #00f2fe), #3b82f6);
+  color: #04151b;
+  font-weight: 800;
+  font-size: 0.84rem;
+  padding: 10px 24px;
+  border: none;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  box-shadow: 0 4px 14px rgba(0, 242, 254, 0.3);
+}
+
+.btn-accept-disclaimer:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 6px 20px rgba(0, 242, 254, 0.45);
+}
+
+/* COPILOT CHAT DRAWER DISCLAIMER BANNER */
+.copilot-disclaimer-banner {
+  background: rgba(245, 158, 11, 0.1);
+  border-bottom: 1px solid rgba(245, 158, 11, 0.25);
+  padding: 6px 14px;
+  font-size: 0.7rem;
+  color: #fde68a;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+.copilot-disclaimer-banner a {
+  color: var(--accent-cyan, #00f2fe);
+  text-decoration: underline;
+  cursor: pointer;
+}

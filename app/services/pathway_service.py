@@ -16,8 +16,10 @@ import os
 from pathlib import Path
 import re
 import sqlite3
+import threading
 import time
 from typing import Any, Dict, List, Optional, Set, Tuple
+from cachetools import LRUCache
 
 import httpx
 from app.knowledge_graph.models import EdgeType
@@ -25,9 +27,10 @@ from app.knowledge_graph.models import EdgeType
 logger = logging.getLogger(__name__)
 
 # In-memory session caches
+_PATHWAY_INIT_LOCK = threading.Lock()
 _PATHWAY_INITIALIZED_DBS: Set[str] = set()
-_PATHWAY_CASCADE_CACHE: Dict[Tuple[str, str], Dict[str, Any]] = {}
-_PATHWAY_METADATA_CACHE: Dict[Tuple[str, str], Dict[str, str]] = {}
+_PATHWAY_CASCADE_CACHE: LRUCache = LRUCache(maxsize=1000)
+_PATHWAY_METADATA_CACHE: LRUCache = LRUCache(maxsize=1000)
 
 # Default Database Path
 DEFAULT_DB_PATH = os.getenv("HEALTHAI_CATALOG_DB", str(Path(__file__).resolve().parents[2] / "healthai_catalog.db"))
@@ -192,32 +195,41 @@ class PathwayService:
         self._ensure_tables()
 
     def _connect(self) -> sqlite3.Connection:
-        conn = sqlite3.connect(self.db_path, timeout=30.0)
+        conn = sqlite3.connect(self.db_path, timeout=60.0)
         conn.row_factory = sqlite3.Row
+        try:
+            conn.execute("PRAGMA journal_mode=WAL;")
+            conn.execute("PRAGMA busy_timeout=60000;")
+            conn.execute("PRAGMA synchronous=NORMAL;")
+        except Exception:
+            pass
         return conn
 
     def _ensure_tables(self) -> None:
         if self.db_path in _PATHWAY_INITIALIZED_DBS:
             return
-        os.makedirs(os.path.dirname(self.db_path), exist_ok=True)
-        try:
-            self._init_schema_tables()
-        except (sqlite3.DatabaseError, sqlite3.OperationalError) as e:
-            logger.error(f"Malformed or corrupted SQLite database schema detected at {self.db_path}: {e}. Auto-recovering clean database...")
+        with _PATHWAY_INIT_LOCK:
+            if self.db_path in _PATHWAY_INITIALIZED_DBS:
+                return
+            os.makedirs(os.path.dirname(self.db_path), exist_ok=True)
             try:
-                import shutil
-                if os.path.isfile(self.db_path):
-                    shutil.move(self.db_path, f"{self.db_path}.corrupt_{int(time.time())}")
-                for extra in [f"{self.db_path}-wal", f"{self.db_path}-shm", f"{self.db_path}-journal"]:
-                    if os.path.isfile(extra):
-                        try:
-                            os.remove(extra)
-                        except Exception:
-                            pass
-            except Exception:
-                pass
-            self._init_schema_tables()
-        _PATHWAY_INITIALIZED_DBS.add(self.db_path)
+                self._init_schema_tables()
+            except (sqlite3.DatabaseError, sqlite3.OperationalError) as e:
+                logger.error(f"Malformed or corrupted SQLite database schema detected at {self.db_path}: {e}. Auto-recovering clean database...")
+                try:
+                    import shutil
+                    if os.path.isfile(self.db_path):
+                        shutil.move(self.db_path, f"{self.db_path}.corrupt_{int(time.time())}")
+                    for extra in [f"{self.db_path}-wal", f"{self.db_path}-shm", f"{self.db_path}-journal"]:
+                        if os.path.isfile(extra):
+                            try:
+                                os.remove(extra)
+                            except Exception:
+                                pass
+                except Exception:
+                    pass
+                self._init_schema_tables()
+            _PATHWAY_INITIALIZED_DBS.add(self.db_path)
 
     def _init_schema_tables(self) -> None:
         with self._connect() as conn:
@@ -289,11 +301,12 @@ class PathwayService:
                 )
                 """
             )
-            conn.commit()
-
             # Purge stale Xanthine / XDH cached cascade entries if present
-            conn.execute("DELETE FROM cached_target_cascades WHERE LOWER(target_id) LIKE '%xanthine%' OR LOWER(target_id) LIKE '%xdh%'")
-            conn.commit()
+            try:
+                conn.execute("DELETE FROM cached_target_cascades WHERE LOWER(target_id) LIKE '%xanthine%' OR LOWER(target_id) LIKE '%xdh%'")
+                conn.commit()
+            except Exception:
+                pass
 
             # Warm initial metadata cache if empty
             count = conn.execute("SELECT count(*) FROM cached_target_metadata").fetchone()[0]

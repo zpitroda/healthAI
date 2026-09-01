@@ -1,12 +1,14 @@
 from __future__ import annotations
 
 import copy
+import json
 import logging
 import math
 import os
 import re
 from typing import Any, Dict, List, Optional, Set, Tuple
 from neo4j import GraphDatabase, Driver
+from cachetools import LRUCache
 
 logger = logging.getLogger("healthai.graph_db")
 
@@ -39,7 +41,7 @@ class Neo4jGraphDatabase:
         # Fallback in-memory storage when live Neo4j database server is unreachable
         self._mock_nodes: Dict[str, Dict[str, Any]] = {}
         self._mock_edges: List[Dict[str, Any]] = []
-        self._graphrag_cache: Dict[Tuple[Any, ...], Dict[str, Any]] = {}
+        self._graphrag_cache: LRUCache = LRUCache(maxsize=1000)
 
         self._setup_db()
 
@@ -58,7 +60,7 @@ class Neo4jGraphDatabase:
                     self.driver = None
                     return
 
-            self.driver = GraphDatabase.driver(self.uri, auth=self.auth)
+            self.driver = GraphDatabase.driver(self.uri, auth=self.auth, connection_timeout=0.5, max_connection_lifetime=30.0)
             self.driver.verify_connectivity()
             self._init_schema()
             logger.info("Neo4j graph database connected successfully at %s", self.uri)
@@ -66,10 +68,13 @@ class Neo4jGraphDatabase:
             logger.warning("Could not connect to live Neo4j instance at %s (%s). Operating in-memory mode.", self.uri, e)
             self.driver = None
 
+    _schema_initialized = False
+
     def _init_schema(self) -> None:
         """Create constraints and indexes in Neo4j if connected."""
-        if not self.driver:
+        if not self.driver or Neo4jGraphDatabase._schema_initialized:
             return
+        Neo4jGraphDatabase._schema_initialized = True
 
         constraints_and_indexes = [
             "CREATE CONSTRAINT entity_id IF NOT EXISTS FOR (e:EntityNode) REQUIRE e.id IS UNIQUE",
@@ -122,12 +127,44 @@ class Neo4jGraphDatabase:
                 import logging; logging.getLogger(__name__).debug("Suppressed exception: %s", e, exc_info=True)
             self.driver = None
 
-    @staticmethod
-    def _sanitize_param_value(val: Any) -> Any:
+    @classmethod
+    def _sanitize_dict_for_json(cls, d: Dict[str, Any]) -> Dict[str, Any]:
+        """Sanitizes dictionary values into serializable primitives."""
+        sanitized = {}
+        for k, v in d.items():
+            if str(k).startswith("_"):
+                continue
+            if isinstance(v, (set, tuple)):
+                sanitized[str(k)] = list(v)
+            elif isinstance(v, dict):
+                sanitized[str(k)] = cls._sanitize_dict_for_json(v)
+            else:
+                sanitized[str(k)] = v
+        return sanitized
+
+    @classmethod
+    def _sanitize_param_value(cls, val: Any) -> Any:
+        """
+        Sanitizes a property value for Neo4j.
+        Neo4j properties must be primitive types (str, int, float, bool) or lists of primitives.
+        Complex dictionaries or lists of dictionaries are serialized to JSON strings.
+        """
         if isinstance(val, (set, tuple)):
-            return [Neo4jGraphDatabase._sanitize_param_value(x) for x in val]
+            val = list(val)
+        if isinstance(val, list):
+            # Check if list contains complex objects (e.g. dicts like citation objects)
+            if any(isinstance(x, (dict, list, set, tuple)) for x in val):
+                try:
+                    return json.dumps([cls._sanitize_dict_for_json(x) if isinstance(x, dict) else x for x in val])
+                except Exception:
+                    return [str(x) for x in val]
+            # List of primitives
+            return [x for x in val if x is not None]
         if isinstance(val, dict):
-            return {k: Neo4jGraphDatabase._sanitize_param_value(v) for k, v in val.items() if not k.startswith("_")}
+            try:
+                return json.dumps(cls._sanitize_dict_for_json(val))
+            except Exception:
+                return str(val)
         return val
 
     @classmethod
@@ -136,7 +173,7 @@ class Neo4jGraphDatabase:
             return {}
         clean = {}
         for k, v in params.items():
-            if k.startswith("_"):
+            if str(k).startswith("_"):
                 continue
             clean[k] = cls._sanitize_param_value(v)
         return clean
@@ -254,6 +291,20 @@ class Neo4jGraphDatabase:
         nx_graph = getattr(bio_graph, "graph", bio_graph)
         nodes_synced = 0
         edges_synced = 0
+        
+        # We will batch the nodes by type and execute them in UNWIND blocks.
+        node_batches = {
+            "CompoundNode": [],
+            "TargetNode": [],
+            "PathwayNode": [],
+            "PhysiologyNode": [],
+            "BiomarkerNode": [],
+            "PhenotypeNode": [],
+            "CitationNode": [],
+            "ClinicalTrialNode": [],
+            "EvidenceClaimNode": [],
+            "EntityNode": [] # fallback
+        }
 
         # 1. Sync Nodes with multi-label support and deep scientific attributes
         for node_id, attrs in nx_graph.nodes(data=True):
@@ -261,15 +312,13 @@ class Neo4jGraphDatabase:
             nt = str(attrs.get("node_type", "entity")).lower()
             label = str(attrs.get("label") or nid)
 
-            # Base attributes
             labels = {"EntityNode"}
-            node_props: Dict[str, Any] = {
+            node_props = {
                 "id": nid,
                 "label": label,
                 "node_type": nt,
                 "category": str(attrs.get("category") or ""),
                 "description": str(attrs.get("description") or ""),
-                "_labels": labels,
             }
 
             if nt == "compound":
@@ -295,19 +344,7 @@ class Neo4jGraphDatabase:
                     "cyp_inhibitors": list(attrs.get("cyp_inhibitors") or []),
                     "cyp_inducers": list(attrs.get("cyp_inducers") or []),
                 })
-                q = """
-                MERGE (c:EntityNode {id: $id})
-                SET c:CompoundNode,
-                    c.label = $label, c.node_type = $node_type, c.canonical_name = $canonical_name,
-                    c.smiles = $smiles, c.inchikey = $inchikey, c.pubchem_cid = $pubchem_cid,
-                    c.chembl_id = $chembl_id, c.drug_class = $drug_class, c.logP = $logP,
-                    c.tpsa = $tpsa, c.molecular_weight = $molecular_weight,
-                    c.half_life_hours = $half_life_hours, c.bioavailability_pct = $bioavailability_pct,
-                    c.volume_of_distribution = $volume_of_distribution, c.protein_binding_pct = $protein_binding_pct,
-                    c.renal_clearance_fraction = $renal_clearance_fraction, c.hepatic_clearance_fraction = $hepatic_clearance_fraction,
-                    c.is_narrow_therapeutic_index = $is_narrow_therapeutic_index
-                """
-                self.execute_cypher(q, node_props)
+                node_batches["CompoundNode"].append(node_props)
 
             elif nt in ("receptor", "enzyme", "transporter", "ion_channel", "carrier_protein", "target"):
                 labels.add("TargetNode")
@@ -320,15 +357,7 @@ class Neo4jGraphDatabase:
                     "is_microbial": bool(attrs.get("is_microbial", False)),
                     "microbial_source": str(attrs.get("microbial_source") or ""),
                 })
-                q = """
-                MERGE (t:EntityNode {id: $id})
-                SET t:TargetNode,
-                    t.label = $label, t.node_type = $node_type, t.family = $family, t.category = $category,
-                    t.uniprot_id = $uniprot_id, t.gene_symbol = $gene_symbol,
-                    t.subcellular_location = $subcellular_location, t.direction = $direction,
-                    t.is_microbial = $is_microbial, t.microbial_source = $microbial_source
-                """
-                self.execute_cypher(q, node_props)
+                node_batches["TargetNode"].append(node_props)
 
             elif nt in ("signaling_pathway", "reaction", "pathway"):
                 labels.add("PathwayNode")
@@ -337,13 +366,7 @@ class Neo4jGraphDatabase:
                     "pathway_id": str(attrs.get("pathway_id") or ""),
                     "pathway_category": str(attrs.get("pathway_category") or ""),
                 })
-                q = """
-                MERGE (p:EntityNode {id: $id})
-                SET p:PathwayNode,
-                    p.label = $label, p.node_type = $node_type, p.database = $database,
-                    p.pathway_id = $pathway_id, p.pathway_category = $pathway_category
-                """
-                self.execute_cypher(q, node_props)
+                node_batches["PathwayNode"].append(node_props)
 
             elif nt in ("physiology", "organ_system"):
                 labels.add("PhysiologyNode")
@@ -352,13 +375,7 @@ class Neo4jGraphDatabase:
                     "physiological_function": str(attrs.get("physiological_function") or ""),
                     "tissue_specificity": str(attrs.get("tissue_specificity") or ""),
                 })
-                q = """
-                MERGE (p:EntityNode {id: $id})
-                SET p:PhysiologyNode,
-                    p.label = $label, p.node_type = $node_type, p.organ_system = $organ_system,
-                    p.physiological_function = $physiological_function, p.tissue_specificity = $tissue_specificity
-                """
-                self.execute_cypher(q, node_props)
+                node_batches["PhysiologyNode"].append(node_props)
 
             elif nt in ("biomarker", "lab"):
                 labels.add("BiomarkerNode")
@@ -375,16 +392,7 @@ class Neo4jGraphDatabase:
                     "time_to_steady_state_weeks": float(attrs.get("time_to_steady_state_weeks") or 1.0),
                     "kinetic_profile": str(attrs.get("kinetic_profile") or "direct_receptor"),
                 })
-                q = """
-                MERGE (b:EntityNode {id: $id})
-                SET b:BiomarkerNode,
-                    b.label = $label, b.node_type = $node_type, b.unit = $unit, b.panel = $panel,
-                    b.baseline = $baseline, b.safe_lower = $safe_lower, b.safe_upper = $safe_upper,
-                    b.gain_up = $gain_up, b.gain_down = $gain_down, b.onset_days = $onset_days,
-                    b.half_time_days = $half_time_days, b.time_to_steady_state_weeks = $time_to_steady_state_weeks,
-                    b.kinetic_profile = $kinetic_profile
-                """
-                self.execute_cypher(q, node_props)
+                node_batches["BiomarkerNode"].append(node_props)
 
             elif nt in ("phenotype", "outcome", "toxicity", "benefit"):
                 labels.add("PhenotypeNode")
@@ -394,14 +402,7 @@ class Neo4jGraphDatabase:
                     "clinical_evidence_level": str(attrs.get("clinical_evidence_level") or "established"),
                     "mesh_id": str(attrs.get("mesh_id") or ""),
                 })
-                q = """
-                MERGE (ph:EntityNode {id: $id})
-                SET ph:PhenotypeNode,
-                    ph.label = $label, ph.node_type = $node_type, ph.category = $category,
-                    ph.severity = $severity, ph.clinical_evidence_level = $clinical_evidence_level,
-                    ph.mesh_id = $mesh_id
-                """
-                self.execute_cypher(q, node_props)
+                node_batches["PhenotypeNode"].append(node_props)
 
             elif nt in ("citation", "study", "paper"):
                 labels.add("CitationNode")
@@ -422,16 +423,7 @@ class Neo4jGraphDatabase:
                     "conflict_count": int(attrs.get("conflict_count") or 0),
                     "url": str(attrs.get("url") or ""),
                 })
-                q = """
-                MERGE (c:EntityNode {id: $id})
-                SET c:CitationNode,
-                    c.label = $label, c.node_type = $node_type, c.pmid = $pmid, c.doi = $doi,
-                    c.title = $title, c.authors = $authors, c.journal = $journal,
-                    c.pub_year = $pub_year, c.pub_date = $pub_date, c.evidence_tier = $evidence_tier,
-                    c.sample_size = $sample_size, c.study_design = $study_design,
-                    c.key_findings = $key_findings, c.conflict_count = $conflict_count, c.url = $url
-                """
-                self.execute_cypher(q, node_props)
+                node_batches["CitationNode"].append(node_props)
 
             elif nt in ("clinical_trial", "trial"):
                 labels.add("ClinicalTrialNode")
@@ -449,16 +441,7 @@ class Neo4jGraphDatabase:
                     "completion_year": int(attrs.get("completion_year") or 0) if attrs.get("completion_year") else None,
                     "url": str(attrs.get("url") or ""),
                 })
-                q = """
-                MERGE (t:EntityNode {id: $id})
-                SET t:ClinicalTrialNode,
-                    t.label = $label, t.node_type = $node_type, t.nct_id = $nct_id, t.title = $title,
-                    t.phase = $phase, t.status = $status, t.sponsor = $sponsor, t.enrollment = $enrollment,
-                    t.conditions = $conditions, t.interventions = $interventions,
-                    t.primary_outcomes = $primary_outcomes, t.start_year = $start_year,
-                    t.completion_year = $completion_year, t.url = $url
-                """
-                self.execute_cypher(q, node_props)
+                node_batches["ClinicalTrialNode"].append(node_props)
 
             elif nt in ("evidence_claim", "claim"):
                 labels.add("EvidenceClaimNode")
@@ -477,30 +460,34 @@ class Neo4jGraphDatabase:
                     "last_validated_year": int(attrs.get("last_validated_year") or 0) if attrs.get("last_validated_year") else None,
                     "conflicting_pmids": list(attrs.get("conflicting_pmids") or []),
                 })
-                q = """
-                MERGE (cl:EntityNode {id: $id})
-                SET cl:EvidenceClaimNode,
-                    cl.label = $label, cl.node_type = $node_type, cl.claim_type = $claim_type,
-                    cl.subject_id = $subject_id, cl.predicate = $predicate, cl.object_id = $object_id,
-                    cl.magnitude_value = $magnitude_value, cl.magnitude_unit = $magnitude_unit,
-                    cl.direction = $direction, cl.consensus_score = $consensus_score,
-                    cl.dispute_status = $dispute_status, cl.contradiction_index = $contradiction_index,
-                    cl.discovery_year = $discovery_year, cl.last_validated_year = $last_validated_year,
-                    cl.conflicting_pmids = $conflicting_pmids
-                """
-                self.execute_cypher(q, node_props)
+                node_batches["EvidenceClaimNode"].append(node_props)
 
             else:
-                q_ent = """
-                MERGE (e:EntityNode {id: $id})
-                SET e.label = $label, e.node_type = $node_type, e.category = $category, e.description = $description
-                """
-                self.execute_cypher(q_ent, node_props)
+                node_batches["EntityNode"].append(node_props)
 
-            self._mock_nodes[nid] = node_props
+            mem_props = dict(node_props)
+            mem_props["_labels"] = labels
+            self._mock_nodes[nid] = mem_props
             nodes_synced += 1
 
-        # 2. Sync Edges (with generic RELATIONSHIP and specific typed relationship)
+        if self.driver:
+            try:
+                with self.driver.session() as session:
+                    for lbl, batch in node_batches.items():
+                        if not batch: continue
+                        clean_batch = [self._clean_neo4j_params(row) for row in batch]
+                        q = f"""
+                        UNWIND $batch AS row
+                        MERGE (c:EntityNode {{id: row.id}})
+                        SET c:{lbl}
+                        SET c += row
+                        """
+                        session.run(q, {"batch": clean_batch})
+            except Exception as e:
+                logger.error(f"Error during node batching: {e}")
+
+        # 2. Sync Edges
+        edge_batches = {}
         for source_id, target_id, attrs in nx_graph.edges(data=True):
             src = str(source_id)
             tgt = str(target_id)
@@ -548,52 +535,46 @@ class Neo4jGraphDatabase:
                 "mechanism_notes": mech_notes,
             }
             self._mock_edges.append(edge_props)
-
-            # Sanitize relationship type name for Cypher
+            
             clean_rel_type = re.sub(r"[^A-Za-z0-9_]", "_", edge_type.upper()) or "RELATIONSHIP"
-
-            q_rel = """
-            MATCH (a:EntityNode {id: $src}), (b:EntityNode {id: $tgt})
-            MERGE (a)-[r:RELATIONSHIP {edge_type: $edge_type}]->(b)
-            SET r.magnitude = $mag, r.affinity_ki = $ki, r.inhibition_ic50 = $ic50,
-                r.ec50 = $ec50, r.inhibition_type = $inhibition_type, r.confidence = $conf,
-                r.evidence_level = $ev_level, r.pmids = $pmids, r.discovery_year = $discovery_year,
-                r.latest_study_year = $latest_study_year, r.conflict_flag = $conflict_flag,
-                r.consensus_score = $consensus_score, r.contradiction_index = $contradiction_index,
-                r.conflicting_pmids = $conflicting_pmids, r.divergence_rationale = $divergence_rationale,
-                r.is_bridge = $is_bridge, r.mechanism_notes = $mech_notes
-            """
-            q_typed = f"""
-            MATCH (a:EntityNode {{id: $src}}), (b:EntityNode {{id: $tgt}})
-            MERGE (a)-[r:{clean_rel_type} {{edge_type: $edge_type}}]->(b)
-            SET r.magnitude = $mag, r.affinity_ki = $ki, r.inhibition_ic50 = $ic50,
-                r.ec50 = $ec50, r.inhibition_type = $inhibition_type, r.confidence = $conf,
-                r.evidence_level = $ev_level, r.pmids = $pmids, r.discovery_year = $discovery_year,
-                r.latest_study_year = $latest_study_year, r.conflict_flag = $conflict_flag,
-                r.consensus_score = $consensus_score, r.contradiction_index = $contradiction_index,
-                r.conflicting_pmids = $conflicting_pmids, r.divergence_rationale = $divergence_rationale,
-                r.is_bridge = $is_bridge, r.mechanism_notes = $mech_notes
-            """
+            if clean_rel_type not in edge_batches:
+                edge_batches[clean_rel_type] = []
+            edge_batches[clean_rel_type].append(edge_props)
+            edges_synced += 1
+            
+        if self.driver:
             try:
-                params = {
-                    "src": src, "tgt": tgt, "edge_type": edge_type, "mag": mag,
-                    "ki": ki, "ic50": ic50, "ec50": ec50, "inhibition_type": inh_type,
-                    "conf": conf, "ev_level": ev_level, "pmids": pmids,
-                    "discovery_year": disc_year, "latest_study_year": late_year,
-                    "conflict_flag": is_conflict, "consensus_score": consensus_sc,
-                    "contradiction_index": contra_idx, "conflicting_pmids": conf_pmids,
-                    "divergence_rationale": div_rat, "is_bridge": is_bridge,
-                    "mech_notes": mech_notes,
-                }
-                self.execute_cypher(q_rel, params)
-                if clean_rel_type != "RELATIONSHIP":
-                    self.execute_cypher(q_typed, params)
-                edges_synced += 1
+                with self.driver.session() as session:
+                    # Run generic RELATIONSHIP batch
+                    all_edges = []
+                    for batch in edge_batches.values():
+                        all_edges.extend(batch)
+                    
+                    if all_edges:
+                        clean_batch = [self._clean_neo4j_params(row) for row in all_edges]
+                        q = """
+                        UNWIND $batch AS row
+                        MATCH (a:EntityNode {id: row.source}), (b:EntityNode {id: row.target})
+                        MERGE (a)-[r:RELATIONSHIP {edge_type: row.edge_type}]->(b)
+                        SET r += row
+                        """
+                        session.run(q, {"batch": clean_batch})
+                        
+                    # Run specific relation type batches
+                    for rel_type, batch in edge_batches.items():
+                        if rel_type == "RELATIONSHIP": continue
+                        clean_batch = [self._clean_neo4j_params(row) for row in batch]
+                        q = f"""
+                        UNWIND $batch AS row
+                        MATCH (a:EntityNode {{id: row.source}}), (b:EntityNode {{id: row.target}})
+                        MERGE (a)-[r:{rel_type} {{edge_type: row.edge_type}}]->(b)
+                        SET r += row
+                        """
+                        session.run(q, {"batch": clean_batch})
             except Exception as e:
-                import logging; logging.getLogger(__name__).debug("Suppressed exception: %s", e, exc_info=True)
+                logger.error(f"Error during edge batching: {e}")
 
         return {"nodes_synced": nodes_synced, "edges_synced": edges_synced}
-
     def multi_hop_traversal(self, start_id: str, max_hops: int = 5) -> List[Dict[str, Any]]:
         """
         Executes multi-hop Cypher traversal up to max_hops depth starting from start_id.

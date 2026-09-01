@@ -98,6 +98,8 @@ def evaluate_interaction_matrix(payload: InteractionWorkbenchRequest) -> JSONRes
 
     profile_dict = payload.model_dump()
     result = engine.analyze_stack(raw_compounds, profile=profile_dict)
+    if isinstance(result, dict):
+        result["disclaimer"] = "HealthAI is an in silico computational pharmacology simulation platform for educational and research evaluation only. Not medical advice. Always consult a licensed healthcare provider."
     return JSONResponse(result, headers=NO_CACHE_HEADERS)
 
 
@@ -133,4 +135,6 @@ def evaluate_synergy(payload: InteractionWorkbenchRequest) -> JSONResponse:
 
     engine = SynergyEngine()
     result = engine.evaluate_multi_agent_synergy(raw_compounds)
+    if isinstance(result, dict):
+        result["disclaimer"] = "HealthAI is an in silico computational pharmacology simulation platform for educational and research evaluation only. Not medical advice. Always consult a licensed healthcare provider."
     return JSONResponse(result, headers=NO_CACHE_HEADERS)

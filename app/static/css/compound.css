@@ -58,10 +58,52 @@
       }
 
       .container {
-        max-width: 1540px;
+        max-width: 1480px;
         margin: 0 auto;
-        padding: 16px 20px 60px;
+        padding: 24px 28px 80px;
       }
+
+      /* ==========================================================================
+         LUCIDE ICONS & VECTOR GLYPHS
+         ========================================================================== */
+      .lucide,
+      svg.lucide,
+      .lucide-icon {
+        display: inline-block;
+        vertical-align: -0.125em;
+        stroke-width: 2px;
+        stroke: currentColor;
+        fill: none;
+        stroke-linecap: round;
+        stroke-linejoin: round;
+        flex-shrink: 0;
+      }
+
+      button .lucide,
+      button svg.lucide,
+      .btn .lucide,
+      .btn svg.lucide,
+      .filter-btn .lucide,
+      .filter-btn svg.lucide,
+      .nav-link .lucide,
+      .nav-link svg.lucide {
+        vertical-align: middle;
+        align-self: center;
+      }
+
+      .icon-xs { width: 12px !important; height: 12px !important; stroke-width: 2px; }
+      .icon-sm { width: 15px !important; height: 15px !important; stroke-width: 2px; }
+      .icon-md { width: 19px !important; height: 19px !important; stroke-width: 1.85px; }
+      .icon-lg { width: 24px !important; height: 24px !important; stroke-width: 1.75px; }
+      .icon-xl { width: 32px !important; height: 32px !important; stroke-width: 1.65px; }
+
+      .icon-cyan { stroke: #00f2fe !important; }
+      .icon-teal { stroke: #2dd4bf !important; }
+      .icon-blue { stroke: #38bdf8 !important; }
+      .icon-emerald { stroke: #10b981 !important; }
+      .icon-amber { stroke: #f59e0b !important; }
+      .icon-rose { stroke: #ef4444 !important; }
+      .icon-muted { stroke: #64748b !important; }
 
       /* TOPBAR */
       .topbar {

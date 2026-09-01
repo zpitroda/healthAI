@@ -1053,6 +1053,78 @@ def test_copilot_context_isolation_after_reset():
     assert "tma lyase" not in fresh_context.lower()
 
 
+def test_action_card_validator_standardized_id_and_target_hydration():
+    """
+    Verify that ActionCardValidator accepts canonical 'id' or 'chembl_id' and automatically
+    hydrates authoritative name, target, and receptor targets directly from the catalog.
+    """
+    from app.services.action_card_validator import ActionCardValidator
+    card_payload = {
+        "action_card": "stack_diff",
+        "add": [
+            {
+                "id": "telmisartan",
+                "dose": 20,
+                "unit": "mg",
+                "timing": "morning"
+            },
+            {
+                "id": "pitavastatin",
+                "dose": 2,
+                "unit": "mg",
+                "timing": "bedtime"
+            }
+        ],
+        "modify": [],
+        "remove": []
+    }
+    sanitized, audit_notes = ActionCardValidator.validate_and_sanitize_card("stack_diff", card_payload)
+    adds = sanitized["add"]
+    assert len(adds) == 2
+    
+    telmi = next(a for a in adds if a["key"] == "telmisartan")
+    assert telmi["id"] == "telmisartan"
+    assert telmi["name"] == "Telmisartan"
+    assert "AT1" in telmi["target"] or "Angiotensin" in telmi["target"]
+    assert telmi["route"] == "oral"
+    
+    pita = next(a for a in adds if a["key"] == "pitavastatin")
+    assert pita["id"] == "pitavastatin"
+    assert pita["name"] == "Pitavastatin"
+    assert pita["target"] and pita["target"] != "Molecular Target / Receptor"
+    assert pita["timing"] == "bedtime"
+
+
+def test_action_card_validator_rejects_hallucinated_entities():
+    """
+    Verify that ActionCardValidator strictly rejects hallucinated tokens (e.g. 'pit', 'xyz_fake')
+    and only includes verified, canonical compounds in action card stack mutations.
+    """
+    from app.services.action_card_validator import ActionCardValidator
+    card_payload = {
+        "action_card": "stack_diff",
+        "add": [
+            {"id": "pit", "name": "Pit", "dose": 10, "unit": "mg"},
+            {"id": "caffeine", "name": "Caffeine", "dose": 200, "unit": "mg"},
+            {"id": "non_existent_hallucinated_drug_123", "dose": 50, "unit": "mg"}
+        ],
+        "modify": [
+            {"id": "bogus_modifier", "dose": 100}
+        ],
+        "remove": []
+    }
+    sanitized, audit_notes = ActionCardValidator.validate_and_sanitize_card("stack_diff", card_payload)
+    added_keys = [a["key"] for a in sanitized["add"]]
+    assert "caffeine" in added_keys
+    assert "pit" not in added_keys
+    assert "non_existent_hallucinated_drug_123" not in added_keys
+    assert len(sanitized["modify"]) == 0
+    assert any("Discarded unrecognized entity" in note for note in audit_notes)
+
+
+
+
+
 
 
 

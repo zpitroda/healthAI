@@ -79,4 +79,4 @@ Start-Job -ScriptBlock {
     Start-Process "http://127.0.0.1:8000"
 } | Out-Null
 
-& $PythonExe run_server.py --host 127.0.0.1 --port 8000
+& $PythonExe run_server.py --host 0.0.0.0 --port 8000

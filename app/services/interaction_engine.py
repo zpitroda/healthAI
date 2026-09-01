@@ -6,6 +6,8 @@ from enum import Enum
 from typing import Any, Dict, List, Optional, Set, Tuple
 
 from app.services.catalog_service import CatalogService
+from app.services.chemical_structure_engine import is_17a_alkylated, is_19nor_steroid
+
 
 
 class ActionType(str, Enum):
@@ -1027,7 +1029,8 @@ class InteractionEngine:
                 ("cns_stimulant", {"low": 10, "moderate": 22, "high": 45}),
                 ("sedative", {"low": 6, "moderate": 16, "high": 32}),
             ]:
-                val = str(burdens.get(organ, "none")).lower()
+                b_raw = burdens.get(organ, "none")
+                val = b_raw.get("level", "none").lower() if isinstance(b_raw, dict) else str(b_raw).lower()
                 base_w = weight.get(val, 0)
                 # First-pass portal bypass discounts hepatic strain from oral transit
                 if organ == "hepatic" and bypasses_first_pass:
@@ -1201,7 +1204,14 @@ class InteractionEngine:
 
         # 2. Renal Impairment & Reduced GFR
         if egfr < 60 or creatinine_mg_dl > 1.3:
-            renal_compounds = [c.get("name") for c in compounds if "renal" in str(c.get("clearance_routes", "")).lower() or c.get("organ_burdens", {}).get("renal") in {"moderate", "high"}]
+            renal_compounds = [
+                str(c.get("name") or c.get("canonical_name") or c.get("key") or "").strip()
+                for c in compounds 
+                if "renal" in str(c.get("clearance_routes", "")).lower() 
+                or (isinstance(c.get("organ_burdens", {}).get("renal"), dict) and c.get("organ_burdens", {}).get("renal", {}).get("level", "").lower() in {"moderate", "high", "severe"})
+                or str(c.get("organ_burdens", {}).get("renal", "")).lower() in {"moderate", "high", "severe"}
+            ]
+            renal_compounds = [rc for rc in renal_compounds if rc]
             warning = {
                 "biomarker": "eGFR / Renal Function",
                 "value": f"eGFR {egfr} mL/min/1.73m², Cr {creatinine_mg_dl} mg/dL",
@@ -2641,12 +2651,9 @@ class InteractionEngine:
                     if p in targets_a or _normalize_name(p) in targets_a:
                         syn_item = syn
                         break
-        if not syn_item:
             is_tudca = any(w in key_a or w in name_a.lower() for w in ["tudca", "tauroursodeoxycholic"]) or any(w in key_b or w in name_b.lower() for w in ["tudca", "tauroursodeoxycholic"])
-            is_oral_aas = (
-                any(w in key_a or w in name_a.lower() or w in str(comp_a.get("drug_class", "")).lower() for w in ["superdrol", "methyldrostanolone", "dianabol", "winstrol", "anadrol", "oxandrolone", "17aa", "17-alpha", "methyltestosterone"])
-                or any(w in key_b or w in name_b.lower() or w in str(comp_b.get("drug_class", "")).lower() for w in ["superdrol", "methyldrostanolone", "dianabol", "winstrol", "anadrol", "oxandrolone", "17aa", "17-alpha", "methyltestosterone"])
-            )
+            is_oral_aas = is_17a_alkylated(comp_a) or is_17a_alkylated(comp_b)
+
             if is_tudca and is_oral_aas:
                 syn_item = {
                     "partner": name_b if any(w in name_a.lower() for w in ["tudca", "tauroursodeoxycholic"]) else name_a,
@@ -3778,9 +3785,9 @@ class InteractionEngine:
         nor19_agents = [
             c.get("name") or c.get("key")
             for c in compounds
-            if any(w in str(c.get("name", "")).lower() or w in str(c.get("drug_class", "")).lower() or w in str(c.get("mechanism", "")).lower()
-                   for w in ["19-nor", "nandrolone", "trenbolone", "nortestosterone"])
+            if is_19nor_steroid(c)
         ]
+
         has_d2_agonist = any(
             any(w in str(c.get("name", "")).lower() or w in str(c.get("mechanism", "")).lower()
                 for w in ["cabergoline", "pramipexole", "bromocriptine", "dopamine agonist"])
@@ -3795,7 +3802,7 @@ class InteractionEngine:
                 "title": "19-Nor Progestogenic Prolactin Surge",
                 "description": (
                     f"Stack contains 19-nor progestogenic androgens ({', '.join(nor19_agents)}) without a dopamine D2 receptor agonist. "
-                    f"19-Nor compounds transactivate pituitary progesterone receptors, stimulating lactotroph prolactin secretion and predisposing to hyperprolactinemia, galactorrhea, and prolonged HPG axis suppression."
+                    f"19-Nor compounds transactivate progesterone receptors in the anterior pituitary gland, stimulating lactotroph prolactin secretion and predisposing to hyperprolactinemia, galactorrhea, and prolonged HPG axis suppression."
                 ),
                 "clinical_recommendation": (
                     "Monitor serum prolactin. Consider co-administration of a dopamine D2 agonist (Cabergoline 0.25-0.5 mg/week or Pramipexole) if prolactin exceeds 18 ng/mL."

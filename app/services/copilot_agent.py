@@ -2248,6 +2248,17 @@ class CopilotAgent:
                     bioav = comp.get("bioavailability_f") or comp.get("oral_bioavailability", "N/A")
                     pkpd_sections.append(f"- **{c_name}**: Half-life = {t_half}h, Bioavailability = {bioav}")
 
+                # Expose multi-route bioavailability so the AI can decide optimal administration route
+                routes_pk = comp.get("routes_pk_profiles")
+                if routes_pk:
+                    route_bioavs = []
+                    for r_name, r_data in routes_pk.items():
+                        f_val = r_data.get("bioavailability_f")
+                        if f_val is not None:
+                            route_bioavs.append(f"{r_name.title()} ({round(f_val * 100)}%)")
+                    if route_bioavs:
+                        pkpd_sections.append(f"  * Bioavailability by Route: {', '.join(route_bioavs)}")
+
         # 6. Evidence-Based Stack Recommendations & Burden Offsetting (Dynamic Graph-Derived)
         rec_sections = []
         try:

@@ -761,13 +761,27 @@ class PKPDEnricher:
         # 5. In Silico QSPR Parameter Completer (Ensures 100% Numeric Coverage)
         logp = float(enriched.get("logp") if enriched.get("logp") is not None else 2.0)
         tpsa = float(enriched.get("tpsa") if enriched.get("tpsa") is not None else 60.0)
+        mw = float(enriched.get("molecular_weight") if enriched.get("molecular_weight") is not None else 350.0)
+        c_name_lower = str(enriched.get("canonical_name") or enriched.get("name") or enriched.get("key") or "").lower()
+        d_class_lower = str(enriched.get("drug_class") or "").lower()
 
         if enriched.get("t_half_numeric") is None:
             enriched["t_half_numeric"] = 6.0
         if enriched.get("volume_of_distribution_l_kg") is None:
             enriched["volume_of_distribution_l_kg"] = max(0.2, min(20.0, 0.5 * math.pow(10, max(-0.5, min(1.2, logp * 0.3)))))
+            
         if enriched.get("bioavailability_f") is None:
-            enriched["bioavailability_f"] = 0.40 if tpsa > 120 else 0.75
+            is_17aa = is_17a_alkylated(enriched)
+            is_androgen = is_steroidal_androgen(enriched)
+            is_peptide = (mw > 800 or any(w in c_name_lower or w in d_class_lower for w in ["peptide", "semaglutide", "tirzepatide", "liraglutide", "glucagon", "somatropin", "hgh", "bpc-157", "tb-500", "insulin"]))
+
+            if is_androgen and not is_17aa:
+                enriched["bioavailability_f"] = 0.03
+            elif is_peptide:
+                enriched["bioavailability_f"] = 0.008
+            else:
+                enriched["bioavailability_f"] = 0.40 if tpsa > 120 else 0.75
+
         if enriched.get("absorption_rate_ka") is None:
             enriched["absorption_rate_ka"] = 1.2
         if enriched.get("fraction_unbound") is None:

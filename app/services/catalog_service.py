@@ -1848,24 +1848,39 @@ class CatalogService:
         return connection
 
     def _ensure_database(self) -> None:
-        try:
-            self._init_database_tables()
-        except (sqlite3.DatabaseError, sqlite3.OperationalError) as e:
-            db_file = self.database_path
-            logger.error(f"Malformed or corrupted SQLite database detected at {db_file}: {e}. Auto-recovering clean database...")
+        for attempt in range(5):
             try:
-                import shutil
-                if os.path.isfile(db_file):
-                    shutil.move(db_file, f"{db_file}.corrupt_{int(time.time())}")
-                for extra in [f"{db_file}-wal", f"{db_file}-shm", f"{db_file}-journal"]:
-                    if os.path.isfile(extra):
-                        try:
-                            os.remove(extra)
-                        except Exception:
-                            pass
-            except Exception:
-                pass
-            self._init_database_tables()
+                self._init_database_tables()
+                return
+            except sqlite3.OperationalError as e:
+                err_msg = str(e).lower()
+                if ("locked" in err_msg or "busy" in err_msg) and attempt < 4:
+                    time.sleep(0.5 * (attempt + 1))
+                    continue
+                if any(term in err_msg for term in ("malformed", "corrupt", "file is not a database")):
+                    break
+                raise
+            except sqlite3.DatabaseError as e:
+                err_msg = str(e).lower()
+                if any(term in err_msg for term in ("malformed", "corrupt", "file is not a database", "file is encrypted", "not a database", "unsupported file format")):
+                    break
+                raise
+
+        db_file = self.database_path
+        logger.error(f"Malformed or corrupted SQLite database detected at {db_file}. Auto-recovering clean database...")
+        try:
+            import shutil
+            if os.path.isfile(db_file):
+                shutil.move(db_file, f"{db_file}.corrupt_{int(time.time())}")
+            for extra in [f"{db_file}-wal", f"{db_file}-shm", f"{db_file}-journal"]:
+                if os.path.isfile(extra):
+                    try:
+                        os.remove(extra)
+                    except Exception:
+                        pass
+        except Exception:
+            pass
+        self._init_database_tables()
 
     def _init_database_tables(self) -> None:
         with self._connect() as conn:

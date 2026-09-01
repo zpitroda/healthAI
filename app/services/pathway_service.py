@@ -212,23 +212,39 @@ class PathwayService:
             if self.db_path in _PATHWAY_INITIALIZED_DBS:
                 return
             os.makedirs(os.path.dirname(self.db_path), exist_ok=True)
-            try:
-                self._init_schema_tables()
-            except (sqlite3.DatabaseError, sqlite3.OperationalError) as e:
-                logger.error(f"Malformed or corrupted SQLite database schema detected at {self.db_path}: {e}. Auto-recovering clean database...")
+            for attempt in range(5):
                 try:
-                    import shutil
-                    if os.path.isfile(self.db_path):
-                        shutil.move(self.db_path, f"{self.db_path}.corrupt_{int(time.time())}")
-                    for extra in [f"{self.db_path}-wal", f"{self.db_path}-shm", f"{self.db_path}-journal"]:
-                        if os.path.isfile(extra):
-                            try:
-                                os.remove(extra)
-                            except Exception:
-                                pass
-                except Exception:
-                    pass
-                self._init_schema_tables()
+                    self._init_schema_tables()
+                    _PATHWAY_INITIALIZED_DBS.add(self.db_path)
+                    return
+                except sqlite3.OperationalError as e:
+                    err_msg = str(e).lower()
+                    if ("locked" in err_msg or "busy" in err_msg) and attempt < 4:
+                        time.sleep(0.5 * (attempt + 1))
+                        continue
+                    if any(term in err_msg for term in ("malformed", "corrupt", "file is not a database")):
+                        break
+                    raise
+                except sqlite3.DatabaseError as e:
+                    err_msg = str(e).lower()
+                    if any(term in err_msg for term in ("malformed", "corrupt", "file is not a database", "file is encrypted", "not a database", "unsupported file format")):
+                        break
+                    raise
+
+            logger.error(f"Malformed or corrupted SQLite database schema detected at {self.db_path}. Auto-recovering clean database...")
+            try:
+                import shutil
+                if os.path.isfile(self.db_path):
+                    shutil.move(self.db_path, f"{self.db_path}.corrupt_{int(time.time())}")
+                for extra in [f"{self.db_path}-wal", f"{self.db_path}-shm", f"{self.db_path}-journal"]:
+                    if os.path.isfile(extra):
+                        try:
+                            os.remove(extra)
+                        except Exception:
+                            pass
+            except Exception:
+                pass
+            self._init_schema_tables()
             _PATHWAY_INITIALIZED_DBS.add(self.db_path)
 
     def _init_schema_tables(self) -> None:

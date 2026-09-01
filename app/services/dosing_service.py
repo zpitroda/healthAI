@@ -384,23 +384,39 @@ class PreclinicalAllometricEngine:
 def _get_db_connection(db_path: Optional[str] = None) -> sqlite3.Connection:
     path = db_path or os.environ.get("HEALTHAI_CATALOG_DB") or os.environ.get("COMPOUNDS_DB_PATH") or DEFAULT_DB_PATH
     os.makedirs(os.path.dirname(path), exist_ok=True)
-    try:
-        return _init_dosing_conn(path)
-    except (sqlite3.DatabaseError, sqlite3.OperationalError) as e:
-        logger.error(f"Malformed or corrupted SQLite database detected in dosing_service at {path}: {e}. Auto-recovering clean database...")
+    for attempt in range(5):
         try:
-            import shutil
-            if os.path.isfile(path):
-                shutil.move(path, f"{path}.corrupt_{int(time.time())}")
-            for extra in [f"{path}-wal", f"{path}-shm", f"{path}-journal"]:
-                if os.path.isfile(extra):
-                    try:
-                        os.remove(extra)
-                    except Exception:
-                        pass
-        except Exception:
-            pass
+            return _init_dosing_conn(path)
+        except sqlite3.OperationalError as e:
+            err_msg = str(e).lower()
+            if ("locked" in err_msg or "busy" in err_msg) and attempt < 4:
+                time.sleep(0.5 * (attempt + 1))
+                continue
+            if any(term in err_msg for term in ("malformed", "corrupt", "file is not a database")):
+                break
+            raise
+        except sqlite3.DatabaseError as e:
+            err_msg = str(e).lower()
+            if any(term in err_msg for term in ("malformed", "corrupt", "file is not a database", "file is encrypted", "not a database", "unsupported file format")):
+                break
+            raise
+    else:
         return _init_dosing_conn(path)
+
+    logger.error(f"Malformed or corrupted SQLite database detected in dosing_service at {path}. Auto-recovering clean database...")
+    try:
+        import shutil
+        if os.path.isfile(path):
+            shutil.move(path, f"{path}.corrupt_{int(time.time())}")
+        for extra in [f"{path}-wal", f"{path}-shm", f"{path}-journal"]:
+            if os.path.isfile(extra):
+                try:
+                    os.remove(extra)
+                except Exception:
+                    pass
+    except Exception:
+        pass
+    return _init_dosing_conn(path)
 
 
 def _init_dosing_conn(path: str) -> sqlite3.Connection:

@@ -1728,7 +1728,9 @@ function escapeHtml(str) {
               return { icon: 'activity', title: 'Querying Clinical Trials', label: args.query || args.condition || args.intervention || 'ClinicalTrials.gov' };
             case 'get_compound_details':
             case 'get_compound_info':
-              return { icon: 'info', title: 'Inspecting Pharmacology', label: args.compound_name || args.compound_key || 'pharmacokinetics' };
+              return { icon: 'info', title: 'Inspecting Pharmacology', label: args.compound_key || args.name || 'pharmacokinetics' };
+            case 'subagent_delegation':
+              return { icon: 'bot', title: 'Subagent Data Extraction', label: 'context optimization' };
             case 'simulate_pkpd':
               return { icon: 'sliders', title: 'Simulating PK/PD Kinetics', label: args.compound_key ? `${args.compound_key} (${args.dose_mg || 100}mg)` : 'steady-state model' };
             case 'calculate_individualized_dosing':

@@ -3399,8 +3399,12 @@ You have autonomous access to execute live graph traversals, pathway queries, ph
                         sub_user = f"GOAL: {goal}\n\nRAW TOOL OUTPUT:\n{json.dumps(obs)[:24000]}"
                         
                         yield {
-                            "event": "reasoning",
-                            "data": f"\n🤖 [Subagent] Delegating massive text payload ({len(json.dumps(obs))} bytes) to summarization subagent to extract goal-relevant info...\n"
+                            "event": "tool_call",
+                            "data": {
+                                "step": f"{step}.sub",
+                                "tool": "subagent_delegation",
+                                "arguments": {"task": "Extracting goal-relevant findings", "payload_size": len(json.dumps(obs))}
+                            }
                         }
                         
                         sub_res = await ask_local_llm(
@@ -3411,8 +3415,6 @@ You have autonomous access to execute live graph traversals, pathway queries, ph
                         
                         extracted_summary = sub_res.get("summary") or str(sub_res)
                         
-                        # Replace the massive raw 'obs' payload with the lightweight summary structure
-                        # We keep essential routing keys so downstream formatters (like `_summarize_observation`) still work
                         obs = {
                             "subagent_summary": extracted_summary,
                             "original_tool": tool_name,
@@ -3420,10 +3422,23 @@ You have autonomous access to execute live graph traversals, pathway queries, ph
                             "query": obs.get("query"),
                             "note": "Raw data was compressed by subagent."
                         }
+                        
+                        yield {
+                            "event": "tool_result",
+                            "data": {
+                                "step": f"{step}.sub",
+                                "tool": "subagent_delegation",
+                                "summary": "Subagent successfully compressed and extracted relevant findings."
+                            }
+                        }
                     except Exception as e:
                         yield {
-                            "event": "reasoning",
-                            "data": f"\n⚠️ [Subagent Warning] Summarization failed, falling back to raw payload: {str(e)}\n"
+                            "event": "tool_result",
+                            "data": {
+                                "step": f"{step}.sub",
+                                "tool": "subagent_delegation",
+                                "summary": f"Subagent failed: {str(e)}"
+                            }
                         }
                 # -------------------------------------------------------
 

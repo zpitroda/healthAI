@@ -3282,7 +3282,7 @@ You have autonomous access to execute live graph traversals, pathway queries, ph
         )
 
         if max_exploration_steps >= 12:
-            extra_directive = f"\n\n**USER EXPLICITLY REQUESTED EXHAUSTIVE RESEARCH**: The user has granted you an exploration budget of {max_exploration_steps} tool calls. You MUST aggressively use `search_pubmed_titles`, `read_paper_abstract`, and graph search tools to find mechanistic evidence before answering. DO NOT stop at your first discovery; verify findings across multiple pathways and sources. Dig deep into the literature."
+            extra_directive = f"\n\n**USER EXPLICITLY REQUESTED EXHAUSTIVE RESEARCH**: The user has granted you an exploration budget of {max_exploration_steps} tool calls. You MUST aggressively use `search_pubmed_titles`, `read_paper_abstract`, and graph search tools to find mechanistic evidence before answering. DO NOT stop at your first discovery; verify findings across multiple pathways and sources. You are FORBIDDEN from outputting your final `protocol_proposal` JSON response until you have used at least {int(max_exploration_steps * 0.75)} tool calls."
             custom_instructions = (custom_instructions + extra_directive) if custom_instructions else extra_directive
 
         system_prompt = await asyncio.to_thread(
@@ -3447,9 +3447,14 @@ You have autonomous access to execute live graph traversals, pathway queries, ph
                     "role": "assistant",
                     "content": accumulated_turn_content
                 })
+                if step < (max_exploration_steps * 0.75) and max_exploration_steps >= 10:
+                    prompt_reminder = f"\nReview this graph observation. You have only used {step} out of {max_exploration_steps} tool calls in your research budget. The user requested EXHAUSTIVE research. You MUST continue exploring, cross-referencing, and verifying data using your tools. DO NOT output your final JSON response yet."
+                else:
+                    prompt_reminder = "\nReview this graph observation, update your clinical scratchpad, and proceed with further graph exploration if needed, or provide your final clinical response."
+
                 current_messages.append({
                     "role": "user",
-                    "content": f"<observation for='{tool_name}'>\n{json.dumps(obs, indent=2)}\n</observation>\nReview this graph observation, update your clinical scratchpad, and proceed with further graph exploration if needed, or provide your final clinical response."
+                    "content": f"<observation for='{tool_name}'>\n{json.dumps(obs, indent=2)}\n</observation>{prompt_reminder}"
                 })
                 continue
             else:

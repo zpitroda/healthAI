@@ -858,7 +858,7 @@ class MarkdownProtocolParser:
 
     @classmethod
     def _extract_first_json_object(cls, text: str) -> Optional[Dict[str, Any]]:
-        """Attempts to parse the first JSON object from a string even if followed by trailing text."""
+        """Attempts to parse the first JSON object from a string even if followed by trailing text or if truncated."""
         try:
             return json.loads(text)
         except Exception:
@@ -894,4 +894,36 @@ class MarkdownProtocolParser:
                             return json.loads(candidate)
                         except Exception:
                             return None
+                            
+        # If we reach here, it might be truncated. Try to repair it.
+        candidate = text[start_idx:]
+        for i in range(len(candidate), max(0, len(candidate) - 200), -1):
+            test_str = candidate[:i]
+            
+            s2 = []
+            ins2 = False
+            esc2 = False
+            for c in test_str:
+                if esc2: esc2 = False
+                elif c == '\\': esc2 = True
+                elif c == '"': ins2 = not ins2
+                elif not ins2:
+                    if c in '{[': s2.append('}' if c == '{' else ']')
+                    elif c in '}]':
+                        if s2 and s2[-1] == c: s2.pop()
+                        
+            tmp = test_str
+            if ins2: tmp += '"'
+            
+            if tmp.rstrip().endswith(','):
+                tmp = tmp.rstrip()[:-1]
+                
+            for brace in reversed(s2):
+                tmp += brace
+                
+            try:
+                return json.loads(tmp)
+            except Exception:
+                continue
+                
         return None

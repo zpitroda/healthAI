@@ -174,6 +174,42 @@ function escapeHtml(str) {
             }
           }
         }
+        
+        // If we reach here, the JSON might be truncated. Try to repair it.
+        const candidate = str.substring(start);
+        for (let i = candidate.length; i > Math.max(0, candidate.length - 200); i--) {
+          const testStr = candidate.substring(0, i);
+          let s2 = [];
+          let ins2 = false;
+          let esc2 = false;
+          for (let j = 0; j < testStr.length; j++) {
+            const c = testStr[j];
+            if (esc2) { esc2 = false; }
+            else if (c === '\\') { esc2 = true; }
+            else if (c === '"') { ins2 = !ins2; }
+            else if (!ins2) {
+              if (c === '{' || c === '[') { s2.push(c === '{' ? '}' : ']'); }
+              else if (c === '}' || c === ']') {
+                if (s2.length && s2[s2.length - 1] === c) { s2.pop(); }
+              }
+            }
+          }
+          let tmp = testStr;
+          if (ins2) tmp += '"';
+          tmp = tmp.replace(/\s+$/, '');
+          if (tmp.endsWith(',')) {
+            tmp = tmp.substring(0, tmp.length - 1);
+          }
+          for (let j = s2.length - 1; j >= 0; j--) {
+            tmp += s2[j];
+          }
+          try {
+            return JSON.parse(tmp);
+          } catch (e) {
+            continue;
+          }
+        }
+        
         return null;
       }
 

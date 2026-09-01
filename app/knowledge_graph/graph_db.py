@@ -517,7 +517,9 @@ class Neo4jGraphDatabase:
                 "edge_type": edge_type,
                 "magnitude": mag,
                 "ki": ki,
+                "affinity_ki": ki,
                 "ic50": ic50,
+                "inhibition_ic50": ic50,
                 "ec50": ec50,
                 "inhibition_type": inh_type,
                 "confidence": conf,
@@ -807,7 +809,8 @@ class Neo4jGraphDatabase:
             MATCH (a:EntityNode {id: eid})-[r:RELATIONSHIP]->(b:EntityNode)
             RETURN a.id AS source, a.label AS source_label, a.node_type AS source_type,
                    r.edge_type AS relationship, r.magnitude AS magnitude,
-                   r.affinity_ki AS affinity_ki, r.inhibition_ic50 AS inhibition_ic50,
+                   coalesce(r.affinity_ki, r.ki) AS affinity_ki,
+                   coalesce(r.inhibition_ic50, r.ic50) AS inhibition_ic50,
                    r.ec50 AS ec50, r.inhibition_type AS inhibition_type,
                    r.evidence_level AS evidence_level, r.mechanism_notes AS mechanism_notes,
                    b.id AS target, b.label AS target_label, b.node_type AS target_type
@@ -922,7 +925,8 @@ class Neo4jGraphDatabase:
                 MATCH (a:EntityNode {id: $eid})-[r:RELATIONSHIP]->(b:EntityNode)
                 RETURN a.id AS source, a.label AS source_label, a.node_type AS source_type,
                        r.edge_type AS relationship, r.magnitude AS magnitude,
-                       r.affinity_ki AS affinity_ki, r.inhibition_ic50 AS inhibition_ic50,
+                       coalesce(r.affinity_ki, r.ki) AS affinity_ki,
+                       coalesce(r.inhibition_ic50, r.ic50) AS inhibition_ic50,
                        r.ec50 AS ec50, r.inhibition_type AS inhibition_type,
                        r.evidence_level AS evidence_level, r.mechanism_notes AS mechanism_notes,
                        b.id AS target, b.label AS target_label, b.node_type AS target_type

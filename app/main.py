@@ -36,6 +36,7 @@ async def _warmup_background_services():
         from app.services.catalog_service import CatalogService
         from app.services.interaction_engine import InteractionEngine
         from app.services.pathway_service import PathwayService
+        from app.knowledge_graph.graph_db import get_graph_database
 
         loop = asyncio.get_running_loop()
         await loop.run_in_executor(
@@ -44,6 +45,7 @@ async def _warmup_background_services():
                 CatalogService()._warm_cache(),
                 PathwayService(),
                 InteractionEngine(),
+                get_graph_database(),
             ),
         )
     except Exception as e:
@@ -89,6 +91,9 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
+# Attach GZip compression for responses >= 1KB (reduces asset payload by 75-85%)
+app.add_middleware(GZipMiddleware, minimum_size=1000)
+
 # Request trace & correlation ID middleware
 @app.middleware("http")
 async def debug_trace_middleware(request: Request, call_next):
@@ -101,6 +106,11 @@ async def debug_trace_middleware(request: Request, call_next):
         elapsed_ms = round((time.perf_counter() - start_time) * 1000, 2)
         response.headers["X-Request-ID"] = request_id
         response.headers["X-Response-Time-MS"] = str(elapsed_ms)
+
+        # Cache control for static assets (CSS, JS, fonts, images)
+        if request.url.path.startswith("/static") and response.status_code == 200:
+            if "cache-control" not in response.headers:
+                response.headers["Cache-Control"] = "public, max-age=86400"
 
         # Don't clutter debug logs with static asset requests
         if not request.url.path.startswith("/static"):

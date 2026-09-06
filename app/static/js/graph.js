@@ -548,8 +548,8 @@ const graphContainer = document.getElementById('graph-canvas');
                   </div>
                   ${p5p95Str ? `
                   <div class="biomarker-meta-row" style="margin-top:-2px;">
-                    <span style="color:#00f2fe; font-family:'JetBrains Mono',monospace; font-size:0.68rem;" title="90% Population Percentile Distribution Curve (p5 to p95)">
-                      p5–p95 Curve: <strong>${p5p95Str}</strong>
+                    <span style="color:#00f2fe; font-family:'JetBrains Mono',monospace; font-size:0.68rem; display:inline-flex; align-items:center; gap:4px;" title="90% Population Prediction Band (Inter-Individual Response Variability: 90% of individuals land between p5 and p95)">
+                      <span style="display:inline-block; width:6px; height:6px; border-radius:50%; background:#00f2fe;"></span> 90% Band: <strong>${p5p95Str}</strong>
                     </span>
                     <span>Net Shift: <strong>${b.net_shift > 0 ? '+' : ''}${b.net_shift}</strong></span>
                   </div>
@@ -596,8 +596,8 @@ const graphContainer = document.getElementById('graph-canvas');
                     <span style="text-transform:capitalize;">Severity: <strong>${p.severity || 'Moderate'}</strong></span>
                   </div>
                   ${pDistStr ? `
-                  <div style="font-size:0.66rem; color:#00f2fe; font-family:'JetBrains Mono', monospace; margin-top:2px;" title="90% Inter-individual Risk Shift Distribution (p5 to p95)">
-                    p5–p95 Risk Band: <strong>${pDistStr}</strong>
+                  <div style="font-size:0.66rem; color:#00f2fe; font-family:'JetBrains Mono', monospace; margin-top:2px; display:inline-flex; align-items:center; gap:4px;" title="90% Prediction Band (Inter-Individual Risk Shift Distribution from p5 to p95)">
+                    <span style="display:inline-block; width:5px; height:5px; border-radius:50%; background:#00f2fe;"></span> 90% Risk Band: <strong>${pDistStr}</strong>
                   </div>
                   ` : ''}
                   ${p.description ? `<p style="font-size:0.68rem; color:var(--text-muted); margin:0;">${p.description}</p>` : ''}
@@ -1838,12 +1838,34 @@ const graphContainer = document.getElementById('graph-canvas');
         }
       });
 
-      // STACK SEARCH AUTOCOMPLETE (Instant cache + 100ms fast typeahead)
+      // STACK SEARCH AUTOCOMPLETE (Instant cache + 220ms fast typeahead)
       let searchTimeout = null;
+      let graphSearchAbortController = null;
       const _graphSearchQueryCache = {};
+      let _graphCatalogIndex = [];
+      async function loadGraphSearchIndex() {
+        try {
+          const cached = localStorage.getItem('healthai_search_index_v2');
+          if (cached) {
+            try {
+              _graphCatalogIndex = JSON.parse(cached);
+            } catch (e) {}
+          }
+          const res = await fetch('/api/compounds/index');
+          if (res.ok) {
+            _graphCatalogIndex = await res.json();
+          }
+        } catch (e) {}
+      }
+      loadGraphSearchIndex();
+
       stackSearchInput.addEventListener('input', (e) => {
         const query = e.target.value.trim();
         clearTimeout(searchTimeout);
+        if (graphSearchAbortController) {
+          graphSearchAbortController.abort();
+          graphSearchAbortController = null;
+        }
         if (!query) {
           stackSearchDropdown.style.display = 'none';
           return;
@@ -1851,37 +1873,154 @@ const graphContainer = document.getElementById('graph-canvas');
 
         const normQ = query.toLowerCase();
         if (_graphSearchQueryCache[normQ]) {
-          renderGraphSearchDropdown(_graphSearchQueryCache[normQ]);
+          renderGraphSearchDropdown(_graphSearchQueryCache[normQ], true);
           return;
         }
 
-        searchTimeout = setTimeout(() => {
-          fetch(`/api/compounds/search?q=${encodeURIComponent(query)}`)
-            .then(res => res.json())
-            .then(items => {
-              _graphSearchQueryCache[normQ] = items;
-              if (stackSearchInput.value.trim().toLowerCase() === normQ) {
-                renderGraphSearchDropdown(items);
+        // Instant in-memory match (< 0.05ms)
+        const localMatches = [];
+        const idx = (window._catalogSearchIndex && window._catalogSearchIndex.length) ? window._catalogSearchIndex : _graphCatalogIndex;
+        if (idx && idx.length) {
+          for (const c of idx) {
+            const cName = String(c.name || '').toLowerCase();
+            const cKey = String(c.key || '').toLowerCase();
+            const syns = Array.isArray(c.synonyms) ? c.synonyms.map(s => String(s).toLowerCase()) : [];
+            let score = 0;
+            if (cName === normQ || cKey === normQ) score = 100;
+            else if (syns.includes(normQ)) score = 90;
+            else if (cName.startsWith(normQ) || cKey.startsWith(normQ)) score = 80;
+            else if (syns.some(s => s.startsWith(normQ))) score = 70;
+            else if (cName.includes(normQ) || cKey.includes(normQ)) score = 50;
+            if (score > 0) localMatches.push({ score, item: c });
+          }
+          localMatches.sort((a, b) => b.score - a.score);
+        }
+
+        const instantItems = localMatches.map(m => m.item);
+        if (instantItems.length > 0) {
+          renderGraphSearchDropdown(instantItems, false);
+          const first = instantItems[0];
+          const isExact = first && (first.name.toLowerCase() === normQ || first.key.toLowerCase() === normQ);
+          if (isExact || instantItems.length >= 4) {
+            _graphSearchQueryCache[normQ] = instantItems;
+            renderGraphSearchDropdown(instantItems, true);
+            return;
+          }
+        } else {
+          renderGraphSearchDropdown([], false);
+        }
+
+        searchTimeout = setTimeout(async () => {
+          graphSearchAbortController = new AbortController();
+          const signal = graphSearchAbortController.signal;
+
+          let accumulatedItems = instantItems.slice();
+          let isStreamingDone = false;
+
+          try {
+            const response = await fetch(`/api/compounds/search/stream?q=${encodeURIComponent(query)}`, { signal });
+            if (!response.ok || !response.body) {
+              throw new Error(`Streaming request failed: ${response.status}`);
+            }
+
+            const reader = response.body.getReader();
+            const decoder = new TextDecoder();
+            let buffer = '';
+            let currentEvent = 'message';
+
+            while (true) {
+              const { done, value } = await reader.read();
+              if (done) break;
+
+              buffer += decoder.decode(value, { stream: true });
+              const lines = buffer.split('\n');
+              buffer = lines.pop();
+
+              for (const line of lines) {
+                const trimmed = line.trim();
+                if (!trimmed) {
+                  currentEvent = 'message';
+                  continue;
+                }
+                if (trimmed.startsWith('event:')) {
+                  currentEvent = trimmed.slice(6).trim();
+                } else if (trimmed.startsWith('data:')) {
+                  const dataStr = trimmed.startsWith('data: ') ? trimmed.slice(6) : trimmed.slice(5);
+                  let dataVal;
+                  try {
+                    dataVal = JSON.parse(dataStr);
+                  } catch (e) {
+                    dataVal = dataStr;
+                  }
+
+                  if (currentEvent === 'local') {
+                    if (Array.isArray(dataVal) && dataVal.length) {
+                      accumulatedItems = dataVal;
+                      if (stackSearchInput.value.trim().toLowerCase() === normQ) {
+                        renderGraphSearchDropdown(accumulatedItems, false);
+                      }
+                    }
+                  } else if (currentEvent === 'candidates') {
+                    if (Array.isArray(dataVal) && dataVal.length) {
+                      const seen = new Set(accumulatedItems.map(x => x.key));
+                      dataVal.forEach(item => {
+                        if (item && item.key && !seen.has(item.key)) {
+                          seen.add(item.key);
+                          accumulatedItems.push(item);
+                        }
+                      });
+                      if (stackSearchInput.value.trim().toLowerCase() === normQ) {
+                        renderGraphSearchDropdown(accumulatedItems, false);
+                      }
+                    }
+                  } else if (currentEvent === 'done') {
+                    isStreamingDone = true;
+                    _graphSearchQueryCache[normQ] = accumulatedItems;
+                    if (stackSearchInput.value.trim().toLowerCase() === normQ) {
+                      renderGraphSearchDropdown(accumulatedItems, true);
+                    }
+                  }
+                }
               }
-            })
-            .catch(err => console.error(err));
-        }, 100);
+            }
+
+            if (!isStreamingDone) {
+              _graphSearchQueryCache[normQ] = accumulatedItems;
+              if (stackSearchInput.value.trim().toLowerCase() === normQ) {
+                renderGraphSearchDropdown(accumulatedItems, true);
+              }
+            }
+          } catch (err) {
+            if (err.name !== 'AbortError') {
+              console.error('Graph search stream error:', err);
+              renderGraphSearchDropdown(accumulatedItems, true);
+            }
+          }
+        }, 150);
       });
 
-      function renderGraphSearchDropdown(items) {
+      function renderGraphSearchDropdown(items, isDone = true) {
         if (!items || !items.length) {
-          stackSearchDropdown.innerHTML = '<div style="padding:8px 11px;color:var(--text-muted);font-size:0.75rem;">No match found</div>';
-          stackSearchDropdown.style.display = 'block';
+          if (isDone) {
+            stackSearchDropdown.innerHTML = '<div style="padding:8px 11px;color:var(--text-muted);font-size:0.75rem;">No match found</div>';
+            stackSearchDropdown.style.display = 'block';
+          } else {
+            stackSearchDropdown.innerHTML = '<div style="padding: 10px 12px; color: var(--text-muted); font-size: 0.8rem; display: flex; align-items: center; gap: 8px;"><div class="copilot-loading-spinner" style="width: 13px; height: 13px; border-width: 2px;"></div>Searching...</div>';
+            stackSearchDropdown.style.display = 'block';
+          }
           return;
         }
 
-        stackSearchDropdown.innerHTML = items.map(c => `
+        const itemsHtml = items.map(c => `
           <div class="autocomplete-row" data-key="${c.key}" data-name="${c.name || ''}">
-            <span>${c.name}</span>
-            <span style="color:#00f2fe;font-size:0.72rem;font-weight:700;">+ Add</span>
+            <span>${c.name} ${c.is_external ? `<span style="font-size:0.65rem;padding:1px 5px;border-radius:3px;background:rgba(0,242,254,0.12);color:#00f2fe;margin-left:5px;">${c.source_registry || 'Online'}</span>` : ''}</span>
+            <span style="color:#00f2fe;font-size:0.72rem;font-weight:700;">${c.is_external ? '+ Enrich & Add' : '+ Add'}</span>
           </div>
         `).join('');
 
+        const spinnerHtml = isDone ? '' : '<div style="padding: 5px 10px; color: var(--text-muted); font-size: 0.72rem; display: flex; align-items: center; gap: 6px; border-top: 1px solid rgba(255,255,255,0.06);"><div class="copilot-loading-spinner" style="width: 10px; height: 10px; border-width: 1.5px;"></div>Searching online registries...</div>';
+
+        stackSearchDropdown.innerHTML = itemsHtml + spinnerHtml;
         stackSearchDropdown.style.display = 'block';
 
         stackSearchDropdown.querySelectorAll('.autocomplete-row').forEach(el => {

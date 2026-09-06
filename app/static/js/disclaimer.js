@@ -72,7 +72,7 @@
 
       <div class="disclaimer-modal-footer">
         <label class="disclaimer-ack-checkbox-wrap" id="disclaimer-checkbox-label">
-          <input type="checkbox" id="disclaimer-ack-checkbox" checked />
+          <input type="checkbox" id="disclaimer-ack-checkbox" />
           <span>I have read, understand, and agree to these terms & medical disclosures</span>
         </label>
         <button type="button" class="btn-accept-disclaimer" id="btn-accept-disclaimer">
@@ -132,6 +132,7 @@
     // Close button
     if (closeBtn) {
       closeBtn.addEventListener('click', () => {
+        if (modal.classList.contains('forced')) return;
         modal.classList.remove('open');
       });
     }
@@ -139,6 +140,7 @@
     // Backdrop click
     modal.addEventListener('click', (e) => {
       if (e.target === modal) {
+        if (modal.classList.contains('forced')) return;
         modal.classList.remove('open');
       }
     });
@@ -146,14 +148,32 @@
     // Accept button
     if (acceptBtn) {
       acceptBtn.addEventListener('click', () => {
+        const checkbox = document.getElementById('disclaimer-ack-checkbox');
+        if (checkbox && !checkbox.checked) {
+          alert('You must acknowledge that you have read and agree to the disclosures by checking the box.');
+          return;
+        }
         try {
           localStorage.setItem(DISCLAIMER_STORAGE_KEY, new Date().toISOString());
         } catch (e) {
           console.warn('LocalStorage unavailable for disclaimer acceptance:', e);
         }
+        modal.classList.remove('forced');
         modal.classList.remove('open');
       });
     }
+
+    // Escape key
+    document.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape' && modal.classList.contains('open')) {
+        if (modal.classList.contains('forced')) {
+          e.preventDefault();
+          e.stopPropagation();
+          return;
+        }
+        modal.classList.remove('open');
+      }
+    });
   }
 
   function switchTab(tabId) {
@@ -185,9 +205,9 @@
     try {
       const accepted = localStorage.getItem(DISCLAIMER_STORAGE_KEY);
       if (!accepted) {
-        // Open modal automatically on first visit
+        // Open modal automatically on first visit and force acceptance
         setTimeout(() => {
-          HealthAIDisclaimer.open('medical');
+          HealthAIDisclaimer.open('medical', true);
         }, 500);
       }
     } catch (e) {
@@ -197,16 +217,24 @@
 
   // Public API
   window.HealthAIDisclaimer = {
-    open: function (initialTab = 'medical') {
+    open: function (initialTab = 'medical', force = false) {
       const modal = document.getElementById('disclaimer-modal');
       if (modal) {
         switchTab(initialTab);
+        
+        if (force || !HealthAIDisclaimer.isAccepted()) {
+          modal.classList.add('forced');
+        } else {
+          modal.classList.remove('forced');
+        }
+
         modal.classList.add('open');
       }
     },
     close: function () {
       const modal = document.getElementById('disclaimer-modal');
       if (modal) {
+        if (modal.classList.contains('forced')) return;
         modal.classList.remove('open');
       }
     },

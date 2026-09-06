@@ -1,3 +1,23 @@
+function escapeHtml(str) {
+  if (!str && str !== 0) return '';
+  return String(str)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#039;');
+}
+window.escapeHtml = escapeHtml;
+
+function renderInlineMarkdown(str) {
+  if (!str) return '';
+  return str
+    .replace(/\*\*(.*?)\*\*/g, '<strong style="color: var(--accent-cyan);">$1</strong>')
+    .replace(/\*(.*?)\*\*/g, '<em>$1</em>')
+    .replace(/`([^`]+)`/g, '<code style="background: rgba(0,0,0,0.35); border-radius: 3px; padding: 1px 5px; font-size: 0.76rem; color: var(--accent-cyan);">$1</code>');
+}
+window.renderInlineMarkdown = renderInlineMarkdown;
+
 function iconSvg(name, options = {}) {
   if (!name) return '';
   if (typeof name === 'string' && name.trim().startsWith('<')) return name;
@@ -77,6 +97,17 @@ const state = {
           sleep_hours: null,
           alt_u_l: null,
           hematocrit_pct: null,
+          metabolic_rate_kcal: null,
+          hrv_rmssd_ms: null,
+          free_t3_pg_ml: null,
+          free_t4_ng_dl: null,
+          fasting_insulin_u_iu_ml: null,
+          homa_ir: null,
+          shbg_nmol_l: null,
+          bdnf_ng_ml: null,
+          igf1_ng_ml: null,
+          nad_plus_umol_l: null,
+          hs_crp_mg_l: null,
         },
         analysis: null,
         activeTab: 'balance-tab',
@@ -96,7 +127,18 @@ const state = {
         { key: 'egfr', type: 'float', default: 95 },
         { key: 'alt', type: 'float', default: 25 },
         { key: 'sleep', type: 'float', default: 7.5 },
-        { key: 'hematocrit', type: 'float', default: 46 }
+        { key: 'hematocrit', type: 'float', default: 46 },
+        { key: 'bmr', type: 'float', default: 1750 },
+        { key: 'hrv', type: 'float', default: 45 },
+        { key: 'freet3', type: 'float', default: 3.2 },
+        { key: 'freet4', type: 'float', default: 1.3 },
+        { key: 'insulin', type: 'float', default: 6 },
+        { key: 'homair', type: 'float', default: 1.2 },
+        { key: 'shbg', type: 'float', default: 32 },
+        { key: 'bdnf', type: 'float', default: 25 },
+        { key: 'igf1', type: 'float', default: 190 },
+        { key: 'nad', type: 'float', default: 30 },
+        { key: 'hscrp', type: 'float', default: 0.8 }
       ];
 
       function getBiometricsPayload() {
@@ -110,6 +152,17 @@ const state = {
         const bioHeight = document.getElementById('bio-height')?.value;
         const bioSleep = document.getElementById('bio-sleep')?.value;
         const bioHematocrit = document.getElementById('bio-hematocrit')?.value;
+        const bioBmr = document.getElementById('bio-bmr')?.value;
+        const bioHrv = document.getElementById('bio-hrv')?.value;
+        const bioFreeT3 = document.getElementById('bio-freet3')?.value;
+        const bioFreeT4 = document.getElementById('bio-freet4')?.value;
+        const bioInsulin = document.getElementById('bio-insulin')?.value;
+        const bioHomaIr = document.getElementById('bio-homair')?.value;
+        const bioShbg = document.getElementById('bio-shbg')?.value;
+        const bioBdnf = document.getElementById('bio-bdnf')?.value;
+        const bioIgf1 = document.getElementById('bio-igf1')?.value;
+        const bioNad = document.getElementById('bio-nad')?.value;
+        const bioHsCrp = document.getElementById('bio-hscrp')?.value;
 
         const biometrics = {};
         if (bioAge && !isNaN(Number(bioAge))) biometrics.age = Number(bioAge);
@@ -122,6 +175,17 @@ const state = {
         if (bioHeight && !isNaN(Number(bioHeight))) biometrics.height_cm = Number(bioHeight);
         if (bioSleep && !isNaN(Number(bioSleep))) biometrics.sleep_hours = Number(bioSleep);
         if (bioHematocrit && !isNaN(Number(bioHematocrit))) biometrics.hematocrit_pct = Number(bioHematocrit);
+        if (bioBmr && !isNaN(Number(bioBmr))) biometrics.metabolic_rate_kcal = Number(bioBmr);
+        if (bioHrv && !isNaN(Number(bioHrv))) biometrics.hrv_rmssd_ms = Number(bioHrv);
+        if (bioFreeT3 && !isNaN(Number(bioFreeT3))) biometrics.free_t3_pg_ml = Number(bioFreeT3);
+        if (bioFreeT4 && !isNaN(Number(bioFreeT4))) biometrics.free_t4_ng_dl = Number(bioFreeT4);
+        if (bioInsulin && !isNaN(Number(bioInsulin))) biometrics.fasting_insulin_u_iu_ml = Number(bioInsulin);
+        if (bioHomaIr && !isNaN(Number(bioHomaIr))) biometrics.homa_ir = Number(bioHomaIr);
+        if (bioShbg && !isNaN(Number(bioShbg))) biometrics.shbg_nmol_l = Number(bioShbg);
+        if (bioBdnf && !isNaN(Number(bioBdnf))) biometrics.bdnf_ng_ml = Number(bioBdnf);
+        if (bioIgf1 && !isNaN(Number(bioIgf1))) biometrics.igf1_ng_ml = Number(bioIgf1);
+        if (bioNad && !isNaN(Number(bioNad))) biometrics.nad_plus_umol_l = Number(bioNad);
+        if (bioHsCrp && !isNaN(Number(bioHsCrp))) biometrics.hs_crp_mg_l = Number(bioHsCrp);
 
         return biometrics;
       }
@@ -143,6 +207,17 @@ const state = {
           else if (f.key === 'alt') state.biomarkers.alt_u_l = parseFloat(val) || (val === '' ? null : 25);
           else if (f.key === 'sleep') state.biomarkers.sleep_hours = parseFloat(val) || (val === '' ? null : 7.5);
           else if (f.key === 'hematocrit') state.biomarkers.hematocrit_pct = parseFloat(val) || (val === '' ? null : 46);
+          else if (f.key === 'bmr') state.biomarkers.metabolic_rate_kcal = parseFloat(val) || null;
+          else if (f.key === 'hrv') state.biomarkers.hrv_rmssd_ms = parseFloat(val) || null;
+          else if (f.key === 'freet3') state.biomarkers.free_t3_pg_ml = parseFloat(val) || null;
+          else if (f.key === 'freet4') state.biomarkers.free_t4_ng_dl = parseFloat(val) || null;
+          else if (f.key === 'insulin') state.biomarkers.fasting_insulin_u_iu_ml = parseFloat(val) || null;
+          else if (f.key === 'homair') state.biomarkers.homa_ir = parseFloat(val) || null;
+          else if (f.key === 'shbg') state.biomarkers.shbg_nmol_l = parseFloat(val) || null;
+          else if (f.key === 'bdnf') state.biomarkers.bdnf_ng_ml = parseFloat(val) || null;
+          else if (f.key === 'igf1') state.biomarkers.igf1_ng_ml = parseFloat(val) || null;
+          else if (f.key === 'nad') state.biomarkers.nad_plus_umol_l = parseFloat(val) || null;
+          else if (f.key === 'hscrp') state.biomarkers.hs_crp_mg_l = parseFloat(val) || null;
 
           // Sync other two input sets
           ['bio', 'builder-bio', 'copilot-bio'].forEach(prefix => {
@@ -174,6 +249,12 @@ const state = {
         if (bio.alt_u_l !== undefined) customItems.push(`ALT: ${bio.alt_u_l} U/L`);
         if (bio.sleep_hours !== undefined) customItems.push(`Sleep: ${bio.sleep_hours}h`);
         if (bio.hematocrit_pct !== undefined) customItems.push(`HCT: ${bio.hematocrit_pct}%`);
+        if (bio.metabolic_rate_kcal !== undefined) customItems.push(`BMR: ${bio.metabolic_rate_kcal}kcal`);
+        if (bio.hrv_rmssd_ms !== undefined) customItems.push(`HRV: ${bio.hrv_rmssd_ms}ms`);
+        if (bio.free_t3_pg_ml !== undefined) customItems.push(`fT3: ${bio.free_t3_pg_ml}pg`);
+        if (bio.shbg_nmol_l !== undefined) customItems.push(`SHBG: ${bio.shbg_nmol_l}nM`);
+        if (bio.bdnf_ng_ml !== undefined) customItems.push(`BDNF: ${bio.bdnf_ng_ml}ng`);
+        if (bio.hs_crp_mg_l !== undefined) customItems.push(`hs-CRP: ${bio.hs_crp_mg_l}mg`);
 
         // AI Stack Builder Modal Summary
         const builderSummary = document.getElementById('builder-bio-summary');
@@ -220,7 +301,19 @@ const state = {
           { key: 'caffeine', name: 'Caffeine Anhydrous', drug_class: 'Adenosine Receptor Antagonist', dose: 100, unit: 'mg', frequency: 'daily', timing: 'morning', route: 'oral' },
           { key: 'l_theanine', name: 'L-Theanine', drug_class: 'Dietary Supplement / Amino Acid', dose: 200, unit: 'mg', frequency: 'daily', timing: 'morning', route: 'oral' }
         ],
+        cognitive_focus: [
+          { key: 'modafinil', name: 'Modafinil', drug_class: 'Eugeroic / CNS Stimulant', dose: 100, unit: 'mg', frequency: 'daily', timing: 'morning', route: 'oral' },
+          { key: 'alpha_gpc', name: 'Alpha-GPC', drug_class: 'Cholinergic Precursor', dose: 300, unit: 'mg', frequency: 'daily', timing: 'morning', route: 'oral' },
+          { key: 'caffeine', name: 'Caffeine Anhydrous', drug_class: 'Adenosine Receptor Antagonist', dose: 100, unit: 'mg', frequency: 'daily', timing: 'morning', route: 'oral' },
+          { key: 'l_theanine', name: 'L-Theanine', drug_class: 'Dietary Supplement / Amino Acid', dose: 200, unit: 'mg', frequency: 'daily', timing: 'morning', route: 'oral' }
+        ],
         cardio_shield: [
+          { key: 'telmisartan', name: 'Telmisartan', drug_class: 'Angiotensin II Receptor Blocker (ARB)', dose: 40, unit: 'mg', frequency: 'daily', timing: 'morning', route: 'oral' },
+          { key: 'nebivolol', name: 'Nebivolol', drug_class: 'Cardioselective Beta-1 Blocker & NO Donor', dose: 5, unit: 'mg', frequency: 'daily', timing: 'morning', route: 'oral' },
+          { key: 'rosuvastatin', name: 'Rosuvastatin', drug_class: 'HMG-CoA Reductase Inhibitor', dose: 5, unit: 'mg', frequency: 'daily', timing: 'evening', route: 'oral' },
+          { key: 'ezetimibe', name: 'Ezetimibe', drug_class: 'Cholesterol Absorption Inhibitor', dose: 10, unit: 'mg', frequency: 'daily', timing: 'morning', route: 'oral' }
+        ],
+        cardiovascular_lipid: [
           { key: 'telmisartan', name: 'Telmisartan', drug_class: 'Angiotensin II Receptor Blocker (ARB)', dose: 40, unit: 'mg', frequency: 'daily', timing: 'morning', route: 'oral' },
           { key: 'nebivolol', name: 'Nebivolol', drug_class: 'Cardioselective Beta-1 Blocker & NO Donor', dose: 5, unit: 'mg', frequency: 'daily', timing: 'morning', route: 'oral' },
           { key: 'rosuvastatin', name: 'Rosuvastatin', drug_class: 'HMG-CoA Reductase Inhibitor', dose: 5, unit: 'mg', frequency: 'daily', timing: 'evening', route: 'oral' },
@@ -232,7 +325,18 @@ const state = {
           { key: 'telmisartan', name: 'Telmisartan', drug_class: 'Angiotensin II Receptor Blocker (ARB)', dose: 40, unit: 'mg', frequency: 'daily', timing: 'morning', route: 'oral' },
           { key: 'anastrozole', name: 'Anastrozole', drug_class: 'Aromatase Inhibitor', dose: 0.25, unit: 'mg', frequency: 'twice_weekly', timing: 'morning', route: 'oral' }
         ],
+        anabolic_physique: [
+          { key: 'testosterone_cypionate', name: 'Testosterone Cypionate', drug_class: 'Anabolic-Androgenic Steroid', dose: 100, unit: 'mg', frequency: 'weekly', timing: 'morning', route: 'intramuscular' },
+          { key: 'hcg', name: 'Human Chorionic Gonadotropin (HCG)', drug_class: 'LH Analog / Glycoprotein', dose: 250, unit: 'IU', frequency: 'twice_weekly', timing: 'morning', route: 'subcutaneous' },
+          { key: 'telmisartan', name: 'Telmisartan', drug_class: 'Angiotensin II Receptor Blocker (ARB)', dose: 40, unit: 'mg', frequency: 'daily', timing: 'morning', route: 'oral' },
+          { key: 'anastrozole', name: 'Anastrozole', drug_class: 'Aromatase Inhibitor', dose: 0.25, unit: 'mg', frequency: 'twice_weekly', timing: 'morning', route: 'oral' }
+        ],
         thermogenic_shield: [
+          { key: 'clenbuterol', name: 'Clenbuterol', drug_class: 'Beta-2 Adrenergic Agonist', dose: 40, unit: 'μg', frequency: 'daily', timing: 'morning', route: 'oral' },
+          { key: 'nebivolol', name: 'Nebivolol', drug_class: 'Cardioselective Beta-1 Blocker & NO Donor', dose: 5, unit: 'mg', frequency: 'daily', timing: 'morning', route: 'oral' },
+          { key: 'taurine', name: 'Taurine', drug_class: 'Osmolytic Amino Acid', dose: 2, unit: 'g', frequency: 'daily', timing: 'morning', route: 'oral' }
+        ],
+        fat_loss_metabolic: [
           { key: 'clenbuterol', name: 'Clenbuterol', drug_class: 'Beta-2 Adrenergic Agonist', dose: 40, unit: 'μg', frequency: 'daily', timing: 'morning', route: 'oral' },
           { key: 'nebivolol', name: 'Nebivolol', drug_class: 'Cardioselective Beta-1 Blocker & NO Donor', dose: 5, unit: 'mg', frequency: 'daily', timing: 'morning', route: 'oral' },
           { key: 'taurine', name: 'Taurine', drug_class: 'Osmolytic Amino Acid', dose: 2, unit: 'g', frequency: 'daily', timing: 'morning', route: 'oral' }
@@ -243,6 +347,12 @@ const state = {
           { key: 'nac', name: 'N-Acetyl Cysteine', drug_class: 'Glutathione Precursor', dose: 600, unit: 'mg', frequency: 'daily', timing: 'morning', route: 'oral' }
         ],
         sleep_recovery: [
+          { key: 'magnesium', name: 'Magnesium Glycinate', drug_class: 'Mineral / NMDA Modulator', dose: 400, unit: 'mg', frequency: 'daily', timing: 'before bed', route: 'oral' },
+          { key: 'apigenin', name: 'Apigenin', drug_class: 'Flavonoid / GABA Modulator', dose: 50, unit: 'mg', frequency: 'daily', timing: 'before bed', route: 'oral' },
+          { key: 'melatonin', name: 'Melatonin', drug_class: 'Pineal Neurohormone', dose: 0.3, unit: 'mg', frequency: 'daily', timing: 'before bed', route: 'oral' },
+          { key: 'l_theanine', name: 'L-Theanine', drug_class: 'Dietary Supplement / Amino Acid', dose: 200, unit: 'mg', frequency: 'daily', timing: 'before bed', route: 'oral' }
+        ],
+        sleep_stress_recovery: [
           { key: 'magnesium', name: 'Magnesium Glycinate', drug_class: 'Mineral / NMDA Modulator', dose: 400, unit: 'mg', frequency: 'daily', timing: 'before bed', route: 'oral' },
           { key: 'apigenin', name: 'Apigenin', drug_class: 'Flavonoid / GABA Modulator', dose: 50, unit: 'mg', frequency: 'daily', timing: 'before bed', route: 'oral' },
           { key: 'melatonin', name: 'Melatonin', drug_class: 'Pineal Neurohormone', dose: 0.3, unit: 'mg', frequency: 'daily', timing: 'before bed', route: 'oral' },
@@ -263,11 +373,115 @@ const state = {
           { key: 'rapamycin', name: 'Rapamycin', drug_class: 'mTOR Inhibitor', dose: 5, unit: 'mg', frequency: 'weekly', timing: 'morning', route: 'oral' },
           { key: 'metformin', name: 'Metformin', drug_class: 'Biguanide / AMPK Activator', dose: 500, unit: 'mg', frequency: 'daily', timing: 'morning', route: 'oral' },
           { key: 'spermidine', name: 'Spermidine', drug_class: 'Polyamine / Autophagy Inducer', dose: 3, unit: 'mg', frequency: 'daily', timing: 'morning', route: 'oral' }
+        ],
+        longevity_autophagy: [
+          { key: 'rapamycin', name: 'Rapamycin', drug_class: 'mTOR Inhibitor', dose: 5, unit: 'mg', frequency: 'weekly', timing: 'morning', route: 'oral' },
+          { key: 'metformin', name: 'Metformin', drug_class: 'Biguanide / AMPK Activator', dose: 500, unit: 'mg', frequency: 'daily', timing: 'morning', route: 'oral' },
+          { key: 'spermidine', name: 'Spermidine', drug_class: 'Polyamine / Autophagy Inducer', dose: 3, unit: 'mg', frequency: 'daily', timing: 'morning', route: 'oral' }
+        ],
+        hair_skin_derm: [
+          { key: 'finasteride', name: 'Finasteride', drug_class: '5-Alpha Reductase Inhibitor', dose: 1, unit: 'mg', frequency: 'daily', timing: 'morning', route: 'oral' },
+          { key: 'curcumin', name: 'Curcumin', drug_class: 'Polyphenolic Anti-inflammatory', dose: 500, unit: 'mg', frequency: 'daily', timing: 'morning', route: 'oral' }
+        ],
+        post_therapy_reset: [
+          { key: 'nac', name: 'N-Acetyl Cysteine', drug_class: 'Glutathione Precursor', dose: 600, unit: 'mg', frequency: 'daily', timing: 'morning', route: 'oral' },
+          { key: 'tudca', name: 'TUDCA', drug_class: 'Hydrophilic Bile Acid', dose: 500, unit: 'mg', frequency: 'daily', timing: 'morning', route: 'oral' },
+          { key: 'citrus_bergamot', name: 'Citrus Bergamot', drug_class: 'Cardiovascular Support', dose: 500, unit: 'mg', frequency: 'daily', timing: 'morning', route: 'oral' }
         ]
       };
 
       const _clientCatalogCache = {};
       const _searchQueryCache = {};
+      window._clientCatalogCache = _clientCatalogCache;
+      window._searchQueryCache = _searchQueryCache;
+
+      let _catalogSearchIndex = [];
+      window._catalogSearchIndex = _catalogSearchIndex;
+
+      async function loadCatalogSearchIndex() {
+        try {
+          const cached = localStorage.getItem('healthai_search_index_v2');
+          if (cached) {
+            try {
+              const parsed = JSON.parse(cached);
+              if (Array.isArray(parsed) && parsed.length > 0) {
+                _catalogSearchIndex = parsed;
+                window._catalogSearchIndex = parsed;
+                parsed.forEach(item => {
+                  if (item && item.key) {
+                    _clientCatalogCache[item.key] = item;
+                    if (item.key.includes('_')) _clientCatalogCache[item.key.replace(/_/g, '-')] = item;
+                  }
+                });
+              }
+            } catch (e) {}
+          }
+
+          const res = await fetch('/api/compounds/index');
+          if (res.ok) {
+            const data = await res.json();
+            if (Array.isArray(data) && data.length > 0) {
+              _catalogSearchIndex = data;
+              window._catalogSearchIndex = data;
+              data.forEach(item => {
+                if (item && item.key) {
+                  _clientCatalogCache[item.key] = item;
+                  if (item.key.includes('_')) _clientCatalogCache[item.key.replace(/_/g, '-')] = item;
+                }
+              });
+              try {
+                localStorage.setItem('healthai_search_index_v2', JSON.stringify(data));
+              } catch (e) {}
+            }
+          }
+        } catch (err) {
+          console.debug('Index preload deferred:', err);
+        }
+      }
+      window.loadCatalogSearchIndex = loadCatalogSearchIndex;
+      // Start background index load immediately
+      loadCatalogSearchIndex();
+
+      function filterLocalCatalogIndex(query, modality = 'all') {
+        const index = window._catalogSearchIndex || _catalogSearchIndex;
+        if (!index || !index.length) return [];
+        const q = String(query || '').toLowerCase().trim();
+        if (!q) return [];
+
+        const matches = [];
+        for (const c of index) {
+          if (modality && modality !== 'all') {
+            const mod = String(c.modality || '').toLowerCase();
+            const drugClass = String(c.drug_class || '').toLowerCase();
+            if (modality === 'peptide' && !(mod === 'peptide' || c.is_peptide || drugClass.includes('peptide') || drugClass.includes('glp-1'))) continue;
+            if (modality === 'biologic_antibody' && !(mod === 'biologic_antibody' || c.is_biologic || drugClass.includes('biologic') || drugClass.includes('antibody') || drugClass.includes('mab'))) continue;
+            if (modality === 'botanical_natural' && !(mod === 'botanical_natural' || c.is_botanical || drugClass.includes('botanical') || drugClass.includes('herb'))) continue;
+            if (modality === 'combination_drug' && !(mod === 'combination_drug' || c.is_combination || drugClass.includes('combination') || drugClass.includes('combo'))) continue;
+            if (modality === 'small_molecule' && (c.is_peptide || c.is_biologic || c.is_botanical || c.is_combination || mod !== 'small_molecule')) continue;
+          }
+
+          const cName = String(c.name || '').toLowerCase();
+          const cKey = String(c.key || '').toLowerCase();
+          const cCanon = String(c.canonical_name || '').toLowerCase();
+          const syns = Array.isArray(c.synonyms) ? c.synonyms.map(s => String(s).toLowerCase()) : [];
+
+          let score = 0;
+          if (cName === q || cKey === q) score = 100;
+          else if (syns.includes(q)) score = 90;
+          else if (cName.startsWith(q) || cKey.startsWith(q)) score = 80;
+          else if (syns.some(s => s.startsWith(q))) score = 70;
+          else if (cName.includes(q) || cKey.includes(q) || cCanon.includes(q)) score = 50;
+          else if (syns.some(s => s.includes(q))) score = 40;
+
+          if (score > 0) {
+            matches.push({ score, item: c });
+          }
+        }
+
+        matches.sort((a, b) => b.score - a.score || a.item.name.localeCompare(b.item.name));
+        return matches.map(m => m.item);
+      }
+      window.filterLocalCatalogIndex = filterLocalCatalogIndex;
 
       function toggleBiomarkerDrawer() {
         const drawer = document.getElementById('biomarker-drawer');
@@ -320,7 +534,8 @@ const state = {
       window.setExperienceMode = setExperienceMode;
 
       async function loadPreset(presetKey) {
-        const preset = PRESET_STACKS[presetKey];
+        const normKey = String(presetKey || '').toLowerCase().trim();
+        const preset = PRESET_STACKS[normKey] || PRESET_STACKS[normKey.replace(/_/g, '')] || PRESET_STACKS[normKey.replace(/-/g, '_')];
         if (!preset) return;
         const menu = document.getElementById('preset-menu');
         if (menu) menu.classList.remove('open');
@@ -344,11 +559,22 @@ const state = {
         });
 
         showToast(`Loaded ${presetKey.replace(/_/g, ' ').toUpperCase()} Protocol`, 'zap');
-        syncAndEvaluateStack();
+        if (typeof syncAndEvaluateStack === 'function') {
+          syncAndEvaluateStack();
+        } else if (typeof renderStackList === 'function') {
+          renderStackList();
+          if (typeof evaluateStack === 'function') evaluateStack();
+        }
 
         // Background hydration for full pharmacology metadata
         const missingKeys = preset.filter(p => !_clientCatalogCache[p.key]?.mechanism).map(p => p.key);
         if (missingKeys.length) {
+          const evalIndicator = document.getElementById('stack-eval-indicator');
+          if (evalIndicator) {
+            const label = evalIndicator.querySelector('span:last-child');
+            if (label) label.textContent = 'Hydrating compound metadata…';
+            evalIndicator.style.display = 'inline-flex';
+          }
           try {
             const batchRes = await fetch('/api/compounds/batch', {
               method: 'POST',
@@ -359,16 +585,23 @@ const state = {
               const data = await batchRes.json();
               Object.entries(data).forEach(([k, comp]) => {
                 _clientCatalogCache[k] = comp;
-                const match = matchCompoundItem(state.stack, k);
+                const match = typeof matchCompoundItem === 'function' ? matchCompoundItem(state.stack, k) : null;
                 if (match && comp.name) {
                   match.name = comp.name;
                   if (comp.drug_class) match.drug_class = comp.drug_class;
                   if (comp.mechanism) match.mechanism = comp.mechanism;
                 }
               });
-              renderStackList();
+              if (typeof renderStackList === 'function') renderStackList();
             }
           } catch (e) { /* ignore background fetch */ }
+          finally {
+            if (evalIndicator) {
+              const label = evalIndicator.querySelector('span:last-child');
+              if (label) label.textContent = 'Evaluating stack safety…';
+              evalIndicator.style.display = 'none';
+            }
+          }
         }
       }
       window.loadPreset = loadPreset;

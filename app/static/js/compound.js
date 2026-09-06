@@ -2,6 +2,9 @@ var iconSvg = window.iconSvg || function(name, options = {}) {
   if (typeof window.iconSvg === 'function') return window.iconSvg(name, options);
   return `<i data-lucide="${name}" class="${options.class || ''}"></i>`;
 };
+if (window.lucide && typeof window.lucide.createIcons === 'function') {
+  window.lucide.createIcons();
+}
       const urlParams = new URLSearchParams(window.location.search);
       let pathCompound = decodeURIComponent(window.location.pathname.split('/').filter(Boolean).slice(-1)[0] || '');
       if (pathCompound === 'compound') pathCompound = '';
@@ -610,10 +613,16 @@ var iconSvg = window.iconSvg || function(name, options = {}) {
 
       function loadGraph(compound) {
         const key = compound.key || compound.name;
+        const graphOverlay = document.getElementById('graphLoadingOverlay');
+        const graphSummary = document.getElementById('graphSummary');
         if (!key) {
-          document.getElementById('graphSummary').textContent = 'No graph data available.';
+          if (graphSummary) graphSummary.textContent = 'No graph data available.';
+          if (graphOverlay) graphOverlay.classList.add('hidden');
           return;
         }
+
+        if (graphOverlay) graphOverlay.classList.remove('hidden');
+        if (graphSummary) graphSummary.innerHTML = `<span class="compound-spinner-sm"></span> Loading PK/PD network…`;
 
         fetch(`/graph-data?stack=${encodeURIComponent(key)}&depth=5`, { cache: 'no-store' })
           .then((response) => response.json())
@@ -621,10 +630,12 @@ var iconSvg = window.iconSvg || function(name, options = {}) {
             state.rawNodes = Array.isArray(data.nodes) ? data.nodes : [];
             state.rawEdges = Array.isArray(data.edges) ? data.edges : [];
             renderGraph();
+            if (graphOverlay) graphOverlay.classList.add('hidden');
           })
           .catch((error) => {
             console.error('Graph load error', error);
-            document.getElementById('graphSummary').textContent = 'Unable to render graph for this compound.';
+            if (graphSummary) graphSummary.textContent = 'Unable to render graph for this compound.';
+            if (graphOverlay) graphOverlay.classList.add('hidden');
           });
       }
 
@@ -872,7 +883,7 @@ var iconSvg = window.iconSvg || function(name, options = {}) {
       const btnDeepEnrich = document.getElementById('btnDeepEnrich');
       if (btnDeepEnrich) {
         btnDeepEnrich.addEventListener('click', () => {
-          btnDeepEnrich.textContent = '⏳ Enriching PubChem/ChEMBL/Reactome…';
+          btnDeepEnrich.innerHTML = `<span class="compound-spinner-sm"></span> Enriching PubChem/ChEMBL/Reactome…`;
           btnDeepEnrich.style.opacity = '0.7';
 
           fetch(`/api/compounds/${encodeURIComponent(compoundKey)}/enrich-full`, { method: 'POST' })
@@ -1042,6 +1053,9 @@ var iconSvg = window.iconSvg || function(name, options = {}) {
           })
           .catch(err => {
             console.debug('Failed to load evidence dossier', err);
+            if (studiesGrid) studiesGrid.innerHTML = '<div style="font-size:0.8rem; color:var(--text-muted);">No direct landmark citations cataloged yet.</div>';
+            if (timelineTrack) timelineTrack.innerHTML = '<div style="font-size:0.8rem; color:var(--text-muted);">No timeline milestones mapped.</div>';
+            if (controversiesGrid) controversiesGrid.innerHTML = '<div style="font-size:0.8rem; color:var(--text-muted);">Unable to load controversies radar.</div>';
           });
       }
 
@@ -1061,5 +1075,7 @@ var iconSvg = window.iconSvg || function(name, options = {}) {
           compoundLoading.style.display = 'none';
           compoundError.style.display = 'block';
           compoundError.textContent = 'Unable to load this compound. Please return to the catalog and select a valid entry.';
+          const graphOverlay = document.getElementById('graphLoadingOverlay');
+          if (graphOverlay) graphOverlay.classList.add('hidden');
           console.error('Failed to fetch compound details', error);
         });

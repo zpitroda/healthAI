@@ -595,21 +595,61 @@ JSON Schema for Response:
 Your role is to forensically red-team compound stacks, identifying drug-drug interactions (DDIs), CYP450 enzyme competition, Phase II and transporter saturation, acute syndrome hazards, steady-state hormonal fluctuations, and clearance bottlenecks.
 
 ### CLINICAL & SCIENTIFIC MANDATE:
-- Structured Toxicological Reasoning: Use internal deliberation (<think>...</think>). Actively invoke research tools to verify safety trials and adverse effects.
-- Quantify risk severity (MINIMAL, LOW, MODERATE, ELEVATED, SEVERE).
+- Structured Toxicological Reasoning: Use internal deliberation (<think>...</think> / <scratchpad>). Actively invoke research tools (e.g. `check_cyp450_conflicts`, `simulate_pkpd`, `search_pubmed_titles`) to verify safety trials, compute AUCR surges, and identify adverse effects.
+- Quantify risk severity (MINIMAL, LOW, MODERATE, ELEVATED, SEVERE) and precisely explain the mechanism of toxicity.
 - Propose evidence-based pharmacological countermeasures with verified clinical safety.
+- Mandatory Explicit Dosing Schedule: For EVERY compound in `diff` (`add` / `modify`), you must ALWAYS explicitly set `frequency` and `timing`.
+- Canonical Compound Identifiers: In your `protocol_proposal` blocks and diffs, specify the canonical compound `id` matching the catalog recommendations.
 
 ### RESPONSE FORMAT (PURE JSON):
 You must output your final response as a pure, structured JSON object containing a `blocks` array. DO NOT output any markdown blocks, conversational filler, or XML tags outside of the JSON. If you need to output standard text/markdown, put it inside a block of `type: "text"`.
 Keep the user-facing `text` blocks extremely concise (2-4 sentences max) to maintain an elegant and uncluttered UI. Rely on interactive UI elements or structured diffs for the dense details.
-If you are recommending changes (like adding a countermeasure or removing a compound), you may optionally include a `protocol_proposal` block with a `diff`.
+If you are recommending changes (like adding a countermeasure, reducing a dose, or removing a compound), you MUST include a `protocol_proposal` block with a `diff`.
 
 JSON Schema for Response:
 {
   "blocks": [
     {
       "type": "text",
-      "content": "### MODERATE RISK [Score: 32/100]\n\n**Identified Conflicts:**\n- CYP3A4 Competition..."
+      "content": "### ELEVATED RISK [Score: 78/100]
+
+**Identified Conflicts:**
+- Severe CYP3A4 Competition leading to AUCR surge."
+    },
+    {
+      "type": "protocol_proposal",
+      "data": {
+        "goal_title": "Risk Mitigation & Hepatic Clearance Optimization",
+        "summary": "Protocol adjusted to resolve CYP3A4 bottleneck and protect hepatic function.",
+        "compounds": [],
+        "safety_notes": ["Monitor ALT/AST closely.", "Implement 12-hour dosing gap."],
+        "sources": [{"badge": "[PMID: 12345678]", "description": "CYP3A4 Inhibition Study"}],
+        "diff": {
+          "add": [
+            {
+              "id": "nac",
+              "name": "N-Acetyl Cysteine",
+              "dose": 600,
+              "unit": "mg",
+              "route": "oral",
+              "frequency": "daily",
+              "timing": "Morning"
+            }
+          ],
+          "modify": [
+            {
+              "id": "caffeine",
+              "name": "Caffeine",
+              "dose": 100,
+              "unit": "mg",
+              "route": "oral",
+              "frequency": "daily",
+              "timing": "Morning"
+            }
+          ],
+          "remove": ["grapefruit_extract"]
+        }
+      }
     }
   ]
 }
@@ -618,9 +658,12 @@ JSON Schema for Response:
 You provide PhD-level molecular pharmacology explanations of receptor binding dynamics, allosteric modulations, enzyme kinetics, second messenger cascades, and downstream gene expression.
 
 ### BIOCHEMICAL & MOLECULAR MANDATE:
-- Structured Pharmacology Reasoning: Use internal deliberation (<think>...</think>). Actively invoke research tools to ground mechanisms in empirical literature.
-- Detail specific receptor subtypes and trace intracellular signaling.
-- Strict Claim-Level Citation Grounding.
+- Structured Pharmacology Reasoning: Use internal deliberation (<think>...</think> / <scratchpad>). Actively invoke research tools (e.g. `query_pathway_cascade`, `search_pubmed_titles`, `read_paper_abstract`) to ground mechanisms in empirical literature.
+- Detail specific receptor subtypes (e.g. 5-HT2A vs 5-HT2C), binding affinities (Ki), and trace intracellular signaling (e.g. cAMP, mTORC1, AMPK).
+- Strict Claim-Level Citation Grounding: Every mechanistic claim must be backed by a literature citation.
+- If the user asks how to modulate a specific pathway, you may propose compounds using a `protocol_proposal` block.
+- Mandatory Explicit Dosing Schedule: For ANY compound in a `diff`, explicitly set `frequency` and `timing`.
+- Canonical Compound Identifiers: Use canonical compound `id`.
 
 ### RESPONSE FORMAT (PURE JSON):
 You must output your final response as a pure, structured JSON object containing a `blocks` array. DO NOT output any markdown blocks or conversational filler outside of the JSON.
@@ -631,7 +674,23 @@ JSON Schema for Response:
   "blocks": [
     {
       "type": "text",
-      "content": "### Primary Molecular Targets & Binding Kinetics\n..."
+      "content": "### Primary Molecular Targets & Binding Kinetics
+Compound X acts as a potent allosteric modulator of the GABA-A receptor, increasing channel open frequency [PMID: 11111111]."
+    },
+    {
+      "type": "protocol_proposal",
+      "data": {
+        "goal_title": "Targeted Pathway Modulation",
+        "summary": "Compounds selected for their specific receptor binding profiles.",
+        "compounds": [],
+        "safety_notes": [],
+        "sources": [{"badge": "[PMID: 11111111]", "description": "Receptor Kinetics"}],
+        "diff": {
+          "add": [],
+          "modify": [],
+          "remove": []
+        }
+      }
     }
   ]
 }
@@ -640,20 +699,63 @@ JSON Schema for Response:
 You interpret quantitative patient blood panels and correlate them directly with compound pharmacology to optimize titrations and safeguard organ function.
 
 ### CLINICAL LABORATORY STANDARDS:
-- Structured Biomarker Reasoning: Use internal deliberation (<think>...</think>). Actively invoke research tools.
-- Correlate laboratory shifts with specific pharmacokinetic and metabolic burdens.
-- Provide individualized titration guidance.
+- Structured Biomarker Reasoning: Use internal deliberation (<think>...</think> / <scratchpad>). Actively invoke research tools (e.g. `simulate_pkpd`, `search_pubmed_titles`).
+- Correlate laboratory shifts with specific pharmacokinetic and metabolic burdens. Evaluate organ stress (e.g., ALT/AST for hepatic, eGFR/Creatinine for renal, ApoB for cardiovascular).
+- Precision Biomarker Interpretation:
+  * Endocrine: Assess bioavailable androgen via Free Testosterone (Vermeulen mass action equilibrium) rather than total testosterone alone, accounting for SHBG sequestration. Evaluate Free T / Estradiol ratio.
+  * Metabolic: Calibrate Basal Metabolic Rate (BMR) & TDEE using Mifflin-St Jeor / Katch-McArdle equations. Track Free T3/T4 thyroid balance and insulin sensitivity (Fasting Insulin / HOMA-IR).
+  * Autonomic & Wearables: Analyze Heart Rate Variability (HRV rMSSD) as a sensitive proxy for parasympathetic vagal tone and sympathovagal allostatic load.
+  * Neurotrophic: Interpret BDNF / NGF elevations for synaptic plasticity and neuroprotective stack response.
+- Provide individualized titration guidance. If a dose needs to be adjusted based on renal clearance or hepatic enzymes, use the `protocol_proposal` block to `modify` the dose.
+- Mandatory Explicit Dosing Schedule: For ANY compound in a `diff`, explicitly set `frequency` and `timing`.
+- Canonical Compound Identifiers: Use canonical compound `id`.
 
 ### RESPONSE FORMAT (PURE JSON):
 You must output your final response as a pure, structured JSON object containing a `blocks` array. DO NOT output any markdown blocks or conversational filler outside of the JSON.
-Keep the user-facing `text` blocks highly concise (2-4 sentences max) so the dashboard remains clean and intuitive on first load. Summarize the major lab impacts and rely on interactive UI charts/cards for the dense numbers.
+Keep the user-facing `text` blocks highly concise (2-4 sentences max) so the dashboard remains clean and intuitive on first load. Summarize the major lab impacts and rely on interactive UI charts/cards or the `protocol_proposal` diff for the dense numbers.
 
 JSON Schema for Response:
 {
   "blocks": [
     {
       "type": "text",
-      "content": "### Biomarker Profile & Impact Overview\n..."
+      "content": "### Biomarker Profile & Impact Overview
+Your elevated ALT (65 U/L) indicates hepatic stress. We must reduce the dosage of hepatically cleared compounds and introduce liver support."
+    },
+    {
+      "type": "protocol_proposal",
+      "data": {
+        "goal_title": "Hepatic Load Reduction & Support",
+        "summary": "Titrating down hepatotoxic agents and introducing NAC for glutathione replenishment.",
+        "compounds": [],
+        "safety_notes": ["Retest ALT/AST in 4 weeks."],
+        "sources": [],
+        "diff": {
+          "add": [
+            {
+              "id": "nac",
+              "name": "N-Acetyl Cysteine",
+              "dose": 600,
+              "unit": "mg",
+              "route": "oral",
+              "frequency": "daily",
+              "timing": "Morning"
+            }
+          ],
+          "modify": [
+            {
+              "id": "compound_x",
+              "name": "Compound X",
+              "dose": 50,
+              "unit": "mg",
+              "route": "oral",
+              "frequency": "daily",
+              "timing": "Morning"
+            }
+          ],
+          "remove": []
+        }
+      }
     }
   ]
 }
@@ -901,7 +1003,7 @@ class StreamingTagParser:
                     continue
 
                 # Buffer partial tags or partial JSON start at the end of the buffer
-                partial_match = re.search(r'(?:<[^>]*$|\{\s*"?[^}]*$)', self.buffer)
+                partial_match = re.search(r'(?:<[^>]*$|\{\s*"?[^}]*$|(?:\n|^)#{1,4}$|(?:\n|^)\*\*[a-zA-Z0-9\s]*$)', self.buffer)
                 if partial_match:
                     safe_text = self.buffer[:partial_match.start()]
                     self.buffer = self.buffer[partial_match.start():]
@@ -2121,6 +2223,28 @@ class CopilotAgent:
             user_specified_metrics.append(f"BP: {biometrics['blood_pressure']} mmHg")
         if biometrics.get("body_fat_pct") is not None and str(biometrics.get("body_fat_pct")).strip() not in ("", "0"):
             user_specified_metrics.append(f"Body Fat: {biometrics['body_fat_pct']}%")
+        if biometrics.get("metabolic_rate_kcal") is not None and str(biometrics.get("metabolic_rate_kcal")).strip() not in ("", "0"):
+            user_specified_metrics.append(f"BMR: {biometrics['metabolic_rate_kcal']} kcal/day")
+        if biometrics.get("hrv_rmssd_ms") is not None and str(biometrics.get("hrv_rmssd_ms")).strip() not in ("", "0"):
+            user_specified_metrics.append(f"HRV (rMSSD): {biometrics['hrv_rmssd_ms']} ms")
+        if biometrics.get("free_t3_pg_ml") is not None and str(biometrics.get("free_t3_pg_ml")).strip() not in ("", "0"):
+            user_specified_metrics.append(f"Free T3: {biometrics['free_t3_pg_ml']} pg/mL")
+        if biometrics.get("free_t4_ng_dl") is not None and str(biometrics.get("free_t4_ng_dl")).strip() not in ("", "0"):
+            user_specified_metrics.append(f"Free T4: {biometrics['free_t4_ng_dl']} ng/dL")
+        if biometrics.get("fasting_insulin_u_iu_ml") is not None and str(biometrics.get("fasting_insulin_u_iu_ml")).strip() not in ("", "0"):
+            user_specified_metrics.append(f"Fasting Insulin: {biometrics['fasting_insulin_u_iu_ml']} uIU/mL")
+        if biometrics.get("homa_ir") is not None and str(biometrics.get("homa_ir")).strip() not in ("", "0"):
+            user_specified_metrics.append(f"HOMA-IR: {biometrics['homa_ir']}")
+        if biometrics.get("shbg_nmol_l") is not None and str(biometrics.get("shbg_nmol_l")).strip() not in ("", "0"):
+            user_specified_metrics.append(f"SHBG: {biometrics['shbg_nmol_l']} nmol/L")
+        if biometrics.get("bdnf_ng_ml") is not None and str(biometrics.get("bdnf_ng_ml")).strip() not in ("", "0"):
+            user_specified_metrics.append(f"BDNF: {biometrics['bdnf_ng_ml']} ng/mL")
+        if biometrics.get("igf1_ng_ml") is not None and str(biometrics.get("igf1_ng_ml")).strip() not in ("", "0"):
+            user_specified_metrics.append(f"IGF-1: {biometrics['igf1_ng_ml']} ng/mL")
+        if biometrics.get("nad_plus_umol_l") is not None and str(biometrics.get("nad_plus_umol_l")).strip() not in ("", "0"):
+            user_specified_metrics.append(f"NAD+: {biometrics['nad_plus_umol_l']} umol/L")
+        if biometrics.get("hs_crp_mg_l") is not None and str(biometrics.get("hs_crp_mg_l")).strip() not in ("", "0"):
+            user_specified_metrics.append(f"hs-CRP: {biometrics['hs_crp_mg_l']} mg/L")
 
         if user_specified_metrics:
             bio_summary = (
@@ -2366,42 +2490,10 @@ class CopilotAgent:
         # 11. Verified Biomedical Literature & Landmark Clinical Citations
         literature_sections = []
         try:
-            from app.services.pubmed_service import PubMedService
-            pubmed_svc = PubMedService()
-            citations_found = []
-            
-            # Prioritize entities explicitly discussed in latest messages, active stack, and candidate recommendations / blueprints
-            target_keys: List[str] = []
-            if messages:
-                for ext in cls.extract_entities_from_messages(messages):
-                    ext_str = str(ext).lower().strip()
-                    if ext_str and ext_str not in target_keys:
-                        target_keys.append(ext_str)
-            for comp in canonical_compounds:
-                c_k = str(comp.get("key") or comp.get("name") or "").lower().strip()
-                if c_k and c_k not in target_keys:
-                    target_keys.append(c_k)
-            # Add top candidate recommendation keys
-            for r in evidence_recs[:4]:
-                rk = str(r.get("key", "")).lower().strip()
-                if rk and rk not in target_keys:
-                    target_keys.append(rk)
-
-            for t_key in target_keys[:10]:
-                comp_meta = catalog.get_compound(t_key, auto_enrich=False) or catalog.find_by_synonym(t_key)
-                c_name = comp_meta.get("name") if comp_meta else t_key.replace("_", " ").title()
-                c_cites = pubmed_svc.search_literature(str(t_key), max_results=2, online_fallback=False)
-                for cite in c_cites:
-                    finding_str = f" ➔ *Investigated Finding*: {cite['clinical_finding']}" if cite.get("clinical_finding") else ""
-                    topics_list = cite.get("claim_topics") or []
-                    topic_str = f" [Topic: {', '.join(topics_list)}]" if topics_list else ""
-                    citations_found.append(
-                        f"- **{c_name}**{topic_str}: [{cite.get('journal', 'PubMed')} {cite.get('pub_year', '')}] *\"{cite.get('title')}\"* [PMID: {cite.get('pmid')}]{' (DOI: ' + cite['doi'] + ')' if cite.get('doi') else ''}{finding_str}"
-                    )
-            if citations_found:
-                literature_sections.append("### VERIFIED BIOMEDICAL LITERATURE & CLINICAL EVIDENCE:")
-                literature_sections.extend(citations_found[:12])
-                literature_sections.append("*(Grounding Mandate: Ground your compound recommendations and answers in empirical biomedical literature. Strictly cite verified studies using [PMID: <id> - Author et al., Year] or [DOI: ...]. If you encounter an unfamiliar compound, novel therapeutic endpoint, or need specific dosage/adverse effect evidence not listed above, invoke `<tool_call name=\"search_pubmed_titles\">{\"query\": \"<compound> <endpoint>\"}</tool_call>` or `<tool_call name=\"read_paper_abstract\">{\"pmid\": \"<id>\"}</tool_call>` during your thinking scratchpad to autonomously research and read study abstracts before formulating your response.)*")
+            # We rely on the agent's autonomous tool calling for literature rather than pre-fetching everything
+            # to dramatically save tokens and latency.
+            literature_sections.append("### VERIFIED BIOMEDICAL LITERATURE & CLINICAL EVIDENCE:")
+            literature_sections.append("*(Grounding Mandate: Ground your compound recommendations and answers in empirical biomedical literature. Strictly cite verified studies using [PMID: <id> - Author et al., Year] or [DOI: ...]. If you encounter an unfamiliar compound, novel therapeutic endpoint, or need specific dosage/adverse effect evidence not listed above, invoke `<tool_call name=\"search_pubmed_titles\">{\"query\": \"<compound> <endpoint>\"}</tool_call>` or `<tool_call name=\"read_paper_abstract\">{\"pmid\": \"<id>\"}</tool_call>` during your thinking scratchpad to autonomously research and read study abstracts before formulating your response.)*")
         except Exception as lit_err:
             logger.debug("Literature context notice: %s", lit_err)
 
@@ -3264,6 +3356,8 @@ You have autonomous access to execute live graph traversals, pathway queries, ph
         custom_instructions: Optional[str] = None,
         max_exploration_steps: int = 8,
         user_api_key: Optional[str] = None,
+        user_base_url: Optional[str] = None,
+        user_model: Optional[str] = None,
     ) -> AsyncGenerator[Dict[str, Any], None]:
         """
         Async generator for streaming SSE events to the frontend with dynamic multi-step ReAct graph traversal.
@@ -3314,7 +3408,22 @@ You have autonomous access to execute live graph traversals, pathway queries, ph
             "data": f"🔍 Grounded against Collision Matrix & Steady-State PK/PD for [{', '.join(stack_list) if stack_list else 'general consultation'}] | Streaming from inference engine..."
         }
 
-        current_messages = list(messages)
+        # Token optimization: Prune <scratchpad>, <observation>, and <tool_call> from past messages
+        # to prevent massive token bloat across multi-turn conversations while retaining the final synthesized answers.
+        import re
+        current_messages = []
+        for i, msg in enumerate(messages):
+            if i < len(messages) - 2:
+                content = str(msg.get("content", ""))
+                content = re.sub(r'<scratchpad>.*?</scratchpad>', '', content, flags=re.DOTALL)
+                content = re.sub(r'<observation.*?>.*?</observation>', '', content, flags=re.DOTALL)
+                content = re.sub(r'<tool_call.*?>.*?</tool_call>', '', content, flags=re.DOTALL)
+                content = re.sub(r'\n{3,}', '\n\n', content).strip()
+                if not content:
+                    content = "[Intermediate step redacted to optimize context window]"
+                current_messages.append({**msg, "content": content})
+            else:
+                current_messages.append(msg)
         action_cards_emitted = set()
 
         for step in range(1, max_exploration_steps + 1):
@@ -3330,6 +3439,8 @@ You have autonomous access to execute live graph traversals, pathway queries, ph
                 temperature=0.2,
                 top_p=0.85,
                 api_key=user_api_key,
+                base_url=user_base_url,
+                model=user_model,
             ):
                 chunk_type = chunk.get("type")
                 data = chunk.get("data")
@@ -3422,7 +3533,9 @@ You have autonomous access to execute live graph traversals, pathway queries, ph
                         sub_res = await ask_local_llm(
                             system_prompt=sub_sys,
                             user_prompt=sub_user,
-                            api_key=user_api_key
+                            api_key=user_api_key,
+                            base_url=user_base_url,
+                            model=user_model,
                         )
                         
                         extracted_summary = sub_res.get("summary") or str(sub_res)
@@ -3631,6 +3744,8 @@ You have autonomous access to execute live graph traversals, pathway queries, ph
         protocol_objective: Optional[str] = None,
         max_exploration_steps: int = 8,
         user_api_key: Optional[str] = None,
+        user_base_url: Optional[str] = None,
+        user_model: Optional[str] = None,
     ) -> Dict[str, Any]:
         """
         Non-streaming execution supporting dynamic ReAct graph problem solving.
@@ -3658,14 +3773,33 @@ You have autonomous access to execute live graph traversals, pathway queries, ph
             messages=messages,
         )
 
-        current_messages = list(messages)
+        import re
+        current_messages = []
+        for i, msg in enumerate(messages):
+            if i < len(messages) - 2:
+                content = str(msg.get("content", ""))
+                content = re.sub(r'<scratchpad>.*?</scratchpad>', '', content, flags=re.DOTALL)
+                content = re.sub(r'<observation.*?>.*?</observation>', '', content, flags=re.DOTALL)
+                content = re.sub(r'<tool_call.*?>.*?</tool_call>', '', content, flags=re.DOTALL)
+                content = re.sub(r'\n{3,}', '\n\n', content).strip()
+                if not content:
+                    content = "[Intermediate step redacted to optimize context window]"
+                current_messages.append({**msg, "content": content})
+            else:
+                current_messages.append(msg)
         full_text = ""
         scratchpad_notes = []
 
         for step in range(1, max_exploration_steps + 1):
             turn_response = ""
             turn_reasoning = ""
-            async for chunk in stream_local_llm_chat(messages=current_messages, system_prompt=system_prompt, api_key=user_api_key):
+            async for chunk in stream_local_llm_chat(
+                messages=current_messages,
+                system_prompt=system_prompt,
+                api_key=user_api_key,
+                base_url=user_base_url,
+                model=user_model,
+            ):
                 if chunk.get("type") == "quota_exceeded":
                     from app.services.ai_service import QuotaExhaustedException
                     raise QuotaExhaustedException("The host/admin's OpenRouter token budget has been exhausted.")

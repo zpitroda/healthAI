@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import concurrent.futures
 import copy
 import difflib
 import json
@@ -10,6 +11,7 @@ import re
 import sqlite3
 import threading
 import time
+from contextlib import contextmanager
 from typing import Any, Dict, List, Optional, Set, Tuple
 from cachetools import LRUCache
 
@@ -19,6 +21,38 @@ DEFAULT_CATALOG_DB_PATH = str(Path(__file__).resolve().parent.parent.parent / "h
 
 
 CORE_SUPPLEMENT_LIBRARY: Dict[str, Dict[str, Any]] = {
+    "nattokinase": {
+        "name": "Nattokinase",
+        "canonical_name": "Nattokinase (Fermented Soybean Fibrinolytic Protease)",
+        "canonical_key": "nattokinase",
+        "synonyms": ["nattokinase", "subtilisinnat", "subtilisin_nat", "natto", "fermentedsoybeanextract", "nsksd", "nattokinase_nsksd"],
+        "drug_class": "Dietary Supplement / Fibrinolytic Enzyme",
+        "categories": ["Dietary Supplement", "Fibrinolytic Enzyme", "Cardiovascular Support", "Thrombolytic", "Antithrombotic", "Blood Viscosity Reducer"],
+        "molecular_weight": 27700.0,
+        "logp": -1.5,
+        "oral_bioavailability": 0.15,
+        "volume_of_distribution": 1.2,
+        "protein_binding": 40.0,
+        "t_half_numeric": 8.0,
+        "half_life": "4-8 hours",
+        "standard_dose": "2000 - 4000 FU (100 - 200 mg) oral daily",
+        "mechanism": "Directly hydrolyzes cross-linked fibrin and plasminogen substrate, cleaves and inactivates Plasminogen Activator Inhibitor 1 (PAI-1), stimulates endogenous tissue plasminogen activator (t-PA) release, and degrades plasma fibrinogen to reduce blood viscosity.",
+        "receptor_targets": [
+            {"target": "Fibrin / Cross-Linked Fibrin Clot Substrate", "action": "cleaves", "family": "Proteolytic Enzyme / Fibrin Clot Substrate"},
+            {"target": "Plasminogen Activator Inhibitor 1 (PAI-1 / SERPINE1)", "action": "inhibitor", "family": "Serine Protease Inhibitor / Fibrinolysis Regulation", "gene_symbol": "SERPINE1", "uniprot_id": "P05121"},
+            {"target": "Tissue Plasminogen Activator (PLAT / t-PA)", "action": "inducer", "family": "Endogenous Fibrinolytic Cascades", "gene_symbol": "PLAT", "uniprot_id": "P00750"}
+        ],
+        "indications": ["Elevated Blood Viscosity", "Cardiovascular Risk Reduction", "Microcirculation Impairment", "Elevated Fibrinogen / D-Dimer", "Arterial Thrombosis Prevention"],
+        "warnings": [
+            "Caution when combining with pharmaceutical anticoagulants (warfarin, apixaban, rivaroxaban) or antiplatelet agents (aspirin, clopidogrel) due to additive hemorrhagic and bleeding risk.",
+            "Discontinue at least 2 weeks prior to elective surgical or dental procedures."
+        ],
+        "cyp_enzymes": {"substrates": [], "inhibitors": [], "inducers": []},
+        "organ_burdens": {"cardiovascular": {"score": 0.0, "severity": "NONE"}},
+        "evidence_level": "high",
+        "risk_band": "low",
+        "source_tier": "curated_supplement",
+    },
     "astaxanthin": {
         "name": "Astaxanthin",
         "canonical_name": "Astaxanthin",
@@ -31,8 +65,8 @@ CORE_SUPPLEMENT_LIBRARY: Dict[str, Dict[str, Any]] = {
         "volume_of_distribution": 2.5,
         "protein_binding": 85.0,
         "receptor_targets": [
-            {"target": "Glutathione Biosynthesis & Cellular Antioxidant Defense (System xc- / Nrf2 / GCL)", "action": "agonist", "family": "Antioxidant Defense"},
-            {"target": "Cellular Redox Homeostasis & Mitochondrial Bioenergetics", "action": "antioxidant", "family": "Redox Defense"}
+            {"target": "Glutathione Biosynthesis & Cellular Antioxidant Defense (System xc- / Nrf2 / GCL)", "action": "agonist", "family": "Antioxidant Defense", "gene_symbol": "SLC7A11"},
+            {"target": "Cellular Redox Homeostasis & Mitochondrial Bioenergetics", "action": "antioxidant", "family": "Redox Defense", "gene_symbol": "NFE2L2"}
         ],
     },
     "coq10": {
@@ -70,18 +104,38 @@ CORE_SUPPLEMENT_LIBRARY: Dict[str, Dict[str, Any]] = {
     "curcumin": {
         "name": "Curcumin",
         "canonical_name": "Curcumin (Turmeric Extract)",
-        "synonyms": ["turmeric", "turmericextract", "curcuminoids", "theracurmin", "longvida"],
+        "canonical_key": "curcumin",
+        "synonyms": ["curcumin", "turmeric", "turmericextract", "curcuminoids", "theracurmin", "longvida"],
         "drug_class": "Dietary Supplement / Polyphenolic Antioxidant",
-        "categories": ["Dietary Supplement", "Antioxidant", "Anti-Inflammatory", "Herbal Extract"],
+        "categories": ["Dietary Supplement", "Antioxidant", "Anti-Inflammatory", "Herbal Extract", "Polyphenol"],
         "molecular_weight": 368.38,
         "logp": 3.2,
-        "oral_bioavailability": 0.05,
-        "volume_of_distribution": 2.0,
-        "protein_binding": 85.0,
+        "oral_bioavailability": 0.01,
+        "bioavailability_f": 0.01,
+        "is_high_first_pass": True,
+        "volume_of_distribution": 2.1,
+        "volume_of_distribution_l_kg": 2.1,
+        "protein_binding": 90.0,
         "receptor_targets": [
+            {"target": "Nrf2 Cytoprotective Pathway (NFE2L2)", "action": "activator", "family": "Transcription Factor", "gene_symbol": "NFE2L2"},
             {"target": "NF-κB & Pro-Inflammatory Cytokines (NFKB1 / PTGS2)", "action": "inhibitor", "family": "Inflammatory Signaling", "gene_symbol": "NFKB1"},
             {"target": "Glutathione Biosynthesis & Cellular Antioxidant Defense (System xc- / Nrf2 / GCL)", "action": "agonist", "family": "Antioxidant Defense"}
         ],
+        "transporters": {
+            "substrates": ["P-gp", "BCRP"],
+            "inhibitors": ["P-gp", "BCRP"],
+            "inducers": []
+        },
+        "phase2_enzymes": {
+            "substrates": ["UGT1A1", "SULT1A1"],
+            "inhibitors": ["UGT1A1"],
+            "inducers": []
+        },
+        "cyp_enzymes": {
+            "substrates": ["CYP3A4"],
+            "inhibitors": ["CYP3A4", "CYP1A2"],
+            "inducers": []
+        },
     },
     "citrus_bergamot": {
         "name": "Citrus Bergamot",
@@ -339,7 +393,7 @@ CORE_SUPPLEMENT_LIBRARY: Dict[str, Dict[str, Any]] = {
         "protein_binding": 95.0,
         "mechanism": "Transmembrane lipophilic antioxidant that quenches singlet oxygen and lipid peroxides across cellular membranes, protecting mitochondrial double membranes.",
         "receptor_targets": [
-            {"target": "Cellular Redox Homeostasis & Lipid Peroxidation (MDA / ROS)", "action": "scavenger", "family": "Redox Defense"},
+            {"target": "Cellular Redox Homeostasis & Lipid Peroxidation (MDA / ROS)", "action": "scavenger", "family": "Redox Defense", "gene_symbol": "NFE2L2"},
             {"target": "Nrf2 Cytoprotective Pathway (NFE2L2)", "action": "activator", "family": "Transcription Factor", "gene_symbol": "NFE2L2"}
         ],
     },
@@ -356,24 +410,8 @@ CORE_SUPPLEMENT_LIBRARY: Dict[str, Dict[str, Any]] = {
         "protein_binding": 99.0,
         "mechanism": "Essential mitochondrial electron transport chain electron carrier and lipid-soluble antioxidant, protecting LDL particles and cellular membranes from oxidative damage.",
         "receptor_targets": [
-            {"target": "Mitochondrial Electron Transport Complex I & III", "action": "cofactor", "family": "Mitochondrial Bioenergetics"},
-            {"target": "Cellular Redox Homeostasis & Lipid Peroxidation (MDA / ROS)", "action": "antioxidant", "family": "Redox Defense"}
-        ],
-    },
-    "curcumin": {
-        "name": "Curcumin",
-        "canonical_name": "Curcumin",
-        "synonyms": ["curcumin", "turmeric", "turmericextract"],
-        "drug_class": "Dietary Supplement / Polyphenolic Antioxidant",
-        "categories": ["Dietary Supplement", "Antioxidant", "Anti-Inflammatory"],
-        "molecular_weight": 368.38,
-        "logp": 3.2,
-        "oral_bioavailability": 0.01,
-        "volume_of_distribution": 2.1,
-        "protein_binding": 90.0,
-        "receptor_targets": [
-            {"target": "Nrf2 Cytoprotective Pathway (NFE2L2)", "action": "activator", "family": "Transcription Factor", "gene_symbol": "NFE2L2"},
-            {"target": "NF-κB & Pro-Inflammatory Cytokines (NFKB1 / PTGS2)", "action": "inhibitor", "family": "Inflammatory Signaling", "gene_symbol": "NFKB1"}
+            {"target": "Mitochondrial Electron Transport Complex I & III", "action": "cofactor", "family": "Mitochondrial Bioenergetics", "gene_symbol": "MITOCHONDRIAL_ETC"},
+            {"target": "Cellular Redox Homeostasis & Lipid Peroxidation (MDA / ROS)", "action": "antioxidant", "family": "Redox Defense", "gene_symbol": "NFE2L2"}
         ],
     },
     "creatine": {
@@ -394,7 +432,7 @@ CORE_SUPPLEMENT_LIBRARY: Dict[str, Dict[str, Any]] = {
         },
         "reason": "Expands intramuscular phosphocreatine reserves to accelerate ATP resynthesis during high-intensity resistance training.",
         "receptor_targets": [
-            {"target": "Skeletal Muscle ATP-PCr Phosphagen System (CKM / SLC6A8)", "action": "substrate", "target_class": "Enzyme", "family": "Phosphagen System"}
+            {"target": "Skeletal Muscle ATP-PCr Phosphagen System (CKM / SLC6A8)", "action": "substrate", "target_class": "Enzyme", "family": "Phosphagen System", "gene_symbol": "CKM"}
         ],
     },
     "caffeine": {
@@ -415,8 +453,8 @@ CORE_SUPPLEMENT_LIBRARY: Dict[str, Dict[str, Any]] = {
         },
         "reason": "Antagonizes central adenosine A1 and A2A receptors to suppress fatigue and enhance alertness.",
         "receptor_targets": [
-            {"target": "A1 receptor", "action": "antagonist", "family": "GPCR / Adenosine"},
-            {"target": "Adenosine Receptor (ADORA1 / ADORA2A)", "action": "antagonist", "family": "GPCR / Adenosine"}
+            {"target": "A1 receptor", "action": "antagonist", "family": "GPCR / Adenosine", "gene_symbol": "ADORA1"},
+            {"target": "Adenosine Receptor (ADORA1 / ADORA2A)", "action": "antagonist", "family": "GPCR / Adenosine", "gene_symbol": "ADORA1"}
         ],
         "cyp_enzymes": {"substrates": ["CYP1A2"], "inhibitors": ["CYP1A2"], "inducers": []},
     },
@@ -478,6 +516,7 @@ CORE_SUPPLEMENT_LIBRARY: Dict[str, Dict[str, Any]] = {
         "mechanism": "Highly selective competitive beta-1 adrenergic receptor antagonist combined with d-enantiomer mediated endothelial nitric oxide synthase (eNOS / NOS3) activation and beta-3 adrenergic agonism, producing systemic peripheral vasodilation with minimal bronchoconstrictive or inotropic depression.",
         "receptor_targets": [
             {"target": "Beta-1 Adrenergic Receptor (ADRB1)", "action": "antagonist", "family": "GPCR / Adrenergic", "affinity_ki": 0.9, "gene_symbol": "ADRB1"},
+            {"target": "Beta-2 Adrenergic Receptor (ADRB2)", "action": "antagonist", "family": "GPCR / Adrenergic", "affinity_ki": 30.0, "gene_symbol": "ADRB2"},
             {"target": "Endothelial Nitric Oxide Synthase (eNOS / NOS3)", "action": "activator", "family": "Endothelial Vasodilation", "gene_symbol": "NOS3"},
             {"target": "Beta-3 Adrenergic Receptor (ADRB3)", "action": "agonist", "family": "GPCR / Adrenergic", "affinity_ki": 25.0, "gene_symbol": "ADRB3"}
         ],
@@ -595,6 +634,7 @@ CORE_SUPPLEMENT_LIBRARY: Dict[str, Dict[str, Any]] = {
         "cyp_enzymes": {"substrates": ["CYP3A4"], "inhibitors": ["CYP3A4", "CYP2C9"], "inducers": []},
         "transporters": {"substrates": ["P-gp"], "inhibitors": ["P-gp"], "inducers": []},
         "phase2_enzymes": {"substrates": [], "inhibitors": ["UGT1A1"], "inducers": []},
+        "is_bioenhancer": True,
     },
     "sulforaphane": {
         "name": "Sulforaphane",
@@ -891,6 +931,11 @@ CORE_SUPPLEMENT_LIBRARY: Dict[str, Dict[str, Any]] = {
         "volume_of_distribution": 0.5,
         "protein_binding": 20.0,
         "mechanism": "Accelerates tissue healing, tendon repair, and mucosal cytoprotection via upregulation of VEGF-driven angiogenesis, focal adhesion kinase (FAK), and eNOS nitric oxide generation.",
+        "metadata": {
+            "evidence_tier": "IN_VITRO_AND_ALLOMETRIC_EXTRAPOLATION",
+            "regulatory_status": "RESEARCH_CHEMICAL",
+            "human_clinical_trials": False,
+        },
         "receptor_targets": [
             {"target": "Vascular Endothelial Growth Factor Receptor (KDR / VEGFR2)", "action": "inducer", "family": "Receptor Tyrosine Kinase", "gene_symbol": "KDR"},
             {"target": "Endothelial Nitric Oxide Synthase (eNOS / NOS3)", "action": "activator", "family": "Endothelial Vasodilation", "gene_symbol": "NOS3"}
@@ -907,9 +952,40 @@ CORE_SUPPLEMENT_LIBRARY: Dict[str, Dict[str, Any]] = {
         "oral_bioavailability": 0.20,
         "volume_of_distribution": 0.6,
         "protein_binding": 30.0,
+        "metadata": {
+            "evidence_tier": "IN_VITRO_AND_ALLOMETRIC_EXTRAPOLATION",
+            "regulatory_status": "RESEARCH_CHEMICAL",
+            "human_clinical_trials": False,
+        },
         "mechanism": "Actin-binding peptide that sequesters G-actin, promoting endothelial cell migration, microvascular angiogenesis, and suppression of inflammatory myofibroblast differentiation.",
         "receptor_targets": [
             {"target": "Actin Cytoskeleton Dynamics (ACTB / Cell Migration)", "action": "agonist", "family": "Cytoskeleton", "gene_symbol": "ACTB"}
+        ],
+    },
+    "ghk_cu": {
+        "name": "GHK-Cu",
+        "canonical_name": "GHK-Cu (Copper Tripeptide-1 / Prezatide Copper)",
+        "synonyms": ["ghkcu", "ghk_cu", "ghk-cu", "coppertripeptide", "copper_tripeptide_1", "prezatide", "prezatide_copper", "cu_ghk", "copperpeptide"],
+        "drug_class": "Regenerative Copper Tripeptide / Collagen Synthesis Stimulator",
+        "categories": ["Peptide", "Cytoprotective", "Tissue Repair", "Collagen Synthesis", "Cosmeceutical"],
+        "molecular_weight": 403.93,
+        "logp": -2.5,
+        "oral_bioavailability": 0.05,
+        "volume_of_distribution": 0.4,
+        "protein_binding": 45.0,
+        "half_life": "0.5-1.0 hours",
+        "t_half_numeric": 0.75,
+        "metadata": {
+            "evidence_tier": "IN_VITRO_AND_ALLOMETRIC_EXTRAPOLATION",
+            "regulatory_status": "RESEARCH_CHEMICAL / COSMECEUTICAL",
+            "human_clinical_trials": True,
+        },
+        "mechanism": "Endogenous tripeptide with high affinity for Cu(II). Stimulates collagen (type I, III) and glycosaminoglycan synthesis in fibroblasts, regulates MMP-2/MMP-9 remodeling, promotes angiogenesis via VEGF upregulation, and enhances superoxide dismutase (SOD1) antioxidant defenses.",
+        "receptor_targets": [
+            {"target": "Collagen Type I Alpha 1 Chain (COL1A1)", "action": "inducer", "family": "Extracellular Matrix", "gene_symbol": "COL1A1"},
+            {"target": "Vascular Endothelial Growth Factor A (VEGFA)", "action": "inducer", "family": "Angiogenesis Factor", "gene_symbol": "VEGFA"},
+            {"target": "Matrix Metallopeptidase 2 (MMP2)", "action": "modulator", "family": "Extracellular Remodeling", "gene_symbol": "MMP2"},
+            {"target": "Superoxide Dismutase 1 (SOD1)", "action": "activator", "family": "Antioxidant Enzyme", "gene_symbol": "SOD1"}
         ],
     },
     "tirzepatide": {
@@ -950,6 +1026,48 @@ CORE_SUPPLEMENT_LIBRARY: Dict[str, Dict[str, Any]] = {
             {"target": "FKBP12 Peptidyl-Prolyl Cis-Trans Isomerase (FKBP1A)", "action": "agonist", "family": "Immunophilin", "gene_symbol": "FKBP1A"}
         ],
         "cyp_enzymes": {"substrates": ["CYP3A4"], "inhibitors": ["CYP3A4"], "inducers": []},
+    },
+    "beta_alanine": {
+        "name": "Beta-Alanine",
+        "canonical_name": "Beta-Alanine (Carnosine Precursor)",
+        "synonyms": ["betaalanine", "carnosyn", "3-aminopropanoic acid"],
+        "drug_class": "Dietary Supplement / Amino Acid",
+        "categories": ["Dietary Supplement", "Ergogenic", "Intracellular Buffer"],
+        "molecular_weight": 89.09,
+        "logp": -3.0,
+        "oral_bioavailability": 0.95,
+        "half_life": "2 hours",
+        "t_half_numeric": 2.0,
+        "volume_of_distribution": 0.8,
+        "protein_binding": 0.0,
+        "evidence_level": "gold_standard",
+        "mechanism": "Rate-limiting substrate for intramuscular carnosine synthesis, buffering exercise-induced intramuscular hydronium ion accumulation (H+) and attenuating metabolic acidosis during high-intensity anaerobic glycolysis.",
+        "receptor_targets": [
+            {"target": "Carnosine Synthase 1 (CARNS1)", "action": "substrate", "family": "Intracellular Buffering", "gene_symbol": "CARNS1"}
+        ],
+        "cyp_enzymes": {"substrates": [], "inhibitors": [], "inducers": []},
+        "organ_burdens": {},
+    },
+    "citrulline": {
+        "name": "L-Citrulline",
+        "canonical_name": "L-Citrulline",
+        "synonyms": ["citrulline", "lcitrulline", "citrulline malate"],
+        "drug_class": "Dietary Supplement / Nitric Oxide Precursor",
+        "categories": ["Dietary Supplement", "Vasodilator", "Endothelial Support"],
+        "molecular_weight": 175.19,
+        "logp": -3.1,
+        "oral_bioavailability": 0.85,
+        "half_life": "1.5 hours",
+        "t_half_numeric": 1.5,
+        "volume_of_distribution": 0.7,
+        "protein_binding": 0.0,
+        "evidence_level": "gold_standard",
+        "mechanism": "Bypasses first-pass hepatic arginase to potently elevate systemic L-arginine concentrations, activating endothelial nitric oxide synthase (eNOS) and driving cyclic GMP-mediated vasodilation.",
+        "receptor_targets": [
+            {"target": "Endothelial Nitric Oxide Synthase (eNOS / NOS3)", "action": "activator", "family": "Endothelial Vasodilation", "gene_symbol": "NOS3"}
+        ],
+        "cyp_enzymes": {"substrates": [], "inhibitors": [], "inducers": []},
+        "organ_burdens": {},
     },
 }
 
@@ -1393,8 +1511,10 @@ CORE_THERAPEUTIC_LIBRARY: Dict[str, Dict[str, Any]] = {
         "evidence_level": "gold_standard",
         "mechanism": "Highly selective beta-1 adrenergic antagonist (>30-fold selectivity over beta-2) with direct endothelial nitric oxide synthase (eNOS) activation via beta-3 agonism, lowering peripheral vascular resistance without erectile dysfunction or bronchospasm.",
         "receptor_targets": [
-            {"target": "Beta-1 Adrenergic Receptor (ADRB1)", "action": "antagonist", "family": "GPCR / Adrenergic", "gene_symbol": "ADRB1"},
-            {"target": "Endothelial Nitric Oxide Synthase (eNOS / NOS3)", "action": "activator", "family": "Endothelial Vasodilation", "gene_symbol": "NOS3"}
+            {"target": "Beta-1 Adrenergic Receptor (ADRB1)", "action": "antagonist", "family": "GPCR / Adrenergic", "affinity_ki": 0.9, "gene_symbol": "ADRB1"},
+            {"target": "Beta-2 Adrenergic Receptor (ADRB2)", "action": "antagonist", "family": "GPCR / Adrenergic", "affinity_ki": 30.0, "gene_symbol": "ADRB2"},
+            {"target": "Endothelial Nitric Oxide Synthase (eNOS / NOS3)", "action": "activator", "family": "Endothelial Vasodilation", "gene_symbol": "NOS3"},
+            {"target": "Beta-3 Adrenergic Receptor (ADRB3)", "action": "agonist", "family": "GPCR / Adrenergic", "affinity_ki": 25.0, "gene_symbol": "ADRB3"}
         ],
         "cyp_enzymes": {"substrates": ["CYP2D6"], "inhibitors": [], "inducers": []},
         "organ_burdens": {"cardiovascular": {"score": 0.0}},
@@ -1420,7 +1540,93 @@ CORE_THERAPEUTIC_LIBRARY: Dict[str, Dict[str, Any]] = {
         ],
         "cyp_enzymes": {"substrates": [], "inhibitors": [], "inducers": []},
         "organ_burdens": {"hepatic": {"score": 10.0, "severity": "MILD"}},
-    }
+    },
+    "tadalafil": {
+        "name": "Tadalafil",
+        "canonical_name": "Tadalafil (Cialis)",
+        "synonyms": ["cialis", "tadalafil", "adcirca"],
+        "drug_class": "Phosphodiesterase-5 (PDE5) Inhibitor",
+        "categories": ["Vasodilator", "Endothelial Support", "Prescription"],
+        "molecular_weight": 389.40,
+        "logp": 1.7,
+        "oral_bioavailability": 0.80,
+        "half_life": "17.5 hours",
+        "t_half_numeric": 17.5,
+        "volume_of_distribution": 63.0,
+        "protein_binding": 94.0,
+        "evidence_level": "gold_standard",
+        "mechanism": "Potent and selective inhibitor of cyclic guanosine monophosphate (cGMP)-specific phosphodiesterase type 5 (PDE5), enhancing nitric oxide-mediated vascular smooth muscle relaxation, arterial compliance, and endothelial function.",
+        "receptor_targets": [
+            {"target": "Phosphodiesterase 5A (PDE5A)", "action": "inhibitor", "family": "Enzyme / Phosphodiesterase", "gene_symbol": "PDE5A"}
+        ],
+        "cyp_enzymes": {"substrates": ["CYP3A4"], "inhibitors": [], "inducers": []},
+        "organ_burdens": {"cardiovascular": {"score": 0.0}},
+    },
+    "metformin": {
+        "name": "Metformin",
+        "canonical_name": "Metformin Hydrochloride (Glucophage)",
+        "synonyms": ["glucophage", "metformin", "metformin hcl"],
+        "drug_class": "Biguanide / AMPK Activator",
+        "categories": ["Insulin Sensitizer", "Metabolic Modulator", "Longevity", "Prescription"],
+        "molecular_weight": 129.16,
+        "logp": -1.4,
+        "oral_bioavailability": 0.55,
+        "half_life": "6.2 hours",
+        "t_half_numeric": 6.2,
+        "volume_of_distribution": 654.0,
+        "protein_binding": 0.0,
+        "evidence_level": "gold_standard",
+        "mechanism": "Inhibits mitochondrial respiratory complex I, shifting the AMP/ATP ratio to activate AMP-activated protein kinase (AMPK), suppressing hepatic gluconeogenesis, enhancing GLUT4-mediated peripheral insulin sensitivity, and inducing cellular autophagy.",
+        "receptor_targets": [
+            {"target": "Mitochondrial Complex I / NADH Ubiquinone Oxidoreductase", "action": "inhibitor", "family": "Mitochondrial Bioenergetics"},
+            {"target": "AMP-Activated Protein Kinase (PRKAA1 / AMPK)", "action": "activator", "family": "Metabolic Kinase", "gene_symbol": "PRKAA1"}
+        ],
+        "cyp_enzymes": {"substrates": [], "inhibitors": [], "inducers": []},
+        "organ_burdens": {"renal": {"score": 5.0, "severity": "MINIMAL"}},
+    },
+    "clenbuterol": {
+        "name": "Clenbuterol",
+        "canonical_name": "Clenbuterol Hydrochloride (Spiropent)",
+        "synonyms": ["clen", "clenbuterol", "spiropent"],
+        "drug_class": "Selective Beta-2 Adrenergic Agonist / Sympathomimetic",
+        "categories": ["Bronchodilator", "Thermogenic", "Sympathomimetic"],
+        "molecular_weight": 277.19,
+        "logp": 2.6,
+        "oral_bioavailability": 0.89,
+        "half_life": "36 hours",
+        "t_half_numeric": 36.0,
+        "volume_of_distribution": 3.5,
+        "protein_binding": 50.0,
+        "evidence_level": "gold_standard",
+        "mechanism": "Potent, long-acting selective beta-2 adrenergic agonist stimulating adenylyl cyclase and intracellular cAMP production, activating protein kinase A (PKA) and hormone-sensitive lipase (HSL) to drive mitochondrial uncoupling (UCP1) and adipose lipolysis.",
+        "receptor_targets": [
+            {"target": "Beta-2 Adrenergic Receptor (ADRB2)", "action": "agonist", "family": "GPCR / Adrenergic", "gene_symbol": "ADRB2", "affinity_ki": 0.55},
+            {"target": "Beta-1 Adrenergic Receptor (ADRB1)", "action": "agonist", "family": "GPCR / Adrenergic", "gene_symbol": "ADRB1", "affinity_ki": 50.0}
+        ],
+        "cyp_enzymes": {"substrates": ["CYP1A2"], "inhibitors": [], "inducers": []},
+        "organ_burdens": {"cardiovascular": {"score": 45.0, "severity": "ELEVATED"}},
+    },
+    "finasteride": {
+        "name": "Finasteride",
+        "canonical_name": "Finasteride (Propecia / Proscar)",
+        "synonyms": ["propecia", "proscar", "finasteride"],
+        "drug_class": "Type II 5-Alpha Reductase Inhibitor",
+        "categories": ["5-AR Inhibitor", "Antiandrogen", "Prescription"],
+        "molecular_weight": 372.54,
+        "logp": 3.0,
+        "oral_bioavailability": 0.65,
+        "half_life": "6 hours",
+        "t_half_numeric": 6.0,
+        "volume_of_distribution": 76.0,
+        "protein_binding": 90.0,
+        "evidence_level": "gold_standard",
+        "mechanism": "Competitive, irreversible inhibitor of human Type II 5-alpha reductase (SRD5A2), suppressing the peripheral conversion of testosterone to dihydrotestosterone (DHT) by ~70%, protecting against miniaturization of scalp hair follicles and benign prostatic hyperplasia.",
+        "receptor_targets": [
+            {"target": "Steroid 5-Alpha Reductase 2 (SRD5A2)", "action": "inhibitor", "family": "Enzyme / Steroid Metabolism", "gene_symbol": "SRD5A2"}
+        ],
+        "cyp_enzymes": {"substrates": ["CYP3A4"], "inhibitors": [], "inducers": []},
+        "organ_burdens": {"hepatic": {"score": 5.0, "severity": "MINIMAL"}},
+    },
 }
 
 
@@ -1436,6 +1642,13 @@ def _get_default_compounds() -> List[Dict[str, Any]]:
 
 
 CANONICAL_SYNONYM_MAP: Dict[str, str] = {
+    "nattokinase": "nattokinase",
+    "subtilisinnat": "nattokinase",
+    "subtilisin_nat": "nattokinase",
+    "natto": "nattokinase",
+    "nsksd": "nattokinase",
+    "nattokinase_nsksd": "nattokinase",
+    "fermentedsoybeanextract": "nattokinase",
     "testosterone": "testosterone",
     "testosteronebase": "testosterone",
     "testc": "testosterone_cypionate",
@@ -1746,6 +1959,14 @@ CANONICAL_SYNONYM_MAP: Dict[str, str] = {
     "rapamycin": "rapamycin",
     "sirolimus": "rapamycin",
     "rapamune": "rapamycin",
+    "ghkcu": "ghk_cu",
+    "ghk_cu": "ghk_cu",
+    "ghk": "ghk_cu",
+    "coppertripeptide": "ghk_cu",
+    "coppertripeptide1": "ghk_cu",
+    "prezatide": "ghk_cu",
+    "prezatidecopper": "ghk_cu",
+    "copperpeptide": "ghk_cu",
 }
 
 
@@ -1792,11 +2013,93 @@ def _levenshtein_distance(s1: str, s2: str) -> int:
     return previous_row[-1]
 
 
-_INIT_LOCK = threading.Lock()
+def compound_matches_modality(comp: Dict[str, Any], target_modality: Optional[str]) -> bool:
+    """Determines whether a catalog compound matches the requested target modality."""
+    if not target_modality:
+        return True
+    target = target_modality.strip().lower()
+    if target in ("all", "", "none"):
+        return True
+
+    comp_mod = str(comp.get("modality") or "").lower()
+    drug_class = str(comp.get("drug_class") or "").lower()
+    comp_class = str(comp.get("compound_class") or "").lower()
+    comp_name = str(comp.get("name") or "").lower()
+    categories = [str(c).lower() for c in (comp.get("categories") or [])]
+    cats_str = " ".join(categories)
+
+    if target == "peptide":
+        return (
+            comp_mod == "peptide"
+            or comp.get("is_peptide") is True
+            or "peptide" in drug_class
+            or "peptide" in comp_class
+            or "glp-1" in drug_class
+            or "ghrp" in drug_class
+            or "ghrh" in drug_class
+            or "somatostatin" in drug_class
+            or "peptide" in cats_str
+        )
+    elif target == "biologic_antibody":
+        return (
+            comp_mod == "biologic_antibody"
+            or comp.get("is_biologic") is True
+            or "biologic" in drug_class
+            or "antibody" in drug_class
+            or "mab" in drug_class
+            or "monoclonal" in drug_class
+            or "biologic" in comp_class
+            or comp_name.endswith("mab")
+        )
+    elif target == "botanical_natural":
+        return (
+            comp_mod == "botanical_natural"
+            or comp.get("is_botanical") is True
+            or "botanical" in drug_class
+            or "herb" in drug_class
+            or "phytochemical" in drug_class
+            or "extract" in drug_class
+            or "botanical" in cats_str
+        )
+    elif target == "combination_drug":
+        return (
+            comp_mod == "combination_drug"
+            or comp.get("is_combination") is True
+            or "combination" in drug_class
+            or "combo" in comp_name
+        )
+    elif target == "small_molecule":
+        if comp_mod == "small_molecule":
+            return True
+        if (
+            comp.get("is_peptide")
+            or comp.get("is_biologic")
+            or comp.get("is_botanical")
+            or comp.get("is_combination")
+            or comp_mod in ("peptide", "biologic_antibody", "botanical_natural", "combination_drug")
+            or "peptide" in drug_class
+            or "biologic" in drug_class
+            or "antibody" in drug_class
+            or "botanical" in drug_class
+            or "combination" in drug_class
+        ):
+            return False
+        return True
+
+    return comp_mod == target
+
+
+_INIT_LOCK = threading.RLock()
 _CATALOG_MEMORY_CACHE: LRUCache = LRUCache(maxsize=1000)
+_CATALOG_NEGATIVE_CACHE: LRUCache = LRUCache(maxsize=2000)
+_SEARCH_QUERY_CACHE: LRUCache = LRUCache(maxsize=1500)
 _CATALOG_ALL_COMPOUNDS: Dict[str, List[Dict[str, Any]]] = {}
 _CATALOG_VARIANTS: Dict[str, Dict[str, List[Dict[str, Any]]]] = {}
 _INITIALIZED_DATABASES: Set[str] = set()
+_WARMING_DATABASES: Set[str] = set()
+
+CATALOG_NEGATIVE_TTL_SECONDS = 600.0    # 10 minutes
+SEARCH_QUERY_CACHE_TTL_SECONDS = 120.0  # 2 minutes
 
 
 class CatalogService:
@@ -1805,10 +2108,16 @@ class CatalogService:
         if self.database_path not in _INITIALIZED_DATABASES:
             with _INIT_LOCK:
                 if self.database_path not in _INITIALIZED_DATABASES:
-                    self._ensure_database()
-                    if self._is_empty():
-                        self.sync_seed_compounds()
+                    try:
+                        self._ensure_database()
+                        if self._is_empty():
+                            self.sync_seed_compounds()
+                    except Exception as e:
+                        logger.warning(f"Database initialization deferred: {e}")
                     _INITIALIZED_DATABASES.add(self.database_path)
+        # Warm in-memory cache if not already populated or actively warming
+        if self.database_path not in _CATALOG_ALL_COMPOUNDS and self.database_path not in _WARMING_DATABASES:
+            self._warm_cache()
 
     def _is_empty(self) -> bool:
         try:
@@ -1819,10 +2128,10 @@ class CatalogService:
             return True
 
     def sync_seed_compounds(self) -> None:
-        with self._connect() as conn:
-            for compound in _get_default_compounds():
-                self.upsert_compound(compound, ext_conn=conn)
-            conn.commit()
+        try:
+            self.seed_default_compounds()
+        except Exception as e:
+            logger.warning(f"Seed synchronization deferred: {e}")
 
     @property
     def database_path(self) -> str:
@@ -1833,19 +2142,35 @@ class CatalogService:
             return env_db
         return DEFAULT_CATALOG_DB_PATH
 
-    def _connect(self) -> sqlite3.Connection:
+    @contextmanager
+    def _connect(self):
         db_dir = os.path.dirname(self.database_path)
         if db_dir:
             os.makedirs(db_dir, exist_ok=True)
-        connection = sqlite3.connect(self.database_path, timeout=60.0)
+        connection = sqlite3.connect(self.database_path, timeout=5.0)
         connection.row_factory = sqlite3.Row
         try:
-            connection.execute("PRAGMA journal_mode=WAL;")
-            connection.execute("PRAGMA busy_timeout=60000;")
-            connection.execute("PRAGMA synchronous=NORMAL;")
+            connection.execute("PRAGMA journal_mode = WAL;")
+            connection.execute("PRAGMA busy_timeout = 5000;")
         except Exception:
             pass
-        return connection
+        try:
+            yield connection
+            try:
+                connection.commit()
+            except Exception:
+                pass
+        except Exception:
+            try:
+                connection.rollback()
+            except Exception:
+                pass
+            raise
+        finally:
+            try:
+                connection.close()
+            except Exception:
+                pass
 
     def _ensure_database(self) -> None:
         for attempt in range(5):
@@ -1855,16 +2180,18 @@ class CatalogService:
             except sqlite3.OperationalError as e:
                 err_msg = str(e).lower()
                 if ("locked" in err_msg or "busy" in err_msg) and attempt < 4:
-                    time.sleep(0.5 * (attempt + 1))
+                    time.sleep(0.2 * (attempt + 1))
                     continue
                 if any(term in err_msg for term in ("malformed", "corrupt", "file is not a database")):
                     break
-                raise
+                logger.warning(f"SQLite busy or locked during table verification: {e}")
+                return
             except sqlite3.DatabaseError as e:
                 err_msg = str(e).lower()
                 if any(term in err_msg for term in ("malformed", "corrupt", "file is not a database", "file is encrypted", "not a database", "unsupported file format")):
                     break
-                raise
+                logger.warning(f"Database error during table verification: {e}")
+                return
 
         db_file = self.database_path
         logger.error(f"Malformed or corrupted SQLite database detected at {db_file}. Auto-recovering clean database...")
@@ -1880,14 +2207,17 @@ class CatalogService:
                         pass
         except Exception:
             pass
-        self._init_database_tables()
+        try:
+            self._init_database_tables()
+        except Exception as e:
+            logger.warning(f"Table initialization retry error: {e}")
 
     def _init_database_tables(self) -> None:
         with self._connect() as conn:
             try:
-                conn.execute("PRAGMA journal_mode=WAL;")
-                conn.execute("PRAGMA synchronous=NORMAL;")
-                conn.execute("PRAGMA temp_store=MEMORY;")
+                conn.execute("PRAGMA busy_timeout = 5000;")
+                conn.execute("PRAGMA synchronous = NORMAL;")
+                conn.execute("PRAGMA temp_store = MEMORY;")
             except Exception:
                 pass
             conn.execute(
@@ -2139,6 +2469,7 @@ class CatalogService:
             conn.execute("CREATE INDEX IF NOT EXISTS idx_citations_year ON citations(pub_year)")
             conn.execute("CREATE INDEX IF NOT EXISTS idx_trials_compound ON clinical_trials(compound_key)")
             conn.execute("CREATE INDEX IF NOT EXISTS idx_claims_compound ON evidence_claims(compound_key)")
+            conn.commit()
 
     def _resolve_canonical_key(self, compound: Dict[str, Any]) -> str | None:
         candidates = [
@@ -2224,16 +2555,67 @@ class CatalogService:
         keys_to_del = [k for k in _CATALOG_MEMORY_CACHE if k[0] == self.database_path]
         for k in keys_to_del:
             _CATALOG_MEMORY_CACHE.pop(k, None)
+        neg_keys_to_del = [k for k in _CATALOG_NEGATIVE_CACHE if k[0] == self.database_path]
+        for k in neg_keys_to_del:
+            _CATALOG_NEGATIVE_CACHE.pop(k, None)
+        search_keys_to_del = [k for k in _SEARCH_QUERY_CACHE if k[0] == self.database_path]
+        for k in search_keys_to_del:
+            _SEARCH_QUERY_CACHE.pop(k, None)
         with self._connect() as conn:
             conn.execute("DROP TABLE IF EXISTS compounds")
         self._ensure_database()
         self.seed_default_compounds()
         _INITIALIZED_DATABASES.add(self.database_path)
 
-    def seed_default_compounds(self) -> None:
-        with self._connect() as conn:
-            for compound in _get_default_compounds():
-                self.upsert_compound(compound, ext_conn=conn)
+    def seed_default_compounds(self, ext_conn: Optional[sqlite3.Connection] = None) -> None:
+        compounds = _get_default_compounds()
+        rows = [self._compound_to_row(c) for c in compounds]
+        sql = """
+            INSERT INTO compounds (
+                key, name, canonical_name, canonical_key, inchikey, smiles, logp, tpsa,
+                molecular_weight, pka, hbd, hba, rotatable_bonds, synonyms, external_ids,
+                drug_class, compound_class, route_of_administration, formulation, mechanism,
+                receptor_targets, transporters, phase2_enzymes, categories, indications, dosing,
+                reason, citation, contraindications, side_effects, interactions, warnings,
+                boxed_warning, is_narrow_therapeutic_index, dilirank_class, half_life,
+                oral_bioavailability, t_max, volume_of_distribution, protein_binding,
+                metabolism, clearance, clearance_routes, primary_effects, cyp_enzymes,
+                organ_burdens, synergies, metadata, evidence_level, risk_band, graph_tags,
+                t_half_numeric, bioavailability_f, volume_of_distribution_l_kg, clearance_l_h_kg,
+                t_max_h, c_max_ng_ml, fraction_unbound, protein_binding_pct, absorption_rate_ka,
+                renal_clearance_fraction, bcs_class, mec_ng_ml, mtc_ng_ml, therapeutic_index,
+                e_max, ec50_nm, ic50_nm, hill_coefficient, pathway_details, source_tier,
+                last_enriched_at, parent_compound_id, is_ester, ester_name, ester_weight_factor, updated_at
+            )
+            VALUES (
+                :key, :name, :canonical_name, :canonical_key, :inchikey, :smiles, :logp, :tpsa,
+                :molecular_weight, :pka, :hbd, :hba, :rotatable_bonds, :synonyms, :external_ids,
+                :drug_class, :compound_class, :route_of_administration, :formulation, :mechanism,
+                :receptor_targets, :transporters, :phase2_enzymes, :categories, :indications, :dosing,
+                :reason, :citation, :contraindications, :side_effects, :interactions, :warnings,
+                :boxed_warning, :is_narrow_therapeutic_index, :dilirank_class, :half_life,
+                :oral_bioavailability, :t_max, :volume_of_distribution, :protein_binding,
+                :metabolism, :clearance, :clearance_routes, :primary_effects, :cyp_enzymes,
+                :organ_burdens, :synergies, :metadata, :evidence_level, :risk_band, :graph_tags,
+                :t_half_numeric, :bioavailability_f, :volume_of_distribution_l_kg, :clearance_l_h_kg,
+                :t_max_h, :c_max_ng_ml, :fraction_unbound, :protein_binding_pct, :absorption_rate_ka,
+                :renal_clearance_fraction, :bcs_class, :mec_ng_ml, :mtc_ng_ml, :therapeutic_index,
+                :e_max, :ec50_nm, :ic50_nm, :hill_coefficient, :pathway_details, :source_tier,
+                :last_enriched_at, :parent_compound_id, :is_ester, :ester_name, :ester_weight_factor, CURRENT_TIMESTAMP
+            )
+            ON CONFLICT(key) DO UPDATE SET
+                name = excluded.name,
+                drug_class = excluded.drug_class,
+                mechanism = excluded.mechanism,
+                updated_at = CURRENT_TIMESTAMP
+        """
+        if ext_conn:
+            ext_conn.executemany(sql, rows)
+        else:
+            with self._connect() as conn:
+                conn.executemany(sql, rows)
+                conn.commit()
+        self._invalidate_path_cache()
 
     def _serialize(self, value: Any) -> str:
         return json.dumps(value, ensure_ascii=False)
@@ -2246,13 +2628,13 @@ class CatalogService:
         except json.JSONDecodeError:
             return default if default is not None else []
 
-    def upsert_compound(self, compound: Dict[str, Any], ext_conn: Optional[sqlite3.Connection] = None) -> Dict[str, Any]:
+    def _compound_to_row(self, compound: Dict[str, Any]) -> Dict[str, Any]:
         key = str(compound.get("key") or compound.get("name") or "compound").strip() or "compound"
         canonical_key = self._resolve_canonical_key(compound)
         if canonical_key:
             key = str(compound.get("key") or canonical_key).strip() or canonical_key
 
-        row = {
+        return {
             "key": key,
             "name": compound.get("name", key),
             "canonical_name": compound.get("canonical_name") or compound.get("name") or key,
@@ -2300,7 +2682,14 @@ class CatalogService:
             "cyp_enzymes": self._serialize(compound.get("cyp_enzymes", {"substrates": [], "inhibitors": [], "inducers": []})),
             "organ_burdens": self._serialize(compound.get("organ_burdens", {})),
             "synergies": self._serialize(compound.get("synergies", [])),
-            "metadata": self._serialize(compound.get("metadata", {})),
+            "metadata": self._serialize({
+                **(compound.get("metadata") if isinstance(compound.get("metadata"), dict) else {}),
+                **{
+                    f: compound[f]
+                    for f in ["modality", "is_combination", "is_biologic", "is_botanical", "is_peptide", "active_constituents", "primary_constituents", "substance_class"]
+                    if compound.get(f) is not None
+                }
+            }),
             "evidence_level": compound.get("evidence_level", "moderate"),
             "risk_band": compound.get("risk_band", "low"),
             "graph_tags": self._serialize(compound.get("graph_tags", [])),
@@ -2331,122 +2720,130 @@ class CatalogService:
             "ester_weight_factor": float(compound.get("ester_weight_factor") if compound.get("ester_weight_factor") is not None else 1.0),
         }
 
+    def upsert_compound(self, compound: Dict[str, Any], ext_conn: Optional[sqlite3.Connection] = None) -> Dict[str, Any]:
+        row = self._compound_to_row(compound)
+
         def _do_upsert(c: sqlite3.Connection) -> Dict[str, Any]:
             final_row = self._merge_duplicate_record(c, compound, row)
+            sql = """
+            INSERT INTO compounds (
+                key, name, canonical_name, canonical_key, inchikey, smiles, logp, tpsa,
+                molecular_weight, pka, hbd, hba, rotatable_bonds, synonyms, external_ids,
+                drug_class, compound_class, route_of_administration, formulation, mechanism,
+                receptor_targets, transporters, phase2_enzymes, categories, indications, dosing,
+                reason, citation, contraindications, side_effects, interactions, warnings,
+                boxed_warning, is_narrow_therapeutic_index, dilirank_class, half_life,
+                oral_bioavailability, t_max, volume_of_distribution, protein_binding,
+                metabolism, clearance, clearance_routes, primary_effects, cyp_enzymes,
+                organ_burdens, synergies, metadata, evidence_level, risk_band, graph_tags,
+                t_half_numeric, bioavailability_f, volume_of_distribution_l_kg, clearance_l_h_kg,
+                t_max_h, c_max_ng_ml, fraction_unbound, protein_binding_pct, absorption_rate_ka,
+                renal_clearance_fraction, bcs_class, mec_ng_ml, mtc_ng_ml, therapeutic_index,
+                e_max, ec50_nm, ic50_nm, hill_coefficient, pathway_details, source_tier,
+                last_enriched_at, parent_compound_id, is_ester, ester_name, ester_weight_factor, updated_at
+            )
+            VALUES (
+                :key, :name, :canonical_name, :canonical_key, :inchikey, :smiles, :logp, :tpsa,
+                :molecular_weight, :pka, :hbd, :hba, :rotatable_bonds, :synonyms, :external_ids,
+                :drug_class, :compound_class, :route_of_administration, :formulation, :mechanism,
+                :receptor_targets, :transporters, :phase2_enzymes, :categories, :indications, :dosing,
+                :reason, :citation, :contraindications, :side_effects, :interactions, :warnings,
+                :boxed_warning, :is_narrow_therapeutic_index, :dilirank_class, :half_life,
+                :oral_bioavailability, :t_max, :volume_of_distribution, :protein_binding,
+                :metabolism, :clearance, :clearance_routes, :primary_effects, :cyp_enzymes,
+                :organ_burdens, :synergies, :metadata, :evidence_level, :risk_band, :graph_tags,
+                :t_half_numeric, :bioavailability_f, :volume_of_distribution_l_kg, :clearance_l_h_kg,
+                :t_max_h, :c_max_ng_ml, :fraction_unbound, :protein_binding_pct, :absorption_rate_ka,
+                :renal_clearance_fraction, :bcs_class, :mec_ng_ml, :mtc_ng_ml, :therapeutic_index,
+                :e_max, :ec50_nm, :ic50_nm, :hill_coefficient, :pathway_details, :source_tier,
+                :last_enriched_at, :parent_compound_id, :is_ester, :ester_name, :ester_weight_factor, CURRENT_TIMESTAMP
+            )
+            ON CONFLICT(key) DO UPDATE SET
+                name = excluded.name,
+                canonical_name = excluded.canonical_name,
+                canonical_key = excluded.canonical_key,
+                inchikey = excluded.inchikey,
+                smiles = COALESCE(excluded.smiles, compounds.smiles),
+                logp = COALESCE(excluded.logp, compounds.logp),
+                tpsa = COALESCE(excluded.tpsa, compounds.tpsa),
+                molecular_weight = COALESCE(excluded.molecular_weight, compounds.molecular_weight),
+                pka = COALESCE(excluded.pka, compounds.pka),
+                hbd = COALESCE(excluded.hbd, compounds.hbd),
+                hba = COALESCE(excluded.hba, compounds.hba),
+                rotatable_bonds = COALESCE(excluded.rotatable_bonds, compounds.rotatable_bonds),
+                synonyms = excluded.synonyms,
+                external_ids = excluded.external_ids,
+                drug_class = excluded.drug_class,
+                compound_class = excluded.compound_class,
+                route_of_administration = excluded.route_of_administration,
+                formulation = excluded.formulation,
+                mechanism = excluded.mechanism,
+                receptor_targets = excluded.receptor_targets,
+                transporters = excluded.transporters,
+                phase2_enzymes = excluded.phase2_enzymes,
+                categories = excluded.categories,
+                indications = excluded.indications,
+                dosing = excluded.dosing,
+                reason = excluded.reason,
+                citation = excluded.citation,
+                contraindications = excluded.contraindications,
+                side_effects = excluded.side_effects,
+                interactions = excluded.interactions,
+                warnings = excluded.warnings,
+                boxed_warning = excluded.boxed_warning,
+                is_narrow_therapeutic_index = excluded.is_narrow_therapeutic_index,
+                dilirank_class = excluded.dilirank_class,
+                half_life = excluded.half_life,
+                oral_bioavailability = excluded.oral_bioavailability,
+                t_max = excluded.t_max,
+                volume_of_distribution = excluded.volume_of_distribution,
+                protein_binding = excluded.protein_binding,
+                metabolism = excluded.metabolism,
+                clearance = excluded.clearance,
+                clearance_routes = excluded.clearance_routes,
+                primary_effects = excluded.primary_effects,
+                cyp_enzymes = excluded.cyp_enzymes,
+                organ_burdens = excluded.organ_burdens,
+                synergies = excluded.synergies,
+                metadata = excluded.metadata,
+                evidence_level = excluded.evidence_level,
+                risk_band = excluded.risk_band,
+                graph_tags = excluded.graph_tags,
+                t_half_numeric = COALESCE(excluded.t_half_numeric, compounds.t_half_numeric),
+                bioavailability_f = COALESCE(excluded.bioavailability_f, compounds.bioavailability_f),
+                volume_of_distribution_l_kg = COALESCE(excluded.volume_of_distribution_l_kg, compounds.volume_of_distribution_l_kg),
+                clearance_l_h_kg = COALESCE(excluded.clearance_l_h_kg, compounds.clearance_l_h_kg),
+                t_max_h = COALESCE(excluded.t_max_h, compounds.t_max_h),
+                c_max_ng_ml = COALESCE(excluded.c_max_ng_ml, compounds.c_max_ng_ml),
+                fraction_unbound = COALESCE(excluded.fraction_unbound, compounds.fraction_unbound),
+                protein_binding_pct = COALESCE(excluded.protein_binding_pct, compounds.protein_binding_pct),
+                absorption_rate_ka = COALESCE(excluded.absorption_rate_ka, compounds.absorption_rate_ka),
+                renal_clearance_fraction = COALESCE(excluded.renal_clearance_fraction, compounds.renal_clearance_fraction),
+                bcs_class = COALESCE(excluded.bcs_class, compounds.bcs_class),
+                mec_ng_ml = COALESCE(excluded.mec_ng_ml, compounds.mec_ng_ml),
+                mtc_ng_ml = COALESCE(excluded.mtc_ng_ml, compounds.mtc_ng_ml),
+                therapeutic_index = COALESCE(excluded.therapeutic_index, compounds.therapeutic_index),
+                e_max = COALESCE(excluded.e_max, compounds.e_max),
+                ec50_nm = COALESCE(excluded.ec50_nm, compounds.ec50_nm),
+                ic50_nm = COALESCE(excluded.ic50_nm, compounds.ic50_nm),
+                hill_coefficient = COALESCE(excluded.hill_coefficient, compounds.hill_coefficient),
+                pathway_details = COALESCE(excluded.pathway_details, compounds.pathway_details),
+                source_tier = COALESCE(excluded.source_tier, compounds.source_tier),
+                last_enriched_at = COALESCE(excluded.last_enriched_at, compounds.last_enriched_at),
+                parent_compound_id = COALESCE(excluded.parent_compound_id, compounds.parent_compound_id),
+                is_ester = COALESCE(excluded.is_ester, compounds.is_ester),
+                ester_name = COALESCE(excluded.ester_name, compounds.ester_name),
+                ester_weight_factor = COALESCE(excluded.ester_weight_factor, compounds.ester_weight_factor),
+                updated_at = CURRENT_TIMESTAMP
+            """
             c.execute(
-                """
-                INSERT INTO compounds (
-                    key, name, canonical_name, canonical_key, inchikey, smiles, logp, tpsa,
-                    molecular_weight, pka, hbd, hba, rotatable_bonds, synonyms, external_ids,
-                    drug_class, compound_class, route_of_administration, formulation, mechanism,
-                    receptor_targets, transporters, phase2_enzymes, categories, indications, dosing,
-                    reason, citation, contraindications, side_effects, interactions, warnings,
-                    boxed_warning, is_narrow_therapeutic_index, dilirank_class, half_life,
-                    oral_bioavailability, t_max, volume_of_distribution, protein_binding,
-                    metabolism, clearance, clearance_routes, primary_effects, cyp_enzymes,
-                    organ_burdens, synergies, metadata, evidence_level, risk_band, graph_tags,
-                    t_half_numeric, bioavailability_f, volume_of_distribution_l_kg, clearance_l_h_kg,
-                    t_max_h, c_max_ng_ml, fraction_unbound, protein_binding_pct, absorption_rate_ka,
-                    renal_clearance_fraction, bcs_class, mec_ng_ml, mtc_ng_ml, therapeutic_index,
-                    e_max, ec50_nm, ic50_nm, hill_coefficient, pathway_details, source_tier,
-                    last_enriched_at, parent_compound_id, is_ester, ester_name, ester_weight_factor, updated_at
-                )
-                VALUES (
-                    :key, :name, :canonical_name, :canonical_key, :inchikey, :smiles, :logp, :tpsa,
-                    :molecular_weight, :pka, :hbd, :hba, :rotatable_bonds, :synonyms, :external_ids,
-                    :drug_class, :compound_class, :route_of_administration, :formulation, :mechanism,
-                    :receptor_targets, :transporters, :phase2_enzymes, :categories, :indications, :dosing,
-                    :reason, :citation, :contraindications, :side_effects, :interactions, :warnings,
-                    :boxed_warning, :is_narrow_therapeutic_index, :dilirank_class, :half_life,
-                    :oral_bioavailability, :t_max, :volume_of_distribution, :protein_binding,
-                    :metabolism, :clearance, :clearance_routes, :primary_effects, :cyp_enzymes,
-                    :organ_burdens, :synergies, :metadata, :evidence_level, :risk_band, :graph_tags,
-                    :t_half_numeric, :bioavailability_f, :volume_of_distribution_l_kg, :clearance_l_h_kg,
-                    :t_max_h, :c_max_ng_ml, :fraction_unbound, :protein_binding_pct, :absorption_rate_ka,
-                    :renal_clearance_fraction, :bcs_class, :mec_ng_ml, :mtc_ng_ml, :therapeutic_index,
-                    :e_max, :ec50_nm, :ic50_nm, :hill_coefficient, :pathway_details, :source_tier,
-                    :last_enriched_at, :parent_compound_id, :is_ester, :ester_name, :ester_weight_factor, CURRENT_TIMESTAMP
-                )
-                ON CONFLICT(key) DO UPDATE SET
-                    name = excluded.name,
-                    canonical_name = excluded.canonical_name,
-                    canonical_key = excluded.canonical_key,
-                    inchikey = excluded.inchikey,
-                    smiles = COALESCE(excluded.smiles, compounds.smiles),
-                    logp = COALESCE(excluded.logp, compounds.logp),
-                    tpsa = COALESCE(excluded.tpsa, compounds.tpsa),
-                    molecular_weight = COALESCE(excluded.molecular_weight, compounds.molecular_weight),
-                    pka = COALESCE(excluded.pka, compounds.pka),
-                    hbd = COALESCE(excluded.hbd, compounds.hbd),
-                    hba = COALESCE(excluded.hba, compounds.hba),
-                    rotatable_bonds = COALESCE(excluded.rotatable_bonds, compounds.rotatable_bonds),
-                    synonyms = excluded.synonyms,
-                    external_ids = excluded.external_ids,
-                    drug_class = excluded.drug_class,
-                    compound_class = excluded.compound_class,
-                    route_of_administration = excluded.route_of_administration,
-                    formulation = excluded.formulation,
-                    mechanism = excluded.mechanism,
-                    receptor_targets = excluded.receptor_targets,
-                    transporters = excluded.transporters,
-                    phase2_enzymes = excluded.phase2_enzymes,
-                    categories = excluded.categories,
-                    indications = excluded.indications,
-                    dosing = excluded.dosing,
-                    reason = excluded.reason,
-                    citation = excluded.citation,
-                    contraindications = excluded.contraindications,
-                    side_effects = excluded.side_effects,
-                    interactions = excluded.interactions,
-                    warnings = excluded.warnings,
-                    boxed_warning = excluded.boxed_warning,
-                    is_narrow_therapeutic_index = excluded.is_narrow_therapeutic_index,
-                    dilirank_class = excluded.dilirank_class,
-                    half_life = excluded.half_life,
-                    oral_bioavailability = excluded.oral_bioavailability,
-                    t_max = excluded.t_max,
-                    volume_of_distribution = excluded.volume_of_distribution,
-                    protein_binding = excluded.protein_binding,
-                    metabolism = excluded.metabolism,
-                    clearance = excluded.clearance,
-                    clearance_routes = excluded.clearance_routes,
-                    primary_effects = excluded.primary_effects,
-                    cyp_enzymes = excluded.cyp_enzymes,
-                    organ_burdens = excluded.organ_burdens,
-                    synergies = excluded.synergies,
-                    metadata = excluded.metadata,
-                    evidence_level = excluded.evidence_level,
-                    risk_band = excluded.risk_band,
-                    graph_tags = excluded.graph_tags,
-                    t_half_numeric = COALESCE(excluded.t_half_numeric, compounds.t_half_numeric),
-                    bioavailability_f = COALESCE(excluded.bioavailability_f, compounds.bioavailability_f),
-                    volume_of_distribution_l_kg = COALESCE(excluded.volume_of_distribution_l_kg, compounds.volume_of_distribution_l_kg),
-                    clearance_l_h_kg = COALESCE(excluded.clearance_l_h_kg, compounds.clearance_l_h_kg),
-                    t_max_h = COALESCE(excluded.t_max_h, compounds.t_max_h),
-                    c_max_ng_ml = COALESCE(excluded.c_max_ng_ml, compounds.c_max_ng_ml),
-                    fraction_unbound = COALESCE(excluded.fraction_unbound, compounds.fraction_unbound),
-                    protein_binding_pct = COALESCE(excluded.protein_binding_pct, compounds.protein_binding_pct),
-                    absorption_rate_ka = COALESCE(excluded.absorption_rate_ka, compounds.absorption_rate_ka),
-                    renal_clearance_fraction = COALESCE(excluded.renal_clearance_fraction, compounds.renal_clearance_fraction),
-                    bcs_class = COALESCE(excluded.bcs_class, compounds.bcs_class),
-                    mec_ng_ml = COALESCE(excluded.mec_ng_ml, compounds.mec_ng_ml),
-                    mtc_ng_ml = COALESCE(excluded.mtc_ng_ml, compounds.mtc_ng_ml),
-                    therapeutic_index = COALESCE(excluded.therapeutic_index, compounds.therapeutic_index),
-                    e_max = COALESCE(excluded.e_max, compounds.e_max),
-                    ec50_nm = COALESCE(excluded.ec50_nm, compounds.ec50_nm),
-                    ic50_nm = COALESCE(excluded.ic50_nm, compounds.ic50_nm),
-                    hill_coefficient = COALESCE(excluded.hill_coefficient, compounds.hill_coefficient),
-                    pathway_details = COALESCE(excluded.pathway_details, compounds.pathway_details),
-                    source_tier = COALESCE(excluded.source_tier, compounds.source_tier),
-                    last_enriched_at = COALESCE(excluded.last_enriched_at, compounds.last_enriched_at),
-                    parent_compound_id = COALESCE(excluded.parent_compound_id, compounds.parent_compound_id),
-                    is_ester = COALESCE(excluded.is_ester, compounds.is_ester),
-                    ester_name = COALESCE(excluded.ester_name, compounds.ester_name),
-                    ester_weight_factor = COALESCE(excluded.ester_weight_factor, compounds.ester_weight_factor),
-                    updated_at = CURRENT_TIMESTAMP
-                """,
+                sql,
                 final_row,
             )
+            try:
+                c.commit()
+            except Exception:
+                pass
             # Invalidate path cache
             self._invalidate_path_cache()
             comp = self._row_to_compound(final_row)
@@ -2460,20 +2857,53 @@ class CatalogService:
         else:
             with self._connect() as conn:
                 res = _do_upsert(conn)
-                conn.commit()
+                try:
+                    conn.commit()
+                except Exception:
+                    pass
                 return res
 
     def _invalidate_path_cache(self) -> None:
         _CATALOG_ALL_COMPOUNDS.pop(self.database_path, None)
         _CATALOG_VARIANTS.pop(self.database_path, None)
+        search_keys_to_del = [k for k in _SEARCH_QUERY_CACHE if k[0] == self.database_path]
+        for k in search_keys_to_del:
+            _SEARCH_QUERY_CACHE.pop(k, None)
 
     def _warm_cache(self) -> List[Dict[str, Any]]:
         db_path = self.database_path
-        with self._connect() as conn:
-            rows = conn.execute("SELECT * FROM compounds ORDER BY name ASC").fetchall()
-            variant_rows = conn.execute(
-                "SELECT parent_compound_id, key, name, ester_name, molecular_weight, ester_weight_factor, t_half_numeric, half_life FROM compounds WHERE parent_compound_id IS NOT NULL AND parent_compound_id != ''"
-            ).fetchall()
+        if db_path in _WARMING_DATABASES:
+            return _CATALOG_ALL_COMPOUNDS.get(db_path, [])
+        _WARMING_DATABASES.add(db_path)
+        try:
+            return self._do_warm_cache(db_path)
+        finally:
+            _WARMING_DATABASES.discard(db_path)
+
+    def _do_warm_cache(self, db_path: str) -> List[Dict[str, Any]]:
+        rows = []
+        variant_rows = []
+        try:
+            with self._connect() as conn:
+                rows = conn.execute("SELECT * FROM compounds ORDER BY name ASC").fetchall()
+                variant_rows = conn.execute(
+                    "SELECT parent_compound_id, key, name, ester_name, molecular_weight, ester_weight_factor, t_half_numeric, half_life FROM compounds WHERE parent_compound_id IS NOT NULL AND parent_compound_id != ''"
+                ).fetchall()
+        except sqlite3.OperationalError as e:
+            if "no such table" in str(e).lower():
+                try:
+                    self._ensure_database()
+                    with self._connect() as conn:
+                        rows = conn.execute("SELECT * FROM compounds ORDER BY name ASC").fetchall()
+                        variant_rows = conn.execute(
+                            "SELECT parent_compound_id, key, name, ester_name, molecular_weight, ester_weight_factor, t_half_numeric, half_life FROM compounds WHERE parent_compound_id IS NOT NULL AND parent_compound_id != ''"
+                        ).fetchall()
+                except Exception as inner_e:
+                    logger.debug(f"Cache warming table recovery deferred: {inner_e}")
+            else:
+                logger.debug(f"Cache warming reading from fallback memory store: {e}")
+        except Exception as e:
+            logger.debug(f"Cache warming reading from fallback memory store: {e}")
 
         variants_map: Dict[str, List[Dict[str, Any]]] = {}
         for vr in variant_rows:
@@ -2527,26 +2957,34 @@ class CatalogService:
                     if existing is None:
                         _CATALOG_MEMORY_CACHE[(db_path, norm_alias)] = comp
 
-        # Pass 4: Verified clinical definitions from CORE_SUPPLEMENT_LIBRARY override legacy/truncated DB cache entries
-        for core_k, core_data in CORE_SUPPLEMENT_LIBRARY.items():
-            core_comp = dict(core_data)
-            core_comp["key"] = core_k
-            core_comp["canonical_key"] = core_data.get("canonical_key") or core_k
-            core_comp["canonical_name"] = core_data.get("canonical_name") or core_data.get("name") or core_k.title()
-            norm_ck = _normalize_compound_name(core_k)
-            _CATALOG_MEMORY_CACHE[(db_path, norm_ck)] = core_comp
-            _CATALOG_MEMORY_CACHE[(db_path, str(core_k).lower())] = core_comp
-            for alias in [core_comp.get("name"), core_comp.get("canonical_name"), core_comp.get("canonical_key")] + list(core_comp.get("synonyms") or []):
-                if alias:
-                    norm_al = _normalize_compound_name(alias)
-                    _CATALOG_MEMORY_CACHE[(db_path, norm_al)] = core_comp
+        # Pass 4: Ensure all verified clinical definitions from CORE libraries are present in compounds_list and memory cache
+        for def_comp in _get_default_compounds():
+            k = def_comp.get("key")
+            if k and k not in seen_keys:
+                seen_keys.add(k)
+                compounds_list.append(def_comp)
+                norm_k = _normalize_compound_name(k)
+                if (db_path, norm_k) not in _CATALOG_MEMORY_CACHE:
+                    _CATALOG_MEMORY_CACHE[(db_path, norm_k)] = def_comp
+                if (db_path, str(k).lower()) not in _CATALOG_MEMORY_CACHE:
+                    _CATALOG_MEMORY_CACHE[(db_path, str(k).lower())] = def_comp
+                for alias in [def_comp.get("name"), def_comp.get("canonical_name"), def_comp.get("canonical_key"), def_comp.get("inchikey")] + list(def_comp.get("synonyms") or []):
+                    if alias:
+                        norm_al = _normalize_compound_name(alias)
+                        if (db_path, norm_al) not in _CATALOG_MEMORY_CACHE:
+                            _CATALOG_MEMORY_CACHE[(db_path, norm_al)] = def_comp
 
+        compounds_list.sort(key=lambda c: str(c.get("name") or c.get("key") or "").lower())
         _CATALOG_ALL_COMPOUNDS[db_path] = compounds_list
         return compounds_list
 
-    def get_compound(self, key: str, auto_enrich: bool = True) -> Dict[str, Any] | None:
+    def get_compound(self, key: str, auto_enrich: bool = True, shallow: bool = False) -> Dict[str, Any] | None:
         if not key:
             return None
+
+        # Ensure memory cache is warmed
+        if self.database_path not in _CATALOG_ALL_COMPOUNDS:
+            self._warm_cache()
 
         norm_query = _normalize_compound_name(key)
         cache_key = (self.database_path, norm_query)
@@ -2557,11 +2995,19 @@ class CatalogService:
             if not auto_enrich:
                 return None
 
+        # Short-circuit from negative cache if query was already confirmed non-existent
+        with _INIT_LOCK:
+            if cache_key in _CATALOG_NEGATIVE_CACHE:
+                cached_time = _CATALOG_NEGATIVE_CACHE[cache_key]
+                if time.time() - cached_time < CATALOG_NEGATIVE_TTL_SECONDS:
+                    return None
+                _CATALOG_NEGATIVE_CACHE.pop(cache_key, None)
+
         # Resolve known synonym/brand aliases to canonical entity key
         if norm_query in CANONICAL_SYNONYM_MAP:
             canonical_key = CANONICAL_SYNONYM_MAP[norm_query]
             if canonical_key != key:
-                canon_res = self.get_compound(canonical_key, auto_enrich=auto_enrich)
+                canon_res = self.get_compound(canonical_key, auto_enrich=auto_enrich, shallow=shallow)
                 if canon_res is not None:
                     _CATALOG_MEMORY_CACHE[cache_key] = canon_res
                     return copy.deepcopy(canon_res)
@@ -2569,15 +3015,8 @@ class CatalogService:
                     _CATALOG_MEMORY_CACHE[cache_key] = None
                     return None
 
-        # Warm memory cache if not yet loaded for this DB path
-        if self.database_path not in _CATALOG_ALL_COMPOUNDS:
-            self._warm_cache()
-            if cache_key in _CATALOG_MEMORY_CACHE:
-                cached_val = _CATALOG_MEMORY_CACHE[cache_key]
-                if cached_val is not None:
-                    return copy.deepcopy(cached_val)
-                if not auto_enrich:
-                    return None
+        if not auto_enrich:
+            return None
 
         normalized_query = str(key).strip().lower().replace(" ", "_").replace("-", "_")
 
@@ -2612,62 +3051,65 @@ class CatalogService:
                     (f'%"{clean_syn}"%',),
                 ).fetchone()
             if row is None:
-                # Normalized alphanumeric match across keys, names, and all synonyms
+                # Normalized alphanumeric match across keys, names, and all synonyms using in-memory catalog
                 target_norm = _normalize_compound_name(key)
-                all_rows = conn.execute("SELECT * FROM compounds").fetchall()
-                for r in all_rows:
-                    if _normalize_compound_name(r["key"]) == target_norm or _normalize_compound_name(r["name"]) == target_norm:
-                        row = r
+                all_compounds = _CATALOG_ALL_COMPOUNDS.get(self.database_path) or []
+                matched_key = None
+                for c in all_compounds:
+                    if _normalize_compound_name(c.get("key")) == target_norm or _normalize_compound_name(c.get("name")) == target_norm:
+                        matched_key = c.get("key")
                         break
-                    syns = self._deserialize(r["synonyms"], [])
-                    for s in syns:
+                    for s in (c.get("synonyms") or []):
                         if _normalize_compound_name(str(s)) == target_norm:
-                            row = r
+                            matched_key = c.get("key")
                             break
-                    if row is not None:
+                    if matched_key:
                         break
+                if matched_key:
+                    row = conn.execute("SELECT * FROM compounds WHERE key = ? LIMIT 1", (matched_key,)).fetchone()
 
-            if row is None:
-                # Generalized fuzzy / phonetic near-miss matching (e.g. "alison" -> "allicin", "cypionat" -> "cypionate")
+            if row is None and not auto_enrich:
+                # Generalized fuzzy / phonetic near-miss matching in-memory
                 target_norm = _normalize_compound_name(key)
                 if len(target_norm) >= 3:
                     target_pk = _phonetic_key(target_norm)
                     all_candidates: List[str] = []
-                    row_by_cand: Dict[str, Any] = {}
-                    row_by_pk: Dict[str, Any] = {}
-                    all_rows = conn.execute("SELECT * FROM compounds").fetchall()
-                    for r in all_rows:
-                        k_norm = _normalize_compound_name(r["key"])
-                        n_norm = _normalize_compound_name(r["name"])
+                    key_by_cand: Dict[str, str] = {}
+                    key_by_pk: Dict[str, str] = {}
+                    all_compounds = _CATALOG_ALL_COMPOUNDS.get(self.database_path) or []
+                    for c in all_compounds:
+                        c_key = c.get("key")
+                        k_norm = _normalize_compound_name(c_key)
+                        n_norm = _normalize_compound_name(c.get("name"))
                         if k_norm:
                             all_candidates.append(k_norm)
-                            row_by_cand[k_norm] = r
+                            key_by_cand[k_norm] = c_key
                             pk = _phonetic_key(k_norm)
-                            if pk not in row_by_pk:
-                                row_by_pk[pk] = r
+                            if pk not in key_by_pk:
+                                key_by_pk[pk] = c_key
                         if n_norm and n_norm != k_norm:
                             all_candidates.append(n_norm)
-                            row_by_cand[n_norm] = r
+                            key_by_cand[n_norm] = c_key
                             pk = _phonetic_key(n_norm)
-                            if pk not in row_by_pk:
-                                row_by_pk[pk] = r
-                        syns = self._deserialize(r["synonyms"], [])
-                        for s in syns:
+                            if pk not in key_by_pk:
+                                key_by_pk[pk] = c_key
+                        for s in (c.get("synonyms") or []):
                             s_norm = _normalize_compound_name(str(s))
                             if s_norm:
-                                if s_norm not in row_by_cand:
+                                if s_norm not in key_by_cand:
                                     all_candidates.append(s_norm)
-                                    row_by_cand[s_norm] = r
+                                    key_by_cand[s_norm] = c_key
                                 pk = _phonetic_key(s_norm)
-                                if pk not in row_by_pk:
-                                    row_by_pk[pk] = r
+                                if pk not in key_by_pk:
+                                    key_by_pk[pk] = c_key
 
+                    matched_key = None
                     # 1. Phonetic matching
-                    if target_pk in row_by_pk:
-                        row = row_by_pk[target_pk]
+                    if target_pk in key_by_pk:
+                        matched_key = key_by_pk[target_pk]
 
                     # 2. Levenshtein edit-distance matching (<=2 for len>=5, <=1 for len<5)
-                    if row is None:
+                    if not matched_key:
                         max_dist = 2 if len(target_norm) >= 5 else 1
                         best_cand = None
                         best_dist = max_dist + 1
@@ -2678,13 +3120,16 @@ class CatalogService:
                                     best_dist = d
                                     best_cand = cand
                         if best_cand:
-                            row = row_by_cand.get(best_cand)
+                            matched_key = key_by_cand.get(best_cand)
 
                     # 3. SequenceMatcher close match fallback (high-confidence typos only)
-                    if row is None:
+                    if not matched_key:
                         matches = difflib.get_close_matches(target_norm, all_candidates, n=1, cutoff=0.80)
                         if matches:
-                            row = row_by_cand.get(matches[0])
+                            matched_key = key_by_cand.get(matches[0])
+
+                    if matched_key:
+                        row = conn.execute("SELECT * FROM compounds WHERE key = ? LIMIT 1", (matched_key,)).fetchone()
 
         if row is not None:
             comp = self._row_to_compound(dict(row))
@@ -2742,12 +3187,51 @@ class CatalogService:
         try:
             from app.services.live_enrichment import LiveEnrichmentService
             enricher = LiveEnrichmentService()
-            profile = enricher.fetch_compound_profile(key)
+            profile = enricher.fetch_compound_profile(key, shallow=shallow)
             if profile:
                 return self.upsert_compound(profile)
         except Exception:
             pass
-        _CATALOG_MEMORY_CACHE[cache_key] = None
+
+        # Fallback to fuzzy typo match after online enrichment miss using in-memory catalog
+        target_norm = _normalize_compound_name(key)
+        if len(target_norm) >= 3:
+            target_pk = _phonetic_key(target_norm)
+            all_candidates = []
+            cand_by_k = {}
+            cand_by_pk = {}
+            all_compounds = _CATALOG_ALL_COMPOUNDS.get(self.database_path) or []
+            for c in all_compounds:
+                c_k = c.get("key")
+                k_norm = _normalize_compound_name(c_k)
+                n_norm = _normalize_compound_name(c.get("name"))
+                if k_norm:
+                    all_candidates.append(k_norm)
+                    cand_by_k[k_norm] = c
+                    pk = _phonetic_key(k_norm)
+                    if pk not in cand_by_pk:
+                        cand_by_pk[pk] = c
+                if n_norm and n_norm != k_norm:
+                    all_candidates.append(n_norm)
+                    cand_by_k[n_norm] = c
+                    pk = _phonetic_key(n_norm)
+                    if pk not in cand_by_pk:
+                        cand_by_pk[pk] = c
+            if target_pk in cand_by_pk:
+                return copy.deepcopy(cand_by_pk[target_pk])
+            best_cand = None
+            best_dist = 2
+            for cand in all_candidates:
+                d = _levenshtein_distance(target_norm, cand)
+                if d < best_dist:
+                    best_dist = d
+                    best_cand = cand
+            if best_cand:
+                return copy.deepcopy(cand_by_k[best_cand])
+
+        with _INIT_LOCK:
+            _CATALOG_MEMORY_CACHE[cache_key] = None
+            _CATALOG_NEGATIVE_CACHE[cache_key] = time.time()
         return None
 
     def find_by_synonym(self, key: str, auto_enrich: bool = False) -> Dict[str, Any] | None:
@@ -2923,9 +3407,14 @@ class CatalogService:
 
         results: Dict[str, Dict[str, Any]] = {}
         for key in keys:
-            compound = self.get_compound(key)
+            compound = self.get_compound(key, auto_enrich=False)
             if compound:
                 results[compound["key"]] = compound
+                results[key] = compound
+                if "_" in key:
+                    results[key.replace("_", "-")] = compound
+                if "-" in key:
+                    results[key.replace("-", "_")] = compound
                 if compound.get("name"):
                     results[compound["name"].lower()] = compound
 
@@ -2969,8 +3458,15 @@ class CatalogService:
                 comp["variants"] = copy.deepcopy(variants_map[comp_key])
         return compounds
 
-    def search_compounds(self, query: str, limit: int = 20, auto_enrich: bool = False) -> List[Dict[str, Any]]:
+    def search_compounds(
+        self,
+        query: str,
+        limit: int = 20,
+        auto_enrich: bool = False,
+        modality: Optional[str] = None,
+    ) -> List[Dict[str, Any]]:
         query_str = str(query or "").strip().lower()
+        mod_clean = modality.strip().lower() if modality and modality.strip().lower() not in ("all", "", "none") else None
         try:
             limit_int = int(limit) if limit is not None else 20
         except (ValueError, TypeError):
@@ -2981,13 +3477,28 @@ class CatalogService:
             all_compounds = self._warm_cache()
 
         if not query_str:
-            unique_compounds = [copy.deepcopy(c) for c in all_compounds[:limit]]
+            filtered_compounds = [copy.deepcopy(c) for c in all_compounds if compound_matches_modality(c, mod_clean)]
+            unique_compounds = filtered_compounds[:limit]
             return self._enrich_ester_variant_metadata(unique_compounds)
 
         norm_q = _normalize_compound_name(query_str)
+        cache_key = (self.database_path, norm_q, limit, auto_enrich, mod_clean)
+
+        # 1. Fast in-memory search query cache (< 0.1ms)
+        with _INIT_LOCK:
+            if cache_key in _SEARCH_QUERY_CACHE:
+                cached_res, t_cached = _SEARCH_QUERY_CACHE[cache_key]
+                if time.time() - t_cached < SEARCH_QUERY_CACHE_TTL_SECONDS:
+                    return [copy.deepcopy(c) for c in cached_res]
+                _SEARCH_QUERY_CACHE.pop(cache_key, None)
+
         scored_matches: List[Tuple[int, str, Dict[str, Any]]] = []
+        matched_keys: Set[str] = set()
 
         for comp in all_compounds:
+            if not compound_matches_modality(comp, mod_clean):
+                continue
+
             comp_key = str(comp.get("key") or "").lower()
             comp_name = str(comp.get("name") or "").lower()
             comp_canonical = str(comp.get("canonical_name") or "").lower()
@@ -3028,51 +3539,324 @@ class CatalogService:
 
             if score > 0:
                 scored_matches.append((score, comp_name, comp))
+                matched_keys.add(comp_key)
+                if norm_k:
+                    matched_keys.add(norm_k)
+                if norm_n:
+                    matched_keys.add(norm_n)
+                for ns in norm_syns:
+                    if ns:
+                        matched_keys.add(ns)
+
+        has_exact = any(m[0] >= 90 for m in scored_matches)
+
+        # Fast path: if exact match exists or strong matches exist, return instantly without blocking on external registries
+        needs_external_cands = not has_exact and len(scored_matches) < min(limit, 3)
+
+        if auto_enrich and len(query_str) >= 3 and needs_external_cands:
+            from app.services.fast_search_resolver import get_fast_search_resolver
+            resolver = get_fast_search_resolver()
+
+            try:
+                external_cands = resolver.resolve_external_candidates(
+                    query_str,
+                    limit=min(limit, 6),
+                    local_keys_or_names=matched_keys,
+                    modality=mod_clean,
+                )
+                for cand in (external_cands or []):
+                    if not compound_matches_modality(cand, mod_clean):
+                        continue
+                    c_k = cand.get("key", "")
+                    if c_k not in matched_keys:
+                        c_name = str(cand.get("name") or "").lower()
+                        c_canon = str(cand.get("canonical_name") or "").lower()
+                        # Score external candidates
+                        if c_name == query_str or c_canon == query_str or _normalize_compound_name(c_name) == norm_q:
+                            c_score = 95
+                        elif c_name.startswith(query_str) or _normalize_compound_name(c_name).startswith(norm_q):
+                            c_score = 72
+                        elif query_str in c_name or norm_q in _normalize_compound_name(c_name):
+                            c_score = 55
+                        else:
+                            c_score = 35
+
+                        scored_matches.append((c_score, c_name, cand))
+                        matched_keys.add(c_k)
+                        matched_keys.add(_normalize_compound_name(c_name))
+            except Exception as ex:
+                logger.debug("FastSearchResolver error during search_compounds: %s", ex)
 
         if scored_matches:
             scored_matches.sort(key=lambda x: (-x[0], x[1]))
             matched_compounds = [copy.deepcopy(x[2]) for x in scored_matches[:limit]]
-            return self._enrich_ester_variant_metadata(matched_compounds)
+            result = self._enrich_ester_variant_metadata(matched_compounds)
+        else:
+            if auto_enrich and len(query_str) >= 3:
+                try:
+                    enriched = self.get_compound(query_str, auto_enrich=True)
+                    if enriched and compound_matches_modality(enriched, mod_clean):
+                        return [enriched]
+                except Exception as e:
+                    logger.debug("search_compounds auto_enrich fallback error for %s: %s", query_str, e)
+            result = []
 
-        # On-demand write-through lookup if search returned 0 matches
-        if auto_enrich and len(query_str) >= 3:
+        with _INIT_LOCK:
+            _SEARCH_QUERY_CACHE[cache_key] = (result, time.time())
+
+        return result
+
+    def search_compounds_stream(
+        self,
+        query: str,
+        limit: int = 20,
+        auto_enrich: bool = True,
+        modality: Optional[str] = None,
+    ):
+        """
+        Progressive search generator yielding (event_type, payload) tuples:
+        - ("local", List[Dict]): Instant in-memory catalog matches (< 1 ms).
+        - ("candidates", List[Dict]): External candidates as discovered from online registries.
+        - ("done", Dict): Stream termination metadata.
+        """
+        query_str = str(query or "").strip().lower()
+        mod_clean = modality.strip().lower() if modality and modality.strip().lower() not in ("all", "", "none") else None
+        try:
+            limit_int = int(limit) if limit is not None else 20
+        except (ValueError, TypeError):
+            limit_int = 20
+        limit = limit_int
+
+        all_compounds = _CATALOG_ALL_COMPOUNDS.get(self.database_path)
+        if all_compounds is None:
+            all_compounds = self._warm_cache()
+
+        if not query_str:
+            filtered_compounds = [copy.deepcopy(c) for c in all_compounds if compound_matches_modality(c, mod_clean)]
+            unique_compounds = filtered_compounds[:limit]
+            res = self._enrich_ester_variant_metadata(unique_compounds)
+            yield ("local", res)
+            yield ("done", {"status": "complete", "total": len(res)})
+            return
+
+        norm_q = _normalize_compound_name(query_str)
+        cache_key = (self.database_path, norm_q, limit, auto_enrich, mod_clean)
+
+        # 1. Fast in-memory query cache (< 0.1ms)
+        with _INIT_LOCK:
+            if cache_key in _SEARCH_QUERY_CACHE:
+                cached_res, t_cached = _SEARCH_QUERY_CACHE[cache_key]
+                if time.time() - t_cached < SEARCH_QUERY_CACHE_TTL_SECONDS:
+                    yield ("local", [copy.deepcopy(c) for c in cached_res])
+                    yield ("done", {"status": "complete", "total": len(cached_res), "from_cache": True})
+                    return
+                _SEARCH_QUERY_CACHE.pop(cache_key, None)
+
+        scored_matches: List[Tuple[int, str, Dict[str, Any]]] = []
+        matched_keys: Set[str] = set()
+
+        for comp in all_compounds:
+            if not compound_matches_modality(comp, mod_clean):
+                continue
+
+            comp_key = str(comp.get("key") or "").lower()
+            comp_name = str(comp.get("name") or "").lower()
+            comp_canonical = str(comp.get("canonical_name") or "").lower()
+            comp_class = str(comp.get("drug_class") or "").lower()
+            comp_indications = str(comp.get("indications") or "").lower()
+            syns = [str(s).lower() for s in (comp.get("synonyms") or [])]
+
+            norm_k = _normalize_compound_name(comp_key)
+            norm_n = _normalize_compound_name(comp_name)
+            norm_syns = [_normalize_compound_name(s) for s in syns]
+
+            score = 0
+            if comp_name == query_str or comp_key == query_str or norm_n == norm_q or norm_k == norm_q:
+                score = 100
+            elif any(s == query_str or ns == norm_q for s, ns in zip(syns, norm_syns)):
+                score = 90
+            elif comp_name.startswith(query_str) or norm_n.startswith(norm_q):
+                score = 80
+            elif comp_key.startswith(query_str) or norm_k.startswith(norm_q):
+                score = 75
+            elif any(s.startswith(query_str) or ns.startswith(norm_q) for s, ns in zip(syns, norm_syns)):
+                score = 70
+            elif f" {query_str}" in f" {comp_name}" or norm_q in norm_n:
+                score = 60
+            elif query_str in comp_key or norm_q in norm_k:
+                score = 50
+            elif any(query_str in s or norm_q in ns for s, ns in zip(syns, norm_syns)):
+                score = 45
+            elif query_str in comp_canonical:
+                score = 40
+            elif query_str in comp_class:
+                score = 30
+            elif query_str in comp_indications:
+                score = 20
+
+            if score > 0:
+                scored_matches.append((score, comp_name, comp))
+                matched_keys.add(comp_key)
+                if norm_k:
+                    matched_keys.add(norm_k)
+                if norm_n:
+                    matched_keys.add(norm_n)
+                for ns in norm_syns:
+                    if ns:
+                        matched_keys.add(ns)
+
+        has_exact = any(m[0] >= 90 for m in scored_matches)
+        accumulated_results: List[Dict[str, Any]] = []
+
+        # Yield Phase 1: Local catalog matches immediately
+        if scored_matches:
+            scored_matches.sort(key=lambda x: (-x[0], x[1]))
+            local_compounds = [copy.deepcopy(x[2]) for x in scored_matches[:limit]]
+            local_results = self._enrich_ester_variant_metadata(local_compounds)
+            accumulated_results.extend(local_results)
+            yield ("local", local_results)
+        else:
+            yield ("local", [])
+
+        # Phase 2: External candidate discovery streaming
+        needs_external_cands = not has_exact and len(accumulated_results) < min(limit, 3) and auto_enrich and len(query_str) >= 3
+
+        if needs_external_cands:
+            from app.services.fast_search_resolver import get_fast_search_resolver
+            resolver = get_fast_search_resolver()
+
             try:
-                enriched = self.get_compound(query_str, auto_enrich=True)
-                if enriched:
-                    return self._enrich_ester_variant_metadata([copy.deepcopy(enriched)])
-            except Exception:
-                pass
+                for cand_batch in resolver.stream_external_candidates(
+                    query_str,
+                    limit=min(limit - len(accumulated_results), 6),
+                    local_keys_or_names=matched_keys,
+                    modality=mod_clean,
+                ):
+                    filtered_batch = []
+                    for cand in cand_batch:
+                        if not compound_matches_modality(cand, mod_clean):
+                            continue
+                        c_k = cand.get("key", "")
+                        c_n = _normalize_compound_name(cand.get("name", ""))
+                        if c_k not in matched_keys and c_n not in matched_keys:
+                            matched_keys.add(c_k)
+                            matched_keys.add(c_n)
+                            filtered_batch.append(cand)
+                            accumulated_results.append(cand)
+                            if len(accumulated_results) >= limit:
+                                break
+                    if filtered_batch:
+                        yield ("candidates", filtered_batch)
+                    if len(accumulated_results) >= limit:
+                        break
+            except Exception as ex:
+                logger.debug("FastSearchResolver stream error: %s", ex)
 
-        return []
+        # Phase 3: Cache and Done
+        with _INIT_LOCK:
+            _SEARCH_QUERY_CACHE[cache_key] = (accumulated_results, time.time())
 
-    def query_compounds(self, limit: int = 20, offset: int = 0, search: Optional[str] = None) -> tuple[List[Dict[str, Any]], int]:
+        yield ("done", {"status": "complete", "total": len(accumulated_results)})
+
+    def get_catalog_search_index(self) -> List[Dict[str, Any]]:
+        """
+        Returns a lightweight search index of all active catalog compounds
+        optimized for instant (0ms) client-side in-memory typeahead filtering.
+        """
+        all_compounds = _CATALOG_ALL_COMPOUNDS.get(self.database_path)
+        if all_compounds is None:
+            all_compounds = self._warm_cache()
+
+        index_items: List[Dict[str, Any]] = []
+        for c in all_compounds:
+            index_items.append({
+                "key": c.get("key"),
+                "name": c.get("name"),
+                "canonical_name": c.get("canonical_name"),
+                "drug_class": c.get("drug_class") or "Compound",
+                "synonyms": (c.get("synonyms") or [])[:5],
+                "modality": c.get("modality") or "small_molecule",
+                "is_peptide": bool(c.get("is_peptide")),
+                "is_biologic": bool(c.get("is_biologic")),
+                "is_botanical": bool(c.get("is_botanical")),
+                "is_combination": bool(c.get("is_combination")),
+                "variants": c.get("variants") or [],
+            })
+        return index_items
+
+    def query_compounds(
+        self,
+        limit: int = 20,
+        offset: int = 0,
+        search: Optional[str] = None,
+        auto_enrich: bool = True,
+        modality: Optional[str] = None,
+        drug_class: Optional[str] = None,
+    ) -> tuple[List[Dict[str, Any]], int]:
         page_size = max(limit, 1)
         start = max(offset, 0)
 
+        base_query = "FROM compounds"
+        params: List[Any] = []
+        where_clauses: List[str] = []
+
+        if search:
+            tokens = [part.strip().lower() for part in str(search).split() if part.strip()]
+            for token in tokens:
+                where_clauses.append(
+                    "(LOWER(COALESCE(key, '') || ' ' || COALESCE(name, '') || ' ' || COALESCE(canonical_name, '') || ' ' || COALESCE(drug_class, '') || ' ' || COALESCE(compound_class, '') || ' ' || COALESCE(route_of_administration, '') || ' ' || COALESCE(mechanism, '') || ' ' || COALESCE(synonyms, '') || ' ' || COALESCE(indications, '') || ' ' || COALESCE(graph_tags, '')) LIKE ?)"
+                )
+                params.append(f"%{token}%")
+
+        if drug_class:
+            where_clauses.append("LOWER(COALESCE(drug_class, '')) LIKE ?")
+            params.append(f"%{drug_class.strip().lower()}%")
+
+        mod_clean = modality.strip().lower() if modality and modality.strip().lower() not in ("all", "", "none") else None
+        if mod_clean:
+            if mod_clean == "peptide":
+                where_clauses.append("(metadata LIKE '%\"modality\": \"peptide\"%' OR LOWER(drug_class) LIKE '%peptide%' OR LOWER(graph_tags) LIKE '%peptide%')")
+            elif mod_clean == "biologic_antibody":
+                where_clauses.append("(metadata LIKE '%\"modality\": \"biologic_antibody\"%' OR LOWER(drug_class) LIKE '%biologic%' OR LOWER(drug_class) LIKE '%antibody%' OR LOWER(drug_class) LIKE '%mab%')")
+            elif mod_clean == "botanical_natural":
+                where_clauses.append("(metadata LIKE '%\"modality\": \"botanical_natural\"%' OR LOWER(drug_class) LIKE '%botanical%' OR LOWER(drug_class) LIKE '%herb%' OR LOWER(drug_class) LIKE '%extract%')")
+            elif mod_clean == "combination_drug":
+                where_clauses.append("(metadata LIKE '%\"modality\": \"combination_drug\"%' OR LOWER(drug_class) LIKE '%combination%')")
+            elif mod_clean == "small_molecule":
+                where_clauses.append("(metadata LIKE '%\"modality\": \"small_molecule\"%' OR (metadata NOT LIKE '%\"modality\": \"peptide\"%' AND metadata NOT LIKE '%\"modality\": \"biologic%' AND metadata NOT LIKE '%\"modality\": \"botanical%' AND metadata NOT LIKE '%\"modality\": \"combination%' AND LOWER(drug_class) NOT LIKE '%peptide%' AND LOWER(drug_class) NOT LIKE '%biologic%' AND LOWER(drug_class) NOT LIKE '%botanical%'))")
+
+        where_str = f" WHERE {' AND '.join(where_clauses)}" if where_clauses else ""
+        count_query = f"SELECT COUNT(*) AS total {base_query}{where_str}"
+
         with self._connect() as conn:
-            base_query = "FROM compounds"
-            params: List[Any] = []
-            where_clauses: List[str] = []
-
-            if search:
-                tokens = [part.strip().lower() for part in str(search).split() if part.strip()]
-                for token in tokens:
-                    where_clauses.append(
-                        "(LOWER(COALESCE(key, '') || ' ' || COALESCE(name, '') || ' ' || COALESCE(canonical_name, '') || ' ' || COALESCE(drug_class, '') || ' ' || COALESCE(compound_class, '') || ' ' || COALESCE(route_of_administration, '') || ' ' || COALESCE(mechanism, '') || ' ' || COALESCE(synonyms, '') || ' ' || COALESCE(indications, '') || ' ' || COALESCE(graph_tags, '')) LIKE ?)"
-                    )
-                    params.append(f"%{token}%")
-
-            where_str = f" WHERE {' AND '.join(where_clauses)}" if where_clauses else ""
-
-            count_query = f"SELECT COUNT(*) AS total {base_query}{where_str}"
             total_row = conn.execute(count_query, params).fetchone()
             total = int(total_row["total"]) if total_row else 0
 
-            select_query = f"SELECT * {base_query}{where_str} ORDER BY name ASC LIMIT ? OFFSET ?"
-            fetch_params = list(params) + [page_size, start]
+        # Check if we have an exact match already
+        has_exact = False
+        if search and len(str(search).strip()) >= 3:
+            exact = self.get_compound(str(search).strip(), auto_enrich=False)
+            has_exact = exact is not None
+
+        if not has_exact and auto_enrich and search and len(str(search).strip()) >= 3:
+            try:
+                enriched = self.get_compound(str(search).strip(), auto_enrich=True, shallow=True)
+                if enriched:
+                    with self._connect() as conn:
+                        total_row = conn.execute(count_query, params).fetchone()
+                        total = int(total_row["total"]) if total_row else 1
+            except Exception:
+                pass
+
+        select_query = f"SELECT * {base_query}{where_str} ORDER BY name ASC LIMIT ? OFFSET ?"
+        fetch_params = list(params) + [page_size, start]
+        with self._connect() as conn:
             rows = conn.execute(select_query, fetch_params).fetchall()
 
-        return [self._row_to_compound(dict(row)) for row in rows], total
+        items = [self._row_to_compound(dict(row)) for row in rows]
+        if mod_clean:
+            items = [c for c in items if compound_matches_modality(c, mod_clean)]
+        return items, total
 
     def delete_compound(self, key: str) -> bool:
         if not key:
@@ -3186,9 +3970,16 @@ class CatalogService:
             "ester_weight_factor": float(row.get("ester_weight_factor") if row.get("ester_weight_factor") is not None else 1.0),
         }
 
+        # Restore scientific modality & constituent metadata
+        meta_dict = compound.get("metadata") or {}
+        if isinstance(meta_dict, dict):
+            for f in ["modality", "is_combination", "is_biologic", "is_botanical", "is_peptide", "active_constituents", "primary_constituents", "substance_class"]:
+                if f in meta_dict and compound.get(f) is None:
+                    compound[f] = meta_dict[f]
+
         # Overlay structured seed library definitions if available
         comp_k = compound.get("key")
-        seed_item = CORE_SUPPLEMENT_LIBRARY.get(comp_k) or CORE_ESTER_LIBRARY.get(comp_k) if comp_k else None
+        seed_item = (CORE_SUPPLEMENT_LIBRARY.get(comp_k) or CORE_ESTER_LIBRARY.get(comp_k) or CORE_THERAPEUTIC_LIBRARY.get(comp_k)) if comp_k else None
         if seed_item:
             if seed_item.get("smiles") and not compound.get("smiles"):
                 compound["smiles"] = seed_item["smiles"]
@@ -3204,18 +3995,39 @@ class CatalogService:
                 compound["volume_of_distribution_l_kg"] = seed_item["volume_of_distribution_l_kg"]
             if seed_item.get("fraction_unbound") is not None and compound.get("fraction_unbound") is None:
                 compound["fraction_unbound"] = seed_item["fraction_unbound"]
+            if seed_item.get("transporters"):
+                cur_trans = compound.get("transporters") or {}
+                if not cur_trans.get("substrates") and not cur_trans.get("inhibitors"):
+                    compound["transporters"] = seed_item["transporters"]
+            if seed_item.get("phase2_enzymes"):
+                cur_p2 = compound.get("phase2_enzymes") or {}
+                if not cur_p2.get("substrates") and not cur_p2.get("inhibitors"):
+                    compound["phase2_enzymes"] = seed_item["phase2_enzymes"]
+            if seed_item.get("cyp_enzymes"):
+                cur_cyp = compound.get("cyp_enzymes") or {}
+                if not cur_cyp.get("substrates") and not cur_cyp.get("inhibitors") and not cur_cyp.get("inducers"):
+                    compound["cyp_enzymes"] = seed_item["cyp_enzymes"]
+            if seed_item.get("is_high_first_pass") is not None and compound.get("is_high_first_pass") is None:
+                compound["is_high_first_pass"] = seed_item["is_high_first_pass"]
+            if seed_item.get("is_bioenhancer") is not None and compound.get("is_bioenhancer") is None:
+                compound["is_bioenhancer"] = seed_item["is_bioenhancer"]
+            if seed_item.get("bioavailability_f") is not None and compound.get("bioavailability_f") is None:
+                compound["bioavailability_f"] = seed_item["bioavailability_f"]
 
         burdens = compound.get("organ_burdens") or {}
         if not burdens or all(v == "none" for v in burdens.values()):
             from app.services.pharmacology_enricher import PharmacologyEnricher
             compound = PharmacologyEnricher.enrich_compound(compound)
 
-        from app.services.dosing_service import get_default_compound_dose
-        dose_info = get_default_compound_dose(compound)
-        compound["default_dose"] = dose_info
-        compound["dose"] = dose_info["dose_val"]
-        compound["unit"] = dose_info["dose_unit"]
-        compound["dose_display"] = dose_info["dose_display"]
+        if compound.get("default_dose") and isinstance(compound.get("default_dose"), dict) and "dose_val" in compound["default_dose"]:
+            dose_info = compound["default_dose"]
+        else:
+            from app.services.dosing_service import get_default_compound_dose
+            dose_info = get_default_compound_dose(compound)
+            compound["default_dose"] = dose_info
+        compound["dose"] = dose_info.get("dose_val")
+        compound["unit"] = dose_info.get("dose_unit")
+        compound["dose_display"] = dose_info.get("dose_display")
 
         return compound
 
@@ -3357,6 +4169,18 @@ class CatalogService:
         except Exception:
             conflicts = []
 
+        targets = compound.get("receptor_targets") or [] if compound else []
+        if targets:
+            needs_deepening = any(isinstance(t, dict) and ("open_targets" not in t or "alphafold_structure" not in t) for t in targets)
+            if needs_deepening:
+                try:
+                    from app.services.live_enrichment import deepen_compound_targets
+                    deepened = deepen_compound_targets(dict(compound))
+                    self.upsert_compound(deepened)
+                    targets = deepened.get("receptor_targets") or []
+                except Exception:
+                    pass
+
         return {
             "compound_key": ck,
             "compound_name": (compound.get("name") or ck).title() if compound else ck.title(),
@@ -3367,4 +4191,5 @@ class CatalogService:
             "evidence_claims": claims,
             "conflicts": conflicts,
             "conflict_count": len(conflicts),
+            "receptor_targets": targets,
         }

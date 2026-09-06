@@ -31,7 +31,9 @@ class CopilotChatRequest(BaseModel):
     protocol_objective: Optional[str] = Field(None, description="User's custom protocol objective or notes")
     custom_instructions: Optional[str] = Field(None, description="Custom prompt constraints or user notes")
     max_exploration_steps: Optional[int] = Field(8, description="Maximum ReAct graph traversal & tool call exploration steps")
-    user_api_key: Optional[str] = Field(None, description="Optional user-supplied OpenRouter or OpenAI API key")
+    user_api_key: Optional[str] = Field(None, description="Optional user-supplied API key")
+    user_base_url: Optional[str] = Field(None, description="Optional custom OpenAI-compatible endpoint Base URL")
+    user_model: Optional[str] = Field(None, description="Optional custom model name for the endpoint")
 
 
 class InferPurposeRequest(BaseModel):
@@ -40,6 +42,8 @@ class InferPurposeRequest(BaseModel):
     user_goal: Optional[str] = Field(None, description="Optional user goal ID")
     user_objective: Optional[str] = Field(None, description="Optional custom user objective text")
     user_api_key: Optional[str] = Field(None, description="Optional user-supplied API key")
+    user_base_url: Optional[str] = Field(None, description="Optional custom endpoint Base URL")
+    user_model: Optional[str] = Field(None, description="Optional custom model name")
 
 
 class BuildStackFromScratchRequest(BaseModel):
@@ -53,6 +57,8 @@ class BuildStackFromScratchRequest(BaseModel):
     exclusions: Optional[List[str]] = Field(default_factory=list, description="Explicit structured list of compound keys or names to exclude")
     custom_instructions: Optional[str] = Field(None, description="Custom user notes or clinical constraints")
     user_api_key: Optional[str] = Field(None, description="Optional user-supplied API key")
+    user_base_url: Optional[str] = Field(None, description="Optional custom endpoint Base URL")
+    user_model: Optional[str] = Field(None, description="Optional custom model name")
 
 
 class ToolExecutionRequest(BaseModel):
@@ -64,10 +70,14 @@ class ProtocolOptimizationRequest(BaseModel):
     stack: List[Any] = Field(..., description="List of compound IDs or names")
     biometrics: Optional[Dict[str, Any]] = Field(default_factory=dict, description="Patient biometrics")
     user_api_key: Optional[str] = Field(None, description="Optional user-supplied API key")
+    user_base_url: Optional[str] = Field(None, description="Optional custom endpoint Base URL")
+    user_model: Optional[str] = Field(None, description="Optional custom model name")
 
 
 class ValidateKeyRequest(BaseModel):
-    api_key: str = Field(..., description="OpenRouter or OpenAI API key to validate")
+    api_key: Optional[str] = Field(None, description="API key to validate (optional for unauthenticated endpoints)")
+    base_url: Optional[str] = Field(None, description="Optional custom OpenAI-compatible endpoint Base URL")
+    model: Optional[str] = Field(None, description="Optional custom model name to verify against endpoint")
 
 
 @router.get("/api/ai/modes")
@@ -123,55 +133,110 @@ def infer_stack_purpose(request: InferPurposeRequest) -> Dict[str, Any]:
 @router.post("/api/ai/validate-key")
 async def validate_api_key(request: ValidateKeyRequest):
     """
-    Validates a user-supplied API key against OpenRouter or configured OpenAI-compatible provider.
+    Validates a user-supplied API key and/or custom endpoint against an OpenAI-compatible provider.
     """
     key = (request.api_key or "").strip()
-    if not key:
-        raise HTTPException(status_code=400, detail="API key cannot be empty.")
+    raw_base = (request.base_url or "").strip()
+    target_model = (request.model or "").strip()
 
-    # Determine validation endpoint
-    endpoint = "https://openrouter.ai/api/v1" if (key.startswith("sk-or-") or not os.getenv("OPENAI_BASE_URL")) else os.getenv("OPENAI_BASE_URL", "https://openrouter.ai/api/v1").rstrip("/")
+    if not key and not raw_base:
+        raise HTTPException(status_code=400, detail="API key or custom endpoint Base URL cannot be empty.")
+
+    # Determine endpoint: custom base URL -> Groq key prefix -> OpenRouter -> server env
+    if raw_base:
+        endpoint = raw_base.rstrip("/")
+    elif key.startswith("gsk_"):
+        endpoint = "https://api.groq.com/openai/v1"
+    elif key.startswith("sk-or-") or not os.getenv("OPENAI_BASE_URL"):
+        endpoint = "https://openrouter.ai/api/v1"
+    else:
+        endpoint = os.getenv("OPENAI_BASE_URL", "https://openrouter.ai/api/v1").rstrip("/")
+
+    # Detect provider name
+    lower_ep = endpoint.lower()
+    if "openrouter" in lower_ep:
+        provider_name = "OpenRouter"
+    elif "api.openai.com" in lower_ep:
+        provider_name = "OpenAI"
+    elif "groq.com" in lower_ep:
+        provider_name = "Groq"
+    elif "deepseek.com" in lower_ep:
+        provider_name = "DeepSeek"
+    elif "together.xyz" in lower_ep:
+        provider_name = "Together AI"
+    elif "localhost" in lower_ep or "127.0.0.1" in lower_ep:
+        provider_name = "Local Engine"
+    else:
+        provider_name = "OpenAI Compatible"
+
     headers = {
-        "Authorization": f"Bearer {key}",
         "HTTP-Referer": "http://localhost:8000",
         "X-Title": "HealthAI Pharmacology Copilot",
     }
+    if key:
+        headers["Authorization"] = f"Bearer {key}"
+
     try:
-        async with httpx.AsyncClient(timeout=httpx.Timeout(6.0, connect=3.0)) as client:
+        async with httpx.AsyncClient(timeout=httpx.Timeout(6.0, connect=3.5)) as client:
             res = await client.get(f"{endpoint}/models", headers=headers)
             if res.status_code == 200:
                 data = res.json()
-                models_count = len(data.get("data", []))
+                raw_models = data.get("data", [])
+                models_list = [m.get("id", "") for m in raw_models if isinstance(m, dict)]
+                models_count = len(models_list)
+
+                model_verified = False
+                if target_model:
+                    target_lower = target_model.lower()
+                    model_verified = any(target_lower == m.lower() or target_lower in m.lower() for m in models_list)
+
+                msg = f"Endpoint verified ({provider_name}) with {models_count} models accessible."
+                if target_model:
+                    if model_verified:
+                        msg = f"Endpoint and model '{target_model}' verified ({provider_name})."
+                    else:
+                        msg = f"Endpoint verified ({provider_name}, {models_count} models). Custom model '{target_model}' ready."
+
                 return {
                     "valid": True,
                     "status": "valid",
-                    "provider": "OpenRouter" if "openrouter" in endpoint.lower() else "OpenAI Compatible",
+                    "provider": provider_name,
+                    "endpoint": endpoint,
                     "models_count": models_count,
-                    "message": f"API key successfully validated with {models_count} models accessible."
+                    "model_verified": model_verified,
+                    "message": msg
                 }
             elif res.status_code == 402 or is_quota_exceeded_error(res.status_code, res.text):
                 return {
                     "valid": False,
                     "status": "quota_exceeded",
+                    "provider": provider_name,
+                    "endpoint": endpoint,
                     "message": "Key is recognized but has an exhausted token quota / zero credit balance."
                 }
             elif res.status_code in (401, 403):
                 return {
                     "valid": False,
                     "status": "invalid",
+                    "provider": provider_name,
+                    "endpoint": endpoint,
                     "message": "Authentication failed: invalid or unauthorized API key."
                 }
             else:
                 return {
                     "valid": False,
                     "status": "error",
+                    "provider": provider_name,
+                    "endpoint": endpoint,
                     "message": f"Provider returned status {res.status_code}: {res.text[:120]}"
                 }
     except Exception as e:
         return {
             "valid": False,
             "status": "error",
-            "message": f"Connection error testing API key: {str(e)}"
+            "provider": provider_name,
+            "endpoint": endpoint,
+            "message": f"Connection error testing endpoint ({endpoint}): {str(e)}"
         }
 
 
@@ -179,10 +244,13 @@ async def validate_api_key(request: ValidateKeyRequest):
 async def stream_copilot_chat(
     request: CopilotChatRequest,
     x_user_api_key: Optional[str] = Header(None, alias="X-User-API-Key"),
+    x_user_base_url: Optional[str] = Header(None, alias="X-User-Base-URL"),
+    x_user_model: Optional[str] = Header(None, alias="X-User-Model"),
 ):
     """
     Server-Sent Events (SSE) streaming endpoint for real-time multi-turn Copilot chat,
     reasoning telemetry, and structured action card generation.
+    Supports user-supplied OpenAI-compatible endpoints, custom models, and API keys.
     """
     if not request.messages:
         raise HTTPException(status_code=400, detail="Messages list cannot be empty")
@@ -190,6 +258,8 @@ async def stream_copilot_chat(
     raw_messages = [m.model_dump() for m in request.messages]
     cleaned_stack = [str(s).strip() for s in (request.stack or []) if s is not None and str(s).strip()]
     effective_api_key = (x_user_api_key or request.user_api_key or "").strip() or None
+    effective_base_url = (x_user_base_url or request.user_base_url or "").strip() or None
+    effective_model = (x_user_model or request.user_model or "").strip() or None
 
     async def sse_event_generator():
         try:
@@ -203,6 +273,8 @@ async def stream_copilot_chat(
                 custom_instructions=request.custom_instructions,
                 max_exploration_steps=request.max_exploration_steps or 8,
                 user_api_key=effective_api_key,
+                user_base_url=effective_base_url,
+                user_model=effective_model,
             ):
                 event_name = event_obj.get("event", "delta")
                 data_val = event_obj.get("data")
@@ -237,6 +309,8 @@ async def stream_copilot_chat(
 async def copilot_chat(
     request: CopilotChatRequest,
     x_user_api_key: Optional[str] = Header(None, alias="X-User-API-Key"),
+    x_user_base_url: Optional[str] = Header(None, alias="X-User-Base-URL"),
+    x_user_model: Optional[str] = Header(None, alias="X-User-Model"),
 ):
     """
     Non-streaming multi-turn chat endpoint for REST clients.
@@ -247,6 +321,8 @@ async def copilot_chat(
     raw_messages = [m.model_dump() for m in request.messages]
     cleaned_stack = [str(s).strip() for s in (request.stack or []) if s is not None and str(s).strip()]
     effective_api_key = (x_user_api_key or request.user_api_key or "").strip() or None
+    effective_base_url = (x_user_base_url or request.user_base_url or "").strip() or None
+    effective_model = (x_user_model or request.user_model or "").strip() or None
 
     try:
         result = await CopilotAgent.chat_copilot_turn(
@@ -257,6 +333,8 @@ async def copilot_chat(
             protocol_goal=request.protocol_goal,
             protocol_objective=request.protocol_objective,
             user_api_key=effective_api_key,
+            user_base_url=effective_base_url,
+            user_model=effective_model,
         )
         return result
     except QuotaExhaustedException as qe:
@@ -366,6 +444,9 @@ async def build_stack_from_scratch(request: BuildStackFromScratchRequest) -> Dic
                 messages=[{"role": "user", "content": prompt}],
                 persona="architect",
                 max_exploration_steps=5,
+                user_api_key=request.user_api_key,
+                user_base_url=request.user_base_url,
+                user_model=request.user_model,
             )
             
             response_text = result.get("message", "")
@@ -410,14 +491,20 @@ async def build_stack_from_scratch(request: BuildStackFromScratchRequest) -> Dic
 async def api_optimize_protocol(request: ProtocolOptimizationRequest):
     """
     Analyzes the compound stack against patient biometrics using
-    local AI grounded in multi-hop GraphRAG biological pathways.
+    local or cloud AI grounded in multi-hop GraphRAG biological pathways.
     """
     cleaned_stack = [str(s).strip() for s in request.stack if s is not None and str(s).strip()]
     if not cleaned_stack:
         raise HTTPException(status_code=400, detail="Compound stack cannot be empty")
 
     try:
-        result = await optimize_protocol(cleaned_stack, request.biometrics)
+        result = await optimize_protocol(
+            stack=cleaned_stack,
+            biometrics=request.biometrics or {},
+            api_key=request.user_api_key,
+            base_url=request.user_base_url,
+            model=request.user_model,
+        )
         return result
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))

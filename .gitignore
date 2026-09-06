@@ -110,6 +110,11 @@ app/data/*.db
 *.xz
 *.iso
 
+# Profiling, Tracing & Performance Metrics
+*.stats
+*.prof
+*.profile
+
 # Logs, Progress, Dumps & Temporary Files
 *.log
 logs/
@@ -123,7 +128,26 @@ logs/
 *.pid
 *.seed
 *.dmp
+*.dump
 *.crash
+/dump.txt
+/targets.txt
+/scratch*.txt
+
+# Root-Level Scratch, Diagnostic, Fix & Ad-Hoc Scripts
+/scratch*.py
+/scratch.py
+/fix_*.py
+/replace_*.py
+/restore_*.py
+/update_parser.py
+/debug*.py
+/benchmark_*.py
+/test_*.py
+
+# Always track official test suite and fixtures (while ignoring cache)
+!/tests/**
+tests/**/__pycache__/
 
 # Operating System Files
 .DS_Store

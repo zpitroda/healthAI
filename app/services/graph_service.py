@@ -24,6 +24,7 @@ from app.knowledge_graph.models import (
 )
 from app.services.catalog_service import CatalogService
 from app.services.redox_enricher import RedoxEnricher
+from app.services.interaction_engine import ActionType, normalize_action, _get_target_gene_actions, _get_atc_prefixes
 
 
 def normalize_stack_name(value: Any) -> str:
@@ -606,14 +607,22 @@ def build_selected_compound_graph(stack: List[Any], catalog_service: CatalogServ
                     "pre_computed_stress": True,
                 })
 
-        # Aromatase Inhibitor (Anastrozole, Letrozole, Exemestane)
-        is_ai = any(w in c_name_lower or w in drug_class_lower or w in mechanism_text for w in ["aromatase inhibitor", "anastrozole", "letrozole", "exemestane"])
+        # Extract structured target actions, ATC prefixes, and USAN stems for exact classification
+        comp_targets_map = _get_target_gene_actions(compound)
+        comp_atc = _get_atc_prefixes(compound)
+        comp_usan = str(compound.get("usan_stem") or "").strip().lower()
+
+        # Aromatase Inhibitor (CYP19A1 / ATC L02BG / USAN rozole, mestane)
+        is_ai = (
+            ActionType.INHIBITOR in comp_targets_map.get("CYP19A1", set())
+            or bool(comp_atc & {"L02BG"})
+            or comp_usan.endswith("rozole")
+            or comp_usan.endswith("mestane")
+            or any(w in c_name_lower or w in drug_class_lower for w in ["aromatase inhibitor", "anastrozole", "letrozole", "exemestane"])
+        )
         if is_ai:
-            # 2.5mg Exemestane (titrated): ~55% inhibition
-            # 25mg Exemestane (clinical): ~85% inhibition
-            # 100mg Exemestane (mega-dose): ~98% inhibition (crashing E2)
             ai_eff = -min(0.98, 0.55 + 0.25 * math.log10(max(0.1, dose_mg / 2.5)))
-            receptor_targets = [t for t in receptor_targets if not (isinstance(t, dict) and (t.get("gene_symbol") == "CYP19A1" or "aromatase" in str(t.get("target", "")).lower() or "cyp19" in str(t.get("target", "")).lower()))]
+            receptor_targets = [t for t in receptor_targets if not (isinstance(t, dict) and (t.get("gene_symbol") == "CYP19A1" or "aromatase" in str(t.get("target", "")).lower()))]
             receptor_targets.append({
                 "target": "Aromatase (CYP19A1)",
                 "action": "inhibitor",
@@ -623,21 +632,18 @@ def build_selected_compound_graph(stack: List[Any], catalog_service: CatalogServ
                 "pre_computed_stress": True,
             })
 
-        # 5-Alpha Reductase Inhibitors (Finasteride, Dutasteride)
-        has_5ar_target = any(
-            isinstance(t, dict) and t.get("action") in ("inhibitor", "antagonist")
-            and (t.get("gene_symbol") in ("SRD5A1", "SRD5A2") or "5-alpha" in str(t.get("target", "")).lower() or "srd5a" in str(t.get("target", "")).lower())
-            for t in receptor_targets
-        )
+        # 5-Alpha Reductase Inhibitors (SRD5A1 / SRD5A2 / ATC G04CB / USAN steride)
+        has_5ar_target = ActionType.INHIBITOR in (comp_targets_map.get("SRD5A1", set()) | comp_targets_map.get("SRD5A2", set()))
         is_5ari = (
             has_5ar_target
-            or bool(re.search(r"steride$", str(compound.get("usan_stem") or "")))
-            or bool(re.search(r"\b5-alpha reductase inhibitor\b|\b5-alpha-reductase inhibitor\b|\b5ari\b|\bfinasteride\b|\bdutasteride\b", f"{c_name_lower} {drug_class_lower} {mechanism_text}"))
-        ) and not any(w in drug_class_lower for w in ["pde5", "phosphodiesterase", "vasodilator", "erectile dysfunction"])
+            or bool(comp_atc & {"G04CB"})
+            or comp_usan.endswith("steride")
+            or any(w in c_name_lower or w in drug_class_lower for w in ["5-alpha reductase inhibitor", "5ari", "finasteride", "dutasteride", "saw palmetto"])
+        ) and not bool(comp_atc & {"G04BE"})
         if is_5ari:
-            is_duta = "dutasteride" in c_name_lower
+            is_duta = "dutasteride" in c_name_lower or ActionType.INHIBITOR in comp_targets_map.get("SRD5A1", set())
             ari_eff = -0.95 if is_duta else -min(0.90, 0.70 + 0.15 * math.log10(max(0.1, dose_mg / 1.0)))
-            receptor_targets = [t for t in receptor_targets if not (isinstance(t, dict) and (t.get("gene_symbol") in ("SRD5A1", "SRD5A2") or any(w in str(t.get("target", "")).lower() for w in ["5-alpha", "srd5a", "5ar"])))]
+            receptor_targets = [t for t in receptor_targets if not (isinstance(t, dict) and (t.get("gene_symbol") in ("SRD5A1", "SRD5A2") or "5-alpha" in str(t.get("target", "")).lower()))]
             receptor_targets.append({
                 "target": "5-Alpha Reductase Subtype 1 & 2",
                 "action": "inhibitor",
@@ -647,8 +653,12 @@ def build_selected_compound_graph(stack: List[Any], catalog_service: CatalogServ
                 "pre_computed_stress": True,
             })
 
-        # Adenosine Receptor Antagonists / Methylxanthines (Caffeine, Theophylline, Theobromine)
-        is_caffeine = any(w in c_name_lower or w in drug_class_lower for w in ["caffeine", "theophylline", "theobromine", "methylxanthine", "adenosine antagonist"])
+        # Adenosine Receptor Antagonists / Methylxanthines (ADORA1 / ADORA2A / ATC N06BC)
+        is_caffeine = (
+            ActionType.ANTAGONIST in (comp_targets_map.get("ADORA1", set()) | comp_targets_map.get("ADORA2A", set()))
+            or bool(comp_atc & {"N06BC"})
+            or any(w in c_name_lower or w in drug_class_lower for w in ["caffeine", "theophylline", "theobromine", "methylxanthine", "adenosine antagonist"])
+        )
         if is_caffeine:
             for t in receptor_targets:
                 if t.get("gene_symbol") in ["ADORA1", "ADORA2A", "ADORA2B", "ADORA3"]:
@@ -656,32 +666,42 @@ def build_selected_compound_graph(stack: List[Any], catalog_service: CatalogServ
                     t["intrinsic_efficacy"] = -0.85
                     t["pre_computed_stress"] = True
 
-        # Mineralocorticoid Receptor Antagonists / MRAs (Eplerenone, Spironolactone, Finerenone)
-        is_mra = any(w in c_name_lower or w in drug_class_lower or w in mechanism_text for w in ["mineralocorticoid", "aldosterone antagonist", "eplerenone", "spironolactone", "finerenone"])
+        # Mineralocorticoid Receptor Antagonists / MRAs (NR3C2 / ATC C03DA / USAN renone)
+        is_mra = (
+            ActionType.ANTAGONIST in comp_targets_map.get("NR3C2", set())
+            or bool(comp_atc & {"C03DA", "C03D"})
+            or comp_usan.endswith("renone")
+            or any(w in c_name_lower or w in drug_class_lower for w in ["mineralocorticoid", "aldosterone antagonist", "eplerenone", "spironolactone", "finerenone"])
+        )
         if is_mra:
-            mra_eff = -min(0.85, 0.25 + 0.30 * math.log10(max(1.0, dose_mg / 12.5)))
-            existing_mr = next((t for t in receptor_targets if t.get("gene_symbol") == "NR3C2"), None)
-            if existing_mr:
-                existing_mr["action"] = "antagonist"
-                existing_mr["intrinsic_efficacy"] = mra_eff
-                existing_mr["pre_computed_stress"] = True
-            else:
+            mra_eff = -min(0.85, 0.40 + 0.30 * math.log10(max(1.0, dose_mg / 12.5)))
+            found_mr = False
+            for t in receptor_targets:
+                if isinstance(t, dict) and (t.get("gene_symbol") == "NR3C2" or "mineralocorticoid" in str(t.get("target", "")).lower()):
+                    t["action"] = "antagonist"
+                    t["intrinsic_efficacy"] = mra_eff
+                    t["pre_computed_stress"] = True
+                    found_mr = True
+            if not found_mr:
                 receptor_targets.append({
                     "target": "Mineralocorticoid Receptor (Aldosterone Receptor / NR3C2)",
                     "action": "antagonist",
                     "family": "Nuclear Receptor",
+                    "gene_symbol": "NR3C2",
                     "intrinsic_efficacy": mra_eff,
                     "pre_computed_stress": True,
                 })
-            # Remove off-target micromolar (>5000 nM) false positive agonist bindings on steroid receptors for MRAs
             receptor_targets = [
                 t for t in receptor_targets
                 if t.get("gene_symbol") == "NR3C2"
-                or float(t.get("affinity_ki") or t.get("inhibition_ic50") or 0.0) < 5000.0
+                or (isinstance(t, dict) and float(t.get("affinity_ki") or t.get("inhibition_ic50") or 0.0) < 5000.0 and t.get("gene_symbol") != "AR")
             ]
 
-        # L-Theanine / Calming Glutamatergic & GABA-A Modulators
-        is_theanine = any(w in c_name_lower or w in drug_class_lower for w in ["theanine", "l-theanine", "suntheanine"])
+        # Calming Glutamatergic & GABA-A Modulators (GABRA1 / GABRA2 / GRIN1)
+        is_theanine = (
+            ActionType.PAM in (comp_targets_map.get("GABRA1", set()) | comp_targets_map.get("GABRA2", set()))
+            or any(w in c_name_lower or w in drug_class_lower for w in ["theanine", "l-theanine", "suntheanine"])
+        )
         if is_theanine:
             if not any(t.get("gene_symbol") in ["GABRA1", "GABRA2", "GABRB3"] for t in receptor_targets if isinstance(t, dict)):
                 receptor_targets.append({
@@ -700,15 +720,21 @@ def build_selected_compound_graph(stack: List[Any], catalog_service: CatalogServ
                     "pre_computed_stress": True,
                 })
 
-        # Beta-Adrenergic Receptor Blockers (Beta-Blockers: Nebivolol, Metoprolol, Atenolol, Propranolol, Bisoprolol, Carvedilol)
-        is_beta_blocker = any(w in c_name_lower or w in drug_class_lower or w in mechanism_text for w in ["beta-blocker", "beta blocker", "beta adrenergic antagonist", "nebivolol", "metoprolol", "atenolol", "propranolol", "bisoprolol", "carvedilol"])
+        # Beta-Adrenergic Receptor Blockers (ADRB1 / ADRB2 / ATC C07A / USAN olol)
+        is_beta_blocker = (
+            ActionType.ANTAGONIST in (comp_targets_map.get("ADRB1", set()) | comp_targets_map.get("ADRB2", set()))
+            or bool(comp_atc & {"C07A", "C07AA", "C07AB"})
+            or comp_usan.endswith("olol")
+            or any(w in c_name_lower or w in drug_class_lower for w in ["beta-blocker", "beta blocker", "beta adrenergic antagonist"])
+        )
         if is_beta_blocker:
             bb_eff = -min(0.95, 0.40 + 0.35 * math.log10(max(1.0, dose_mg / 2.5)))
             for t in receptor_targets:
-                if any(w in str(t.get("target", "")).lower() for w in ["beta-1", "beta-2", "beta-3", "adrb1", "adrb2", "adrb3", "beta adrenergic receptor", "beta-adrenergic receptor"]):
-                    t["action"] = "antagonist"
-                    t["intrinsic_efficacy"] = bb_eff
-                    t["pre_computed_stress"] = True
+                if any(w in str(t.get("target", "")).lower() for w in ["beta-1", "beta-2", "adrb1", "adrb2"]):
+                    if not t.get("affinity_ki"):
+                        t["action"] = "antagonist"
+                        t["intrinsic_efficacy"] = bb_eff
+                        t["pre_computed_stress"] = True
             if not any("beta" in str(t.get("target", "")).lower() for t in receptor_targets):
                 receptor_targets.append({
                     "target": "Beta-1 Adrenergic Receptor (ADRB1)",
@@ -718,19 +744,20 @@ def build_selected_compound_graph(stack: List[Any], catalog_service: CatalogServ
                     "pre_computed_stress": True,
                 })
 
-        # Beta-Alanine / Carnosine Synthesis (CARNS1 & MrgprD)
-        is_beta_alanine = any(w in c_name_lower for w in ["beta-alanine", "beta_alanine", "beta alanine", "3-aminopropanoic"])
+        # Beta-Alanine / Carnosine Synthesis (CARNS1 & MRGPRD)
+        is_beta_alanine = (
+            ActionType.SUBSTRATE in comp_targets_map.get("CARNS1", set())
+            or str(compound.get("key", "")).lower() == "beta-alanine"
+            or any(w in c_name_lower for w in ["beta-alanine", "beta_alanine", "beta alanine"])
+        )
         if is_beta_alanine:
-            # 3.2g / day = ~0.85 intramuscular carnosine saturation
             carns_eff = min(0.95, 0.45 + 0.40 * math.log10(max(1.0, dose_mg / 800.0)))
             paresthesia_eff = min(0.90, 0.20 + 0.50 * math.log10(max(1.0, dose_mg / 1200.0))) if dose_mg >= 800.0 else 0.0
             
-            # Remove any spurious in vitro micromolar assay hits that don't reflect human oral supplementation
             receptor_targets = [
                 t for t in receptor_targets
                 if not any(w in str(t.get("target", "")).lower() for w in ["regulator of g-protein", "gaba transporter", "cyp2c9"])
             ]
-            
             receptor_targets.append({
                 "target": "Carnosine Synthase 1 (CARNS1 / Intramuscular Carnosine Pool)",
                 "action": "substrate",
@@ -751,11 +778,8 @@ def build_selected_compound_graph(stack: List[Any], catalog_service: CatalogServ
 
         is_androgen = (
             is_steroidal_androgen(compound)
-            or (
-                bool(re.search(r"\bandrogen\b|\banabolic steroid\b", drug_class_lower))
-                and not bool(re.search(r"\bantagonist\b|\binhibitor\b|\bblocker\b", drug_class_lower))
-            )
-            or bool(re.search(r"\bsarm\b", drug_class_lower))
+            or ActionType.AGONIST in comp_targets_map.get("AR", set())
+            or bool(comp_atc & {"G03BA", "G03B"})
         ) and not is_ai
         is_arom = is_aromatizable_androgen(compound) if is_androgen else True
         is_5ar = is_5alpha_reductase_substrate(compound) if is_androgen else True
@@ -772,8 +796,8 @@ def build_selected_compound_graph(stack: List[Any], catalog_service: CatalogServ
                     "pre_computed_stress": True,
                 })
 
-        # 19-nor progestogenic stimulation (Trenbolone, Nandrolone)
-        is_19nor = is_19nor_steroid(compound)
+        # 19-nor progestogenic stimulation (PGR / NR3C3)
+        is_19nor = is_19nor_steroid(compound) or ActionType.AGONIST in comp_targets_map.get("PGR", set())
         if is_19nor and not any(t.get("gene_symbol") == "PGR" for t in receptor_targets if isinstance(t, dict)):
             receptor_targets.append({
                 "target": "Progesterone Receptor (PGR / NR3C3)",
@@ -783,20 +807,42 @@ def build_selected_compound_graph(stack: List[Any], catalog_service: CatalogServ
                 "pre_computed_stress": True,
             })
 
+        # P-5-P (Pyridoxal-5-Phosphate) AADC cofactor prolactin control (DDC)
+        is_p5p = ActionType.ENHANCER in comp_targets_map.get("DDC", set()) or any(w in c_name_lower for w in ["p5p", "p-5-p", "pyridoxal-5-phosphate", "pyridoxal 5-phosphate", "active b6"])
+        if is_p5p and not any(t.get("gene_symbol") in ["DDC", "DRD2"] for t in receptor_targets if isinstance(t, dict)):
+            p5p_eff = min(0.85, 0.45 + 0.20 * math.log10(max(10.0, dose_mg / 25.0)))
+            receptor_targets.append({
+                "target": "Aromatic L-Amino Acid Decarboxylase (DDC / AADC) & Dopaminergic Prolactin Control",
+                "action": "enhancer",
+                "family": "Enzyme / Decarboxylase",
+                "gene_symbol": "DDC",
+                "intrinsic_efficacy": p5p_eff,
+                "pre_computed_stress": True,
+            })
 
-        # Dopamine Agonist prolactin suppression (Cabergoline, Pramipexole)
-        is_d2_agonist = any(w in c_name_lower or w in drug_class_lower or w in mechanism_text for w in ["cabergoline", "pramipexole", "bromocriptine", "dopamine agonist"])
+        # Dopamine Agonist prolactin suppression (DRD2 / ATC N04BC / USAN goline)
+        is_d2_agonist = (
+            ActionType.AGONIST in comp_targets_map.get("DRD2", set())
+            or bool(comp_atc & {"N04BC"})
+            or comp_usan.endswith("goline")
+            or any(w in c_name_lower or w in drug_class_lower for w in ["cabergoline", "pramipexole", "bromocriptine", "dopamine agonist"])
+        )
         if is_d2_agonist and not any(t.get("gene_symbol") in ["DRD1", "DRD2", "DRD3", "DRD4", "DRD5"] for t in receptor_targets if isinstance(t, dict)):
             receptor_targets.append({
-                "target": "Dopamine Transporter & Receptors (SLC6A3 / DRD2)",
+                "target": "Dopamine D2 Receptor (DRD2 / Tuberoinfundibular Lactotroph Suppression)",
                 "action": "agonist",
                 "family": "GPCR",
+                "gene_symbol": "DRD2",
                 "intrinsic_efficacy": 0.90,
                 "pre_computed_stress": True,
             })
 
-        # Exogenous Thyroid (T3 / Liothyronine, T4 / Levothyroxine)
-        is_thyroid = any(w in c_name_lower or w in drug_class_lower or w in mechanism_text for w in ["liothyronine", "levothyroxine", "thyroid hormone", "triiodothyronine", "t3", "t4"]) and not any(w in c_name_lower for w in ["ashwagandha", "iodine", "selenium", "tyrosine"])
+        # Exogenous Thyroid (THRA / THRB / ATC H03AA)
+        is_thyroid = (
+            ActionType.AGONIST in (comp_targets_map.get("THRA", set()) | comp_targets_map.get("THRB", set()))
+            or bool(comp_atc & {"H03AA"})
+            or any(w in c_name_lower or w in drug_class_lower for w in ["liothyronine", "levothyroxine", "thyroid hormone", "triiodothyronine"])
+        )
         if is_thyroid and not any(t.get("gene_symbol") in ["THRA", "THRB"] for t in receptor_targets if isinstance(t, dict)):
             receptor_targets.append({
                 "target": "Thyroid Hormone Receptor Alpha & Beta (THRA/THRB / NR1A1/NR1A2)",
@@ -806,8 +852,12 @@ def build_selected_compound_graph(stack: List[Any], catalog_service: CatalogServ
                 "pre_computed_stress": True,
             })
 
-        # Exogenous Glucocorticoids (Prednisone, Dexamethasone, Hydrocortisone)
-        is_glucocorticoid = any(w in c_name_lower or w in drug_class_lower or w in mechanism_text for w in ["prednisone", "dexamethasone", "hydrocortisone", "methylprednisolone", "budesonide", "corticosteroid", "glucocorticoid"])
+        # Exogenous Glucocorticoids (NR3C1 / ATC H02AB / USAN prednis, dexameth)
+        is_glucocorticoid = (
+            ActionType.AGONIST in comp_targets_map.get("NR3C1", set())
+            or bool(comp_atc & {"H02AB"})
+            or any(w in c_name_lower or w in drug_class_lower for w in ["prednisone", "dexamethasone", "hydrocortisone", "corticosteroid", "glucocorticoid"])
+        )
         if is_glucocorticoid and not any(t.get("gene_symbol") == "NR3C1" for t in receptor_targets if isinstance(t, dict)):
             receptor_targets.append({
                 "target": "Glucocorticoid Receptor (GR / NR3C1)",
@@ -817,89 +867,103 @@ def build_selected_compound_graph(stack: List[Any], catalog_service: CatalogServ
                 "pre_computed_stress": True,
             })
 
-        # Angiotensin II Receptor Blockers (ARBs / Sartans: Telmisartan, Losartan, Candesartan, Valsartan)
-        is_arb = any(w in c_name_lower or w in drug_class_lower or w in mechanism_text for w in ["arb", "sartan", "angiotensin receptor blocker", "agtr1 antagonist", "telmisartan", "losartan", "candesartan", "valsartan", "olmesartan", "irbesartan"])
-        if is_arb:
-            # 10mg Telmisartan (sub-clinical): ~15% efficacy (modest ~4-6 mmHg drop)
-            # 80mg Telmisartan (max clinical): ~75% efficacy (strong counterbalance)
-            arb_eff = -min(0.85, 0.15 + 0.60 * ((dose_mg / 80.0) ** 0.65))
-            receptor_targets = [t for t in receptor_targets if not (isinstance(t, dict) and (t.get("gene_symbol") in ["AGTR1", "ACE"] or any(w in str(t.get("target", "")).lower() for w in ["angiotensin", "agtr1", "ace"])))]
+        # Renin-Angiotensin System Blockers (ARBs & ACE Inhibitors)
+        is_raas_inhibitor = (
+            ActionType.ANTAGONIST in comp_targets_map.get("AGTR1", set())
+            or ActionType.INHIBITOR in comp_targets_map.get("ACE", set())
+            or bool(comp_atc & {"C09CA", "C09C", "C09AA", "C09A"})
+            or comp_usan.endswith("sartan")
+            or comp_usan.endswith("pril")
+            or any(w in c_name_lower or w in drug_class_lower for w in ["angiotensin receptor blocker", "agtr1 antagonist", "sartan", "ace inhibitor", "angiotensin-converting enzyme inhibitor", "pril"])
+        )
+        if is_raas_inhibitor:
+            raas_eff = -min(0.85, 0.15 + 0.60 * ((dose_mg / 80.0) ** 0.65))  # Normalized to Telmisartan/Valsartan equivalent
+            receptor_targets = [t for t in receptor_targets if not (isinstance(t, dict) and (t.get("gene_symbol") in ["AGTR1", "ACE"] or "angiotensin" in str(t.get("target", "")).lower()))]
             receptor_targets.append({
                 "target": "Angiotensin II Type-1 (AT1) Receptor / ACE",
                 "action": "antagonist",
                 "family": "GPCR / Renin-Angiotensin",
                 "gene_symbol": "AGTR1",
-                "intrinsic_efficacy": arb_eff,
+                "intrinsic_efficacy": raas_eff,
                 "pre_computed_stress": True,
             })
 
-        # Gut Microbial TMA Precursors (Oral L-Carnitine, Choline, Betaine)
-        is_tma_precursor = any(w in c_name_lower or w in drug_class_lower or w in mechanism_text for w in ["carnitine", "alcar", "acetylcarnitine", "choline", "alpha-gpc", "citicoline", "betaine", "trimethylamine"])
+        # Gut Microbial TMA Precursors (Oral Carnitine, Choline)
+        is_tma_precursor = (
+            ActionType.SUBSTRATE in (comp_targets_map.get("CntA", set()) | comp_targets_map.get("CNTA", set()))
+            or any(w in c_name_lower for w in ["carnitine", "alcar", "acetylcarnitine", "choline", "alpha-gpc", "citicoline", "betaine"])
+        )
         if is_tma_precursor:
             c_route = str(compound_entry.get("route") or compound.get("route") or "oral").lower().strip()
             is_parenteral = c_route in ["intramuscular", "im", "subcutaneous", "sc", "subq", "intravenous", "iv"]
 
             if is_parenteral:
-                # Parenteral delivery completely bypasses intestinal lumen microbiota
                 receptor_targets = [
                     t for t in receptor_targets
                     if not any(w in str(t.get("target", "")).lower() for w in ["tma lyase", "tma-lyase", "cnta", "cntb", "yeaw", "yeax", "cutc", "fmo3"])
                 ]
             else:
-                # Oral administration exposes unabsorbed compound to intestinal microbial TMA lyases
-                # 1000mg oral dose -> ~0.85 substrate conversion drive
                 lyase_eff = min(0.95, 0.55 + 0.35 * math.log10(max(1.0, dose_mg / 250.0)))
-                lyase_ki = 2.5
+                lyase_km_nm = 2500000.0
 
-                existing_lyase = next((t for t in receptor_targets if any(w in str(t.get("target", "")).lower() for w in ["tma lyase", "tma-lyase", "cnta", "cntb", "yeaw", "yeax", "cutc"])), None)
+                existing_lyase = next((t for t in receptor_targets if any(w in str(t.get("target", "")).lower() for w in ["tma lyase", "tma-lyase", "cnta", "cntb"])), None)
                 if existing_lyase:
                     existing_lyase["action"] = "substrate"
                     existing_lyase["family"] = "Gut Microbiota / Microbial Lyase"
                     existing_lyase["intrinsic_efficacy"] = lyase_eff
-                    existing_lyase["affinity_ki"] = lyase_ki
+                    existing_lyase["affinity_ki"] = lyase_km_nm
                     existing_lyase["is_microbial"] = True
                 else:
                     receptor_targets.append({
                         "target": "Gut Microbiota Carnitine TMA-Lyase (CntA/CntB / yeaW/yeaX)",
                         "action": "substrate",
                         "family": "Gut Microbiota / Microbial Lyase",
-                        "affinity_ki": lyase_ki,
+                        "affinity_ki": lyase_km_nm,
                         "intrinsic_efficacy": lyase_eff,
                         "is_microbial": True,
                     })
 
-        # Allicin / Garlic Extract / DMB (Microbial TMA Lyase Inhibitors)
-        is_tma_inhibitor = any(w in c_name_lower or w in drug_class_lower or w in mechanism_text for w in ["allicin", "garlic", "allium", "diallyl thiosulfinate", "dimethylbutanol", "dmb"])
+        # Gut Microbial TMA Lyase Inhibitors (CntA / CntB / yeaW / yeaX)
+        is_tma_inhibitor = (
+            ActionType.INHIBITOR in (comp_targets_map.get("CntA", set()) | comp_targets_map.get("CNTA", set()))
+            or any(w in c_name_lower for w in ["allicin", "garlic", "allium", "diallyl thiosulfinate", "dimethylbutanol", "dmb"])
+        )
         if is_tma_inhibitor:
             allicin_inh_eff = -min(0.95, 0.65 + 0.25 * math.log10(max(0.1, dose_mg / 2.0)))
-            existing_inh_lyase = next((t for t in receptor_targets if any(w in str(t.get("target", "")).lower() for w in ["tma lyase", "tma-lyase", "cnta", "cntb", "yeaw", "yeax", "cutc"])), None)
+            existing_inh_lyase = next((t for t in receptor_targets if any(w in str(t.get("target", "")).lower() for w in ["tma lyase", "tma-lyase", "cnta", "cntb"])), None)
             if existing_inh_lyase:
                 existing_inh_lyase["action"] = "inhibitor"
                 existing_inh_lyase["family"] = "Gut Microbiota / Microbial Lyase"
                 existing_inh_lyase["intrinsic_efficacy"] = allicin_inh_eff
-                existing_inh_lyase["inhibition_ic50"] = 0.05
+                existing_inh_lyase["inhibition_ic50"] = 15000.0
+                existing_inh_lyase.pop("affinity_ki", None)
                 existing_inh_lyase["is_microbial"] = True
             else:
                 receptor_targets.append({
                     "target": "Gut Microbiota Carnitine TMA-Lyase (CntA/CntB / yeaW/yeaX)",
                     "action": "inhibitor",
                     "family": "Gut Microbiota / Microbial Lyase",
-                    "inhibition_ic50": 0.05,
+                    "inhibition_ic50": 15000.0,
                     "intrinsic_efficacy": allicin_inh_eff,
                     "is_microbial": True,
                 })
 
-        # Phosphodiesterase 5 Inhibitors (PDE5i: Tadalafil, Sildenafil, Vardenafil, Avanafil)
-        is_pde5 = any(w in c_name_lower or w in drug_class_lower or w in mechanism_text for w in ["pde5", "pde-5", "tadalafil", "sildenafil", "vardenafil", "avanafil", "phosphodiesterase 5", "phosphodiesterase-5", "phosphodiesterase type 5"])
+        # Phosphodiesterase 5 Inhibitors (PDE5A / ATC G04BE / USAN afil)
+        is_pde5 = (
+            ActionType.INHIBITOR in comp_targets_map.get("PDE5A", set())
+            or bool(comp_atc & {"G04BE", "G04BE08"})
+            or comp_usan.endswith("afil")
+            or any(w in c_name_lower or w in drug_class_lower for w in ["pde5", "pde-5", "tadalafil", "sildenafil", "vardenafil", "avanafil", "phosphodiesterase 5"])
+        )
         if is_pde5:
             pde5_eff = -min(0.85, 0.35 + 0.35 * math.log10(max(0.1, dose_mg / 2.0)))
             found_pde5 = False
             for t in receptor_targets:
                 t_str = str(t.get("target", "")).lower()
-                if "pde" in t_str or "phosphodiesterase" in t_str or "cgmp" in t_str:
+                if "pde" in t_str or "phosphodiesterase" in t_str:
                     t["action"] = "inhibitor"
                     t["intrinsic_efficacy"] = pde5_eff
-                    t["inhibition_ic50"] = 0.005
+                    t["inhibition_ic50"] = 5.0
                     t["pre_computed_stress"] = True
                     t["gene_symbol"] = "PDE5A"
                     t["uniprot_id"] = "O76074"
@@ -911,7 +975,7 @@ def build_selected_compound_graph(stack: List[Any], catalog_service: CatalogServ
                     "family": "Enzyme / Phosphodiesterase",
                     "gene_symbol": "PDE5A",
                     "uniprot_id": "O76074",
-                    "inhibition_ic50": 0.005,
+                    "inhibition_ic50": 5.0,
                     "intrinsic_efficacy": pde5_eff,
                     "pre_computed_stress": True,
                 })
@@ -1006,8 +1070,11 @@ def build_selected_compound_graph(stack: List[Any], catalog_service: CatalogServ
 
         # 2. Dynamic Renal Filtration & Tubular Hemodynamic Stress
         # Distinguish nephroprotective agents (ARBs, aldosterone antagonists, SGLT2i) from nephrotoxic ones
-        is_nephroprotective = any(w in drug_class_lower for w in ["arb", "angiotensin", "sartan", "sglt2", "aldosterone antagonist", "mineralocorticoid"])
-        is_nephroprotective = is_nephroprotective or any(w in mechanism_text for w in ["angiotensin", "aldosterone", "sglt2", "mineralocorticoid receptor"])
+        is_nephroprotective = (
+            bool(re.search(r"\b(?:arb|arbs|sartan|sartans|sglt2|sglt2i)\b", f"{drug_class_lower} {mechanism_text}"))
+            or any(w in drug_class_lower for w in ["angiotensin", "aldosterone antagonist", "mineralocorticoid"])
+            or any(w in mechanism_text for w in ["angiotensin", "aldosterone", "mineralocorticoid receptor"])
+        )
         is_nephrotoxic = any(w in drug_class_lower for w in ["nsaid", "aminoglycoside", "cisplatin", "contrast"])
         is_nephrotoxic = is_nephrotoxic or any(w in warnings_text for w in ["nephrotox", "kidney damage", "renal failure", "renal impairment"])
 
@@ -1616,19 +1683,32 @@ def build_selected_compound_graph(stack: List[Any], catalog_service: CatalogServ
         if phys_id not in graph.graph:
             continue
         for bridge in cascade.get("bridges", []):
-            pattern = bridge["target_node_pattern"]
+            target_symbols = [str(s).upper() for s in bridge.get("target_symbols", []) if s]
+            pattern = bridge.get("target_node_pattern", "")
             edge_type = bridge.get("edge_type", EdgeType.MODULATES)
             vec_mag = float(bridge.get("vector_magnitude", 1.0))
             desc = bridge.get("description", "")
             
             matching_nodes = []
+            pat_tokens = set(re.findall(r"\w+", pattern.lower())) if pattern else set()
             for node in list(graph.graph.nodes()):
                 if node == phys_id:
                     continue
-                node_label = str(graph.graph.nodes[node].get("label", node)).lower()
+                node_attrs = graph.graph.nodes[node]
+                node_sym = str(node_attrs.get("gene_symbol") or node_attrs.get("symbol") or "").upper()
+                node_label = str(node_attrs.get("label", node)).lower()
                 node_id_lower = str(node).lower()
-                if re.search(pattern, node_label) or re.search(pattern, node_id_lower):
-                    nt = str(graph.graph.nodes[node].get("node_type", "")).lower()
+
+                is_match = False
+                if target_symbols and node_sym in target_symbols:
+                    is_match = True
+                elif pat_tokens:
+                    node_tokens = set(re.findall(r"\w+", f"{node_label} {node_id_lower}"))
+                    if pat_tokens & node_tokens:
+                        is_match = True
+
+                if is_match:
+                    nt = str(node_attrs.get("node_type", "")).lower()
                     if nt in ("receptor", "enzyme", "transporter", "ion_channel", "carrier_protein", "target"):
                         tier_rank = 1
                     elif nt == "signaling_pathway":
@@ -1878,7 +1958,8 @@ def compute_target_combined_effects(
             route_pk = PKPDEnricher.calculate_route_pk_parameters(pred_attrs, pred_route)
             f_bio = float(route_pk.get("bioavailability_f") if route_pk.get("bioavailability_f") is not None else 0.80)
 
-            vd_lkg = _parse_num(pred_attrs.get("volume_of_distribution") or pred_attrs.get("volume_of_distribution_l_kg"), 2.5)
+            vd_raw = _parse_num(pred_attrs.get("volume_of_distribution") or pred_attrs.get("volume_of_distribution_l_kg"), 2.5)
+            effective_vd_liters = vd_raw if vd_raw > 30.0 else (vd_raw * 70.0)
 
             raw_pb = pred_attrs.get("protein_binding") or pred_attrs.get("protein_binding_pct")
             if raw_pb is not None:
@@ -1889,17 +1970,52 @@ def compute_target_combined_effects(
 
             # Unbound free fraction in tissue biophases
             fu = max(0.002, min(1.0, 1.0 - (pb_pct / 100.0)))
-            c_free_nm = (eff_daily_mg * f_bio * fu * 1e6) / (vd_lkg * 70.0 * mw)
+            
+            # Target Compartment Biophase & Concentration
+            is_microbial_target = bool(node_attrs.get("is_microbial")) or any(w in node_id.lower() or w in str(node_attrs.get("label", "")).lower() for w in ["microbi", "tma lyase", "cutc", "cutd", "gut flora", "lumen"])
+            is_hepatic_target = any(w in node_id.lower() or w in str(node_attrs.get("label", "")).lower() for w in ["hmg-coa", "hmgcr", "cyp", "ugt", "sult", "bile", "bsep", "mrp2", "hepat"])
+
+            if is_microbial_target and pred_route == "oral":
+                # Gut lumen concentration in ~250 mL intestinal fluid volume
+                c_free_nm = (eff_daily_mg * 1e6) / (0.25 * mw)
+            elif is_hepatic_target and (any(w in str(pred_attrs.get("drug_class", "")).lower() or w in str(pred_attrs.get("name", "")).lower() for w in ["statin", "hmg-coa"]) or bool(pred_attrs.get("transporter_substrates"))):
+                # Intrahepatic accumulation via sinusoidal active uptake (OATP1B1/OATP1B3/NTCP partition)
+                plasma_c_free = (eff_daily_mg * f_bio * fu * 1e6) / (effective_vd_liters * mw)
+                c_free_nm = plasma_c_free * 30.0
+            else:
+                c_free_nm = (eff_daily_mg * f_bio * fu * 1e6) / (effective_vd_liters * mw)
 
             # Calculate Biophysical Receptor Binding Drive W_i = [L_free] / K_i
-            affinity_val = ki or ic50 or ec50
+            if is_inhibitor or is_antagonist:
+                affinity_val = ic50 or ki or ec50
+            elif is_agonist:
+                affinity_val = ec50 or ki or ic50
+            else:
+                affinity_val = ki or ec50 or ic50
+
             if not affinity_val and is_substrate:
-                affinity_val = 2500.0
+                affinity_val = 2500000.0  # Default 2.5 mM substrate Km
 
             if affinity_val and float(affinity_val) > 0:
                 potency_weight = max(0.0001, c_free_nm / float(affinity_val))
             else:
-                potency_weight = max(0.001, abs(mag) * (eff_daily_mg / 10.0) * (f_bio / 0.80))
+                # When affinity constant is not empirically known, normalize dose to compound's reference therapeutic dose
+                ref_dose = (
+                    pred_attrs.get("reference_dose_mg")
+                    or pred_attrs.get("standard_dose_mg")
+                    or DEFAULT_THERAPEUTIC_DOSES_MG.get(pred.lower())
+                    or DEFAULT_THERAPEUTIC_DOSES_MG.get(canonicalize_match_token(pred))
+                    or DEFAULT_THERAPEUTIC_DOSES_MG.get(str(pred_attrs.get("key", "")).lower())
+                    or DEFAULT_THERAPEUTIC_DOSES_MG.get(canonicalize_match_token(pred_attrs.get("key", "")))
+                )
+                if not ref_dose or float(ref_dose) <= 0:
+                    try:
+                        def_dose_info = get_default_compound_dose(pred_attrs or pred)
+                        ref_dose = def_dose_info.get("dose_mg")
+                    except Exception:
+                        ref_dose = None
+                ref_dose_val = float(ref_dose) if ref_dose and float(ref_dose) > 0 else 10.0
+                potency_weight = max(0.001, abs(mag) * (eff_daily_mg / ref_dose_val) * (f_bio / 0.80))
 
             incoming_compounds.append({
                 "compound_id": pred,

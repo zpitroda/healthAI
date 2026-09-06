@@ -676,6 +676,18 @@ class PKPDEngine:
         - Plasma protein binding (unbound fraction fu)
         - Physiological lipid (neutral & phospholipids) and water composition of major tissues.
         """
+        # 1. Large-Molecule Biologics & Monoclonal Antibodies Exemption
+        is_biologic = bool(compound.get("is_biologic") or compound.get("modality") in ("biologic_antibody", "protein"))
+        if is_biologic or float(compound.get("molecular_weight") or 0) > 10000.0:
+            return TissuePartitionCoefficients(
+                kp_brain=0.0008,
+                kp_liver=0.120,
+                kp_kidney=0.080,
+                kp_muscle=0.040,
+                kp_adipose=0.030,
+                method="Vascular-Interstitial Lymphatic Convection (Large Molecule TMDD)",
+            )
+
         logp = float(compound.get("logp") if compound.get("logp") is not None else 2.0)
         pka = float(compound.get("pka") if compound.get("pka") is not None else 7.4)
         mw = float(compound.get("molecular_weight") if compound.get("molecular_weight") is not None else 350.0)
@@ -740,6 +752,18 @@ class PKPDEngine:
         Lysosomal lumen pH ~ 4.8 vs Cytosolic pH ~ 7.2.
         R_lyso = (1 + 10^(pKa - 4.8)) / (1 + 10^(pKa - 7.2))
         """
+        # Large-Molecule Biologics Exemption
+        is_biologic = bool(compound.get("is_biologic") or compound.get("modality") in ("biologic_antibody", "protein"))
+        if is_biologic or float(compound.get("molecular_weight") or 0) > 10000.0:
+            return LysosomalTrappingInfo(
+                calculated_ratio=1.0,
+                is_significant=False,
+                predicted_sequestration_band="Exempt Large Molecule (Receptor Pinocytosis / Proteolysis)",
+                pka_used=None,
+                logp_used=None,
+                cytosolic_free_fraction_pct=100.0,
+            )
+
         pka_val = compound.get("pka")
         logp = float(compound.get("logp") if compound.get("logp") is not None else 2.0)
         drug_class = str(compound.get("drug_class") or "").lower()
@@ -797,9 +821,10 @@ class PKPDEngine:
             p75_val = min(max_bound, p75_val)
             p95_val = min(max_bound, p95_val)
 
-        std_dev = val * cv
+        mean_val = val * math.sqrt(1.0 + cv * cv)
+        std_dev = mean_val * cv
         return MetricDistribution(
-            mean=round(val, 2),
+            mean=round(mean_val, 2),
             std_dev=round(std_dev, 2),
             percentiles=DistributionPercentiles(
                 p5=round(p5_val, 2),
@@ -839,10 +864,13 @@ class PKPDEngine:
             phase2_info = {}
         phase2_substrates = [str(p).upper() for p in phase2_info.get("substrates") or []]
 
-        sub_text_lower = f"{substrate_compound.get('name', '')} {substrate_compound.get('key', '')} {substrate_compound.get('drug_class', '')}".lower()
-        is_polyphenol = any(w in sub_text_lower for w in ["curcumin", "resveratrol", "quercetin", "polyphenol", "flavonoid", "astaxanthin", "coq10", "berberine"])
+        is_high_first_pass = (
+            bool(substrate_compound.get("is_high_first_pass"))
+            or float(substrate_compound.get("bioavailability_f") or 0.7) < 0.25
+            or "UGT1A1" in phase2_substrates
+        )
 
-        if not substrates and not trans_substrates and not phase2_substrates and not is_polyphenol:
+        if not substrates and not trans_substrates and not phase2_substrates and not is_high_first_pass:
             return 1.0, 1.0, []
 
         # Fractional contribution of major enzymes (default equal split among substrates)
@@ -856,19 +884,25 @@ class PKPDEngine:
             if str(other.get("key")) == str(substrate_compound.get("key")):
                 continue
 
-            other_text_lower = f"{other.get('name', '')} {other.get('key', '')} {other.get('drug_class', '')}".lower()
-            is_piperine = any(w in other_text_lower for w in ["piperine", "bioperine", "black pepper"])
-            is_st_john = any(w in other_text_lower for w in ["st john", "hypericum", "hyperforin"])
+            other_cyp_inh = [str(x).upper() for x in (other.get("cyp_enzymes") or {}).get("inhibitors", [])]
+            other_trans_inh = [str(t).upper() for t in (other.get("transporters") or {}).get("inhibitors", [])]
+            other_cyp_ind = [str(x).upper() for x in (other.get("cyp_enzymes") or {}).get("inducers", [])]
 
-            # Special bioenhancer effect (Piperine boosts polyphenol / P-gp / UGT1A1 / CYP3A4 substrate AUC)
-            if is_piperine and (is_polyphenol or "CYP3A4" in substrates or "P-GP" in trans_substrates or "UGT1A1" in phase2_substrates):
+            is_bioenhancer = (
+                bool(other.get("is_bioenhancer"))
+                or ("P-GP" in other_trans_inh and any(c in ["CYP3A4", "CYP2C9"] for c in other_cyp_inh))
+            )
+            is_broad_inducer = "CYP3A4" in other_cyp_ind and "CYP2C9" in other_cyp_ind
+
+            # Special bioenhancer effect (boosts high first-pass / P-gp / UGT1A1 / CYP3A4 substrate AUC)
+            if is_bioenhancer and (is_high_first_pass or "CYP3A4" in substrates or "P-GP" in trans_substrates or "UGT1A1" in phase2_substrates):
                 total_inhib_factor += 0.65  # ~2.8x exposure multiplier
-                interacting_enzymes.append(f"Intestinal P-gp & UGT1A1 Bioenhancement by {other.get('name') or 'Piperine'}")
+                interacting_enzymes.append(f"Intestinal P-gp & First-Pass Bioenhancement by {other.get('name') or other.get('key')}")
 
-            # Special PXR nuclear induction effect (St. John's Wort strongly induces CYP3A4, CYP2C9, P-gp)
-            if is_st_john and ("CYP3A4" in substrates or "CYP2C9" in substrates or "P-GP" in trans_substrates):
+            # Special PXR nuclear induction effect (strongly induces CYP3A4, CYP2C9, P-gp)
+            if is_broad_inducer and ("CYP3A4" in substrates or "CYP2C9" in substrates or "P-GP" in trans_substrates):
                 total_inhib_factor -= 0.60  # ~0.4x exposure reduction
-                other_name = other.get('name') or "St. John's Wort"
+                other_name = other.get('name') or other.get('key')
                 interacting_enzymes.append(f"Nuclear PXR Enzyme & P-gp Induction by {other_name}")
 
             other_cyp = other.get("cyp_enzymes") or {}
@@ -1000,41 +1034,19 @@ class PKPDEngine:
             else:
                 bcs = "Class IV (Low Sol, Low Perm)"
 
-        # 2-Compartment Open Model Parameter Extraction & Benchmarking
+        # 2-Compartment Open Model Parameter Extraction & Continuous Partitioning
         n_compartments = int(compound.get("number_of_compartments") or 1)
         v1_l_kg = compound.get("v1_l_kg")
         v2_l_kg = compound.get("v2_l_kg")
         k12_val = compound.get("k12")
         k21_val = compound.get("k21")
 
-        if "amiodarone" in comp_key_lower:
+        if n_compartments >= 2 or vd_val > 3.0 or (v1_l_kg is not None and v2_l_kg is not None):
             n_compartments = 2
-            v1_l_kg = v1_l_kg or 1.5
-            v2_l_kg = v2_l_kg or 60.0
-            k12_val = k12_val or 0.15
-            k21_val = k21_val or 0.005
-            vd_val = max(vd_val, 61.5)
-            th_val = max(th_val, 120.0)
-        elif "diazepam" in comp_key_lower or "valium" in comp_key_lower:
-            n_compartments = 2
-            v1_l_kg = v1_l_kg or 0.4
-            v2_l_kg = v2_l_kg or 0.8
-            k12_val = k12_val or 0.50
-            k21_val = k21_val or 0.20
-            vd_val = max(vd_val, 1.2)
-        elif "fentanyl" in comp_key_lower:
-            n_compartments = 2
-            v1_l_kg = v1_l_kg or 0.8
-            v2_l_kg = v2_l_kg or 3.2
-            k12_val = k12_val or 0.80
-            k21_val = k21_val or 0.15
-            vd_val = max(vd_val, 4.0)
-        elif n_compartments == 2 or vd_val > 3.0 or (v1_l_kg is not None and v2_l_kg is not None):
-            n_compartments = 2
-            v1_l_kg = v1_l_kg or max(0.2, 0.30 * vd_val)
-            v2_l_kg = v2_l_kg or max(0.5, 0.70 * vd_val)
-            k12_val = k12_val or 0.35
-            k21_val = k21_val or max(0.01, k12_val * (v1_l_kg / v2_l_kg))
+            v1_l_kg = float(v1_l_kg) if v1_l_kg is not None else max(0.2, 0.30 * vd_val)
+            v2_l_kg = float(v2_l_kg) if v2_l_kg is not None else max(0.5, 0.70 * vd_val)
+            k12_val = float(k12_val) if k12_val is not None else 0.35
+            k21_val = float(k21_val) if k21_val is not None else max(0.005, k12_val * (v1_l_kg / v2_l_kg))
 
         # Michaelis-Menten Non-Linear Elimination Parameter Extraction
         is_saturable = bool(compound.get("is_saturable_elimination", False))
@@ -1042,20 +1054,14 @@ class PKPDEngine:
         km_ng_ml = compound.get("km_ng_ml")
         ki_ng_ml = compound.get("ki_ng_ml")
 
-        if "phenytoin" in comp_key_lower or "dilantin" in comp_key_lower:
+        if is_saturable or (vmax_mg_h_kg is not None and km_ng_ml is not None):
             is_saturable = True
-            vmax_mg_h_kg = vmax_mg_h_kg or 0.30  # ~7.0 mg/kg/day
-            km_ng_ml = km_ng_ml or 4000.0  # 4.0 mg/L
-        elif "ethanol" in comp_key_lower or "alcohol" in comp_key_lower:
-            is_saturable = True
-            vmax_mg_h_kg = vmax_mg_h_kg or 100.0  # ~0.1 g/kg/h
-            km_ng_ml = km_ng_ml or 100000.0  # 100.0 mg/L
-        elif is_saturable or (vmax_mg_h_kg is not None and km_ng_ml is not None):
-            is_saturable = True
-            km_ng_ml = km_ng_ml or 5000.0
+            km_ng_ml = float(km_ng_ml) if km_ng_ml is not None else 5000.0
             if vmax_mg_h_kg is None:
                 k_elim = math.log(2.0) / max(0.1, float(th_val))
                 vmax_mg_h_kg = k_elim * vd_val * (km_ng_ml / 1000.0)
+            else:
+                vmax_mg_h_kg = float(vmax_mg_h_kg)
 
         return PKParameters(
             t_half_h=max(0.1, float(th_val)),

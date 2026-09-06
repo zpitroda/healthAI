@@ -169,42 +169,49 @@ class SynergyEngine:
         ec50s_mg = []
         effects = []
 
+        from app.services.graph_service import parse_compound_spec
+
         for c in compounds:
-            c_dose = float(c.get("dose_mg") if c.get("dose_mg") is not None else c.get("dose", 10.0))
+            spec = parse_compound_spec(c)
+            c_dose = float(spec.get("dose_mg", 10.0))
             doses_mg.append(c_dose)
 
-            # Estimate EC50 reference dose based on compound class
-            drug_class = str(c.get("drug_class") or "").lower()
-            if "oncology" in drug_class or "kinase" in drug_class or "chemotherapy" in drug_class:
-                ref_ec50 = 25.0
-            elif "antibiotic" in drug_class or "antimicrobial" in drug_class:
-                ref_ec50 = 250.0
-            elif "longevity" in drug_class or "mtor" in drug_class or "ampk" in drug_class or "sirtuin" in drug_class:
-                ref_ec50 = 100.0
+            # Derive EC50 reference dose from structured binding affinity or catalog fields
+            rec_ec50 = c.get("ec50_mg") or c.get("standard_dose_mg") or (c.get("ec50_nm", 0) * 0.001 if c.get("ec50_nm") else None)
+            if rec_ec50:
+                ref_ec50 = float(rec_ec50)
             else:
-                ref_ec50 = 20.0
+                ext = c.get("external_ids") or {}
+                atc = {str(a).upper()[:3] for a in ext.get("atc_codes", []) if a}
+                if bool(atc & {"L01", "L02"}): # Antineoplastic agents
+                    ref_ec50 = 25.0
+                elif bool(atc & {"J01", "J02", "J04", "J05"}): # Antiinfectives
+                    ref_ec50 = 250.0
+                elif bool(atc & {"A10", "C10"}): # Metabolic / lipid modifiers
+                    ref_ec50 = 100.0
+                else:
+                    ref_ec50 = 20.0
             ec50s_mg.append(ref_ec50)
 
-            # Single-agent fractional efficacy
-            single_e = min(0.95, 0.40 + 0.20 * math.log10(max(1.0, c_dose / max(1.0, ref_ec50 * 0.1))))
+            # Single-agent fractional efficacy using Hill saturation model
+            single_e = min(0.95, c_dose / (c_dose + ref_ec50))
             effects.append(single_e)
 
-        # Determine observed combined effect with domain-specific synergy rules
-        is_oncology = (stack_domain == "oncology") or any(
-            any(w in str(c.get("drug_class") or "").lower() or w in str(c.get("mechanism") or "").lower() or w in str(c.get("name") or "").lower()
-                for w in ["kinase", "tumor", "oncology", "chemo", "egfr", "braf", "her2", "checkpoint", "doxorubicin", "paclitaxel", "tamoxifen", "cisplatin", "osimertinib", "trametinib", "dabrafenib"])
-            for c in compounds
-        )
-        is_antimicrobial = (stack_domain == "antimicrobial") or any(
-            any(w in str(c.get("drug_class") or "").lower() or w in str(c.get("mechanism") or "").lower() or w in str(c.get("name") or "").lower()
-                for w in ["antibiotic", "antimicrobial", "penicillin", "amoxicillin", "clavulan", "trimethoprim", "sulfamethoxazole", "bactericidal", "antifungal", "fluconazole"])
-            for c in compounds
-        )
-        is_longevity = (stack_domain == "longevity") or any(
-            any(w in str(c.get("drug_class") or "").lower() or w in str(c.get("mechanism") or "").lower() or w in str(c.get("name") or "").lower()
-                for w in ["rapamycin", "metformin", "nmn", "resveratrol", "dasatinib", "quercetin", "sirtuin", "ampk", "mtor", "senolytic", "autophagy", "nad+"])
-            for c in compounds
-        )
+        # Classify stack domain via structured ATC codes and target gene sets
+        compound_atc_prefixes = set()
+        all_gene_symbols = set()
+        for c in compounds:
+            ext = c.get("external_ids") or {}
+            for a in ext.get("atc_codes", []):
+                if a:
+                    compound_atc_prefixes.add(str(a).upper()[:3])
+            for r in c.get("receptor_targets", []):
+                if isinstance(r, dict) and r.get("target"):
+                    all_gene_symbols.add(str(r.get("target")).upper())
+
+        is_oncology = (stack_domain == "oncology") or bool(compound_atc_prefixes & {"L01", "L02"}) or bool(all_gene_symbols & {"EGFR", "BRAF", "ERBB2", "TOP2A", "TUBB", "CDK4", "CDK6", "PARP1", "PDCD1"})
+        is_antimicrobial = (stack_domain == "antimicrobial") or bool(compound_atc_prefixes & {"J01", "J02", "J04", "J05"}) or bool(all_gene_symbols & {"PBP", "DHFR", "GYRA", "TOP4"})
+        is_longevity = (stack_domain == "longevity") or bool(all_gene_symbols & {"MTOR", "PRKAA1", "PRKAA2", "SIRT1", "SIRT3", "SIRT6", "CD38", "FOXO3", "NRF2", "NFE2L2"})
 
         detected_stack_type = "general"
         synergy_boost = 0.05
@@ -217,7 +224,7 @@ class SynergyEngine:
         elif is_antimicrobial and len(compounds) >= 2:
             detected_stack_type = "antimicrobial"
             synergy_boost = 0.18
-            domain_note = "Antimicrobial Synergy: Sequential metabolic enzyme blockade / cell wall degradation + resistance inhibitor (e.g. Beta-lactamase) produces synergistic pathogen eradication."
+            domain_note = "Antimicrobial Synergy: Sequential metabolic enzyme blockade / cell wall degradation + resistance inhibitor produces synergistic pathogen eradication."
         elif is_longevity and len(compounds) >= 2:
             detected_stack_type = "longevity"
             synergy_boost = 0.14
@@ -294,8 +301,8 @@ class SynergyEngine:
                 c1, c2 = compounds[i], compounds[j]
                 n1 = c1.get("name") or c1.get("key") or f"Agent {i+1}"
                 n2 = c2.get("name") or c2.get("key") or f"Agent {j+1}"
-                d1 = float(c1.get("dose_mg") if c1.get("dose_mg") is not None else c1.get("dose", 10.0))
-                d2 = float(c2.get("dose_mg") if c2.get("dose_mg") is not None else c2.get("dose", 10.0))
+                d1 = doses_mg[i]
+                d2 = doses_mg[j]
 
                 pair_e_bliss = 1.0 - (1.0 - effects[i]) * (1.0 - effects[j])
                 pair_obs = min(0.98, pair_e_bliss + synergy_boost) if synergy_boost > 0 else pair_e_bliss

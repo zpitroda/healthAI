@@ -100,21 +100,24 @@ def get_reasoning_params(base_url: str = "") -> Dict[str, Any]:
             "reasoning": reasoning_obj
         }
 
-    # For OpenAI / Groq / other cloud providers
-    if os.getenv("OPENAI_BASE_URL"):
+    # For OpenAI / Groq / other known cloud providers
+    if "api.openai.com" in active_base or "groq.com" in active_base or os.getenv("OPENAI_BASE_URL"):
         if effort in ("high", "medium", "low"):
             return {"reasoning_effort": effort}
         return {}
 
     # For local llama-server / vLLM (Unsloth Dynamic Qwen3.8 Jinja template)
-    enable_thinking = effort != "none"
-    return {
-        "reasoning_effort": effort,
-        "chat_template_kwargs": {
+    if "127.0.0.1" in active_base or "localhost" in active_base or not active_base:
+        enable_thinking = effort != "none"
+        return {
             "reasoning_effort": effort,
-            "enable_thinking": enable_thinking,
-        },
-    }
+            "chat_template_kwargs": {
+                "reasoning_effort": effort,
+                "enable_thinking": enable_thinking,
+            },
+        }
+
+    return {}
 
 
 def get_candidate_urls() -> list[str]:
@@ -159,23 +162,38 @@ _ACTIVE_MODEL_CACHE: Dict[str, str] = {}
 _LAST_ENDPOINT_CHECK: float = 0.0
 
 
-async def resolve_active_endpoint(custom_api_key: Optional[str] = None) -> str:
+async def resolve_active_endpoint(
+    custom_api_key: Optional[str] = None,
+    custom_base_url: Optional[str] = None,
+) -> str:
     """
-    Probes candidate endpoints (OPENAI_BASE_URL, llama-server on 8080, Ollama on 11434)
-    with fast non-blocking connect timeouts and returns the first responsive OpenAI-compatible base URL.
-    Caches the active endpoint for 15 seconds to avoid per-turn probe latency.
+    Resolves the OpenAI-compatible base URL. Priority:
+    1. Per-request custom_base_url (user BYO endpoint)
+    2. Server environment OPENAI_BASE_URL
+    3. Provider inference from custom_api_key prefix (e.g. gsk_ for Groq, sk-or- for OpenRouter)
+    4. Probing candidate local endpoints (llama-server on 8080, Ollama on 11434)
     """
     global _ACTIVE_ENDPOINT_CACHE, _LAST_ENDPOINT_CHECK
     import time
+
+    if custom_base_url and custom_base_url.strip():
+        return custom_base_url.strip().rstrip("/")
+
+    # If user provides a recognized cloud key without an explicit base URL, infer provider
+    if custom_api_key:
+        clean_key = custom_api_key.strip()
+        if clean_key.startswith("gsk_"):
+            return "https://api.groq.com/openai/v1"
+        if clean_key.startswith("sk-or-"):
+            return "https://openrouter.ai/api/v1"
 
     env_base = os.getenv("OPENAI_BASE_URL")
     if env_base:
         return env_base.rstrip("/")
 
-    # If a user provides an OpenRouter/OpenAI API key and no local base is configured, use cloud OpenRouter
     if custom_api_key:
         clean_key = custom_api_key.strip()
-        if clean_key.startswith("sk-or-") or clean_key.startswith("sk-"):
+        if clean_key.startswith("sk-"):
             return "https://openrouter.ai/api/v1"
 
     now = time.time()
@@ -206,11 +224,15 @@ async def get_best_available_model(
     preferred_model: Optional[str] = None,
     base_url: Optional[str] = None,
     custom_api_key: Optional[str] = None,
+    custom_model: Optional[str] = None,
 ) -> str:
     """
     Checks the active OpenAI-compatible instance for available models and returns
-    the best matching model (defaulting to preferred_model, OPENAI_MODEL, or Qwen/Llama priority list).
+    the best matching model (honoring user custom_model, preferred_model, OPENAI_MODEL, or auto-discovery).
     """
+    if custom_model and custom_model.strip():
+        return custom_model.strip()
+
     active_url = base_url or await resolve_active_endpoint(custom_api_key=custom_api_key)
     env_model = os.getenv("OPENAI_MODEL")
     default_for_url = "qwen/qwen3.8-27b" if "openrouter.ai" in active_url.lower() else DEFAULT_MODEL
@@ -362,21 +384,22 @@ async def ask_local_llm(
     model: Optional[str] = None,
     max_tokens: Optional[int] = None,
     api_key: Optional[str] = None,
+    base_url: Optional[str] = None,
 ) -> Dict[str, Any]:
     """
-    Sends a prompt to the active OpenAI-compatible instance (local llama-server/Ollama or cloud provider like Groq/OpenRouter)
+    Sends a prompt to the active OpenAI-compatible instance (local llama-server/Ollama, OpenRouter, Groq, OpenAI, or custom endpoint)
     and enforces a JSON response using structured outputs / JSON Object mode with Qwen3 hyperparameter tuning.
     Includes automatic failover for cloud rate limits (429) or model unavailability, and detects token budget exhaustion.
     """
-    base_url = await resolve_active_endpoint(custom_api_key=api_key)
-    primary_model = await get_best_available_model(model, base_url=base_url, custom_api_key=api_key)
-    url = f"{base_url}/chat/completions"
+    active_base = await resolve_active_endpoint(custom_api_key=api_key, custom_base_url=base_url)
+    primary_model = await get_best_available_model(preferred_model=model, base_url=active_base, custom_api_key=api_key, custom_model=model)
+    url = f"{active_base}/chat/completions"
     headers = get_auth_headers(custom_api_key=api_key)
     token_limit = max_tokens if max_tokens is not None else int(os.getenv("OPENAI_MAX_TOKENS", "8192"))
 
-    models_to_try = get_candidate_fallback_models(primary_model, base_url)
+    models_to_try = get_candidate_fallback_models(primary_model, active_base)
     last_error = None
-    reasoning_cfg = get_reasoning_params(base_url)
+    reasoning_cfg = get_reasoning_params(active_base)
 
     for attempt_model in models_to_try:
         payload = {
@@ -399,7 +422,7 @@ async def ask_local_llm(
                 if is_quota_exceeded_error(response.status_code, response.text):
                     logger.warning(f"AI query on {attempt_model} returned quota/credit exhaustion ({response.status_code}): {response.text}")
                     raise QuotaExhaustedException(
-                        message="Admin OpenRouter token budget has been exhausted. Please enter your own API key to continue.",
+                        message="AI token quota / credit balance has been exhausted. Please enter your own API key to continue.",
                         detail=response.text[:300]
                     )
                 if response.status_code in (429, 404, 503) and attempt_model != models_to_try[-1]:
@@ -423,9 +446,9 @@ async def ask_local_llm(
             break
 
     if isinstance(last_error, httpx.ConnectError):
-        logger.error(f"Failed to connect to AI server at {base_url}. Is it running?")
+        logger.error(f"Failed to connect to AI server at {active_base}. Is it running?")
         raise RuntimeError(
-            f"Cannot connect to AI service at {base_url}. "
+            f"Cannot connect to AI service at {active_base}. "
             "Please ensure local llama-server (start_llama_server.bat) is running or OPENAI_API_KEY/OPENAI_BASE_URL are configured."
         )
     raise RuntimeError(f"Error executing AI request: {str(last_error)}")
@@ -440,16 +463,17 @@ async def stream_local_llm_chat(
     max_tokens: Optional[int] = None,
     tools: Optional[list[Dict[str, Any]]] = None,
     api_key: Optional[str] = None,
+    base_url: Optional[str] = None,
 ):
     """
     Streams chat completion tokens and reasoning deltas from active OpenAI-compatible endpoint
-    (llama-server on 8080, Ollama on 11434, or Cloud LLM like OpenRouter/Groq) using SSE.
+    (llama-server on 8080, Ollama on 11434, OpenRouter, Groq, OpenAI, or custom endpoint) using SSE.
     Yields dictionary chunks: {'type': 'content'|'reasoning'|'tool_call'|'quota_exceeded'|'done'|'error', 'data': ...}
     Includes resilient fallback across models upon rate limits (429) or transient errors, and detects quota exhaustion.
     """
-    base_url = await resolve_active_endpoint(custom_api_key=api_key)
-    primary_model = await get_best_available_model(model, base_url=base_url, custom_api_key=api_key)
-    url = f"{base_url}/chat/completions"
+    active_base = await resolve_active_endpoint(custom_api_key=api_key, custom_base_url=base_url)
+    primary_model = await get_best_available_model(preferred_model=model, base_url=active_base, custom_api_key=api_key, custom_model=model)
+    url = f"{active_base}/chat/completions"
     headers = get_auth_headers(custom_api_key=api_key)
     token_limit = max_tokens if max_tokens is not None else int(os.getenv("OPENAI_MAX_TOKENS", "8192"))
 
@@ -458,9 +482,9 @@ async def stream_local_llm_chat(
         full_messages.append({"role": "system", "content": system_prompt})
     full_messages.extend(messages)
 
-    models_to_try = get_candidate_fallback_models(primary_model, base_url)
+    models_to_try = get_candidate_fallback_models(primary_model, active_base)
     last_error_msg = None
-    reasoning_cfg = get_reasoning_params(base_url)
+    reasoning_cfg = get_reasoning_params(active_base)
 
     for attempt_model in models_to_try:
         payload: Dict[str, Any] = {

@@ -880,7 +880,7 @@ class StackIntentEngine:
 
         for c in compounds:
             k = str(c.get("key", "")).lower().strip()
-            cat_rec = catalog.get_compound(k, auto_enrich=False) or catalog.find_by_synonym(k)
+            cat_rec = catalog.get_compound(k, auto_enrich=False)
             c_merged = {**(cat_rec or {}), **c}
             name = c.get("name") or c_merged.get("name") or k.title()
             route = str(c.get("route", "") or c_merged.get("route", "")).lower()
@@ -935,12 +935,12 @@ class StackIntentEngine:
 
 
             # Aromatase inhibitor (AI)
-            if cls._has_atc_prefix(c_merged, ("L02BG",)) or has_gene({"CYP19A1"}, {"inhibitor", "antagonist"}) or "aromatase inhibitor" in cats or any(w in k for w in ["exemestane", "anastrozole", "letrozole", "arimidex", "aromasin"]):
+            if cls._has_atc_prefix(c_merged, ("L02BG",)) or has_gene({"CYP19A1"}, {"inhibitor", "antagonist"}) or "aromatase inhibitor" in cats:
                 features["has_aromatase_inhibitors"] = True
                 features["protective_ancillary_names"].append(name)
 
             # SERMs (Selective Estrogen Receptor Modulators)
-            if cls._has_atc_prefix(c_merged, ("G03XC", "L02BA")) or has_gene({"ESR1", "ESR2", "NR3A1", "NR3A2"}, {"modulator", "antagonist", "partial agonist"}) or "serm" in cats or any(w in k for w in ["tamoxifen", "clomiphene", "enclomiphene", "raloxifene", "nolvadex", "clomid"]):
+            if cls._has_atc_prefix(c_merged, ("G03XC", "L02BA")) or has_gene({"ESR1", "ESR2", "NR3A1", "NR3A2"}, {"modulator", "antagonist", "partial agonist"}) or "serm" in cats:
                 features["has_serms"] = True
                 features["protective_ancillary_names"].append(name)
 
@@ -949,52 +949,49 @@ class StackIntentEngine:
                 features["has_aromatizable_substrate"] = True
 
             # RAAS blockers
-            is_raas = cls._has_atc_prefix(c_merged, ("C09",)) or has_gene({"AGTR1", "ACE"}, {"antagonist", "inhibitor"}) or any(w in k for w in ["telmisartan", "losartan", "valsartan", "candesartan"])
+            is_raas = cls._has_atc_prefix(c_merged, ("C09", "C09A", "C09C", "C09CA")) or has_gene({"AGTR1", "ACE"}, {"antagonist", "inhibitor"}) or "angiotensin receptor blocker" in cats
             if is_raas:
                 features["has_raas_blockers"] = True
                 features["protective_ancillary_names"].append(name)
 
             # Beta blockers
-            if cls._has_atc_prefix(c_merged, ("C07",)) or has_gene({"ADRB1", "ADRB2", "ADRB3"}, {"antagonist"}) or "beta blocker" in cats or any(w in k for w in ["nebivolol", "bisoprolol", "metoprolol", "carvedilol", "propranolol"]):
+            if cls._has_atc_prefix(c_merged, ("C07", "C07A", "C07AB")) or has_gene({"ADRB1", "ADRB2", "ADRB3"}, {"antagonist"}) or "beta blocker" in cats:
                 features["has_beta_blockers"] = True
                 features["protective_ancillary_names"].append(name)
 
             # PDE5 inhibitors
-            if cls._has_atc_prefix(c_merged, ("G04BE",)) or has_gene({"PDE5A"}, {"inhibitor"}) or any(w in k for w in ["tadalafil", "sildenafil", "vardenafil"]):
+            if cls._has_atc_prefix(c_merged, ("G04BE", "G04BE08")) or has_gene({"PDE5A"}, {"inhibitor"}):
                 features["has_pde5_inhibitors"] = True
 
             dclass = str(c_merged.get("drug_class", "")).lower()
 
             # Psychostimulants
-            if cls._has_atc_prefix(c_merged, ("N06B",)) or has_gene({"SLC6A2", "SLC6A3", "ADORA1", "ADORA2A"}, {"inhibitor", "antagonist", "reuptake inhibitor"}) or "stimulant" in cats or "stimulant" in dclass or "adenosine" in mech or k in ("caffeine", "theacrine", "modafinil", "armodafinil"):
+            if cls._has_atc_prefix(c_merged, ("N06B", "N06BA", "N06BC")) or has_gene({"SLC6A2", "SLC6A3", "ADORA1", "ADORA2A"}, {"inhibitor", "antagonist", "reuptake inhibitor"}) or "stimulant" in cats or "stimulant" in dclass:
                 features["has_psychostimulants"] = True
 
             # Cholinergics
-            if cls._has_atc_prefix(c_merged, ("N06D",)) or has_gene({"ACHE", "CHRNA7"}) or "cholinergic" in cats or "nootropic" in cats:
+            if cls._has_atc_prefix(c_merged, ("N06D", "N06DA")) or has_gene({"ACHE", "CHRNA7"}) or "cholinergic" in cats or "nootropic" in cats:
                 features["has_cholinergics"] = True
 
             # GABAergics / Sedatives
-            if cls._has_atc_prefix(c_merged, ("N05B", "N05C")) or has_gene({"GABRA1", "GABRB2", "MT1", "MT2", "MTNR1A", "MTNR1B"}) or any("gaba" in str(t.get("target")).lower() for t in targets) or "sedative" in cats:
+            if cls._has_atc_prefix(c_merged, ("N05B", "N05C", "N05BA", "N05CF")) or has_gene({"GABRA1", "GABRB2", "MT1", "MT2", "MTNR1A", "MTNR1B"}) or "sedative" in cats:
                 features["has_gabaergics_sedatives"] = True
 
             # Longevity / Metabolic
-            if cls._has_atc_prefix(c_merged, ("A10",)) or has_gene({"PRKAA1", "PRKAA2", "SIRT1", "MTOR"}) or "ampk activator" in cats or "longevity" in cats:
+            if cls._has_atc_prefix(c_merged, ("A10", "A10BA", "A10BJ")) or has_gene({"PRKAA1", "PRKAA2", "SIRT1", "MTOR"}) or "ampk activator" in cats or "longevity" in cats:
                 features["has_longevity_metabolic"] = True
 
             # Hepatoprotectants
-            if cls._has_atc_prefix(c_merged, ("A05",)) or "hepatoprotectant" in cats or "liver therapy" in cats or k in ("nac", "tudca", "udca", "milk_thistle", "silymarin"):
+            if cls._has_atc_prefix(c_merged, ("A05", "A05BA", "A05AA")) or "hepatoprotectant" in cats or "liver therapy" in cats:
                 features["has_hepatoprotectants"] = True
                 features["protective_ancillary_names"].append(name)
 
             # Lipid regulators
             if (
-                cls._has_atc_prefix(c_merged, ("C10",))
+                cls._has_atc_prefix(c_merged, ("C10", "C10AA", "C10AX", "C10B"))
                 or has_gene({"HMGCR", "PCSK9", "NPC1L1"})
                 or "lipid modifying agent" in cats
                 or "lipid management" in cats
-                or any(w in k or w in name.lower() for w in ["ezetimibe", "bergamot", "statin", "pitavastatin", "rosuvastatin", "atorvastatin", "bempedoic", "pcsk9"])
-                or any(w in mech or w in dclass for w in ["hmgcr", "hmg-coa", "npc1l1", "pcsk9", "cholesterol absorption", "statin"])
-                or any("hmgcr" in str(t.get("target", "")).lower() or "npc1l1" in str(t.get("target", "")).lower() or "pcsk9" in str(t.get("target", "")).lower() for t in targets)
             ):
                 features["has_lipid_regulators"] = True
                 features["protective_ancillary_names"].append(name)
@@ -1003,8 +1000,7 @@ class StackIntentEngine:
             if (
                 is_raas
                 or "renal support" in cats
-                or any(w in k or w in name.lower() for w in ["telmisartan", "astragalus", "losartan", "valsartan", "candesartan"])
-                or any("at1" in str(t.get("target", "")).lower() or "angiotensin" in str(t.get("target", "")).lower() for t in targets)
+                or has_gene({"AGTR1", "ACE"})
             ):
                 features["has_renal_support"] = True
 
@@ -1012,10 +1008,8 @@ class StackIntentEngine:
             is_oral_route = route in ("oral", "po", "swallow", "") or ":oral" in k
             is_parenteral = route in ("intramuscular", "im", "subcutaneous", "subq", "iv")
             is_tma_substrate = (
-                has_gene({"CNTA", "CNTB", "SLC22A5"})
+                has_gene({"CNTA", "CNTB", "SLC22A5"}, {"substrate"})
                 or "tma precursor" in cats
-                or any(w in k or w in name.lower() for w in ["carnitine", "alcar", "choline", "alpha_gpc", "alpha-gpc", "citicoline", "betaine"])
-                or any("tma" in str(t.get("target", "")).lower() or "cnta" in str(t.get("target", "")).lower() for t in targets)
             )
             if is_oral_route and not is_parenteral and is_tma_substrate:
                 features["has_oral_tma_precursors"] = True
@@ -1025,27 +1019,25 @@ class StackIntentEngine:
             if (
                 has_gene({"CNTA", "CNTB", "CUTC"}, {"inhibitor"})
                 or "tma lyase inhibitor" in cats
-                or any(w in k or w in name.lower() for w in ["allicin", "garlic", "aged_garlic", "dmb", "dimethylbutanol"])
-                or any(("tma" in str(t.get("target", "")).lower() or "cnta" in str(t.get("target", "")).lower()) and any(act in str(t.get("action", "")).lower() for act in ["inhibitor", "antagonist", "blocker"]) for t in targets)
             ):
                 features["has_microbial_tma_inhibitors"] = True
                 features["protective_ancillary_names"].append(name)
 
             # Prolactin inhibitors / Dopamine agonists
             if (
-                cls._has_atc_prefix(c_merged, ("G02CB", "A11HA02"))
+                cls._has_atc_prefix(c_merged, ("G02CB", "A11HA02", "N04BC"))
                 or has_gene({"DRD2"}, {"agonist"})
-                or any(w in k or w in name.lower() for w in ["p5p", "pyridoxal", "cabergoline", "pramipexole", "bromocriptine"])
+                or has_gene({"DDC"}, {"enhancer"})
             ):
                 features["has_prolactin_inhibitors"] = True
                 features["protective_ancillary_names"].append(name)
 
-            # Phase II Conjugation (NAC)
-            if cls._has_atc_prefix(c_merged, ("R05CB01", "V03AB23")) or "glutathione biosynthesis" in mech or "acetylcysteine" in name.lower() or k == "nac":
+            # Phase II Conjugation (GSH / NAC)
+            if cls._has_atc_prefix(c_merged, ("R05CB01", "V03AB23")) or has_gene({"SLC7A11", "GCLC", "GCLM", "NFE2L2"}):
                 features["has_phase2_conjugation_support"] = True
 
-            # Biliary Clearance (TUDCA)
-            if cls._has_atc_prefix(c_merged, ("A05AA",)) or "bile acid" in cats or "cholestasis" in mech or k in ("tudca", "udca"):
+            # Biliary Clearance (TUDCA / UDCA)
+            if cls._has_atc_prefix(c_merged, ("A05AA", "A05AA02")):
                 features["has_biliary_clearance_support"] = True
 
             # Autonomic Buffer / Theanine
@@ -1376,7 +1368,7 @@ class StackIntentEngine:
                     for n in (3, 2, 1):
                         if i + n <= len(words):
                             ngram = " ".join(words[i:i + n])
-                            comp_rec = cat.get_compound(ngram, auto_enrich=False) or cat.find_by_synonym(ngram)
+                            comp_rec = cat.get_compound(ngram, auto_enrich=False)
                             if comp_rec:
                                 collected.append(comp_rec.get("key") or ngram.lower())
                                 break
@@ -1386,7 +1378,7 @@ class StackIntentEngine:
                         route_cand = words[i].lower()
                         if route_cand in ("oral", "injectable", "subq", "im"):
                             next_ngram = " ".join(words[i + 1:i + 3])
-                            comp_rec = cat.get_compound(next_ngram, auto_enrich=False) or cat.find_by_synonym(next_ngram) or cat.get_compound(words[i + 1], auto_enrich=False)
+                            comp_rec = cat.get_compound(next_ngram, auto_enrich=False) or cat.get_compound(words[i + 1], auto_enrich=False)
                             if comp_rec:
                                 collected.append(f"no {route_cand} {comp_rec.get('key') or words[i + 1].lower()}")
 
@@ -1413,7 +1405,7 @@ class StackIntentEngine:
         synonyms = set()
 
         if catalog:
-            rec = catalog.get_compound(c_key, auto_enrich=False) or catalog.find_by_synonym(c_key)
+            rec = catalog.get_compound(c_key, auto_enrich=False)
             if rec:
                 c_name = str(rec.get("name") or rec.get("canonical_name") or c_name).lower()
                 for syn in (rec.get("synonyms") or []):
@@ -1476,7 +1468,7 @@ class StackIntentEngine:
         def _get_canon_id(key_or_name: str, comp_rec: Optional[Dict[str, Any]] = None) -> str:
             if comp_rec:
                 return str(comp_rec.get("canonical_key") or comp_rec.get("parent_compound_id") or comp_rec.get("key") or key_or_name).lower().strip()
-            comp = catalog.get_compound(key_or_name, auto_enrich=False) or catalog.find_by_synonym(key_or_name)
+            comp = catalog.get_compound(key_or_name, auto_enrich=False)
             if comp:
                 return str(comp.get("canonical_key") or comp.get("parent_compound_id") or comp.get("key") or key_or_name).lower().strip()
             return key_or_name.lower().strip().replace("-", "_").replace(" ", "_")
@@ -1524,19 +1516,19 @@ class StackIntentEngine:
             raw_key = parsed_spec.get("key") or item_clean.lower().replace(" ", "_")
 
             # Try resolving whole item or individual word tokens via catalog
-            comp_rec = catalog.get_compound(raw_key, auto_enrich=False) or catalog.find_by_synonym(raw_key)
+            comp_rec = catalog.get_compound(raw_key, auto_enrich=False)
             if not comp_rec:
                 # Try tokens within item_clean
                 tokens = re.findall(r"[a-zA-Z0-9_\-\+]+", item_clean)
                 for tok in tokens:
                     if len(tok) >= 3 and tok.lower() not in ("stack", "protocol", "compounds", "routine", "cycle", "hypertrophy", "please", "want", "include", "add", "oral", "injectable", "daily", "weekly"):
-                        rec_tok = catalog.get_compound(tok, auto_enrich=False) or catalog.find_by_synonym(tok)
+                        rec_tok = catalog.get_compound(tok, auto_enrich=False)
                         if rec_tok:
                             comp_rec = rec_tok
                             break
 
             if not comp_rec:
-                comp_rec = catalog.get_compound(raw_key, auto_enrich=True) or catalog.find_by_synonym(raw_key)
+                comp_rec = catalog.get_compound(raw_key, auto_enrich=True)
 
             if comp_rec:
                 c_key = comp_rec.get("key", raw_key)
@@ -1963,7 +1955,7 @@ class StackIntentEngine:
 
         def _get_canon_id(cand_or_rec: Dict[str, Any]) -> str:
             k = str(cand_or_rec.get("key") or cand_or_rec.get("name") or "").strip().lower()
-            comp_obj = catalog.get_compound(k, auto_enrich=False) or catalog.find_by_synonym(k)
+            comp_obj = catalog.get_compound(k, auto_enrich=False)
             if comp_obj:
                 return str(comp_obj.get("canonical_key") or comp_obj.get("parent_compound_id") or comp_obj.get("key") or k).lower().strip()
             return k.replace("-", "_").replace(" ", "_")
@@ -1981,7 +1973,7 @@ class StackIntentEngine:
             raw_k = cand.get("key", "").lower().strip()
             if not raw_k:
                 continue
-            canon_rec = catalog.get_compound(raw_k, auto_enrich=False) or catalog.find_by_synonym(raw_k)
+            canon_rec = catalog.get_compound(raw_k, auto_enrich=False)
             c_key = (canon_rec.get("key") if canon_rec else raw_k).lower().strip()
             cand_cid = _get_canon_id(cand)
 
@@ -2210,7 +2202,7 @@ class StackIntentEngine:
             candidate_records = []
             for term in search_terms:
                 term_clean = term.lower().strip().replace("-", "_")
-                rec = catalog.get_compound(term_clean) or catalog.find_by_synonym(term_clean)
+                rec = catalog.get_compound(term_clean)
                 if rec:
                     r_cid = _get_canon_id(rec)
                     if r_cid not in seen_canonical_ids and rec.get("key") not in seen_keys:

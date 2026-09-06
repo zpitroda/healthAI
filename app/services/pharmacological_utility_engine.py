@@ -376,43 +376,44 @@ class PharmacologicalUtilityEngine:
         target_blob = " ".join(str(t.get("target", "") if isinstance(t, dict) else t).lower() for t in targets)
         combined_text = f"{c_key} {c_name} {mech} {drug_class} {' '.join(categories)} {target_blob}"
 
-        is_ai = (
-            any(w in combined_text for w in ["aromatase", "cyp19a1", "anastrozole", "exemestane", "letrozole", "aromasin", "arimidex", "femara"])
-        )
-        is_botanical = any(b in drug_class or b in " ".join(categories) for b in ["dietary supplement", "botanical", "herbal", "extract"])
-        is_irreversible = (
-            any(w in combined_text for w in ["suicide", "irreversible", "covalent"])
-            or ("inactivat" in combined_text and not is_botanical)
-            or is_ai
-        )
-        
+        targets_map = {}
+        for r in compound.get("receptor_targets", []):
+            if isinstance(r, dict):
+                sym = str(r.get("gene_symbol") or r.get("target") or "").upper()
+                act = str(r.get("action") or "").lower()
+                if sym and act:
+                    targets_map.setdefault(sym, set()).add(act)
+
+        ext = compound.get("external_ids") or {}
+        atc_prefixes = {str(a).upper()[:5] for a in ext.get("atc_codes", []) if a}
+
+        is_ai = "inhibitor" in targets_map.get("CYP19A1", set()) or bool(atc_prefixes & {"L02BG"})
+        is_d2_agonist = "agonist" in targets_map.get("DRD2", set()) or bool(atc_prefixes & {"N04BC"})
+        is_covalent_inhibitor = bool(compound.get("is_covalent_inhibitor")) or is_ai
+
         # Injections / depot profiles
         if effective_route in ("intramuscular", "subcutaneous"):
-            c_key = str(compound.get("key") or "").lower()
-            c_name = str(compound.get("name") or "").lower()
-            blob = f"{c_key} {c_name} {drug_class} {mech}".lower()
-            is_depot_ester = any(e in blob for e in ["cypionate", "enanthate", "decanoate", "undecanoate", "undecylenate", "isocaproate", "depot"])
-            if is_depot_ester or (t_half and t_half >= 36.0):
-                if t_half and t_half >= 144.0:
-                    return "weekly"
+            if t_half and t_half >= 144.0:
+                return "weekly"
+            elif t_half and t_half >= 36.0:
                 return "twice_weekly"
-            elif is_irreversible:
+            elif is_covalent_inhibitor:
                 return "twice_weekly"
             return "daily"
-            
+
         # Oral formulations
-        if is_irreversible or is_ai or any(d in combined_text for d in ["cabergoline", "dostinex", "pramipexole"]):
-            # Irreversible suicidal enzyme inactivators / long-acting D2 agonists with prolonged PD suppression
+        if is_covalent_inhibitor or (is_d2_agonist and (t_half or 0.0) >= 36.0):
+            # Covalent enzyme inactivators or long-acting D2 agonists with prolonged pharmacodynamic suppression
             return "twice_weekly"
-            
+
         if t_half:
             if t_half >= 96.0:
                 return "weekly"
             elif t_half >= 36.0:
                 return "twice_weekly"
-            elif t_half < 6.0 and "short_acting" in drug_class:
+            elif t_half < 6.0 and bool(compound.get("is_short_acting")):
                 return "twice_daily"
-                
+
         return "daily"
 
     @classmethod

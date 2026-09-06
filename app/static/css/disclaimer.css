@@ -193,6 +193,10 @@
   transition: all 0.15s ease;
 }
 
+#disclaimer-modal.forced .disclaimer-modal-close-btn {
+  display: none;
+}
+
 .disclaimer-modal-close-btn:hover {
   background: rgba(239, 68, 68, 0.2);
   color: #ffffff;

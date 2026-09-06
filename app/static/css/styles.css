@@ -737,6 +737,125 @@
       /* ==========================================================================
          SEARCH & QUICK TAGS
          ========================================================================== */
+      /* SEARCH MODALITY FILTER BAR */
+      .search-modality-bar {
+        display: flex;
+        align-items: center;
+        flex-wrap: wrap;
+        gap: 6px;
+        margin-bottom: 10px;
+        padding-bottom: 2px;
+      }
+      .search-modality-bar::-webkit-scrollbar {
+        display: none;
+      }
+
+      .search-mod-btn {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        gap: 5px;
+        background: rgba(255, 255, 255, 0.04);
+        border: 1px solid var(--border-subtle);
+        border-radius: 9999px;
+        padding: 4px 11px;
+        font-size: 0.72rem;
+        font-weight: 700;
+        color: var(--text-muted);
+        cursor: pointer;
+        white-space: nowrap;
+        line-height: 1;
+        vertical-align: middle;
+        outline: none;
+        transition: all 0.15s ease;
+        user-select: none;
+        font-family: inherit;
+      }
+      .search-mod-btn:hover {
+        color: var(--text-primary);
+        background: rgba(255, 255, 255, 0.08);
+        border-color: rgba(255, 255, 255, 0.2);
+        transform: translateY(-1px);
+      }
+      .search-mod-btn:active {
+        transform: translateY(1px) scale(0.97);
+      }
+      .search-mod-btn.active {
+        background: rgba(0, 242, 254, 0.15);
+        color: var(--accent-cyan);
+        border-color: rgba(0, 242, 254, 0.45);
+        box-shadow: 0 0 10px rgba(0, 242, 254, 0.2);
+      }
+      .search-mod-btn.active[data-modality="peptide"] {
+        background: rgba(45, 212, 191, 0.15);
+        color: var(--accent-teal);
+        border-color: rgba(45, 212, 191, 0.45);
+        box-shadow: 0 0 10px rgba(45, 212, 191, 0.2);
+      }
+      .search-mod-btn.active[data-modality="biologic_antibody"] {
+        background: rgba(192, 132, 252, 0.15);
+        color: #c084fc;
+        border-color: rgba(192, 132, 252, 0.45);
+        box-shadow: 0 0 10px rgba(192, 132, 252, 0.2);
+      }
+      .search-mod-btn.active[data-modality="botanical_natural"] {
+        background: rgba(16, 185, 129, 0.15);
+        color: #10b981;
+        border-color: rgba(16, 185, 129, 0.45);
+        box-shadow: 0 0 10px rgba(16, 185, 129, 0.2);
+      }
+      .search-mod-btn.active[data-modality="combination_drug"] {
+        background: rgba(245, 158, 11, 0.15);
+        color: #fbbf24;
+        border-color: rgba(245, 158, 11, 0.45);
+        box-shadow: 0 0 10px rgba(245, 158, 11, 0.2);
+      }
+      .search-mod-btn.active[data-modality="small_molecule"] {
+        background: rgba(59, 130, 246, 0.15);
+        color: #60a5fa;
+        border-color: rgba(59, 130, 246, 0.45);
+        box-shadow: 0 0 10px rgba(59, 130, 246, 0.2);
+      }
+
+      .search-mod-badge {
+        display: inline-flex;
+        align-items: center;
+        gap: 4px;
+        font-size: 0.64rem;
+        font-weight: 700;
+        letter-spacing: 0.03em;
+        padding: 1px 6px;
+        border-radius: 4px;
+        text-transform: uppercase;
+        margin-left: 6px;
+        vertical-align: middle;
+      }
+      .search-mod-badge.badge-peptide {
+        background: rgba(45, 212, 191, 0.15);
+        color: #2dd4bf;
+        border: 1px solid rgba(45, 212, 191, 0.35);
+      }
+      .search-mod-badge.badge-biologic {
+        background: rgba(192, 132, 252, 0.15);
+        color: #c084fc;
+        border: 1px solid rgba(192, 132, 252, 0.35);
+      }
+      .search-mod-badge.badge-botanical {
+        background: rgba(16, 185, 129, 0.15);
+        color: #10b981;
+        border: 1px solid rgba(16, 185, 129, 0.35);
+      }
+      .search-mod-badge.badge-combo {
+        background: rgba(245, 158, 11, 0.15);
+        color: #f59e0b;
+        border: 1px solid rgba(245, 158, 11, 0.35);
+      }
+      .search-mod-badge.badge-small-molecule {
+        background: rgba(59, 130, 246, 0.15);
+        color: #60a5fa;
+        border: 1px solid rgba(59, 130, 246, 0.35);
+      }
+
       .search-container {
         position: relative;
         margin-bottom: 14px;
@@ -761,7 +880,7 @@
         background: rgba(5, 12, 22, 0.85);
         border: 1px solid var(--border);
         border-radius: var(--radius-md);
-        padding: 10px 14px 10px 36px;
+        padding: 10px 36px 10px 36px;
         color: var(--text-primary);
         font-size: 0.88rem;
         font-family: inherit;
@@ -5196,4 +5315,68 @@
       @keyframes slimLoad {
         0% { background-position: 100% 0; }
         100% { background-position: -100% 0; }
+      }
+
+      /* SAFETY LAB COMPOUND LOADING INDICATORS */
+      .search-input-wrapper {
+        position: relative;
+      }
+      .search-input-spinner {
+        position: absolute;
+        right: 12px;
+        top: 50%;
+        transform: translateY(-50%);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        pointer-events: none;
+        z-index: 5;
+      }
+      .stack-item-loading-card {
+        padding: 12px 14px;
+        background: rgba(0, 242, 254, 0.04);
+        border: 1px dashed rgba(0, 242, 254, 0.35);
+        border-radius: var(--radius-sm);
+        margin-bottom: 8px;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        animation: pulseLoadingCard 1.4s infinite alternate ease-in-out;
+      }
+      @keyframes pulseLoadingCard {
+        0% { border-color: rgba(0, 242, 254, 0.25); background: rgba(0, 242, 254, 0.03); }
+        100% { border-color: rgba(0, 242, 254, 0.55); background: rgba(0, 242, 254, 0.08); }
+      }
+      .stack-eval-indicator {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        font-size: 0.72rem;
+        font-weight: 600;
+        color: var(--accent-cyan);
+        background: rgba(0, 242, 254, 0.08);
+        border: 1px solid rgba(0, 242, 254, 0.25);
+        border-radius: 9999px;
+        padding: 2px 8px;
+        margin-left: 8px;
+        vertical-align: middle;
+      }
+      .embedded-graph-loading-overlay {
+        position: absolute;
+        inset: 0;
+        background: rgba(5, 8, 17, 0.84);
+        backdrop-filter: blur(4px);
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        gap: 12px;
+        z-index: 20;
+        font-size: 0.82rem;
+        color: var(--text-secondary);
+        font-family: 'JetBrains Mono', monospace;
+        transition: opacity 0.2s ease;
+      }
+      .embedded-graph-loading-overlay.hidden {
+        display: none !important;
       }

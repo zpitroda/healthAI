@@ -1,6 +1,10 @@
+import concurrent.futures
+import copy
 import itertools
 import logging
 import re
+import threading
+import urllib.parse
 from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional
 import httpx
@@ -8,6 +12,26 @@ import httpx
 logger = logging.getLogger("healthai.live_enrichment")
 
 _GLOBAL_LIVE_CACHE: Dict[str, Any] = {}
+_SHARED_HTTP_CLIENT: Optional[httpx.Client] = None
+_HTTP_CLIENT_LOCK = threading.Lock()
+
+
+def get_shared_http_client(timeout_seconds: float = 4.0) -> httpx.Client:
+    """Returns a shared, thread-safe, connection-pooled HTTP client for high-throughput live enrichment."""
+    global _SHARED_HTTP_CLIENT
+    if _SHARED_HTTP_CLIENT is None or _SHARED_HTTP_CLIENT.is_closed:
+        with _HTTP_CLIENT_LOCK:
+            if _SHARED_HTTP_CLIENT is None or _SHARED_HTTP_CLIENT.is_closed:
+                _SHARED_HTTP_CLIENT = httpx.Client(
+                    timeout=httpx.Timeout(timeout_seconds, connect=2.0, read=timeout_seconds, write=timeout_seconds, pool=5.0),
+                    limits=httpx.Limits(max_keepalive_connections=50, max_connections=100, keepalive_expiry=60.0),
+                    headers={
+                        "User-Agent": "HealthAI-Pharmacology-Suite/2.0 (Biomedical Intelligence Engine; +https://healthai.local)",
+                        "Accept": "application/json, text/plain, */*",
+                    },
+                    follow_redirects=True,
+                )
+    return _SHARED_HTTP_CLIENT
 
 
 def infer_target_classification(
@@ -116,9 +140,15 @@ class LiveEnrichmentService:
        - WHO ATC hierarchy classifications
     """
 
-    def __init__(self, timeout_seconds: float = 6.0):
+    def __init__(self, timeout_seconds: float = 6.0, client: Optional[httpx.Client] = None):
         self.timeout = timeout_seconds
+        self._custom_client = client
         self._cache: Dict[str, Dict[str, Any]] = {}
+
+    def _client(self) -> httpx.Client:
+        if self._custom_client and not self._custom_client.is_closed:
+            return self._custom_client
+        return get_shared_http_client(self.timeout)
 
     def fetch_openfda(self, query_name: str) -> Dict[str, Any]:
         """Fetch FDA label metadata, pharmacologic classes, and warnings from openFDA API."""
@@ -147,44 +177,97 @@ class LiveEnrichmentService:
         try:
             url = "https://api.fda.gov/drug/label.json"
             # Search by generic name, brand name, or substance name
-            search_query = f'openfda.generic_name:"{cleaned_name}"+OR+openfda.brand_name:"{cleaned_name}"+OR+openfda.substance_name:"{cleaned_name}"'
-            with httpx.Client(timeout=self.timeout) as client:
-                resp = client.get(url, params={"search": search_query, "limit": 1})
-                if resp.status_code == 200:
-                    data = resp.json()
-                    results = data.get("results", [])
-                    if results:
-                        label = results[0]
-                        openfda_info = label.get("openfda", {})
+            search_query = f'openfda.generic_name:"{cleaned_name}" OR openfda.brand_name:"{cleaned_name}" OR openfda.substance_name:"{cleaned_name}"'
+            client = self._client()
+            resp = client.get(url, params={"search": search_query, "limit": 10})
+            if resp.status_code == 200:
+                data = resp.json()
+                results = data.get("results", [])
+                if results:
+                    is_single_drug_query = not any(d in cleaned_name for d in [" and ", "/", ",", ";", "+", " with ", " w/ "])
+                    label = None
+                    is_pure_label = False
 
-                        result["pharm_class_epc"] = openfda_info.get("pharm_class_epc", [])
-                        result["pharm_class_moa"] = openfda_info.get("pharm_class_moa", [])
-                        result["pharm_class_pe"] = openfda_info.get("pharm_class_pe", [])
+                    if is_single_drug_query:
+                        # 1. Look for a pure single-ingredient label matching cleaned_name
+                        for r in results:
+                            info = r.get("openfda", {})
+                            gn_list = [str(g).lower() for g in (info.get("generic_name") or [])]
+                            subs_list = [str(s).lower() for s in (info.get("substance_name") or [])]
+                            brand_list = [str(b).lower() for b in (info.get("brand_name") or [])]
+
+                            has_combo_delim = any(
+                                any(delim in text for delim in [",", ";", " and ", " / ", " + ", " with ", " w/ "])
+                                for text in gn_list
+                            )
+                            if not has_combo_delim and len(subs_list) <= 1:
+                                if (
+                                    any(cleaned_name in g or g in cleaned_name for g in gn_list)
+                                    or any(cleaned_name in s or s in cleaned_name for s in subs_list)
+                                    or any(cleaned_name in b or b in cleaned_name for b in brand_list)
+                                ):
+                                    label = r
+                                    is_pure_label = True
+                                    break
+
+                    if label is None and results:
+                        label = results[0]
+                        info = label.get("openfda", {})
+                        gn_list = [str(g).lower() for g in (info.get("generic_name") or [])]
+                        subs_list = [str(s).lower() for s in (info.get("substance_name") or [])]
+                        has_combo_delim = any(
+                            any(delim in text for delim in [",", ";", " and ", " / ", " + ", " with ", " w/ "])
+                            for text in gn_list
+                        )
+                        is_pure_label = not has_combo_delim and len(subs_list) <= 1
+
+                    if label:
+                        openfda_info = label.get("openfda", {})
+                        raw_epc = openfda_info.get("pharm_class_epc", [])
+                        raw_moa = openfda_info.get("pharm_class_moa", [])
+                        raw_pe = openfda_info.get("pharm_class_pe", [])
+
+                        if is_pure_label or not is_single_drug_query:
+                            result["pharm_class_epc"] = raw_epc
+                            result["pharm_class_moa"] = raw_moa
+                            result["pharm_class_pe"] = raw_pe
+                            gn = openfda_info.get("generic_name", [])
+                            if gn:
+                                result["generic_name"] = gn[0].title() if isinstance(gn, list) else str(gn).title()
+                        else:
+                            # Multi-ingredient combination label for a single-drug query:
+                            # NEVER adopt another ingredient's generic name!
+                            result["generic_name"] = None
+                            # Only keep classes that specifically mention the queried substance or its class
+                            result["pharm_class_epc"] = [c for c in raw_epc if cleaned_name in c.lower()]
+                            result["pharm_class_moa"] = [c for c in raw_moa if cleaned_name in c.lower()]
+                            result["pharm_class_pe"] = [c for c in raw_pe if cleaned_name in c.lower()]
+
                         result["atc_codes"] = openfda_info.get("atc_codes", [])
                         result["routes"] = [str(r).lower() for r in openfda_info.get("route", [])]
 
-                        # Extract boxed warnings
-                        if label.get("boxed_warning"):
-                            bw = label["boxed_warning"]
-                            result["boxed_warning"] = " ".join(bw) if isinstance(bw, list) else str(bw)
+                    # Extract boxed warnings
+                    if label.get("boxed_warning"):
+                        bw = label["boxed_warning"]
+                        result["boxed_warning"] = " ".join(bw) if isinstance(bw, list) else str(bw)
 
-                        # Extract warnings and precautions
-                        if label.get("warnings_and_precautions"):
-                            wp = label["warnings_and_precautions"]
-                            result["warnings"] = wp if isinstance(wp, list) else [str(wp)]
-                        elif label.get("warnings"):
-                            w = label["warnings"]
-                            result["warnings"] = w if isinstance(w, list) else [str(w)]
+                    # Extract warnings and precautions
+                    if label.get("warnings_and_precautions"):
+                        wp = label["warnings_and_precautions"]
+                        result["warnings"] = wp if isinstance(wp, list) else [str(wp)]
+                    elif label.get("warnings"):
+                        w = label["warnings"]
+                        result["warnings"] = w if isinstance(w, list) else [str(w)]
 
-                        # Extract contraindications
-                        if label.get("contraindications"):
-                            ci = label["contraindications"]
-                            result["contraindications"] = ci if isinstance(ci, list) else [str(ci)]
+                    # Extract contraindications
+                    if label.get("contraindications"):
+                        ci = label["contraindications"]
+                        result["contraindications"] = ci if isinstance(ci, list) else [str(ci)]
 
-                        # Extract drug interactions
-                        if label.get("drug_interactions"):
-                            di = label["drug_interactions"]
-                            result["drug_interactions"] = di if isinstance(di, list) else [str(di)]
+                    # Extract drug interactions
+                    if label.get("drug_interactions"):
+                        di = label["drug_interactions"]
+                        result["drug_interactions"] = di if isinstance(di, list) else [str(di)]
         except Exception as e:
             logger.debug("OpenFDA query for %s encountered error: %s", cleaned_name, e)
 
@@ -192,13 +275,54 @@ class LiveEnrichmentService:
         _GLOBAL_LIVE_CACHE[cache_key] = result
         return result
 
-    def fetch_chembl(self, query_name: str, chembl_id: Optional[str] = None) -> Dict[str, Any]:
+    def _fetch_chembl_target_detail(self, target_chembl_id: str) -> Dict[str, Any]:
+        """Fetch target component UniProt accession, Gene Symbol, and protein class from ChEMBL."""
+        if not target_chembl_id:
+            return {}
+        cache_key = f"chembl_target:{target_chembl_id}"
+        if cache_key in self._cache:
+            return self._cache[cache_key]
+        if cache_key in _GLOBAL_LIVE_CACHE:
+            self._cache[cache_key] = _GLOBAL_LIVE_CACHE[cache_key]
+            return _GLOBAL_LIVE_CACHE[cache_key]
+
+        target_info: Dict[str, Any] = {}
+        try:
+            client = self._client()
+            resp = client.get(f"https://www.ebi.ac.uk/chembl/api/data/target/{target_chembl_id}?format=json")
+            if resp.status_code == 200:
+                t_data = resp.json()
+                if t_data.get("pref_name"):
+                    target_info["pref_name"] = t_data["pref_name"]
+                if t_data.get("target_type"):
+                    target_info["target_type"] = t_data["target_type"]
+                if t_data.get("protein_class"):
+                    target_info["protein_class"] = str(t_data["protein_class"])
+                comps = t_data.get("target_components", [])
+                if comps:
+                    first_comp = comps[0]
+                    if first_comp.get("accession"):
+                        target_info["uniprot_id"] = first_comp["accession"]
+                    for syn in first_comp.get("target_component_synonyms", []):
+                        if syn.get("syn_type") == "GENE_SYMBOL" and syn.get("component_synonym"):
+                            target_info["gene_symbol"] = syn["component_synonym"].upper()
+                            break
+                    if not target_info.get("protein_class") and first_comp.get("protein_classifications"):
+                        target_info["protein_class"] = str(first_comp["protein_classifications"])
+        except Exception as te:
+            logger.debug("Failed to resolve target %s: %s", target_chembl_id, te)
+
+        self._cache[cache_key] = target_info
+        _GLOBAL_LIVE_CACHE[cache_key] = target_info
+        return target_info
+
+    def fetch_chembl(self, query_name: str, chembl_id: Optional[str] = None, shallow: bool = False) -> Dict[str, Any]:
         """Fetch molecular mechanisms, targets, and quantitative binding affinities from ChEMBL REST API."""
         cleaned_name = query_name.strip().lower()
         if not cleaned_name and not chembl_id:
             return {}
 
-        cache_key = f"chembl:{chembl_id or cleaned_name}"
+        cache_key = f"chembl:{'shallow:' if shallow else ''}{chembl_id or cleaned_name}"
         if cache_key in self._cache:
             return self._cache[cache_key]
         if cache_key in _GLOBAL_LIVE_CACHE:
@@ -216,270 +340,300 @@ class LiveEnrichmentService:
         }
 
         try:
-            with httpx.Client(timeout=self.timeout) as client:
-                target_chembl_id = chembl_id
+            client = self._client()
+            target_chembl_id = chembl_id
 
-                # If no chembl_id, search by molecule name or pref_name
-                if not target_chembl_id:
-                    search_url = "https://www.ebi.ac.uk/chembl/api/data/molecule/search"
-                    resp = client.get(search_url, params={"q": cleaned_name, "format": "json"})
-                    if resp.status_code == 200:
-                        molecules = resp.json().get("molecules", [])
-                        if molecules:
-                            mol = molecules[0]
-                            pref_name = (mol.get("pref_name") or "").lower()
-                            syn_list = [str(s.get("molecule_synonym") or "").lower() for s in mol.get("molecule_synonyms", []) if isinstance(s, dict)]
-                            clean_tok = cleaned_name.replace("_", "").replace("-", "").replace(" ", "")
-                            pref_tok = pref_name.replace("_", "").replace("-", "").replace(" ", "")
-                            if (clean_tok and pref_tok and (clean_tok in pref_tok or pref_tok in clean_tok)) or any(clean_tok in s.replace("_", "").replace("-", "").replace(" ", "") for s in syn_list):
-                                target_chembl_id = mol.get("molecule_chembl_id")
-                                result["chembl_id"] = target_chembl_id
-                                if not result.get("drug_class") and mol.get("max_phase"):
-                                    result["drug_class"] = f"Approved Drug (Phase {mol.get('max_phase')})"
+            # If no chembl_id, search by molecule name or pref_name
+            if not target_chembl_id:
+                search_url = "https://www.ebi.ac.uk/chembl/api/data/molecule/search"
+                resp = client.get(search_url, params={"q": cleaned_name, "format": "json"})
+                if resp.status_code == 200:
+                    molecules = resp.json().get("molecules", [])
+                    clean_tok = cleaned_name.replace("_", "").replace("-", "").replace(" ", "")
+                    best_mol = None
+                    best_score = -1
 
-                if target_chembl_id:
-                    # 1. Fetch curated mechanisms of action
-                    mech_url = "https://www.ebi.ac.uk/chembl/api/data/mechanism.json"
-                    m_resp = client.get(mech_url, params={"molecule_chembl_id": target_chembl_id})
-                    if m_resp.status_code == 200:
-                        mechanisms = m_resp.json().get("mechanisms", [])
-                        result["mechanisms"] = mechanisms
+                    for mol in molecules:
+                        p_name = (mol.get("pref_name") or "").lower()
+                        p_tok = p_name.replace("_", "").replace("-", "").replace(" ", "")
+                        syn_list = [str(s.get("molecule_synonym") or "").lower() for s in mol.get("molecule_synonyms", []) if isinstance(s, dict)]
+                        score = 0
+                        if p_name == cleaned_name or p_tok == clean_tok:
+                            score = 100
+                        elif any(clean_tok == s.replace("_", "").replace("-", "").replace(" ", "") for s in syn_list):
+                            score = 90
+                        elif p_tok and (clean_tok in p_tok or p_tok in clean_tok):
+                            score = 60
+                        elif any(clean_tok in s.replace("_", "").replace("-", "").replace(" ", "") for s in syn_list):
+                            score = 50
 
-                        for m in mechanisms:
-                            t_name = m.get("target_name") or m.get("mechanism_of_action") or "Unknown Target"
-                            action = (m.get("action_type") or "MODULATOR").lower()
-                            t_chembl = m.get("target_chembl_id")
+                        # Bonus for clinical phase / pref_name existence
+                        if mol.get("max_phase"):
+                            try:
+                                p_score = int(float(str(mol.get("max_phase")).strip()))
+                                if p_score > 0:
+                                    score += p_score * 2
+                            except (ValueError, TypeError, OverflowError):
+                                pass
+                        if p_name:
+                            score += 5
 
+                        if score > best_score:
+                            best_score = score
+                            best_mol = mol
+
+                    if best_mol and best_score >= 40:
+                        if best_mol.get("pref_name"):
+                            result["pref_name"] = str(best_mol.get("pref_name")).title()
+                        target_chembl_id = best_mol.get("molecule_chembl_id")
+                        result["chembl_id"] = target_chembl_id
+                        if not result.get("drug_class") and best_mol.get("max_phase"):
+                            try:
+                                p_num = int(float(str(best_mol.get("max_phase")).strip()))
+                                if p_num > 0:
+                                    result["drug_class"] = f"Approved Drug (Phase {p_num})"
+                            except (ValueError, TypeError, OverflowError):
+                                pass
+
+            if target_chembl_id:
+                mechanisms = []
+                activities = []
+                with concurrent.futures.ThreadPoolExecutor(max_workers=2) as m_exec:
+                    fut_mech = m_exec.submit(
+                        client.get,
+                        "https://www.ebi.ac.uk/chembl/api/data/mechanism.json",
+                        params={"molecule_chembl_id": target_chembl_id},
+                    )
+                    fut_act = m_exec.submit(
+                        client.get,
+                        "https://www.ebi.ac.uk/chembl/api/data/activity.json",
+                        params={"molecule_chembl_id": target_chembl_id, "target_organism": "Homo sapiens", "limit": 25},
+                    ) if not shallow else None
+
+                    try:
+                        m_resp = fut_mech.result()
+                        if m_resp.status_code == 200:
+                            mechanisms = m_resp.json().get("mechanisms", [])
+                    except Exception as me:
+                        logger.debug("ChEMBL mechanism query error: %s", me)
+                    result["mechanisms"] = mechanisms
+
+                    if fut_act:
+                        try:
+                            act_resp = fut_act.result()
+                            if act_resp.status_code == 200:
+                                activities = act_resp.json().get("activities", [])
+                        except Exception as ae:
+                            logger.debug("ChEMBL activity query error: %s", ae)
+                    result["bioactivities"] = activities
+
+                # Parallel prefetch target component details
+                all_target_ids = [m.get("target_chembl_id") for m in mechanisms if m.get("target_chembl_id")]
+                if activities and not shallow:
+                    all_target_ids.extend([act.get("target_chembl_id") for act in activities if act.get("target_chembl_id")])
+                unique_target_ids = list(dict.fromkeys(all_target_ids))
+                if unique_target_ids:
+                    with concurrent.futures.ThreadPoolExecutor(max_workers=min(len(unique_target_ids), 8)) as exec_t:
+                        list(exec_t.map(self._fetch_chembl_target_detail, unique_target_ids))
+
+                for m in mechanisms:
+                    t_name = m.get("target_name") or m.get("mechanism_of_action") or "Unknown Target"
+                    action = (m.get("action_type") or "MODULATOR").lower()
+                    t_chembl = m.get("target_chembl_id")
+
+                    target_entry = {
+                        "target": t_name,
+                        "action": action,
+                        "family": "ChEMBL Mechanism",
+                        "target_id": t_chembl,
+                    }
+
+                    t_info = self._fetch_chembl_target_detail(t_chembl) if t_chembl else {}
+                    if t_info.get("pref_name"):
+                        target_entry["target"] = t_info["pref_name"]
+                    protein_class = t_info.get("protein_class")
+                    target_type = t_info.get("target_type")
+                    if target_type:
+                        target_entry["target_type"] = target_type
+                    if t_info.get("uniprot_id"):
+                        target_entry["uniprot_id"] = t_info["uniprot_id"]
+                    if t_info.get("gene_symbol"):
+                        target_entry["gene_symbol"] = t_info["gene_symbol"]
+
+                    t_class, norm_act = infer_target_classification(
+                        target_name=target_entry.get("target", ""),
+                        action=action,
+                        protein_class=protein_class,
+                        target_type=target_type,
+                    )
+                    target_entry["target_class"] = t_class
+                    target_entry["action"] = norm_act
+                    if target_entry.get("family") == "ChEMBL Mechanism":
+                        target_entry["family"] = f"{t_class} / {target_type or 'Molecular Target'}"
+
+                    result["receptor_targets"].append(target_entry)
+
+                if activities:
+                    seen_targets = {t["target"].lower() for t in result["receptor_targets"]}
+
+                    parsed_acts = []
+                    for act in activities:
+                        t_name = act.get("target_pref_name")
+                        if not t_name:
+                            continue
+                        t_lower = t_name.lower()
+                        if any(ignore in t_lower for ignore in [
+                            "tuberculosis", "monoclonal", "unassigned", "identity unknown",
+                            "no relevant target", "homo sapiens", "plasmodium", "sars-cov",
+                            "virus", "dili_severity", "dili_concern", "cell", "protein deacetylase hdac6",
+                        ]):
+                            continue
+
+                        val_str = act.get("standard_value")
+                        std_type = str(act.get("standard_type") or "").upper()
+                        unit = str(act.get("standard_units") or "").lower()
+                        t_chembl = act.get("target_chembl_id")
+
+                        # Convert value to float nM if possible
+                        affinity_val = None
+                        if val_str:
+                            try:
+                                raw_val = float(val_str)
+                                if unit in ("um", "µm", "micromolar"):
+                                    affinity_val = raw_val * 1000.0
+                                elif unit in ("nm", "nanomolar"):
+                                    affinity_val = raw_val
+                                elif unit in ("m", "molar"):
+                                    affinity_val = raw_val * 1e9
+                                elif unit in ("%", "percent"):
+                                    affinity_val = None
+                                if affinity_val is not None and affinity_val <= 0.0:
+                                    affinity_val = None
+                            except (ValueError, TypeError):
+                                affinity_val = None
+
+                        parsed_acts.append({
+                            "target": t_name,
+                            "target_id": t_chembl,
+                            "std_type": std_type,
+                            "affinity_val": affinity_val if affinity_val is not None else 999999.0,
+                            "raw_val": affinity_val,
+                        })
+
+                    # Sort by affinity ascending so high-affinity (<10,000 nM) targets are processed first
+                    parsed_acts.sort(key=lambda x: x["affinity_val"])
+
+                    for item in parsed_acts:
+                        t_name = item["target"]
+                        t_lower = t_name.lower()
+                        std_type = item["std_type"]
+                        affinity_val = item["raw_val"]
+                        t_chembl = item["target_id"]
+
+                        # Correlate with existing mechanism target entries
+                        matched_mech_target = next(
+                            (
+                                t for t in result["receptor_targets"]
+                                if (t_chembl and t.get("target_id") == t_chembl)
+                                or t.get("target", "").lower() == t_lower
+                            ),
+                            None,
+                        )
+                        if matched_mech_target and affinity_val:
+                            if std_type in ("KI", "KD"):
+                                if matched_mech_target.get("affinity_ki") is None or affinity_val < matched_mech_target["affinity_ki"]:
+                                    matched_mech_target["affinity_ki"] = affinity_val
+                            elif std_type in ("IC50", "INHIBITION"):
+                                if matched_mech_target.get("inhibition_ic50") is None or affinity_val < matched_mech_target["inhibition_ic50"]:
+                                    matched_mech_target["inhibition_ic50"] = affinity_val
+                            elif std_type in ("EC50", "POTENCY"):
+                                if matched_mech_target.get("ec50") is None or affinity_val < matched_mech_target["ec50"]:
+                                    matched_mech_target["ec50"] = affinity_val
+                            elif std_type == "KM":
+                                if matched_mech_target.get("km_nm") is None or affinity_val < matched_mech_target["km_nm"]:
+                                    matched_mech_target["km_nm"] = affinity_val
+
+                    for item in parsed_acts:
+                        t_name = item["target"]
+                        t_lower = t_name.lower()
+                        std_type = item["std_type"]
+                        affinity_val = item["raw_val"]
+                        t_chembl = item["target_id"]
+
+                        if t_lower not in seen_targets and len(result["receptor_targets"]) < 10:
+                            seen_targets.add(t_lower)
+                            
+                            # Default actions for known receptor families
+                            if any(s in t_lower for s in ["androgen", "progesterone", "estrogen", "glucocorticoid", "growth hormone secretagogue", "ghrelin", "incretin", "glp", "gip", "glucagon", "oxytocin", "vasopressin", "melanocortin"]):
+                                action_type = "agonist"
+                            elif std_type == "KM":
+                                action_type = "substrate"
+                            elif std_type in ("IC50", "INHIBITION"):
+                                action_type = "inhibitor"
+                            elif any(s in t_lower for s in ["aromatase", "5-alpha reductase", "srd5a"]) and any(w in cleaned_name for w in ["testosterone", "androstenedione", "dhea", "nandrolone", "boldenone"]):
+                                action_type = "substrate"
+                            elif any(s in t_lower for s in ["transporter", "reductase", "aromatase", "dehydrogenase", "synthase", "kinase", "pde5", "neprilysin", "enkephalinase", "lyase"]):
+                                action_type = "inhibitor"
+                            else:
+                                action_type = "modulator"
+
+                            is_microbial_target = any(w in t_lower for w in ["cnta", "cntb", "cutc", "cutd", "yeaw", "yeax", "microbi", "bacteri"])
                             target_entry = {
                                 "target": t_name,
-                                "action": action,
-                                "family": "ChEMBL Mechanism",
+                                "action": action_type,
+                                "family": "Gut Microbiota / Microbial Lyase" if is_microbial_target else "ChEMBL Bioactivity Assay",
                                 "target_id": t_chembl,
+                                "is_microbial": is_microbial_target,
                             }
+                            if is_microbial_target:
+                                target_entry["microbial_source"] = "Gut Microbiota"
+                            if std_type in ("KI", "KD") and affinity_val:
+                                target_entry["affinity_ki"] = affinity_val
+                            elif std_type == "IC50" and affinity_val:
+                                target_entry["inhibition_ic50"] = affinity_val
+                            elif std_type == "EC50" and affinity_val:
+                                target_entry["ec50"] = affinity_val
+                            elif std_type == "KM" and affinity_val:
+                                target_entry["km_nm"] = affinity_val
+                            elif affinity_val and affinity_val < 900000.0:
+                                target_entry["affinity_ki"] = affinity_val
 
-                            # Fetch target component UniProt accession & Gene Symbol if target_id available
-                            protein_class = None
-                            target_type = None
-                            if t_chembl:
-                                try:
-                                    t_detail_resp = client.get(f"https://www.ebi.ac.uk/chembl/api/data/target/{t_chembl}?format=json")
-                                    if t_detail_resp.status_code == 200:
-                                        t_data = t_detail_resp.json()
-                                        if t_data.get("pref_name"):
-                                            target_entry["target"] = t_data["pref_name"]
-                                        target_type = t_data.get("target_type")
-                                        if t_data.get("protein_class"):
-                                            protein_class = str(t_data["protein_class"])
-                                        if target_type:
-                                            target_entry["target_type"] = target_type
-                                        comps = t_data.get("target_components", [])
-                                        if comps:
-                                            first_comp = comps[0]
-                                            if first_comp.get("accession"):
-                                                target_entry["uniprot_id"] = first_comp["accession"]
-                                            for syn in first_comp.get("target_component_synonyms", []):
-                                                if syn.get("syn_type") == "GENE_SYMBOL" and syn.get("component_synonym"):
-                                                    target_entry["gene_symbol"] = syn["component_synonym"].upper()
-                                                    break
-                                            if not protein_class and first_comp.get("protein_classifications"):
-                                                protein_class = str(first_comp["protein_classifications"])
-                                except Exception as te:
-                                    logger.debug("Failed to resolve target %s: %s", t_chembl, te)
+                            t_info = self._fetch_chembl_target_detail(t_chembl) if t_chembl else {}
+                            if t_info.get("pref_name"):
+                                target_entry["target"] = t_info["pref_name"]
+                            protein_class = t_info.get("protein_class")
+                            target_type = t_info.get("target_type")
+                            if target_type:
+                                target_entry["target_type"] = target_type
+                            if t_info.get("uniprot_id"):
+                                target_entry["uniprot_id"] = t_info["uniprot_id"]
+                            if t_info.get("gene_symbol"):
+                                target_entry["gene_symbol"] = t_info["gene_symbol"]
 
                             t_class, norm_act = infer_target_classification(
                                 target_name=target_entry.get("target", ""),
-                                action=action,
+                                action=action_type,
                                 protein_class=protein_class,
                                 target_type=target_type,
+                                std_type=std_type,
                             )
                             target_entry["target_class"] = t_class
                             target_entry["action"] = norm_act
-                            if target_entry.get("family") == "ChEMBL Mechanism":
-                                target_entry["family"] = f"{t_class} / {target_type or 'Molecular Target'}"
+                            if target_entry.get("family") == "ChEMBL Bioactivity Assay":
+                                target_entry["family"] = f"{t_class} / {target_type or 'Bioactivity Assay'}"
 
                             result["receptor_targets"].append(target_entry)
 
-                    # 2. Fetch multi-target bioactivities (Ki, IC50, Kd, Km assays) prioritizing Human targets
-                    act_url = "https://www.ebi.ac.uk/chembl/api/data/activity.json"
-                    act_resp = client.get(act_url, params={"molecule_chembl_id": target_chembl_id, "target_organism": "Homo sapiens", "limit": 60})
-                    if act_resp.status_code == 200:
-                        activities = act_resp.json().get("activities", [])
-                        result["bioactivities"] = activities
-                        seen_targets = {t["target"].lower() for t in result["receptor_targets"]}
-
-                        parsed_acts = []
-                        for act in activities:
-                            t_name = act.get("target_pref_name")
-                            if not t_name:
-                                continue
-                            t_lower = t_name.lower()
-                            if any(ignore in t_lower for ignore in [
-                                "tuberculosis", "monoclonal", "unassigned", "identity unknown",
-                                "no relevant target", "homo sapiens", "plasmodium", "sars-cov",
-                                "virus", "dili_severity", "dili_concern", "cell", "protein deacetylase hdac6",
-                            ]):
-                                continue
-
-                            val_str = act.get("standard_value")
-                            std_type = str(act.get("standard_type") or "").upper()
-                            unit = str(act.get("standard_units") or "").lower()
-                            t_chembl = act.get("target_chembl_id")
-
-                            # Convert value to float nM if possible
-                            affinity_val = None
-                            if val_str:
-                                try:
-                                    raw_val = float(val_str)
-                                    if unit in ("um", "µm", "micromolar"):
-                                        affinity_val = raw_val * 1000.0
-                                    elif unit in ("nm", "nanomolar"):
-                                        affinity_val = raw_val
-                                    elif unit in ("m", "molar"):
-                                        affinity_val = raw_val * 1e9
-                                    elif unit in ("%", "percent"):
-                                        affinity_val = None
-                                    if affinity_val is not None and affinity_val <= 0.0:
-                                        affinity_val = None
-                                except (ValueError, TypeError):
-                                    affinity_val = None
-
-                            parsed_acts.append({
-                                "target": t_name,
-                                "target_id": t_chembl,
-                                "std_type": std_type,
-                                "affinity_val": affinity_val if affinity_val is not None else 999999.0,
-                                "raw_val": affinity_val,
-                            })
-
-                        # Sort by affinity ascending so high-affinity (<10,000 nM) targets are processed first
-                        parsed_acts.sort(key=lambda x: x["affinity_val"])
-
-                        for item in parsed_acts:
-                            t_name = item["target"]
-                            t_lower = t_name.lower()
-                            std_type = item["std_type"]
-                            affinity_val = item["raw_val"]
-                            t_chembl = item["target_id"]
-
-                            # Correlate with existing mechanism target entries
-                            matched_mech_target = next(
-                                (
-                                    t for t in result["receptor_targets"]
-                                    if (t_chembl and t.get("target_id") == t_chembl)
-                                    or t.get("target", "").lower() == t_lower
-                                ),
-                                None,
-                            )
-                            if matched_mech_target and affinity_val:
-                                if std_type in ("KI", "KD"):
-                                    if matched_mech_target.get("affinity_ki") is None or affinity_val < matched_mech_target["affinity_ki"]:
-                                        matched_mech_target["affinity_ki"] = affinity_val
-                                elif std_type in ("IC50", "INHIBITION"):
-                                    if matched_mech_target.get("inhibition_ic50") is None or affinity_val < matched_mech_target["inhibition_ic50"]:
-                                        matched_mech_target["inhibition_ic50"] = affinity_val
-                                elif std_type in ("EC50", "POTENCY"):
-                                    if matched_mech_target.get("ec50") is None or affinity_val < matched_mech_target["ec50"]:
-                                        matched_mech_target["ec50"] = affinity_val
-                                elif std_type == "KM":
-                                    if matched_mech_target.get("km_nm") is None or affinity_val < matched_mech_target["km_nm"]:
-                                        matched_mech_target["km_nm"] = affinity_val
-
-                        for item in parsed_acts:
-                            t_name = item["target"]
-                            t_lower = t_name.lower()
-                            std_type = item["std_type"]
-                            affinity_val = item["raw_val"]
-                            t_chembl = item["target_id"]
-
-                            if t_lower not in seen_targets and len(result["receptor_targets"]) < 10:
-                                seen_targets.add(t_lower)
-                                
-                                # Default actions for known receptor families
-                                if any(s in t_lower for s in ["androgen", "progesterone", "estrogen", "glucocorticoid", "growth hormone secretagogue", "ghrelin", "incretin", "glp", "gip", "glucagon", "oxytocin", "vasopressin", "melanocortin"]):
-                                    action_type = "agonist"
-                                elif std_type == "KM":
-                                    action_type = "substrate"
-                                elif std_type in ("IC50", "INHIBITION"):
-                                    action_type = "inhibitor"
-                                elif any(s in t_lower for s in ["aromatase", "5-alpha reductase", "srd5a"]) and any(w in cleaned_name for w in ["testosterone", "androstenedione", "dhea", "nandrolone", "boldenone"]):
-                                    action_type = "substrate"
-                                elif any(s in t_lower for s in ["transporter", "reductase", "aromatase", "dehydrogenase", "synthase", "kinase", "pde5", "neprilysin", "enkephalinase", "lyase"]):
-                                    action_type = "inhibitor"
-                                else:
-                                    action_type = "modulator"
-
-                                is_microbial_target = any(w in t_lower for w in ["cnta", "cntb", "cutc", "cutd", "yeaw", "yeax", "microbi", "bacteri"])
-                                target_entry = {
-                                    "target": t_name,
-                                    "action": action_type,
-                                    "family": "Gut Microbiota / Microbial Lyase" if is_microbial_target else "ChEMBL Bioactivity Assay",
-                                    "target_id": t_chembl,
-                                    "is_microbial": is_microbial_target,
-                                }
-                                if is_microbial_target:
-                                    target_entry["microbial_source"] = "Gut Microbiota"
-                                if std_type in ("KI", "KD") and affinity_val:
-                                    target_entry["affinity_ki"] = affinity_val
-                                elif std_type == "IC50" and affinity_val:
-                                    target_entry["inhibition_ic50"] = affinity_val
-                                elif std_type == "EC50" and affinity_val:
-                                    target_entry["ec50"] = affinity_val
-                                elif std_type == "KM" and affinity_val:
-                                    target_entry["km_nm"] = affinity_val
-                                elif affinity_val and affinity_val < 900000.0:
-                                    target_entry["affinity_ki"] = affinity_val
-
-                                # Fetch target component UniProt accession & Gene Symbol if target_id available
-                                protein_class = None
-                                target_type = None
-                                if t_chembl:
-                                    try:
-                                        t_detail_resp = client.get(f"https://www.ebi.ac.uk/chembl/api/data/target/{t_chembl}?format=json")
-                                        if t_detail_resp.status_code == 200:
-                                            t_data = t_detail_resp.json()
-                                            target_type = t_data.get("target_type")
-                                            if t_data.get("protein_class"):
-                                                protein_class = str(t_data["protein_class"])
-                                            if target_type:
-                                                target_entry["target_type"] = target_type
-                                            comps = t_data.get("target_components", [])
-                                            if comps:
-                                                first_comp = comps[0]
-                                                if first_comp.get("accession"):
-                                                    target_entry["uniprot_id"] = first_comp["accession"]
-                                                for syn in first_comp.get("target_component_synonyms", []):
-                                                    if syn.get("syn_type") == "GENE_SYMBOL" and syn.get("component_synonym"):
-                                                        target_entry["gene_symbol"] = syn["component_synonym"].upper()
-                                                        break
-                                                if not protein_class and first_comp.get("protein_classifications"):
-                                                    protein_class = str(first_comp["protein_classifications"])
-                                    except Exception as te:
-                                        logger.debug("Failed to resolve target %s: %s", t_chembl, te)
-
-                                t_class, norm_act = infer_target_classification(
-                                    target_name=target_entry.get("target", ""),
-                                    action=action_type,
-                                    protein_class=protein_class,
-                                    target_type=target_type,
-                                    std_type=std_type,
-                                )
-                                target_entry["target_class"] = t_class
-                                target_entry["action"] = norm_act
-                                if target_entry.get("family") == "ChEMBL Bioactivity Assay":
-                                    target_entry["family"] = f"{t_class} / {target_type or 'Bioactivity Assay'}"
-
-                                result["receptor_targets"].append(target_entry)
-
-                            # Identify CYP enzymes from bioactivity
-                            if "cytochrome p450" in t_lower or "cyp" in t_lower:
-                                for cyp_match in re.findall(r"cyp\s*([0-9][a-z][0-9]+)", t_lower):
-                                    cyp_code = f"CYP{cyp_match.upper()}"
-                                    if std_type in ("IC50", "INHIBITION") and (affinity_val is None or affinity_val < 25000.0):
-                                        if cyp_code not in result["cyp_inhibitors"]:
-                                            result["cyp_inhibitors"].append(cyp_code)
-                                    elif std_type in ("KM", "SUBSTRATE"):
-                                        if cyp_code not in result["cyp_substrates"]:
-                                            result["cyp_substrates"].append(cyp_code)
+                        # Identify CYP enzymes from bioactivity
+                        if "cytochrome p450" in t_lower or "cyp" in t_lower:
+                            for cyp_match in re.findall(r"cyp\s*([0-9][a-z][0-9]+)", t_lower):
+                                cyp_code = f"CYP{cyp_match.upper()}"
+                                if std_type in ("IC50", "INHIBITION") and (affinity_val is None or affinity_val < 25000.0):
+                                    if cyp_code not in result["cyp_inhibitors"]:
+                                        result["cyp_inhibitors"].append(cyp_code)
+                                elif std_type in ("KM", "SUBSTRATE"):
+                                    if cyp_code not in result["cyp_substrates"]:
+                                        result["cyp_substrates"].append(cyp_code)
         except Exception as e:
             logger.debug("ChEMBL query for %s encountered error: %s", query_name, e)
 
@@ -487,13 +641,13 @@ class LiveEnrichmentService:
         _GLOBAL_LIVE_CACHE[cache_key] = result
         return result
 
-    def fetch_pubchem(self, query_name: str) -> Dict[str, Any]:
+    def fetch_pubchem(self, query_name: str, shallow: bool = False) -> Dict[str, Any]:
         """Fetch chemical structure, molecular properties, MeSH classifications, and synonyms from PubChem PUG REST API."""
         cleaned_name = query_name.strip().lower()
         if not cleaned_name:
             return {}
 
-        cache_key = f"pubchem:{cleaned_name}"
+        cache_key = f"pubchem:{'shallow:' if shallow else ''}{cleaned_name}"
         if cache_key in self._cache:
             return self._cache[cache_key]
         if cache_key in _GLOBAL_LIVE_CACHE:
@@ -514,52 +668,63 @@ class LiveEnrichmentService:
         }
 
         try:
-            with httpx.Client(timeout=self.timeout) as client:
-                url = f"https://pubchem.ncbi.nlm.nih.gov/rest/pug/compound/name/{cleaned_name}/property/Title,IUPACName,MolecularWeight,CanonicalSMILES,InChIKey,XLogP,TPSA/JSON"
-                resp = client.get(url)
-                if resp.status_code == 200:
-                    props = resp.json().get("PropertyTable", {}).get("Properties", [])
-                    if props:
-                        p = props[0]
-                        result["cid"] = p.get("CID")
-                        result["title"] = p.get("Title")
-                        result["iupac_name"] = p.get("IUPACName")
-                        result["smiles"] = p.get("CanonicalSMILES") or p.get("ConnectivitySMILES") or p.get("IsomericSMILES") or p.get("SMILES")
-                        result["inchikey"] = p.get("InChIKey")
-                        result["molecular_weight"] = float(p.get("MolecularWeight")) if p.get("MolecularWeight") else None
-                        result["logp"] = float(p.get("XLogP")) if p.get("XLogP") is not None else None
-                        result["tpsa"] = float(p.get("TPSA")) if p.get("TPSA") is not None else None
+            client = self._client()
+            quoted_name = urllib.parse.quote(cleaned_name)
+            url = f"https://pubchem.ncbi.nlm.nih.gov/rest/pug/compound/name/{quoted_name}/property/Title,IUPACName,MolecularWeight,CanonicalSMILES,InChIKey,XLogP,TPSA/JSON"
+            syn_url = f"https://pubchem.ncbi.nlm.nih.gov/rest/pug/compound/name/{quoted_name}/synonyms/JSON"
 
-                # Fetch synonyms
-                syn_url = f"https://pubchem.ncbi.nlm.nih.gov/rest/pug/compound/name/{cleaned_name}/synonyms/JSON"
-                syn_resp = client.get(syn_url)
-                if syn_resp.status_code == 200:
-                    info = syn_resp.json().get("InformationList", {}).get("Information", [])
-                    if info:
-                        result["synonyms"] = info[0].get("Synonym", [])[:15]
+            with concurrent.futures.ThreadPoolExecutor(max_workers=2) as p_exec:
+                fut_props = p_exec.submit(client.get, url)
+                fut_syns = p_exec.submit(client.get, syn_url)
 
-                # Fetch MeSH Pharmacological Classification & PUG View metadata if CID found
-                if result.get("cid"):
-                    try:
-                        view_url = f"https://pubchem.ncbi.nlm.nih.gov/rest/pug_view/data/compound/{result['cid']}/JSON"
-                        view_resp = client.get(view_url)
-                        if view_resp.status_code == 200:
-                            sections = view_resp.json().get("Record", {}).get("Section", [])
-                            for sec in sections:
-                                heading = sec.get("TOCHeading")
-                                if heading == "Pharmacology and Biochemistry":
-                                    for sub in sec.get("Section", []):
-                                        if sub.get("TOCHeading") == "MeSH Pharmacological Classification":
-                                            for info_item in sub.get("Information", []):
-                                                name_mesh = info_item.get("Name")
-                                                if name_mesh and name_mesh not in result["mesh_pharmacology"]:
-                                                    result["mesh_pharmacology"].append(name_mesh)
-                                if heading == "Drug and Medication Information":
-                                    for sub in sec.get("Section", []):
-                                        if "Green Book" in sub.get("TOCHeading", ""):
-                                            result["is_veterinary"] = True
-                    except Exception as ve:
-                        logger.debug("PUG View extractions for %s: %s", cleaned_name, ve)
+                try:
+                    resp = fut_props.result()
+                    if resp.status_code == 200:
+                        props = resp.json().get("PropertyTable", {}).get("Properties", [])
+                        if props:
+                            p = props[0]
+                            result["cid"] = p.get("CID")
+                            result["title"] = p.get("Title")
+                            result["iupac_name"] = p.get("IUPACName")
+                            result["smiles"] = p.get("CanonicalSMILES") or p.get("ConnectivitySMILES") or p.get("IsomericSMILES") or p.get("SMILES")
+                            result["inchikey"] = p.get("InChIKey")
+                            result["molecular_weight"] = float(p.get("MolecularWeight")) if p.get("MolecularWeight") else None
+                            result["logp"] = float(p.get("XLogP")) if p.get("XLogP") is not None else None
+                            result["tpsa"] = float(p.get("TPSA")) if p.get("TPSA") is not None else None
+                except Exception as pe:
+                    logger.debug("PubChem property query error for %s: %s", cleaned_name, pe)
+
+                try:
+                    syn_resp = fut_syns.result()
+                    if syn_resp.status_code == 200:
+                        info = syn_resp.json().get("InformationList", {}).get("Information", [])
+                        if info:
+                            result["synonyms"] = info[0].get("Synonym", [])[:15]
+                except Exception as se:
+                    logger.debug("PubChem synonym query error for %s: %s", cleaned_name, se)
+
+            # Fetch MeSH Pharmacological Classification & PUG View metadata if CID found (skip in shallow mode)
+            if result.get("cid") and not shallow:
+                try:
+                    view_url = f"https://pubchem.ncbi.nlm.nih.gov/rest/pug_view/data/compound/{result['cid']}/JSON"
+                    view_resp = client.get(view_url)
+                    if view_resp.status_code == 200:
+                        sections = view_resp.json().get("Record", {}).get("Section", [])
+                        for sec in sections:
+                            heading = sec.get("TOCHeading")
+                            if heading == "Pharmacology and Biochemistry":
+                                for sub in sec.get("Section", []):
+                                    if sub.get("TOCHeading") == "MeSH Pharmacological Classification":
+                                        for info_item in sub.get("Information", []):
+                                            name_mesh = info_item.get("Name")
+                                            if name_mesh and name_mesh not in result["mesh_pharmacology"]:
+                                                result["mesh_pharmacology"].append(name_mesh)
+                            if heading == "Drug and Medication Information":
+                                for sub in sec.get("Section", []):
+                                    if "Green Book" in sub.get("TOCHeading", ""):
+                                        result["is_veterinary"] = True
+                except Exception as ve:
+                    logger.debug("PUG View extractions for %s: %s", cleaned_name, ve)
         except Exception as e:
             logger.debug("PubChem query for %s encountered error: %s", cleaned_name, e)
 
@@ -592,76 +757,76 @@ class LiveEnrichmentService:
         try:
             url = "https://api.platform.opentargets.org/api/v4/graphql"
             search_str = gene_symbol or query_name
-            with httpx.Client(timeout=self.timeout) as client:
-                # Step 1: Search target
-                s_query = """
-                query targetSearch($q: String!) {
-                  search(queryString: $q, entityNames: ["target"]) {
-                    hits {
-                      id
-                      name
-                      symbol
+            client = self._client()
+            # Step 1: Search target
+            s_query = """
+            query targetSearch($q: String!) {
+              search(queryString: $q, entityNames: ["target"]) {
+                hits {
+                  id
+                  name
+                  symbol
+                }
+              }
+            }
+            """
+            resp = client.post(url, json={"query": s_query, "variables": {"q": search_str}})
+            ensembl_id = None
+            if resp.status_code == 200:
+                hits = resp.json().get("data", {}).get("search", {}).get("hits", [])
+                if hits:
+                    hit = hits[0]
+                    ensembl_id = hit.get("id")
+                    result["approved_symbol"] = hit.get("symbol") or result["approved_symbol"]
+                    result["approved_name"] = hit.get("name") or result["approved_name"]
+
+            if ensembl_id:
+                # Step 2: Fetch Details
+                d_query = """
+                query targetDetails($ensemblId: String!) {
+                  target(ensemblId: $ensemblId) {
+                    id
+                    approvedSymbol
+                    approvedName
+                    tractability {
+                      label
+                      modality
+                      value
+                    }
+                    associatedDiseases(page: {index: 0, size: 5}) {
+                      rows {
+                        disease {
+                          id
+                          name
+                        }
+                        score
+                      }
                     }
                   }
                 }
                 """
-                resp = client.post(url, json={"query": s_query, "variables": {"q": search_str}})
-                ensembl_id = None
-                if resp.status_code == 200:
-                    hits = resp.json().get("data", {}).get("search", {}).get("hits", [])
-                    if hits:
-                        hit = hits[0]
-                        ensembl_id = hit.get("id")
-                        result["approved_symbol"] = hit.get("symbol") or result["approved_symbol"]
-                        result["approved_name"] = hit.get("name") or result["approved_name"]
-
-                if ensembl_id:
-                    # Step 2: Fetch Details
-                    d_query = """
-                    query targetDetails($ensemblId: String!) {
-                      target(ensemblId: $ensemblId) {
-                        id
-                        approvedSymbol
-                        approvedName
-                        tractability {
-                          label
-                          modality
-                          value
-                        }
-                        associatedDiseases(page: {index: 0, size: 5}) {
-                          rows {
-                            disease {
-                              id
-                              name
-                            }
-                            score
-                          }
-                        }
-                      }
-                    }
-                    """
-                    d_resp = client.post(url, json={"query": d_query, "variables": {"ensemblId": ensembl_id}})
-                    if d_resp.status_code == 200:
-                        t_data = d_resp.json().get("data", {}).get("target", {})
-                        if t_data:
-                            raw_tr = t_data.get("tractability", [])
-                            for tr in raw_tr:
-                                if tr.get("value"):
-                                    result["tractability"].append({
-                                        "modality": tr.get("modality"),
-                                        "label": tr.get("label"),
-                                        "value": tr.get("value"),
-                                    })
-
-                            diseases = t_data.get("associatedDiseases", {}).get("rows", [])
-                            for dis in diseases:
-                                d_obj = dis.get("disease", {})
-                                result["associated_diseases"].append({
-                                    "disease_id": d_obj.get("id"),
-                                    "disease_name": d_obj.get("name"),
-                                    "overall_score": round(float(dis.get("score", 0.0)), 3),
-                                    "genetic_evidence_score": round(float(dis.get("score", 0.0)) * 0.9, 3),
+                d_resp = client.post(url, json={"query": d_query, "variables": {"ensemblId": ensembl_id}})
+                if d_resp.status_code == 200:
+                    t_data = d_resp.json().get("data", {}).get("target", {})
+                    if t_data:
+                        raw_tr = t_data.get("tractability", [])
+                        for tr in raw_tr:
+                            if tr.get("value"):
+                                result["tractability"].append({
+                                    "modality": tr.get("modality"),
+                                    "label": tr.get("label"),
+                                    "value": tr.get("value"),
                                 })
+
+                        diseases = t_data.get("associatedDiseases", {}).get("rows", [])
+                        for dis in diseases:
+                            d_obj = dis.get("disease", {})
+                            result["associated_diseases"].append({
+                                "disease_id": d_obj.get("id"),
+                                "disease_name": d_obj.get("name"),
+                                "overall_score": round(float(dis.get("score", 0.0)), 3),
+                                "genetic_evidence_score": round(float(dis.get("score", 0.0)) * 0.9, 3),
+                            })
         except Exception as e:
             logger.debug("Open Targets query for %s encountered error: %s", query_key, e)
 
@@ -724,32 +889,32 @@ class LiveEnrichmentService:
         try:
             url = "https://api.fda.gov/drug/event.json"
             search_str = f'patient.drug.medicinalproduct:"{cleaned_name}"'
-            with httpx.Client(timeout=self.timeout) as client:
-                resp = client.get(url, params={"search": search_str, "count": "patient.reaction.reactionmeddrapt.exact", "limit": 10})
-                if resp.status_code == 200:
-                    data = resp.json()
-                    results = data.get("results", [])
-                    total_count = sum(r.get("count", 0) for r in results)
-                    result["total_reports"] = max(total_count, 100)
-                    for r in results:
-                        term = r.get("term", "").upper()
-                        cnt = r.get("count", 0)
-                        ratio = round(cnt / max(total_count, 1), 3)
-                        prr = round(max(1.0, ratio * 25.0), 2)
-                        result["top_adverse_events"].append({
+            client = self._client()
+            resp = client.get(url, params={"search": search_str, "count": "patient.reaction.reactionmeddrapt.exact", "limit": 10})
+            if resp.status_code == 200:
+                data = resp.json()
+                results = data.get("results", [])
+                total_count = sum(r.get("count", 0) for r in results)
+                result["total_reports"] = max(total_count, 100)
+                for r in results:
+                    term = r.get("term", "").upper()
+                    cnt = r.get("count", 0)
+                    ratio = round(cnt / max(total_count, 1), 3)
+                    prr = round(max(1.0, ratio * 25.0), 2)
+                    result["top_adverse_events"].append({
+                        "reaction": term,
+                        "count": cnt,
+                        "reporting_ratio": ratio,
+                        "prr": prr,
+                        "prr_signal": "HIGH_SURVEILLANCE_SIGNAL" if prr > 2.0 else "BASAL_REPORTING",
+                    })
+                    if prr > 2.0:
+                        result["disproportionality_signals"].append({
                             "reaction": term,
-                            "count": cnt,
-                            "reporting_ratio": ratio,
                             "prr": prr,
-                            "prr_signal": "HIGH_SURVEILLANCE_SIGNAL" if prr > 2.0 else "BASAL_REPORTING",
+                            "chi_square": round(prr * 12.4, 1),
+                            "signal_strength": "HIGH_DISPROPORTIONALITY",
                         })
-                        if prr > 2.0:
-                            result["disproportionality_signals"].append({
-                                "reaction": term,
-                                "prr": prr,
-                                "chi_square": round(prr * 12.4, 1),
-                                "signal_strength": "HIGH_DISPROPORTIONALITY",
-                            })
         except Exception as e:
             logger.debug("FAERS query for %s encountered error: %s", cleaned_name, e)
 
@@ -820,20 +985,20 @@ class LiveEnrichmentService:
         if uniprot_id:
             try:
                 url = f"https://alphafold.ebi.ac.uk/api/prediction/{uniprot_id}"
-                with httpx.Client(timeout=self.timeout) as client:
-                    resp = client.get(url)
-                    if resp.status_code == 200:
-                        data = resp.json()
-                        if isinstance(data, list) and data:
-                            pred = data[0]
-                            result["alphafold_id"] = pred.get("entryId") or result["alphafold_id"]
-                            result["structure_url"] = pred.get("pdbUrl") or result["structure_url"]
-                            if pred.get("uniprotSequence"):
-                                seq_len = len(pred["uniprotSequence"])
-                                result["sequence_length"] = seq_len
-                            plddt = pred.get("globalMetricValue") or pred.get("meanPlddt")
-                            if plddt:
-                                result["mean_plddt"] = round(float(plddt), 1)
+                client = self._client()
+                resp = client.get(url)
+                if resp.status_code == 200:
+                    data = resp.json()
+                    if isinstance(data, list) and data:
+                        pred = data[0]
+                        result["alphafold_id"] = pred.get("entryId") or result["alphafold_id"]
+                        result["structure_url"] = pred.get("pdbUrl") or result["structure_url"]
+                        if pred.get("uniprotSequence"):
+                            seq_len = len(pred["uniprotSequence"])
+                            result["sequence_length"] = seq_len
+                        plddt = pred.get("globalMetricValue") or pred.get("meanPlddt")
+                        if plddt:
+                            result["mean_plddt"] = round(float(plddt), 1)
             except Exception as e:
                 logger.debug("AlphaFold API query for %s failed: %s", uniprot_id, e)
 
@@ -969,30 +1134,30 @@ class LiveEnrichmentService:
         atc_classes: List[str] = []
 
         try:
-            with httpx.Client(timeout=self.timeout) as client:
-                rxcui_url = "https://rxnav.nlm.nih.gov/REST/rxcui.json"
-                resp = client.get(rxcui_url, params={"name": cleaned_name}, headers={"Accept": "application/json"})
-                if resp.status_code == 200:
-                    id_group = resp.json().get("idGroup", {})
-                    rxcui_list = id_group.get("rxnormId", [])
-                    if rxcui_list:
-                        rxcui = rxcui_list[0]
-                        class_url = f"https://rxnav.nlm.nih.gov/REST/rxclass/class/byRxcui.json"
-                        c_resp = client.get(class_url, params={"rxcui": rxcui, "relaSource": "ATC"}, headers={"Accept": "application/json"})
-                        if c_resp.status_code == 200:
-                            drug_info_list = c_resp.json().get("rxclassDrugInfoList", {}).get("rxclassDrugInfo", [])
-                            for item in drug_info_list:
-                                min_concept = item.get("minConcept", {})
-                                mc_rxcui = str(min_concept.get("rxcui", ""))
-                                mc_tty = str(min_concept.get("tty", ""))
-                                mc_name = str(min_concept.get("name", ""))
-                                # Exclude multi-ingredient combination products (tty == 'MIN' or containing '/')
-                                # Only accept ATC classes belonging to the single ingredient itself
-                                is_single_ingredient = (mc_rxcui == str(rxcui) or mc_tty in ("IN", "PIN")) and ("/" not in mc_name and "+" not in mc_name)
-                                if is_single_ingredient:
-                                    c_name = item.get("rxclassMinConceptItem", {}).get("className")
-                                    if c_name and c_name not in atc_classes:
-                                        atc_classes.append(c_name)
+            client = self._client()
+            rxcui_url = "https://rxnav.nlm.nih.gov/REST/rxcui.json"
+            resp = client.get(rxcui_url, params={"name": cleaned_name}, headers={"Accept": "application/json"})
+            if resp.status_code == 200:
+                id_group = resp.json().get("idGroup", {})
+                rxcui_list = id_group.get("rxnormId", [])
+                if rxcui_list:
+                    rxcui = rxcui_list[0]
+                    class_url = f"https://rxnav.nlm.nih.gov/REST/rxclass/class/byRxcui.json"
+                    c_resp = client.get(class_url, params={"rxcui": rxcui, "relaSource": "ATC"}, headers={"Accept": "application/json"})
+                    if c_resp.status_code == 200:
+                        drug_info_list = c_resp.json().get("rxclassDrugInfoList", {}).get("rxclassDrugInfo", [])
+                        for item in drug_info_list:
+                            min_concept = item.get("minConcept", {})
+                            mc_rxcui = str(min_concept.get("rxcui", ""))
+                            mc_tty = str(min_concept.get("tty", ""))
+                            mc_name = str(min_concept.get("name", ""))
+                            # Exclude multi-ingredient combination products (tty == 'MIN' or containing '/')
+                            # Only accept ATC classes belonging to the single ingredient itself
+                            is_single_ingredient = (mc_rxcui == str(rxcui) or mc_tty in ("IN", "PIN")) and ("/" not in mc_name and "+" not in mc_name)
+                            if is_single_ingredient:
+                                c_name = item.get("rxclassMinConceptItem", {}).get("className")
+                                if c_name and c_name not in atc_classes:
+                                    atc_classes.append(c_name)
         except Exception as e:
             logger.debug("RxNorm ATC query for %s encountered error: %s", cleaned_name, e)
 
@@ -1000,28 +1165,73 @@ class LiveEnrichmentService:
         _GLOBAL_LIVE_CACHE[cache_key] = atc_classes
         return atc_classes
 
-    def enrich_compound(self, compound_dict: Dict[str, Any]) -> Dict[str, Any]:
+    def deepen_target_list(self, targets: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+        """Concurrently enriches target items with Open Targets tractability/genetics and AlphaFold 3D structures."""
+        def _enrich_single_target(target_item: Dict[str, Any]) -> None:
+            t_name = target_item.get("target", "")
+            uniprot_id = target_item.get("uniprot_id")
+            gene_symbol = target_item.get("gene_symbol")
+            if t_name:
+                if "open_targets" not in target_item:
+                    target_item["open_targets"] = self.fetch_open_targets(t_name, uniprot_id=uniprot_id, gene_symbol=gene_symbol)
+                if "alphafold_structure" not in target_item:
+                    target_item["alphafold_structure"] = self.fetch_alphafold_pdb(uniprot_id=uniprot_id, gene_symbol=gene_symbol, target_name=t_name)
+
+        valid_targets = [t for t in targets if isinstance(t, dict)]
+        if valid_targets:
+            with concurrent.futures.ThreadPoolExecutor(max_workers=min(len(valid_targets), 8)) as t_exec:
+                list(t_exec.map(_enrich_single_target, valid_targets))
+        return targets
+
+    def deepen_compound_targets(self, compound_dict: Dict[str, Any]) -> Dict[str, Any]:
+        """Deepens a compound's existing receptor targets with Open Targets and AlphaFold data."""
+        targets = list(compound_dict.get("receptor_targets") or [])
+        if targets:
+            self.deepen_target_list(targets)
+            compound_dict["receptor_targets"] = targets
+        return compound_dict
+
+    def enrich_compound(
+        self,
+        compound_dict: Dict[str, Any],
+        shallow: bool = False,
+        deepen_targets: bool = False,
+        prefetched: Optional[Dict[str, Any]] = None,
+    ) -> Dict[str, Any]:
         """
-        Enriches a compound dictionary with live FDA, ChEMBL, and RxNorm data.
+        Enriches a compound dictionary with live FDA, ChEMBL, and RxNorm data in parallel.
         Does NOT overwrite existing high-confidence fields, but fills in missing ontology classes.
         """
         name = compound_dict.get("name") or compound_dict.get("key") or ""
         chembl_id = compound_dict.get("canonical_key") or compound_dict.get("inchikey")
 
-        # 1. Fetch OpenFDA Label data
-        fda_data = self.fetch_openfda(name)
+        # 1-5. Parallel Multi-Source Ingestion (OpenFDA, ChEMBL, PubChem, RxNorm, and FAERS)
+        if prefetched:
+            fda_data = prefetched.get("fda_data", {})
+            chembl_data = prefetched.get("chembl_data", {})
+            pubchem_data = prefetched.get("pubchem_data", {})
+            atc_classes = prefetched.get("atc_classes", [])
+            faers_data = prefetched.get("faers_data", {"total_reports": 0, "top_adverse_events": [], "disproportionality_signals": []})
+        else:
+            fda_data: Dict[str, Any] = {}
+            chembl_data: Dict[str, Any] = {}
+            pubchem_data: Dict[str, Any] = {}
+            atc_classes: List[str] = []
+            faers_data: Dict[str, Any] = {"total_reports": 0, "top_adverse_events": [], "disproportionality_signals": []}
 
-        # 2. Fetch ChEMBL Targets
-        chembl_data = self.fetch_chembl(name, chembl_id if (chembl_id and chembl_id.startswith("CHEMBL")) else None)
+            with concurrent.futures.ThreadPoolExecutor(max_workers=5) as executor:
+                fut_fda = executor.submit(self.fetch_openfda, name)
+                fut_chembl = executor.submit(self.fetch_chembl, name, chembl_id if (chembl_id and chembl_id.startswith("CHEMBL")) else None, shallow=shallow)
+                fut_pubchem = executor.submit(self.fetch_pubchem, name, shallow=shallow)
+                fut_rxnorm = executor.submit(self.fetch_rxnorm_atc, name)
+                fut_faers = executor.submit(self.fetch_fda_faers, name) if not shallow else None
 
-        # 3. Fetch PubChem Structure & Synonyms
-        pubchem_data = self.fetch_pubchem(name)
-
-        # 4. Fetch RxNorm ATC Classes
-        atc_classes = self.fetch_rxnorm_atc(name)
-
-        # 5. Fetch openFDA FAERS Real-World Adverse Event Surveillance
-        faers_data = self.fetch_fda_faers(name)
+                fda_data = fut_fda.result()
+                chembl_data = fut_chembl.result()
+                pubchem_data = fut_pubchem.result()
+                atc_classes = fut_rxnorm.result()
+                if fut_faers:
+                    faers_data = fut_faers.result()
 
         # Merge results into compound copy
         enriched = dict(compound_dict)
@@ -1368,12 +1578,10 @@ class LiveEnrichmentService:
                     "uniprot_id": "Q96H96",
                 })
 
-        # Enrich target nodes with target_class, Open Targets tractability/genetics and AlphaFold 3D structure data
+        # Standardize target nodes with deterministic target_class and action
         for target_item in existing_targets:
             if isinstance(target_item, dict):
                 t_name = target_item.get("target", "")
-                uniprot_id = target_item.get("uniprot_id")
-                gene_symbol = target_item.get("gene_symbol")
                 if not target_item.get("target_class"):
                     t_class, norm_act = infer_target_classification(
                         target_name=t_name,
@@ -1384,9 +1592,10 @@ class LiveEnrichmentService:
                     target_item["target_class"] = t_class
                     if not target_item.get("action"):
                         target_item["action"] = norm_act
-                if t_name:
-                    target_item["open_targets"] = self.fetch_open_targets(t_name, uniprot_id=uniprot_id, gene_symbol=gene_symbol)
-                    target_item["alphafold_structure"] = self.fetch_alphafold_pdb(uniprot_id=uniprot_id, gene_symbol=gene_symbol, target_name=t_name)
+
+        # Deepen target nodes with Open Targets and AlphaFold if explicitly requested
+        if deepen_targets and not shallow:
+            self.deepen_target_list(existing_targets)
 
         enriched["receptor_targets"] = existing_targets
 
@@ -1463,6 +1672,9 @@ class LiveEnrichmentService:
         metadata["regulatory_status"] = reg_status
         metadata["human_clinical_trials"] = human_clinical
         metadata["data_sources"] = data_sources
+        metadata["pubchem_title"] = pubchem_data.get("title")
+        metadata["generic_name"] = fda_data.get("generic_name")
+        metadata["pref_name"] = chembl_data.get("pref_name")
         enriched["metadata"] = metadata
         enriched["evidence_level"] = "high" if is_fda_approved else "moderate"
 
@@ -1472,7 +1684,37 @@ class LiveEnrichmentService:
 
         return enriched
 
-    def fetch_compound_profile(self, key_or_name: str) -> Optional[Dict[str, Any]]:
+    def _dispatch_background_deepening(self, compound: Dict[str, Any], cache_key: Optional[str] = None) -> None:
+        """Kicks off an asynchronous background worker to deepen target nodes with Open Targets & AlphaFold."""
+        targets = compound.get("receptor_targets")
+        if not targets or not isinstance(targets, list):
+            return
+
+        needs_deepening = any(
+            isinstance(t, dict) and ("open_targets" not in t or "alphafold_structure" not in t)
+            for t in targets
+        )
+        if not needs_deepening:
+            return
+
+        comp_copy = copy.deepcopy(compound)
+
+        def _bg_worker():
+            try:
+                deepened = self.deepen_compound_targets(comp_copy)
+                from app.services.catalog_service import CatalogService
+                CatalogService().upsert_compound(deepened)
+                if cache_key:
+                    self._cache[cache_key] = deepened
+                    _GLOBAL_LIVE_CACHE[cache_key] = deepened
+                logger.debug("Background deepening completed for %s", comp_copy.get("key"))
+            except Exception as e:
+                logger.debug("Background deepening error for %s: %s", comp_copy.get("key"), e)
+
+        t = threading.Thread(target=_bg_worker, daemon=True, name=f"deepen-{compound.get('key')}")
+        t.start()
+
+    def fetch_compound_profile(self, key_or_name: str, shallow: bool = False) -> Optional[Dict[str, Any]]:
         """
         Fetches, normalizes, and synthesizes a full compound dictionary profile
         from openFDA, ChEMBL, RxNorm, PubChem, and PK/PD heuristic engines for an unknown drug.
@@ -1484,12 +1726,105 @@ class LiveEnrichmentService:
         normalized_key = cleaned.lower().replace(" ", "_").replace("-", "_")
         display_name = cleaned.replace("_", " ").title()
 
-        cache_key = f"profile:{normalized_key}"
+        cache_key = f"profile:{'shallow:' if shallow else ''}{normalized_key}"
         if cache_key in self._cache:
-            return dict(self._cache[cache_key])
+            val = self._cache[cache_key]
+            return dict(val) if val else None
         if cache_key in _GLOBAL_LIVE_CACHE:
-            self._cache[cache_key] = _GLOBAL_LIVE_CACHE[cache_key]
-            return dict(_GLOBAL_LIVE_CACHE[cache_key])
+            val = _GLOBAL_LIVE_CACHE[cache_key]
+            self._cache[cache_key] = val
+            return dict(val) if val else None
+
+        # 0. Check Multi-Active Clinical Combinations, Botanical Taxa, and Core Registries Concurrently
+        from app.services.rxnorm_graph_decomposer import get_rxnorm_decomposer
+        from app.services.botanical_resolver import get_botanical_resolver
+
+        with concurrent.futures.ThreadPoolExecutor(max_workers=7) as executor:
+            fut_decomp = executor.submit(get_rxnorm_decomposer().decompose_product, cleaned)
+            fut_botanical = executor.submit(get_botanical_resolver().resolve_botanical, cleaned)
+            fut_fda = executor.submit(self.fetch_openfda, cleaned)
+            fut_chembl = executor.submit(self.fetch_chembl, cleaned, None, shallow=shallow)
+            fut_pubchem = executor.submit(self.fetch_pubchem, cleaned, shallow=shallow)
+            fut_rxnorm = executor.submit(self.fetch_rxnorm_atc, cleaned)
+            fut_faers = executor.submit(self.fetch_fda_faers, cleaned) if not shallow else None
+
+            try:
+                combo = fut_decomp.result(timeout=self.timeout + 1.0)
+            except Exception as e:
+                logger.debug("RxNorm decomposition check error for %s: %s", cleaned, e)
+                combo = {}
+
+            if combo and combo.get("is_combination"):
+                ingred_names = [i["name"] for i in combo.get("ingredients", [])]
+                combo_profile = {
+                    "key": normalized_key,
+                    "name": combo["brand_name"],
+                    "canonical_name": combo["brand_name"],
+                    "drug_class": f"Clinical Combination Drug ({combo['ingredient_count']} Active Ingredients)",
+                    "mechanism": f"Multi-Active Clinical Formulation: {' + '.join(ingred_names)}",
+                    "categories": ["Clinical Combination", "Prescription / OTC Combination"],
+                    "is_combination": True,
+                    "modality": "combination_drug",
+                    "active_constituents": combo.get("ingredients", []),
+                    "indications": [],
+                    "warnings": [f"Authoritative clinical combination of {combo['ingredient_count']} active molecules: {', '.join(ingred_names)}."],
+                    "evidence_level": "high",
+                    "risk_band": "moderate",
+                    "source_tier": "combination_decomposer",
+                    "last_enriched_at": datetime.now(timezone.utc).isoformat(),
+                }
+                _GLOBAL_LIVE_CACHE[cache_key] = combo_profile
+                self._cache[cache_key] = combo_profile
+                return copy.deepcopy(combo_profile) if hasattr(combo_profile, "copy") else dict(combo_profile)
+
+            try:
+                botanical = fut_botanical.result(timeout=self.timeout + 1.0)
+            except Exception as e:
+                logger.debug("Botanical resolution check error for %s: %s", cleaned, e)
+                botanical = None
+
+            if botanical and botanical.get("is_botanical"):
+                constituents = botanical.get("primary_constituents", [])
+                const_names = [c["name"] for c in constituents]
+                botanical_profile = {
+                    "key": normalized_key,
+                    "name": f"{cleaned.title()} [{botanical['name']}]",
+                    "canonical_name": botanical["canonical_name"],
+                    "drug_class": "Botanical / Phytochemical Complex",
+                    "mechanism": f"Natural Multi-Constituent Extract ({botanical['name']})",
+                    "categories": ["Botanical Extract", "Phytochemical Complex", "Natural Product"],
+                    "is_botanical": True,
+                    "modality": "botanical_natural",
+                    "primary_constituents": constituents,
+                    "scope_note": botanical.get("scope_note"),
+                    "mesh_id": botanical.get("mesh_id"),
+                    "indications": [],
+                    "warnings": [f"Crude botanical extract ({botanical['name']}). Primary chemical constituents include: {', '.join(const_names) if const_names else 'Unfractionated Alkaloids/Polyphenols'}."],
+                    "evidence_level": "moderate",
+                    "risk_band": "low",
+                    "source_tier": "botanical_registry",
+                    "last_enriched_at": datetime.now(timezone.utc).isoformat(),
+                }
+                _GLOBAL_LIVE_CACHE[cache_key] = botanical_profile
+                self._cache[cache_key] = botanical_profile
+                return copy.deepcopy(botanical_profile) if hasattr(botanical_profile, "copy") else dict(botanical_profile)
+
+            def _get_res(f, default):
+                if f is None:
+                    return default
+                try:
+                    return f.result(timeout=self.timeout + 1.0)
+                except Exception as e:
+                    logger.debug("Registry resolution future failed: %s", e)
+                    return default
+
+            prefetched = {
+                "fda_data": _get_res(fut_fda, {}),
+                "chembl_data": _get_res(fut_chembl, {}),
+                "pubchem_data": _get_res(fut_pubchem, {}),
+                "atc_classes": _get_res(fut_rxnorm, []),
+                "faers_data": _get_res(fut_faers, {"total_reports": 0, "top_adverse_events": [], "disproportionality_signals": []}),
+            }
 
         base_compound = {
             "key": normalized_key,
@@ -1513,7 +1848,33 @@ class LiveEnrichmentService:
             "last_enriched_at": datetime.now(timezone.utc).isoformat(),
         }
 
-        enriched = self.enrich_compound(base_compound)
+        enriched = self.enrich_compound(
+            base_compound,
+            shallow=shallow,
+            deepen_targets=False,
+            prefetched=prefetched,
+        )
+
+        # Classify scientific modality via NCATS G-SRS / UNII / ChEMBL
+        from app.services.modality_resolver import get_modality_resolver
+        mod_info = get_modality_resolver().classify_substance(
+            display_name,
+            chembl_id=enriched.get("metadata", {}).get("chembl_id") or enriched.get("chembl_id"),
+            openfda_meta=enriched.get("metadata", {}).get("online_enrichment", {}),
+            molecular_weight=enriched.get("molecular_weight"),
+            network_lookup=False,
+        )
+        enriched["modality"] = mod_info["modality"].value if hasattr(mod_info["modality"], "value") else str(mod_info["modality"])
+        enriched["substance_class"] = mod_info.get("substance_class", "Chemical")
+        if mod_info.get("is_biologic"):
+            enriched["is_biologic"] = True
+            if not enriched.get("molecular_weight") or enriched.get("molecular_weight") < 5000:
+                enriched["molecular_weight"] = 145000.0
+            enriched["oral_bioavailability"] = 0.0
+            enriched["half_life_hours"] = 504.0
+            enriched["volume_of_distribution"] = 0.085
+        if mod_info.get("is_peptide"):
+            enriched["is_peptide"] = True
 
         online_meta = enriched.get("metadata", {}).get("online_enrichment", {})
         has_online_data = bool(
@@ -1529,19 +1890,26 @@ class LiveEnrichmentService:
             or enriched.get("boxed_warning")
             or enriched.get("warnings")
             or enriched.get("contraindications")
+            or enriched.get("is_biologic")
+            or enriched.get("is_peptide")
             or (enriched.get("metadata", {}).get("usan_stem") and enriched.get("drug_class") != "Therapeutic Agent")
         )
         if not has_online_data:
+            _GLOBAL_LIVE_CACHE[cache_key] = None
+            self._cache[cache_key] = None
             return None
 
         # Infer drug_class and mechanism if not yet specific
+        cleaned_lower = cleaned.lower()
         if enriched.get("drug_class") in (None, "", "Therapeutic Agent"):
             epc = online_meta.get("pharm_class_epc")
             if epc:
                 enriched["drug_class"] = epc[0]
+            elif any(w in cleaned_lower for w in ["kinase", "nattokinase", "lumbrokinase", "serrapeptase", "subtilisin", "bromelain", "protease"]):
+                enriched["drug_class"] = "Dietary Supplement / Fibrinolytic Protease"
             elif enriched.get("categories"):
                 # Prioritize specific pharmacological action classes if present
-                action_cat = next((c for c in enriched["categories"] if any(w in c.lower() for w in ["inhibitor", "agonist", "antagonist", "blocker", "modulator", "agent"])), None)
+                action_cat = next((c for c in enriched["categories"] if any(w in c.lower() for w in ["inhibitor", "agonist", "antagonist", "blocker", "modulator", "agent", "enzyme", "supplement"])), None)
                 enriched["drug_class"] = action_cat or enriched["categories"][0]
 
         if online_meta.get("pharm_class_moa"):
@@ -1559,22 +1927,54 @@ class LiveEnrichmentService:
             enriched["mechanism"] = f"{primary_tgt.get('action', 'modulator').title()} at {primary_tgt.get('target', 'Receptor')}"
 
         # For short queries (<= 3 characters), only enrich if it is an established clinical drug with FDA/ChEMBL clinical data
+        pubchem_t = str(enriched.get("metadata", {}).get("pubchem_title") or "").strip()
         if len(cleaned) <= 3:
             has_clinical_evidence = bool(
-                enriched.get("openfda", {}).get("generic_name")
+                enriched.get("metadata", {}).get("generic_name")
+                or enriched.get("openfda", {}).get("generic_name")
                 or enriched.get("metadata", {}).get("human_clinical_trials")
                 or (enriched.get("drug_class") and enriched.get("drug_class") != "Therapeutic Agent" and "Research" not in enriched.get("drug_class", ""))
             )
-            pubchem_t = str(enriched.get("metadata", {}).get("pubchem_title") or pubchem_data.get("title") or "").strip()
             if not has_clinical_evidence and (not pubchem_t or cleaned.lower() != pubchem_t.lower()):
+                _GLOBAL_LIVE_CACHE[cache_key] = None
+                self._cache[cache_key] = None
                 return None
 
         # Derive canonical name and key from authoritative biomedical registries
-        pubchem_t = str(pubchem_data.get("title") or enriched.get("metadata", {}).get("pubchem_title") or "").strip()
+        pref = enriched.get("metadata", {}).get("pref_name")
+        generic = enriched.get("metadata", {}).get("generic_name")
+        
+        # Validate that candidate names are not multi-ingredient combinations or unrelated compounds
+        def _is_valid_authoritative_name(cand: Optional[str]) -> bool:
+            if not cand or len(str(cand).strip()) < 2:
+                return False
+            c_str = str(cand).strip()
+            # Disallow combination strings
+            if any(delim in c_str for delim in [",", ";", " and ", " / ", " + ", " with ", " w/ "]):
+                return False
+            cand_l = c_str.lower()
+            # Exact match or normalized match
+            if cand_l == cleaned.lower():
+                return True
+            # Prefix or extension (e.g. Metformin Hydrochloride vs Metformin)
+            if cand_l.startswith(cleaned.lower()) or cleaned.lower().startswith(cand_l):
+                return True
+            # Word-level overlap
+            c_words = set(re.findall(r"\w+", cleaned.lower()))
+            cand_words = set(re.findall(r"\w+", cand_l))
+            return bool(c_words & cand_words)
+
+        valid_pref = pref if _is_valid_authoritative_name(pref) else None
+        valid_pubchem = pubchem_t if _is_valid_authoritative_name(pubchem_t) else None
+        valid_generic = generic if _is_valid_authoritative_name(generic) else None
+
         auth_name = (
-            fda_data.get("generic_name")
-            or chembl_data.get("pref_name")
-            or (pubchem_t if pubchem_t and len(pubchem_t) >= 3 else display_name)
+            (valid_pref if valid_pref and valid_pref.lower() == cleaned.lower() else None)
+            or (valid_pubchem if valid_pubchem and valid_pubchem.lower() == cleaned.lower() else None)
+            or (valid_generic if valid_generic and valid_generic.lower() == cleaned.lower() else None)
+            or valid_pref
+            or valid_pubchem
+            or valid_generic
             or display_name
         )
         if auth_name and auth_name != display_name:
@@ -1587,9 +1987,14 @@ class LiveEnrichmentService:
 
         self._cache[cache_key] = enriched
         _GLOBAL_LIVE_CACHE[cache_key] = enriched
+
+        # Asynchronously deepen targets in background without blocking response latency
+        if not shallow and enriched.get("receptor_targets"):
+            self._dispatch_background_deepening(enriched, cache_key=cache_key)
+
         return enriched
 
-    def enrich_and_cache(self, key_or_name: str, catalog_service: Any = None) -> Optional[Dict[str, Any]]:
+    def enrich_and_cache(self, key_or_name: str, catalog_service: Any = None, shallow: bool = False) -> Optional[Dict[str, Any]]:
         """
         Fetches compound data from online biomedical APIs, enriches it with PK/PD models,
         and automatically writes it through into the local SQLite database.
@@ -1603,9 +2008,31 @@ class LiveEnrichmentService:
         if existing:
             return existing
 
-        profile = self.fetch_compound_profile(key_or_name)
+        profile = self.fetch_compound_profile(key_or_name, shallow=shallow)
         if not profile:
             return None
 
         # Write-through to SQLite
         return catalog_service.upsert_compound(profile)
+
+
+_GLOBAL_ENRICHER: Optional[LiveEnrichmentService] = None
+
+
+def get_live_enricher() -> LiveEnrichmentService:
+    """Returns a shared singleton instance of LiveEnrichmentService."""
+    global _GLOBAL_ENRICHER
+    if _GLOBAL_ENRICHER is None:
+        _GLOBAL_ENRICHER = LiveEnrichmentService()
+    return _GLOBAL_ENRICHER
+
+
+def deepen_compound_targets(compound_dict: Dict[str, Any]) -> Dict[str, Any]:
+    """Deepens a compound's existing receptor targets with Open Targets and AlphaFold data."""
+    return get_live_enricher().deepen_compound_targets(compound_dict)
+
+
+def deepen_target_list(targets: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+    """Concurrently enriches target items with Open Targets tractability/genetics and AlphaFold 3D structures."""
+    return get_live_enricher().deepen_target_list(targets)
+

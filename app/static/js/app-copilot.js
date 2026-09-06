@@ -56,18 +56,12 @@ function escapeHtml(str) {
           ? Number(comp.dose)
           : (cached && cached.dose !== undefined ? cached.dose : fallback.dose);
         const unitVal = comp.unit || (cached && cached.unit) || fallback.unit || 'mg';
-        const freqVal = comp.frequency || (cached && cached.frequency) || 'daily';
-        let timingVal = comp.timing;
-        if (!timingVal || (timingVal === 'morning' && freqVal !== 'daily')) {
-          const normF = String(freqVal).toLowerCase().replace(/ /g, '_');
-          if (normF === 'every_other_day' || normF === 'eod') timingVal = 'Every Other Day (EOD)';
-          else if (normF === 'three_times_weekly' || normF === '3x_weekly') timingVal = 'Three Times Weekly (Mon / Wed / Fri)';
-          else if (normF === 'twice_weekly') timingVal = 'Twice Weekly (Mon / Thu)';
-          else if (normF === 'weekly') timingVal = 'Weekly';
-          else if (normF === 'biweekly') timingVal = 'Bi-Weekly (Every 2 Weeks)';
-          else if (normF === 'as_needed') timingVal = 'As Needed (PRN)';
-          else timingVal = timingVal || 'morning';
-        }
+        let timingVal = (comp.timing || 'morning').toLowerCase();
+        if (timingVal.includes('bed') || timingVal.includes('night')) timingVal = 'before bed';
+        else if (timingVal.includes('eve') || timingVal.includes('dinner')) timingVal = 'evening';
+        else if (timingVal.includes('mid') || timingVal.includes('noon') || timingVal.includes('afternoon') || timingVal.includes('lunch')) timingVal = 'midday';
+        else if (timingVal.includes('pre-workout') || timingVal.includes('preworkout')) timingVal = 'pre-workout';
+        else if (timingVal !== 'morning' && timingVal !== 'midday' && timingVal !== 'pre-workout' && timingVal !== 'evening' && timingVal !== 'before bed') timingVal = 'morning';
         const routeVal = comp.route || (cached && (cached.route || cached.default_route)) || fallback.route || 'oral';
         const nameVal = comp.name || (cached && cached.name) || rawKey.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
         const drugClassVal = comp.drug_class || comp.target || (cached && cached.drug_class) || 'Compound';
@@ -852,8 +846,62 @@ function escapeHtml(str) {
       }
 
       // ==============================================================================
-      // USER API KEY STORAGE & MANAGEMENT (BYOK FOR HOST TOKEN EXHAUSTION)
       // ==============================================================================
+      // USER API KEY & CUSTOM ENDPOINT CONFIGURATION (BYOK + OPENAI-COMPATIBLE)
+      // ==============================================================================
+      const PROVIDER_PRESETS = {
+        openrouter: {
+          name: 'OpenRouter',
+          baseUrl: '',
+          defaultModel: '',
+          keyPlaceholder: 'sk-or-v1-...',
+          portalUrl: 'https://openrouter.ai/keys',
+          portalText: 'Get OpenRouter Key (openrouter.ai)',
+          isCustom: false,
+          quickModels: []
+        },
+        openai: {
+          name: 'OpenAI',
+          baseUrl: 'https://api.openai.com/v1',
+          defaultModel: 'gpt-4o-mini',
+          keyPlaceholder: 'sk-proj-...',
+          portalUrl: 'https://platform.openai.com/api-keys',
+          portalText: 'Get OpenAI Key (platform.openai.com)',
+          isCustom: true,
+          quickModels: ['gpt-4o-mini', 'gpt-4o', 'o3-mini']
+        },
+        groq: {
+          name: 'Groq',
+          baseUrl: 'https://api.groq.com/openai/v1',
+          defaultModel: 'llama-3.3-70b-versatile',
+          keyPlaceholder: 'gsk_...',
+          portalUrl: 'https://console.groq.com/keys',
+          portalText: 'Get Groq Key (console.groq.com)',
+          isCustom: true,
+          quickModels: ['llama-3.3-70b-versatile', 'deepseek-r1-distill-llama-70b', 'mixtral-8x7b-32768']
+        },
+        deepseek: {
+          name: 'DeepSeek',
+          baseUrl: 'https://api.deepseek.com/v1',
+          defaultModel: 'deepseek-chat',
+          keyPlaceholder: 'sk-...',
+          portalUrl: 'https://platform.deepseek.com/api_keys',
+          portalText: 'Get DeepSeek Key (platform.deepseek.com)',
+          isCustom: true,
+          quickModels: ['deepseek-chat', 'deepseek-reasoner']
+        },
+        custom: {
+          name: 'Custom',
+          baseUrl: 'http://localhost:8080/v1',
+          defaultModel: '',
+          keyPlaceholder: 'Bearer token / API key (optional for local)',
+          portalUrl: '',
+          portalText: 'OpenAI-Compatible Endpoint',
+          isCustom: true,
+          quickModels: []
+        }
+      };
+
       function getUserApiKey() {
         try {
           return (localStorage.getItem('healthai_custom_api_key') || '').trim();
@@ -862,23 +910,68 @@ function escapeHtml(str) {
         }
       }
 
-      function setUserApiKey(key) {
+      function getUserBaseUrl() {
         try {
-          const cleanKey = (key || '').trim();
+          return (localStorage.getItem('healthai_custom_base_url') || '').trim();
+        } catch (e) {
+          return '';
+        }
+      }
+
+      function getUserModel() {
+        try {
+          return (localStorage.getItem('healthai_custom_model') || '').trim();
+        } catch (e) {
+          return '';
+        }
+      }
+
+      function getUserProvider() {
+        try {
+          return (localStorage.getItem('healthai_custom_provider') || 'openrouter').trim();
+        } catch (e) {
+          return 'openrouter';
+        }
+      }
+
+      function setUserAiConfig({ apiKey, baseUrl, model, provider }) {
+        try {
+          const cleanKey = (apiKey || '').trim();
+          const cleanBase = (baseUrl || '').trim();
+          const cleanModel = (model || '').trim();
+          const cleanProvider = (provider || 'openrouter').trim();
+
           if (cleanKey) {
             localStorage.setItem('healthai_custom_api_key', cleanKey);
           } else {
             localStorage.removeItem('healthai_custom_api_key');
           }
+
+          if (cleanBase) {
+            localStorage.setItem('healthai_custom_base_url', cleanBase);
+          } else {
+            localStorage.removeItem('healthai_custom_base_url');
+          }
+
+          if (cleanModel) {
+            localStorage.setItem('healthai_custom_model', cleanModel);
+          } else {
+            localStorage.removeItem('healthai_custom_model');
+          }
+
+          localStorage.setItem('healthai_custom_provider', cleanProvider);
           updateApiKeyUiState();
         } catch (e) {
-          console.error('Failed to save custom API key:', e);
+          console.error('Failed to save AI configuration:', e);
         }
       }
 
-      function clearUserApiKey() {
+      function clearUserAiConfig() {
         try {
           localStorage.removeItem('healthai_custom_api_key');
+          localStorage.removeItem('healthai_custom_base_url');
+          localStorage.removeItem('healthai_custom_model');
+          localStorage.setItem('healthai_custom_provider', 'openrouter');
           updateApiKeyUiState();
         } catch (e) {}
       }
@@ -886,54 +979,74 @@ function escapeHtml(str) {
       function getAiRequestHeaders(extraHeaders = {}) {
         const headers = { 'Content-Type': 'application/json', ...extraHeaders };
         const userKey = getUserApiKey();
-        if (userKey) {
-          headers['X-User-API-Key'] = userKey;
-        }
+        const userBase = getUserBaseUrl();
+        const userModel = getUserModel();
+
+        if (userKey) headers['X-User-API-Key'] = userKey;
+        if (userBase) headers['X-User-Base-URL'] = userBase;
+        if (userModel) headers['X-User-Model'] = userModel;
+
         return headers;
       }
 
       function updateApiKeyUiState() {
         const userKey = getUserApiKey();
+        const userBase = getUserBaseUrl();
+        const userModel = getUserModel();
+        const providerKey = getUserProvider();
+        const providerCfg = PROVIDER_PRESETS[providerKey] || PROVIDER_PRESETS.openrouter;
+
         const apiKeyBtn = document.getElementById('copilot-api-key-btn');
         const apiKeyBadgeText = document.getElementById('copilot-key-badge-text');
         const currentKeyBadge = document.getElementById('current-key-badge');
         const userKeyInput = document.getElementById('user-api-key-input');
+        const userBaseUrlInput = document.getElementById('user-base-url-input');
+        const userModelInput = document.getElementById('user-model-input');
         const statusIndicator = document.getElementById('copilot-status-indicator');
 
-        if (userKey) {
+        const hasCustomConfig = Boolean(userKey || userBase || userModel);
+
+        if (hasCustomConfig) {
           if (apiKeyBtn) {
             apiKeyBtn.classList.add('copilot-key-btn-active');
-            apiKeyBtn.title = 'Custom API Key Active (Click to view or remove)';
+            apiKeyBtn.title = `Custom AI Config Active: ${providerCfg.name}${userModel ? ` (${userModel})` : ''}`;
           }
           if (apiKeyBadgeText) {
-            apiKeyBadgeText.textContent = 'Custom Key';
+            apiKeyBadgeText.textContent = userModel ? `${providerCfg.name} (${userModel})` : `${providerCfg.name}`;
           }
           if (currentKeyBadge) {
             currentKeyBadge.className = 'key-status-pill custom';
-            const masked = userKey.length > 12 ? `${userKey.slice(0, 6)}...${userKey.slice(-4)}` : 'Active';
-            currentKeyBadge.textContent = `Custom Key (${masked})`;
+            const masked = userKey.length > 10 ? `${userKey.slice(0, 4)}...${userKey.slice(-3)}` : 'Set';
+            currentKeyBadge.textContent = `${providerCfg.name} (${masked})`;
           }
           if (statusIndicator) {
-            statusIndicator.innerHTML = `<span style="color: var(--accent-teal); display:inline-flex; align-items:center; gap:4px;">${iconSvg('check', { class: 'icon-xs icon-teal' })} Custom AI Key Active</span>`;
+            statusIndicator.innerHTML = `<span style="color: var(--accent-teal); display:inline-flex; align-items:center; gap:4px;">${iconSvg('check', { class: 'icon-xs icon-teal' })} ${escapeHtml(providerCfg.name)}${userModel ? ` [${escapeHtml(userModel)}]` : ''} Active</span>`;
           }
         } else {
           if (apiKeyBtn) {
             apiKeyBtn.classList.remove('copilot-key-btn-active');
-            apiKeyBtn.title = 'Configure OpenRouter / OpenAI API Key';
+            apiKeyBtn.title = 'Configure AI Provider / Custom Endpoint';
           }
           if (apiKeyBadgeText) {
             apiKeyBadgeText.textContent = 'API Key';
           }
           if (currentKeyBadge) {
             currentKeyBadge.className = 'key-status-pill default';
-            currentKeyBadge.textContent = 'Admin Default Key';
+            currentKeyBadge.textContent = 'Admin Default';
           }
           if (statusIndicator) {
             statusIndicator.innerHTML = `<span style="color: var(--accent-teal); display:inline-flex; align-items:center; gap:4px;">${iconSvg('activity', { class: 'icon-xs icon-teal' })} Local / Cloud Online</span>`;
           }
         }
+
         if (userKeyInput && document.activeElement !== userKeyInput) {
           userKeyInput.value = userKey;
+        }
+        if (userBaseUrlInput && document.activeElement !== userBaseUrlInput) {
+          userBaseUrlInput.value = userBase;
+        }
+        if (userModelInput && document.activeElement !== userModelInput) {
+          userModelInput.value = userModel;
         }
       }
 
@@ -1015,6 +1128,8 @@ function escapeHtml(str) {
                 user_goal: copilotState.protocolGoal,
                 user_objective: copilotState.protocolObjective,
                 user_api_key: getUserApiKey() || undefined,
+                user_base_url: getUserBaseUrl() || undefined,
+                user_model: getUserModel() || undefined,
               })
             });
             if (res.ok) {
@@ -1335,15 +1450,12 @@ function escapeHtml(str) {
             const cached = _clientCatalogCache[key] || _clientCatalogCache[key.replace(/_/g, '-')];
             const fallback = getDefaultDoseFallback(key);
 
-            if (!timing || (timing === 'morning' && frequency && frequency !== 'daily')) {
-              const normF = String(frequency).toLowerCase().replace(/ /g, '_');
-              if (normF === 'every_other_day' || normF === 'eod') timing = 'Every Other Day (EOD)';
-              else if (normF === 'three_times_weekly' || normF === '3x_weekly') timing = 'Three Times Weekly (Mon / Wed / Fri)';
-              else if (normF === 'twice_weekly') timing = 'Twice Weekly (Mon / Thu)';
-              else if (normF === 'weekly') timing = 'Weekly';
-              else if (normF === 'biweekly') timing = 'Bi-Weekly (Every 2 Weeks)';
-              else if (normF === 'as_needed') timing = 'As Needed (PRN)';
-            }
+            let normTiming = (timing || 'morning').toLowerCase();
+            if (normTiming.includes('bed') || normTiming.includes('night')) normTiming = 'before bed';
+            else if (normTiming.includes('eve') || normTiming.includes('dinner')) normTiming = 'evening';
+            else if (normTiming.includes('mid') || normTiming.includes('noon') || normTiming.includes('afternoon') || normTiming.includes('lunch')) normTiming = 'midday';
+            else if (normTiming.includes('pre-workout') || normTiming.includes('preworkout')) normTiming = 'pre-workout';
+            else if (normTiming !== 'morning' && normTiming !== 'midday' && normTiming !== 'pre-workout' && normTiming !== 'evening' && normTiming !== 'before bed') normTiming = 'morning';
 
             const doseVal = (dose !== null && !isNaN(dose)) ? dose : ((cached && cached.dose !== undefined) ? cached.dose : fallback.dose);
             const unitVal = unit || (cached && cached.unit) || fallback.unit || 'mg';
@@ -1355,7 +1467,7 @@ function escapeHtml(str) {
             if (existing) {
               existing.dose = doseVal;
               existing.unit = unitVal;
-              existing.timing = timing;
+              existing.timing = normTiming;
               existing.route = routeVal;
               existing.frequency = frequency;
               modifiedCount++;
@@ -1367,7 +1479,7 @@ function escapeHtml(str) {
                 dose: doseVal,
                 unit: unitVal,
                 frequency: frequency,
-                timing: timing,
+                timing: normTiming,
                 route: routeVal
               });
               addedCount++;
@@ -2008,6 +2120,8 @@ function escapeHtml(str) {
               protocol_objective: copilotState.protocolObjective,
               max_exploration_steps: maxSteps,
               user_api_key: getUserApiKey() || undefined,
+              user_base_url: getUserBaseUrl() || undefined,
+              user_model: getUserModel() || undefined,
             }),
             signal: copilotState.abortController.signal
           });
@@ -2667,7 +2781,7 @@ function escapeHtml(str) {
       }
 
       // ==============================================================================
-      // API KEY SETTINGS MODAL INTERACTION
+      // API KEY & CUSTOM ENDPOINT SETTINGS MODAL INTERACTION
       // ==============================================================================
       const apiKeyModal = document.getElementById('api-key-modal');
       const copilotApiKeyBtnEl = document.getElementById('copilot-api-key-btn');
@@ -2677,14 +2791,126 @@ function escapeHtml(str) {
       const clearApiKeyBtn = document.getElementById('clear-api-key-btn');
       const testApiKeyBtn = document.getElementById('test-api-key-btn');
       const userApiKeyInput = document.getElementById('user-api-key-input');
+      const userBaseUrlInput = document.getElementById('user-base-url-input');
+      const userModelInput = document.getElementById('user-model-input');
+      const endpointUrlContainer = document.getElementById('endpoint-url-container');
+      const customModelContainer = document.getElementById('custom-model-container');
+      const modelQuickChips = document.getElementById('model-quick-chips');
       const toggleKeyVisBtn = document.getElementById('toggle-key-visibility-btn');
       const keyValidationFeedback = document.getElementById('key-validation-feedback');
+      const providerPortalLink = document.getElementById('provider-portal-link');
+      const providerLinkText = document.getElementById('provider-link-text');
+      const apiKeyLabelText = document.getElementById('api-key-label-text');
+
+      let activeModalProvider = getUserProvider();
+
+      function renderModelQuickChips(chips) {
+        if (!modelQuickChips) return;
+        if (!chips || !chips.length) {
+          modelQuickChips.innerHTML = '';
+          return;
+        }
+        modelQuickChips.innerHTML = chips.map(m => `
+          <button type="button" class="btn-secondary model-chip-pill" data-model="${escapeHtml(m)}" style="padding: 2px 8px; font-size: 0.70rem; border-radius: 12px; background: rgba(0, 242, 254, 0.08); border-color: rgba(0, 242, 254, 0.25); color: var(--accent-cyan); cursor: pointer;">
+            ${escapeHtml(m)}
+          </button>
+        `).join('');
+
+        modelQuickChips.querySelectorAll('.model-chip-pill').forEach(btn => {
+          btn.addEventListener('click', () => {
+            if (userModelInput) {
+              userModelInput.value = btn.getAttribute('data-model');
+            }
+          });
+        });
+      }
+
+      function applyProviderPreset(providerKey, isInitialLoad = false) {
+        activeModalProvider = providerKey;
+        const cfg = PROVIDER_PRESETS[providerKey] || PROVIDER_PRESETS.openrouter;
+
+        // Update provider pill buttons
+        document.querySelectorAll('.provider-pill').forEach(pill => {
+          const isSelected = pill.getAttribute('data-provider') === providerKey;
+          pill.classList.toggle('active', isSelected);
+          pill.style.background = isSelected ? 'rgba(0, 242, 254, 0.18)' : 'rgba(255,255,255,0.04)';
+          pill.style.borderColor = isSelected ? 'var(--accent-cyan)' : 'var(--border-subtle)';
+          pill.style.color = isSelected ? '#fff' : 'var(--text-secondary)';
+        });
+
+        // Set labels & placeholders
+        if (userApiKeyInput) {
+          userApiKeyInput.placeholder = cfg.keyPlaceholder || 'API Key...';
+        }
+        if (apiKeyLabelText) {
+          apiKeyLabelText.textContent = providerKey === 'custom' ? 'API KEY / BEARER TOKEN' : `${cfg.name.toUpperCase()} API KEY`;
+        }
+
+        // External provider link
+        if (providerPortalLink && providerLinkText) {
+          if (cfg.portalUrl) {
+            providerPortalLink.style.display = 'inline-flex';
+            providerPortalLink.href = cfg.portalUrl;
+            providerLinkText.textContent = cfg.portalText;
+          } else {
+            providerPortalLink.style.display = 'none';
+          }
+        }
+
+        // Conditional display: Model selection is ONLY available when using a custom endpoint / custom provider
+        const isCustomEndpoint = cfg.isCustom || Boolean(userBaseUrlInput && userBaseUrlInput.value.trim());
+
+        if (endpointUrlContainer) {
+          endpointUrlContainer.style.display = cfg.isCustom ? 'block' : 'none';
+        }
+        if (customModelContainer) {
+          customModelContainer.style.display = isCustomEndpoint ? 'block' : 'none';
+        }
+
+        if (!isInitialLoad) {
+          if (userBaseUrlInput) {
+            userBaseUrlInput.value = cfg.baseUrl || '';
+          }
+          if (userModelInput) {
+            userModelInput.value = cfg.defaultModel || '';
+          }
+        }
+
+        renderModelQuickChips(cfg.quickModels);
+      }
+
+      // Provider presets pill click handlers
+      document.querySelectorAll('.provider-pill').forEach(pill => {
+        pill.addEventListener('click', () => {
+          const p = pill.getAttribute('data-provider');
+          applyProviderPreset(p, false);
+        });
+      });
+
+      // Show/hide model container if user types custom endpoint in base url input
+      if (userBaseUrlInput) {
+        userBaseUrlInput.addEventListener('input', () => {
+          const hasUrl = Boolean(userBaseUrlInput.value.trim());
+          const cfg = PROVIDER_PRESETS[activeModalProvider] || PROVIDER_PRESETS.openrouter;
+          if (customModelContainer) {
+            customModelContainer.style.display = (hasUrl || cfg.isCustom) ? 'block' : 'none';
+          }
+        });
+      }
 
       function openApiKeyModal() {
         if (!apiKeyModal) return;
-        if (userApiKeyInput) {
-          userApiKeyInput.value = getUserApiKey();
-        }
+        const savedKey = getUserApiKey();
+        const savedBase = getUserBaseUrl();
+        const savedModel = getUserModel();
+        const savedProvider = getUserProvider();
+
+        if (userApiKeyInput) userApiKeyInput.value = savedKey;
+        if (userBaseUrlInput) userBaseUrlInput.value = savedBase;
+        if (userModelInput) userModelInput.value = savedModel;
+
+        applyProviderPreset(savedProvider, true);
+
         if (keyValidationFeedback) {
           keyValidationFeedback.innerHTML = '';
         }
@@ -2720,19 +2946,27 @@ function escapeHtml(str) {
         });
       }
 
-      if (saveApiKeyBtn && userApiKeyInput) {
+      if (saveApiKeyBtn) {
         saveApiKeyBtn.addEventListener('click', () => {
-          const val = userApiKeyInput.value.trim();
-          if (val) {
-            setUserApiKey(val);
-            showToast('Custom OpenRouter / OpenAI API Key Saved!', 'key');
+          const keyVal = userApiKeyInput ? userApiKeyInput.value.trim() : '';
+          const baseVal = userBaseUrlInput ? userBaseUrlInput.value.trim() : '';
+          const modelVal = userModelInput ? userModelInput.value.trim() : '';
+
+          if (keyVal || baseVal || modelVal) {
+            setUserAiConfig({
+              apiKey: keyVal,
+              baseUrl: baseVal,
+              model: modelVal,
+              provider: activeModalProvider,
+            });
+            showToast('AI Provider & Endpoint Configuration Saved!', 'check');
             if (keyValidationFeedback) {
-              keyValidationFeedback.innerHTML = `<span style="color: #34d399; display:inline-flex; align-items:center; gap:4px;">${iconSvg('check', { class: 'icon-xs icon-emerald' })} Key saved to browser storage. Active for all AI requests.</span>`;
+              keyValidationFeedback.innerHTML = `<span style="color: #34d399; display:inline-flex; align-items:center; gap:4px;">${iconSvg('check', { class: 'icon-xs icon-emerald' })} Settings saved to browser storage. Active for all Copilot queries.</span>`;
             }
             setTimeout(closeApiKeyModal, 450);
           } else {
-            clearUserApiKey();
-            showToast('Reverted to Admin default API key', 'info');
+            clearUserAiConfig();
+            showToast('Reverted to Host Server default configuration', 'info');
             if (keyValidationFeedback) {
               keyValidationFeedback.innerHTML = '<span style="color: var(--text-muted);">Reverted to server default configuration.</span>';
             }
@@ -2741,28 +2975,36 @@ function escapeHtml(str) {
         });
       }
 
-      if (clearApiKeyBtn && userApiKeyInput) {
+      if (clearApiKeyBtn) {
         clearApiKeyBtn.addEventListener('click', () => {
-          clearUserApiKey();
-          userApiKeyInput.value = '';
+          clearUserAiConfig();
+          if (userApiKeyInput) userApiKeyInput.value = '';
+          if (userBaseUrlInput) userBaseUrlInput.value = '';
+          if (userModelInput) userModelInput.value = '';
+          applyProviderPreset('openrouter', false);
+
           if (keyValidationFeedback) {
-            keyValidationFeedback.innerHTML = '<span style="color: #f87171;">Custom key removed. Reverted to server default.</span>';
+            keyValidationFeedback.innerHTML = '<span style="color: #f87171;">Custom configuration removed. Reverted to server default.</span>';
           }
-          showToast('Custom API key removed', 'trash-2');
+          showToast('Custom configuration cleared', 'trash-2');
         });
       }
 
-      if (testApiKeyBtn && userApiKeyInput) {
+      if (testApiKeyBtn) {
         testApiKeyBtn.addEventListener('click', async () => {
-          const val = userApiKeyInput.value.trim();
-          if (!val) {
+          const keyVal = userApiKeyInput ? userApiKeyInput.value.trim() : '';
+          const baseVal = userBaseUrlInput ? userBaseUrlInput.value.trim() : '';
+          const modelVal = userModelInput ? userModelInput.value.trim() : '';
+
+          if (!keyVal && !baseVal) {
             if (keyValidationFeedback) {
-              keyValidationFeedback.innerHTML = '<span style="color: #f87171;">Please enter an API key to test.</span>';
+              keyValidationFeedback.innerHTML = '<span style="color: #f87171;">Please enter an API key or custom endpoint URL to test.</span>';
             }
             return;
           }
+
           if (keyValidationFeedback) {
-            keyValidationFeedback.innerHTML = '<span style="color: var(--accent-cyan);"><span class="copilot-pulse-dot" style="width: 5px; height: 5px;"></span> Probing provider endpoint...</span>';
+            keyValidationFeedback.innerHTML = '<span style="color: var(--accent-cyan);"><span class="copilot-pulse-dot" style="width: 5px; height: 5px;"></span> Probing OpenAI-compatible endpoint...</span>';
           }
           testApiKeyBtn.disabled = true;
 
@@ -2770,12 +3012,16 @@ function escapeHtml(str) {
             const res = await fetch('/api/ai/validate-key', {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ api_key: val })
+              body: JSON.stringify({
+                api_key: keyVal || undefined,
+                base_url: baseVal || undefined,
+                model: modelVal || undefined,
+              })
             });
             const data = await res.json();
             if (data.valid) {
               if (keyValidationFeedback) {
-                keyValidationFeedback.innerHTML = `<span style="color: #34d399; display:inline-flex; align-items:center; gap:4px;">${iconSvg('check', { class: 'icon-xs icon-emerald' })} ${escapeHtml(data.message || 'Key valid!')} (${escapeHtml(data.provider || 'AI')})</span>`;
+                keyValidationFeedback.innerHTML = `<span style="color: #34d399; display:inline-flex; align-items:center; gap:4px;">${iconSvg('check', { class: 'icon-xs icon-emerald' })} ${escapeHtml(data.message || 'Endpoint valid!')}</span>`;
               }
             } else {
               if (keyValidationFeedback) {
@@ -2784,7 +3030,7 @@ function escapeHtml(str) {
             }
           } catch (e) {
             if (keyValidationFeedback) {
-              keyValidationFeedback.innerHTML = `<span style="color: #f87171;">Network error validating key: ${escapeHtml(e.message)}</span>`;
+              keyValidationFeedback.innerHTML = `<span style="color: #f87171;">Network error validating endpoint: ${escapeHtml(e.message)}</span>`;
             }
           } finally {
             testApiKeyBtn.disabled = false;
@@ -2910,10 +3156,18 @@ function escapeHtml(str) {
         if (bio.egfr) params.set('egfr', bio.egfr);
         if (bio.hematocrit_pct) params.set('hematocrit_pct', bio.hematocrit_pct);
 
+        const graphLoader = document.getElementById('embedded-graph-loading');
+        if (graphLoader && (state.activeTab === 'graph-tab' || shouldRender)) {
+          graphLoader.classList.remove('hidden');
+        }
+
         try {
           const res = await fetch(`/graph-data?${params.toString()}`);
           if (!res.ok) throw new Error(`HTTP ${res.status}`);
-          if (reqId !== embeddedGraphState.loadRequestId) return;
+          if (reqId !== embeddedGraphState.loadRequestId) {
+            if (graphLoader) graphLoader.classList.add('hidden');
+            return;
+          }
           const data = await res.json();
           embeddedGraphState.data = data;
 
@@ -2930,8 +3184,10 @@ function escapeHtml(str) {
             renderEmbeddedCytoscape();
           }
 
+          if (graphLoader) graphLoader.classList.add('hidden');
           if (typeof callback === 'function') callback();
         } catch (e) {
+          if (graphLoader) graphLoader.classList.add('hidden');
           console.debug('Embedded graph fetch notice', e);
           if (typeof callback === 'function') callback();
         }

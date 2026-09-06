@@ -1,6 +1,6 @@
 # HealthAI // Next-Generation Clinical Pharmacology & Network Biology Platform
 
-> **An interactive, science-driven clinical pharmacology workbench, biophysical PBPK/ODE simulation suite, 6-tier biological causal network mapper, and autonomous multi-persona AI clinical copilot.**
+> **An interactive, science-driven clinical pharmacology workbench, biophysical small-molecule PBPK & biologic TMDD simulation suite, 6-tier biological causal network mapper, RxNorm combination drug decomposer, botanical phytochemical resolver, and multi-provider autonomous AI clinical copilot.**
 
 ---
 
@@ -8,23 +8,27 @@
 
 `HealthAI` transforms complex clinical pharmacology, molecular biology, and pharmacokinetics into an intuitive, visually rich, and interactive software experience. 
 
-Traditional drug interaction checkers rely on static, binary pairwise lookup tables that fail to capture the multi-dimensional reality of human biology. In contrast, **HealthAI models the human body as a dynamic, interconnected network of biological systems**. It evaluates how multiple compounds, peptides, supplements, and active metabolites simultaneously compete for metabolic enzymes, saturate cellular transporters, modulate intracellular signaling cascades, and shift systemic biomarkers in response to a patient's individual genetic and laboratory profile.
+Traditional drug interaction checkers rely on static, binary pairwise lookup tables that fail to capture the multi-dimensional reality of human biology. In contrast, **HealthAI models the human body as a dynamic, interconnected network of biological systems**. It evaluates how multiple compounds, peptides, supplements, biologics, and active metabolites simultaneously compete for metabolic enzymes, saturate cellular transporters, modulate intracellular signaling cascades, and shift systemic biomarkers in response to a patient's individual genetic and laboratory profile.
 
-Whether you are designing a targeted longevity regimen, red-teaming an advanced peptide protocol, auditing polypharmacy risks, or exploring molecular pharmacology pathways, HealthAI provides immediate visual clarity, quantitative biophysical simulations, and autonomous clinical intelligence.
+Whether you are designing a targeted longevity regimen, red-teaming an advanced peptide or biologic protocol, decomposing OTC/Rx combination pharmaceuticals, auditing polypharmacy risks, or exploring molecular pharmacology pathways, HealthAI provides immediate visual clarity, quantitative biophysical simulations, and autonomous clinical intelligence.
 
 ```
 ┌──────────────────────────────────────────────────────────────────────────────────────────────────┐
 │                                       HEALTHAI ECOSYSTEM                                         │
 ├───────────────────────────────┬──────────────────────────────────┬───────────────────────────────┤
-│    🔬 INTERACTIVE WORKBENCH   │     🌐 6-TIER KNOWLEDGE GRAPH    │    🧪 BIOPHYSICAL PBPK / ODE  │
-│  • N x N Collision Matrix     │  • Cytoscape.js Network Canvas   │  • 1 & 2-Compartment Kinetics │
-│  • Multi-Agent Syndrome Alert │  • Multi-Ligand Net Occupancy    │  • Organ Partitioning (Kp)    │
-│  • Biometric Lab Calibration  │  • Shortest Regulatory Paths     │  • Dynamic DDI AUC Surges     │
-│  • Circadian Protocol Engine  │  • Multi-Temporal Ripple Sim     │  • Sigmoidal Hill Emax PD     │
+│    🔬 INTERACTIVE WORKBENCH   │     🌐 6-TIER KNOWLEDGE GRAPH    │    🧪 BIOPHYSICAL PBPK & TMDD │
+│  • N x N Collision Matrix     │  • Cytoscape.js Network Canvas   │  • 1 & 2-Compartment Small-Mol│
+│  • Multi-Agent Syndrome Alert │  • Multi-Ligand Net Occupancy    │  • Biologic TMDD & FcRn Model │
+│  • Biometric Lab Calibration  │  • Shortest Regulatory Paths     │  • Subcutaneous Depot Kinetics│
+│  • Circadian Protocol Engine  │  • Multi-Temporal Ripple Sim     │  • Rodgers-Rowland Tissue Kp  │
+│  • Modality Filter (10 Tiers) │  • GraphRAG Causal Triples       │  • Dynamic DDI AUC Surges     │
+│  • RxNorm Drug Decomposition  │  • Neo4j & NetworkX Fallback     │  • Sigmoidal Hill Emax PD     │
+│  • Progressive SSE Streaming  │  • IUPHAR Target Annotations     │  • Target Occupancy (TO%)     │
 ├───────────────────────────────┴──────────────────────────────────┴───────────────────────────────┤
-│                    🤖 AUTONOMOUS AI COPILOT & MULTI-PERSONA REASONING ENGINE                     │
+│                    🤖 AUTONOMOUS AI COPILOT & MULTI-PROVIDER REASONING ENGINE                    │
 │    [🏛️ Protocol Architect]   [🛡️ Risk Auditor]   [🔬 Pharmacology Tutor]   [🩸 Labs Analyst]     │
 │    • Live SSE Telemetry   • ReAct Scratchpad   • 1-Click Interactive Action Cards ("Apply")      │
+│    • Local CUDA (RTX 5090) / OpenAI / OpenRouter / Ollama • Zero-Persistence Dynamic Key Auth   │
 └──────────────────────────────────────────────────────────────────────────────────────────────────┘
 ```
 
@@ -32,22 +36,32 @@ Whether you are designing a targeted longevity regimen, red-teaming an advanced 
 
 ## 📑 Table of Contents
 
+- [🧭 AI Agent & Developer Architecture Map (`PROJECT_MAP.md`)](PROJECT_MAP.md)
 - [✨ Key Features at a Glance](#-key-features-at-a-glance)
 - [🖥️ User Experience & Interactive Walkthroughs](#️-user-experience--interactive-walkthroughs)
   - [1. Pharmacology Lab & Collision Matrix Workbench (`/`)](#1-pharmacology-lab--collision-matrix-workbench-)
-  - [2. Autonomous AI Clinical Copilot (`Ctrl+K` / Floating Drawer)](#2-autonomous-ai-clinical-copilot-ctrlk--floating-drawer)
+  - [2. Autonomous AI Clinical Copilot & Multi-Provider Settings (`Ctrl+K` / Floating Drawer)](#2-autonomous-ai-clinical-copilot--multi-provider-settings-ctrlk--floating-drawer)
   - [3. Interactive Biological Knowledge Graph & Cascade Engine (`/graph`)](#3-interactive-biological-knowledge-graph--cascade-engine-graph)
-  - [4. Compound Intelligence & Biophysical PBPK Dossier (`/compound/{key}`)](#4-compound-intelligence--biophysical-pbpk-dossier-compoundkey)
+  - [4. Compound Intelligence & Biophysical PBPK/TMDD Dossier (`/compound/{key}`)](#4-compound-intelligence--biophysical-pbpktmdd-dossier-compoundkey)
   - [5. Master Catalog Administration & Real-Time Data Ingestion (`/admin`)](#5-master-catalog-administration--real-time-data-ingestion-admin)
 - [🧬 End-to-End User Story: Optimizing a Complex Protocol](#-end-to-end-user-story-optimizing-a-complex-protocol)
 - [⚙️ How HealthAI Works (Under the Hood)](#️-how-healthai-works-under-the-hood)
   - [Pharmacokinetic (PK) & Transporter Collision Engine](#pharmacokinetic-pk--transporter-collision-engine)
-  - [Biophysical PBPK & Continuous-Time ODE Mathematics](#biophysical-pbpk--continuous-time-ode-mathematics)
+  - [Biophysical Small-Molecule PBPK & Continuous ODE Mathematics](#biophysical-small-molecule-pbpk--continuous-ode-mathematics)
+  - [Biologic PK/PD, Target-Mediated Drug Disposition (TMDD) & FcRn Salvage Kinetics](#biologic-pkpd-target-mediated-drug-disposition-tmdd--fcrn-salvage-kinetics)
+  - [RxNorm Relational Graph Decomposition & Multi-Ingredient Resolution](#rxnorm-relational-graph-decomposition--multi-ingredient-resolution)
+  - [NCBI MeSH Botanical & Phytochemical Resolution Engine](#ncbi-mesh-botanical--phytochemical-resolution-engine)
+  - [Substance Modality Taxonomy (10-Tier Classification)](#substance-modality-taxonomy-10-tier-classification)
+  - [High-Throughput In-Memory Index & Progressive Dual-Tier SSE Search](#high-throughput-in-memory-index--progressive-dual-tier-sse-search)
   - [6-Tier Biological Network Ontology & GraphRAG](#6-tier-biological-network-ontology--graphrag)
   - [Pharmacogenomics (PGx) & Biometric Lab Normalization](#pharmacogenomics-pgx--biometric-lab-normalization)
-  - [Multi-Tier Live Biomedical Enrichment](#multi-tier-live-biomedical-enrichment)
+  - [Multi-Tier Live Biomedical Enrichment & IUPHAR Integration](#multi-tier-live-biomedical-enrichment--iuphar-integration)
 - [🚀 Quick Start & Local Setup](#-quick-start--local-setup)
-- [⚡ Local Hardware-Accelerated LLM Setup (RTX 5090 / CUDA)](#-local-hardware-accelerated-llm-setup-rtx-5090--cuda)
+  - [Pre-Seeding Essential Therapeutics (`scripts/seed_top_compounds.py`)](#pre-seeding-essential-therapeutics-scriptsseed_top_compoundspy)
+- [⚡ LLM Inference Configuration (Local GPU & Cloud Providers)](#-llm-inference-configuration-local-gpu--cloud-providers)
+  - [Local Hardware-Accelerated Server (RTX 5090 / CUDA)](#local-hardware-accelerated-server-rtx-5090--cuda)
+  - [Local Ollama / vLLM & Custom OpenAI-Compatible Endpoints](#local-ollama--vllm--custom-openai-compatible-endpoints)
+  - [Cloud Providers (OpenRouter, OpenAI, Groq) & Dynamic Key Validation](#cloud-providers-openrouter-openai-groq--dynamic-key-validation)
 - [📡 API & WebSockets Reference](#-api--websockets-reference)
 - [🧪 Testing & Quality Assurance](#-testing--quality-assurance)
 - [📜 License & Medical Disclaimer](#-license--medical-disclaimer)
@@ -59,14 +73,19 @@ Whether you are designing a targeted longevity regimen, red-teaming an advanced 
 | Feature Area | User Experience & Capabilities |
 | :--- | :--- |
 | **Interactive Collision Matrix** | Color-coded $N \times N$ interaction grid with instant modal deep-dives into CYP450 competition, MBI suicide inactivation, transporter saturation, and displacement surges. |
-| **Autonomous AI Copilot** | Multi-persona reasoning drawer (Architect, Auditor, Tutor, Labs) with real-time SSE streaming, tool telemetry, and executable **Action Cards** that update your stack in one click. |
+| **RxNorm Combination Decomposer** | Deterministically traverses NLM RxNorm and DailyMed SPL to decompose multi-ingredient brand drugs (e.g., *DayQuil*, *NyQuil*, *Entresto*, *Excedrin*) into active pharmacological chemical entities with stripped salt forms. |
+| **Botanical & MeSH Resolver** | Resolves crude herbs and adaptogens (*Ashwagandha*, *Kratom*, *Kava*, *Turmeric*, *Rhodiola*, *Berberine*) against NCBI MeSH Tree B01 to identify primary active phytochemicals and their specific receptor targets. |
+| **Substance Modality Taxonomy** | Automated 10-tier modality classification (*Small Molecule*, *Biologic / mAb*, *Peptide*, *Combination Drug*, *Botanical*, *Mineral / Electrolyte*, etc.) backed by NCATS G-SRS, ChEMBL, and FDA EPC. |
+| **Biologic PK/PD & TMDD Simulator** | Dedicated biophysical modeling for monoclonal antibodies and therapeutic peptides featuring Target-Mediated Drug Disposition (TMDD), neonatal FcRn salvage recycling ($t_{1/2} \approx 14-28\text{d}$), and subcutaneous absorption. |
+| **Progressive SSE Streaming Search** | Dual-tier search: instantaneous sub-millisecond local in-memory index hits streamed immediately via Server-Sent Events, followed seamlessly by live upstream registry query candidates. |
+| **Multi-Provider AI Copilot** | Multi-persona reasoning drawer (Architect, Auditor, Tutor, Labs) with real-time SSE streaming, tool telemetry, interactive **Action Cards**, and customizable LLM backends (Local CUDA, Ollama, OpenRouter, OpenAI). |
 | **Multi-Agent Syndrome Classifiers** | Continuous detection of life-threatening emergent clinical syndromes: Serotonin Toxicity, QTc Prolongation ($hERG$), Renal "Triple Whammy", GABAergic CNS Depression, and Sympathomimetic Crises. |
 | **Dynamic Lab & PGx Calibration** | Calibrate predictions using 20+ laboratory markers (eGFR, ALT/AST, electrolytes, vitals, lipids) and pharmacogenomic phenotypes (`CYP2D6`, `CYP2C19`, `CYP3A4`, `SLCO1B1`, `COMT`). |
 | **6-Tier Biological Knowledge Graph** | Cytoscape.js canvas mapping interactions from Compounds $\rightarrow$ Molecular Targets $\rightarrow$ Intracellular Cascades $\rightarrow$ Organ Systems $\rightarrow$ Biomarkers $\rightarrow$ Phenotypes. |
 | **Multi-Temporal Cascade Simulator** | Simulate biological signal propagation and homeostatic adaptation across Acute (hours), Sub-Acute (weeks), and Chronic (months) time horizons. |
 | **Continuous PBPK & ODE Simulator** | 1- and 2-Compartment Open Models with Rodgers-Rowland tissue partitioning ($K_p$ for Brain, Liver, Kidney, Muscle, Adipose), lysosomal trapping, and Sigmoidal Hill $E_{max}$ pharmacodynamics. |
 | **Stack Intent & Modality Parser** | Automatically identifies the user's primary protocol intent, partitions compounds into therapeutic modalities, flags uncompensated physiological burdens, and derives evidence-graded co-factors. |
-| **Live Biomedical Enrichment** | On-demand and batch automated data fetching from NCBI PubChem, EMBL-EBI ChEMBL, UniProt, Reactome, NIH RxNorm, OpenFDA, and Europe PMC. |
+| **Multi-Registry Biomedical Enrichment** | On-demand and batch automated data fetching from NCBI PubChem, EMBL-EBI ChEMBL, IUPHAR Guide to PHARMACOLOGY, UniProt, Reactome, NIH RxNorm, OpenFDA, and Europe PMC. |
 
 ---
 
@@ -111,6 +130,9 @@ The primary command center where users assemble compound stacks, customize dosag
 
 #### Key User Interactions:
 - **Instant Typeahead Compound Search:** Search across generic names, brand names (e.g., *Micardis*, *Lipitor*, *Viagra*, *Ozempic*), or therapeutic classes.
+- **Progressive Dual-Tier SSE Streaming Search:** High-speed in-memory prefix indexing yields local matches in <5ms, followed progressively by live candidates streamed from RxNorm, PubChem, and ChEMBL via Server-Sent Events.
+- **Automatic Multi-Ingredient & Brand Decomposition:** Entering commercial combination products (e.g., *DayQuil*, *NyQuil*, *Entresto*, *Excedrin*) automatically traverses the RxNorm Concept Graph to decompose the product into its pure constituent active chemical entities and exact doses.
+- **Substance Modality Filter:** Scope searches and views by therapeutic modality: *All Modalities*, *Small Molecules*, *Biologics / Monoclonal Antibodies*, *Peptides*, *Botanicals / Phytochemicals*, and *Minerals & Electrolytes*.
 - **Pre-Built Starter Stacks:** One-click presets to immediately explore canonical stacks (*Longevity & Senolytics*, *Cognitive Nootropic Focus*, *Cardiovascular & Lipid Defense*, *Metabolic & Glycemic Control*, *Anabolic Body Composition*).
 - **Interactive Collision Modal:** Clicking any intersection in the $N \times N$ matrix opens a modal detailing:
   - Exact biochemical mechanism (e.g., competitive binding, transporter saturation, enzyme induction).
@@ -121,14 +143,15 @@ The primary command center where users assemble compound stacks, customize dosag
 
 ---
 
-### 2. Autonomous AI Clinical Copilot (`Ctrl+K` / Floating Drawer)
+### 2. Autonomous AI Clinical Copilot & Multi-Provider Settings (`Ctrl+K` / Floating Drawer)
 
 An always-available, conversational clinical intelligence agent grounded in deterministic pharmacological databases, continuous ODE simulations, and graph-causal triples—adhering to a strict **Zero-Bro-Science standard**.
 
 ```
 ┌──────────────────────────────────────────────────────────────────────────────────────────────────────────────────┐
-│  🤖 HEALTHAI CLINICAL COPILOT                                                                          [✕ Close] │
+│  🤖 HEALTHAI CLINICAL COPILOT                                        [ ⚙️ Settings ] [ ⟳ Clear ] [✕ Close ]        │
 ├──────────────────────────────────────────────────────────────────────────────────────────────────────────────────┤
+│  PROVIDER: [ ● Local CUDA (Qwen 3.8-27B) ]  [ Custom OpenAI / OpenRouter ]  Status: Connected (12ms)             │
 │  PERSONA SELECTOR:                                                                                               │
 │  [ 🏛️ Protocol Architect ]   [ 🛡️ Risk Auditor ]   [ 🔬 Pharmacology Tutor ]   [ 🩸 Biomarker & Labs Analyst ]    │
 ├──────────────────────────────────────────────────────────────────────────────────────────────────────────────────┤
@@ -171,8 +194,16 @@ An always-available, conversational clinical intelligence agent grounded in dete
 4. **🩸 Biomarker & Labs Analyst (`labs`):**
    - Correlates user blood panels with pharmacological clearance, flags anomalous biomarkers, and provides precise lab retesting timelines.
 
+#### Multi-Provider LLM & Custom Endpoint Settings:
+Clicking the settings gear (`⚙️`) in the Copilot header enables direct configuration of local or remote LLM providers:
+- **Local Hardware-Accelerated Server:** Connects directly to local `llama-server` (e.g., `http://127.0.0.1:8080/v1` with CUDA/RTX 5090 acceleration).
+- **Local & Self-Hosted Inference:** Fully compatible with Ollama (`http://localhost:11434/v1`), vLLM, LM Studio, or LocalAI.
+- **Cloud Providers:** Direct support for OpenRouter (`https://openrouter.ai/api/v1`), OpenAI (`api.openai.com/v1`), Groq, or custom proxies.
+- **Live Endpoint Health Checks (`POST /api/ai/validate-key`):** Verifies base URL reachability, queries accessible models, and validates API keys with live ping latency.
+- **Zero Server-Side Key Persistence:** User API keys and custom endpoints reside exclusively in browser client-side storage and are transmitted securely on demand via `X-User-API-Key`, `X-User-Base-URL`, and `X-User-Model` HTTP headers.
+
 #### Dynamic Action Cards (`<action_card type="stack_diff">`):
-Whenever the AI Copilot suggests additions, dosage titrations, or compound substitutions, it generates an interactive **Action Card**. Users can review the exact diff and click **"Apply to Stack"** to update their workbench in real time without manual re-entry.
+Whenever the AI Copilot suggests additions, dosage titrations, or compound substitutions, it generates an interactive **Action Card**. Users can review the exact diff and click **"Apply Changes to Workbench Stack"** to update their workbench in real time without manual re-entry.
 
 ---
 
@@ -222,9 +253,9 @@ A visual 6-tier network canvas powered by Cytoscape.js that reveals the deep bio
 
 ---
 
-### 4. Compound Intelligence & Biophysical PBPK Dossier (`/compound/{key}`)
+### 4. Compound Intelligence & Biophysical PBPK/TMDD Dossier (`/compound/{key}`)
 
-An in-depth scientific dossier and continuous-time pharmacokinetic/pharmacodynamic simulation suite for any individual compound.
+An in-depth scientific dossier and continuous-time pharmacokinetic/pharmacodynamic simulation suite for both small-molecule pharmaceuticals and large-molecule biologics.
 
 ```
 ┌──────────────────────────────────────────────────────────────────────────────────────────────────────────────────┐
@@ -258,7 +289,10 @@ An in-depth scientific dossier and continuous-time pharmacokinetic/pharmacodynam
 ```
 
 #### Analytical Dossier Tools:
-- **Interactive PBPK Tissue Graphs:** Toggle between single-dose and multi-dose steady-state curves, inspecting Rodgers-Rowland partition coefficients ($K_p$) across Brain, Liver, Kidney, Muscle, and Adipose tissues.
+- **Dual Biophysical PK Engines:**
+  - **Small Molecules:** Classical 1- and 2-compartment open models with Rodgers-Rowland tissue partitioning ($K_p$) across Brain, Liver, Kidney, Muscle, and Adipose, plus lysosomal ion-trapping.
+  - **Biologics & Monoclonal Antibodies (`biologic_pkpd_engine.py`):** 2-compartment vascular-interstitial model with lymphatic convective transport, Target-Mediated Drug Disposition (TMDD) with capacity-limited receptor clearance ($V_{max}, K_m$), endothelial neonatal Fc Receptor ($FcRn$) salvage recycling ($t_{1/2} \approx 14-28\text{ days}$), and Target Occupancy ($TO\%$) saturation dynamics.
+- **Subcutaneous (SC) Depot Kinetics:** Models slow lymphatic absorption and incomplete bioavailability ($F_{sc} \approx 65\%$) vs. instantaneous IV bolus.
 - **Lysosomal Ion-Trapping Calculator:** Computes subcellular sequestration based on Henderson-Hasselbalch basic $pK_a$ partitioning across cytosol (pH 7.2) and acidic lysosomes (pH 4.8).
 - **Dynamic DDI Simulation:** Add co-administered inhibitors or inducers to instantly simulate AUC surges, half-life prolongation, and clearance attenuation curves.
 - **Population Uncertainty Bands:** Visualizes $P_{10}, P_{25}, P_{50}, P_{75}, P_{90}$ population variance confidence intervals.
@@ -378,9 +412,9 @@ HealthAI's collision engine (`interaction_engine.py`) models metabolic and trans
 
 ---
 
-### Biophysical PBPK & Continuous-Time ODE Mathematics
+### Biophysical Small-Molecule PBPK & Continuous ODE Mathematics
 
-HealthAI's PK/PD simulation engine (`pkpd_engine.py`) employs multi-compartment continuous differential equations:
+HealthAI's small-molecule PK/PD simulation engine (`pkpd_engine.py`) employs multi-compartment continuous differential equations:
 
 1. **2-Compartment Open Pharmacokinetics:**
    Models rapid distribution ($\alpha$) and terminal elimination ($\beta$) phases:
@@ -399,6 +433,96 @@ HealthAI's PK/PD simulation engine (`pkpd_engine.py`) employs multi-compartment 
 4. **Sigmoidal $E_{max}$ Hill Pharmacodynamics:**
    Translates dynamic biophysical tissue concentration into receptor occupancy and clinical efficacy:
    $$E(C) = E_0 + \frac{E_{max} \cdot C^\gamma}{EC_{50}^\gamma + C^\gamma}$$
+
+---
+
+### Biologic PK/PD, Target-Mediated Drug Disposition (TMDD) & FcRn Salvage Kinetics
+
+For monoclonal antibodies (mAbs) and large therapeutic peptides, classical hepatic CYP clearance and small-molecule lipophilic partitioning equations do not apply. HealthAI's biologic engine (`biologic_pkpd_engine.py`) models macromolecular disposition:
+
+1. **2-Compartment Vascular-Interstitial Disposition:**
+   Biologics distribute primarily into vascular blood volume ($V_1 \approx 45\text{ mL/kg}$) and interstitial fluid ($V_2 \approx 40\text{ mL/kg}$), with lymphatic convective transport ($Q \approx 0.6\text{ L/day}$):
+   $$\frac{dC_1}{dt} = \frac{\text{Input}(t)}{V_1} - \frac{CL_{lin}}{V_1} C_1 - \frac{V_{max} \cdot C_1}{V_1 (K_m + C_1)} - \frac{Q}{V_1} C_1 + \frac{Q}{V_1} C_2$$
+   $$\frac{dC_2}{dt} = \frac{Q}{V_2} C_1 - \frac{Q}{V_2} C_2$$
+
+2. **Target-Mediated Drug Disposition (TMDD):**
+   At low concentrations, biologics undergo rapid capacity-limited clearance via target receptor internalization ($V_{max}, K_m$). At high concentrations, target receptors saturate, and elimination transitions to linear zero/first-order clearance ($CL_{lin} \approx 0.25\text{ L/day}$).
+
+3. **Neonatal Fc Receptor ($FcRn$) Endothelial Salvage:**
+   IgG antibodies bind endothelial $FcRn$ in acidic endosomes ($pH \approx 6.0$), recycling them back into systemic circulation rather than lysosomal catabolism—reproducing their characteristic extended terminal half-life ($t_{1/2} \approx 14-28\text{ days}$).
+
+4. **Subcutaneous (SC) vs. Intravenous (IV) Depot Kinetics:**
+   Subcutaneous administration undergoes slow lymphatic convective uptake ($k_a \approx 0.015\text{ h}^{-1}$) with delayed $T_{max}$ (48-72 hours) and incomplete bioavailability ($F_{sc} \approx 65\%$):
+   $$\frac{d(\text{Depot})}{dt} = -k_a \cdot \text{Depot}, \quad \text{Input}(t) = k_a \cdot \text{Depot}(t) \cdot F_{sc}$$
+
+5. **Dynamic Target Occupancy ($TO\%$):**
+   $$\text{TO}\% = \frac{C_1}{K_d + C_1} \times 100\%$$
+
+---
+
+### RxNorm Relational Graph Decomposition & Multi-Ingredient Resolution
+
+Patients and clinicians frequently search using commercial brand names or OTC combination products containing multiple active pharmaceutical ingredients. HealthAI's decomposer (`rxnorm_graph_decomposer.py`) prevents incomplete safety audits:
+
+1. **NLM RxNorm Relational Concept Graph Traversal:**
+   Resolves branded products (*Entresto*, *DayQuil*, *NyQuil*, *Excedrin*, *Suboxone*, *Adderall*) by traversing `has_ingredient` (tty=IN) and `has_precise_ingredient` (tty=PIN) edges.
+2. **FDA DailyMed Structured Product Label (SPL) Cross-Referencing:**
+   Extracts active moieties and unit strengths directly from official SPL manufacturer filings.
+3. **Active Moiety Normalization:**
+   Deterministically strips salt counter-ions (`hydrochloride`, `maleate`, `succinate`, `tartrate`, `fumarate`, `besylate`) and FDA 4-letter biosimilar suffixes (`-pmph`, `-adaz`, `-bwwd`) to isolate the true pharmacological chemical entity for collision analysis.
+
+---
+
+### NCBI MeSH Botanical & Phytochemical Resolution Engine
+
+Crude botanical and herbal extracts cannot be evaluated as single monolithic molecules. HealthAI's botanical resolver (`botanical_resolver.py`) resolves natural compounds into their active phytochemical profiles:
+
+1. **NCBI MeSH Tree B01 Botanical Taxonomy:**
+   Queries the National Library of Medicine Medical Subject Headings (MeSH) Tree B01 (Organisms / Plants) to validate authoritative plant species (*Withania somnifera*, *Mitragyna speciosa*, *Piper methysticum*, *Curcuma longa*, *Rhodiola rosea*).
+2. **PubChem Phytochemical Constituent Unbundling:**
+   Extracts primary bioactive chemical constituents (e.g., *Ashwagandha* $\rightarrow$ Withaferin A & Withanolide D; *Kava* $\rightarrow$ Kavain & Dihydromethysticin; *Turmeric* $\rightarrow$ Curcuminoids & Piperine).
+3. **Multi-Constituent Collision Integration:**
+   Feeds each constituent directly into the $N \times N$ collision matrix, revealing herb-drug interactions (e.g., piperine OATP1B1 inhibition, kava CYP2E1 competition, St. John's Wort P-gp induction).
+
+---
+
+### Substance Modality Taxonomy (10-Tier Classification)
+
+Every substance in HealthAI is deterministically categorized into a 10-tier pharmacological modality taxonomy (`modality_resolver.py`):
+
+| Modality Class | Identifier | Authoritative Source Registries | Clinical / Kinetic Profile |
+| :--- | :--- | :--- | :--- |
+| **Small Molecule** | `small_molecule` | ChEMBL, PubChem, DailyMed | CYP/Transporter clearance, Rodgers-Rowland $K_p$ tissue distribution. |
+| **Biologic / mAb** | `biologic_antibody` | NCATS G-SRS, ChEMBL Biotherapeutics | Vascular-interstitial 2-comp kinetics, TMDD, endothelial FcRn recycling. |
+| **Peptide** | `peptide` | IUPHAR Guide to PHARMACOLOGY, UniProt | Proteolytic degradation, receptor desensitization, non-CYP clearance. |
+| **Combination Drug** | `combination_drug` | NLM RxNorm Graph, DailyMed SPL | Multi-active formulations decomposed into discrete chemical entities. |
+| **Botanical / Natural** | `botanical_natural` | NCBI MeSH Tree B01, PubChem | Crude botanicals decomposed into primary bioactive phytochemicals. |
+| **Mineral / Electrolyte** | `mineral_electrolyte` | PubChem Periodic System, DailyMed | Renal electrolyte clearance, serum osmolality and cardiac conduction. |
+| **Radiopharmaceutical** | `radiopharmaceutical` | NCATS G-SRS, DailyMed | Targeted radionuclide decay kinetics and radiation dosimetry. |
+| **Cell / Gene Therapy** | `cell_gene_therapy` | FDA CBER Registries, G-SRS | Transduction kinetics, persistent vector expression, immunogenicity. |
+| **Vaccine** | `vaccine` | FDA CBER, DailyMed | Antigen presentation kinetics, adjuvant immune cascade activation. |
+| **Unknown / Unclassified**| `unknown` | Heuristic Fallback | Dynamically assigned pending upstream registry curation. |
+
+---
+
+### High-Throughput In-Memory Index & Progressive Dual-Tier SSE Search
+
+To deliver instantaneous search across thousands of compounds without stalling when external APIs are slow, HealthAI employs a dual-tier search engine (`fast_search_resolver.py` & `/api/compounds/search/stream`):
+
+```
+┌────────────────────────────────────────────────────────────────────────────────────────────────┐
+│                        PROGRESSIVE DUAL-TIER SSE COMPOUND SEARCH                               │
+├───────────────────────────────────────────────────┬────────────────────────────────────────────┤
+│  ⚡ TIER 1: IN-MEMORY TRIE / PREFIX INDEX (<5ms)   │  🌐 TIER 2: ASYNC REGISTRY DISCOVERY (SSE) │
+│  • Normalized tokenized prefix index              │  • Queries RxNorm, PubChem, ChEMBL, IUPHAR │
+│  • Instant client-side candidate rendering        │  • Yields external matches progressively   │
+│  • Deduplicated against active local catalog      │  • Auto-enriches on selection              │
+└───────────────────────────────────────────────────┴────────────────────────────────────────────┘
+```
+
+1. **Sub-Millisecond Local Index (`GET /api/compounds/index`):** Pre-computed, tokenized prefix trie of all catalog entries and aliases loaded into client and server memory.
+2. **Server-Sent Events Stream (`GET /api/compounds/search/stream`):** Delivers local hits immediately via `event: local_results`, then asynchronously searches external registries in the background, streaming newly discovered candidates via `event: external_results`.
+3. **Modality & Indication Scoping:** Allows narrowing queries to specific modalities (e.g. `?modality=peptide&q=glp`) to instantly filter noise.
 
 ---
 
@@ -431,12 +555,12 @@ The PGx engine (`pgx_engine.py`) integrates CPIC / PharmGKB activity scores to i
 
 ---
 
-### Multi-Tier Live Biomedical Enrichment
+### Multi-Tier Live Biomedical Enrichment & IUPHAR Integration
 
 HealthAI implements a robust 3-tier data enrichment architecture:
 - **Tier 1 (Seed Cache):** Instant in-memory curated compound catalog.
 - **Tier 2 (Relational SQLite Cache):** Local `healthai_catalog.db` database.
-- **Tier 3 (Live Upstream REST APIs):** On-demand querying of **NCBI PubChem** (structures, 2D/3D coordinates), **EMBL-EBI ChEMBL** (binding affinities, $K_i, IC_{50}$), **UniProt** (target identifiers), **Reactome** (canonical biological pathways), **NIH RxNorm**, **OpenFDA** (adverse events), and **Europe PMC** (dynamic literature ROS/redox mining).
+- **Tier 3 (Live Upstream REST APIs):** On-demand querying of **NCBI PubChem** (structures, 2D/3D coordinates), **EMBL-EBI ChEMBL** (binding affinities, $K_i, IC_{50}$), **IUPHAR / BPS Guide to PHARMACOLOGY** (peptides, GPCR receptor targets), **UniProt** (target identifiers), **Reactome** (canonical biological pathways), **NIH RxNorm**, **OpenFDA** (adverse events), and **Europe PMC** (dynamic literature ROS/redox mining).
 
 ---
 
@@ -480,20 +604,31 @@ python run_server.py --open-browser
 
 Navigate to `http://127.0.0.1:8000` in your web browser.
 
+### Pre-Seeding Essential Therapeutics (`scripts/seed_top_compounds.py`)
+To warm the local SQLite database with 150+ essential medicines, peptides, and wellness compounds (with all target binding affinities and biophysical parameters cached locally):
+```bash
+python scripts/seed_top_compounds.py
+```
+*(Batch-enriches essential compounds via RxNorm, ChEMBL, PubChem, and MeSH concurrently with zero hardcoded approximations).*
+
 ---
 
-## ⚡ Local Hardware-Accelerated LLM Setup (RTX 5090 / CUDA)
+## ⚡ LLM Inference Configuration (Local GPU & Cloud Providers)
+
+HealthAI features a multi-provider inference architecture supporting both local hardware-accelerated GPUs and remote/cloud OpenAI-compatible endpoints.
+
+### Local Hardware-Accelerated Server (RTX 5090 / CUDA)
 
 HealthAI is pre-configured to interface seamlessly with local hardware-accelerated LLMs via `llama.cpp` / `llama-server`.
 
-### 1. Download the Recommended Model (Qwen 3.8-27B GGUF)
+#### 1. Download the Recommended Model (Qwen 3.8-27B GGUF)
 Run the multi-threaded resumable downloader:
 ```bash
 python scripts/download_model.py
 ```
 *(Downloads `Qwen3.8-27B-UD-Q6_K.gguf` directly to `models/` with 24 concurrent connection workers and automatic sha256 verification).*
 
-### 2. Start the Hardware-Accelerated Local Inference Server
+#### 2. Start the Hardware-Accelerated Local Inference Server
 Launch the pre-configured `llama-server` runner:
 
 **Windows Batch:**
@@ -506,12 +641,30 @@ start_llama_server.bat
 .\start_llama_server.ps1
 ```
 
-#### Included GPU Optimizations:
+##### Included GPU Optimizations:
 - **Speculative Multi-Target Prediction (MTP):** `--spec-draft-mtp --spec-draft-n-max 2`
 - **Flash Attention:** `-fa`
 - **4-bit Quantized KV Cache:** `-ctk q4_0 -ctv q4_0`
 - **Large Context Window:** `-c 65536` (64k context)
 - **Auto-Connection:** HealthAI automatically detects and connects to the active LLM server on port `8080`.
+
+### Local Ollama / vLLM & Custom OpenAI-Compatible Endpoints
+
+To use an existing self-hosted inference engine on your machine or local network:
+1. Open the Copilot drawer (`Ctrl+K` or click **🤖 Copilot**).
+2. Click the settings gear (`⚙️`) to open **AI Provider Configuration**.
+3. Select **Custom OpenAI-Compatible** and enter your Base URL:
+   - **Ollama:** `http://localhost:11434/v1` (Model: e.g., `qwen2.5:32b`, `llama3.3`)
+   - **vLLM / LM Studio / LocalAI:** `http://localhost:1234/v1` or custom port.
+4. Click **Test & Save Configuration** to verify connection and model access in real time.
+
+### Cloud Providers (OpenRouter, OpenAI, Groq) & Dynamic Key Validation
+
+If you prefer cloud-hosted inference:
+1. In Copilot Settings, set Base URL to `https://openrouter.ai/api/v1` (or leave default for OpenAI).
+2. Enter your API Key and target model identifier (e.g., `anthropic/claude-3.5-sonnet`, `openai/gpt-4o`, `deepseek/deepseek-r1`).
+3. Click **Test & Save Configuration**: the server runs a live ping via `POST /api/ai/validate-key` confirming quota, auth, and model accessibility.
+4. **Privacy Guarantee:** Your API key is stored exclusively in client-side browser storage and passed per-turn via the `X-User-API-Key` HTTP header. It is never persisted on disk or in the server database.
 
 ---
 
@@ -526,13 +679,20 @@ HealthAI provides a clean, modular REST and WebSocket API documented interactive
 | **AI Copilot** | `POST` | `/api/ai/chat/stream` | Server-Sent Events (SSE) streaming chat with reasoning telemetry & action cards. |
 | **AI Copilot** | `POST` | `/api/ai/infer-purpose` | Infers stack intent, partitions modalities, and detects uncompensated burdens. |
 | **AI Copilot** | `POST` | `/api/ai/tools/execute` | Executes deterministic pharmacology tools (catalog, CYP450, PBPK, GraphRAG). |
+| **AI Copilot** | `POST` | `/api/ai/validate-key` | Live connectivity test, model verification, and latency ping for LLM endpoints. |
 | **Interactions** | `POST` | `/api/interactions/matrix` | Evaluates $N \times N$ collisions, syndrome alerts, organ burdens, and risk score. |
 | **Protocols** | `POST` | `/protocol` | Generates individualized circadian schedules based on biometrics and goals. |
 | **Knowledge Graph**| `GET` | `/graph-data` | Returns 6-tier network nodes, edges, receptor occupancies, and cascade states. |
 | **Knowledge Graph**| `GET` | `/graph-path` | Calculates shortest biological paths and cross-talk connections. |
 | **Knowledge Graph**| `POST` | `/api/graph/cypher` | Executes custom Cypher queries against the Neo4j database. |
-| **PBPK / ODE** | `POST` | `/api/pkpd/simulate` | Simulates 2-compartment curves, tissue $K_p$ partition coefficients, and Hill PD. |
-| **Catalog** | `GET` | `/catalog` | Paginated catalog listing with multi-token search and filtering. |
+| **PBPK / ODE** | `POST` | `/api/pkpd/simulate` | Simulates 2-compartment small-molecule or biologic TMDD/FcRn curves and Hill PD. |
+| **Catalog** | `GET` | `/catalog` | Paginated catalog listing with multi-token search and modality filtering. |
+| **Catalog Index** | `GET` | `/api/compounds/index` | Full in-memory tokenized search prefix index for sub-millisecond autocomplete. |
+| **Catalog Search**| `GET` | `/api/compounds/search` | Typeahead search across compound keys, names, classes, and modalities. |
+| **Catalog Search**| `GET` | `/api/compounds/search/stream` | Progressive dual-tier SSE search (local matches first, live registry stream second). |
+| **Decomposition** | `GET` | `/api/catalog/decompose/{query}` | Decomposes brand/combo drugs into active chemical entities via RxNorm Graph. |
+| **Botanical** | `GET` | `/api/catalog/botanical/{query}` | Resolves crude botanicals to NCBI MeSH Tree B01 & active phytochemicals. |
+| **Modality** | `GET` | `/api/catalog/modality/{query}` | Classifies substance modality across 10 classes via NCATS G-SRS and ChEMBL. |
 | **Catalog** | `POST` | `/api/compounds/{key}/enrich-full` | Triggers full live multi-source enrichment (PubChem, ChEMBL, UniProt, OpenFDA). |
 | **Enrichment WS**| `WS` | `/ws/enrichment` | WebSocket stream broadcasting real-time background worker progress and logs. |
 
@@ -549,8 +709,14 @@ pytest
 # Run tests with verbose output
 pytest -v
 
-# Run the Biophysical PBPK & Continuous ODE test suite
-pytest tests/test_biophysical_pbpk_and_odes.py -v
+# Run the Biophysical Small-Molecule PBPK & Biologic TMDD test suites
+pytest tests/test_biophysical_pbpk_and_odes.py tests/test_modality_expansion.py -v
+
+# Run Fast Search & Progressive SSE Streaming search test suites
+pytest tests/test_fast_compound_search.py tests/test_streaming_compound_search.py tests/test_search_filters.py -v
+
+# Run Target Cascade Determinism test suite
+pytest tests/test_target_cascade_determinism.py -v
 
 # Run the AI Copilot & SSE Streaming test suite
 pytest tests/test_ai_copilot_suite.py -v

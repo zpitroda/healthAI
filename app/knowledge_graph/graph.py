@@ -6,6 +6,87 @@ from pydantic import BaseModel, ConfigDict
 from app.knowledge_graph.models import BaseNode, EdgeData, EdgeType
 
 
+BIOMARKER_CLINICAL_CV: Dict[str, float] = {
+    # Tightly regulated electrolytes & repolarization (strict homeostasis)
+    "bio_serum_potassium": 0.05,
+    "bio_potassium": 0.05,
+    "bio_qtc": 0.04,
+    "bio_sodium": 0.02,
+    "bio_calcium": 0.03,
+
+    # Vitals & Autonomic dynamics
+    "bio_blood_pressure": 0.07,
+    "bio_systolic_blood_pressure": 0.07,
+    "bio_resting_heart_rate": 0.08,
+    "bio_heart_rate": 0.08,
+
+    # Hematology & Glycemia
+    "bio_hematocrit": 0.05,
+    "bio_hemoglobin": 0.05,
+    "bio_blood_glucose": 0.10,
+    "bio_glucose": 0.10,
+    "bio_hba1c": 0.06,
+
+    # Renal Hemodynamics & Filtration
+    "bio_egfr": 0.09,
+    "bio_serum_creatinine": 0.09,
+    "bio_bun": 0.12,
+    "bio_cystatin_c": 0.08,
+
+    # Lipids & Reverse Transport
+    "bio_hdl_c": 0.12,
+    "bio_ldl_c": 0.14,
+    "bio_triglycerides": 0.20,
+
+    # Hepatobiliary Enzymes
+    "bio_alt": 0.25,
+    "bio_ast": 0.24,
+    "bio_total_bilirubin": 0.20,
+    "bio_ggt": 0.22,
+    "bio_alp": 0.15,
+
+    # Steroid Hormones & Endocrine Axis
+    "bio_testosterone": 0.25,
+    "bio_estradiol": 0.22,
+    "bio_estrone": 0.22,
+    "bio_dht": 0.20,
+    "bio_luteinizing_hormone": 0.25,
+    "bio_fsh": 0.22,
+    "bio_shbg": 0.18,
+
+    # Inflammation & Redox Balance
+    "bio_crp": 0.30,
+    "bio_gsh_redox_ratio": 0.15,
+    "bio_mda": 0.18,
+    "bio_ros_level": 0.18,
+    "bio_bleeding_risk": 0.15,
+
+    # Metabolic Rate & Thyroid Axis
+    "bio_metabolic_rate": 0.06,
+    "bio_bmr": 0.06,
+    "bio_free_t3": 0.12,
+    "bio_free_t4": 0.10,
+    "bio_tsh": 0.14,
+    "bio_fasting_insulin": 0.15,
+    "bio_homa_ir": 0.16,
+
+    # Neurotrophins & Synaptic Transmission
+    "bio_bdnf": 0.15,
+    "bio_ngf": 0.16,
+    "bio_acetylcholine": 0.12,
+    "bio_synaptic_plasticity": 0.12,
+
+    # Somatotropic, Longevity & Bioenergetics
+    "bio_igf1": 0.14,
+    "bio_nad_plus": 0.15,
+    "bio_sirtuin_activity": 0.14,
+
+    # Autonomic & Precision Endocrine
+    "bio_hrv": 0.18,
+    "bio_free_testosterone": 0.20,
+}
+
+
 BIOMARKER_CLINICAL_CALIBRATION: Dict[str, Dict[str, Any]] = {
     "bio_heart_rate": {
         "baseline": 70.0,
@@ -665,6 +746,175 @@ BIOMARKER_CLINICAL_CALIBRATION: Dict[str, Dict[str, Any]] = {
         "kinetic_profile": "gut_microbial_metabolism",
         "time_course_description": "Intestinal microbial TMA lyase cleavage, portal vein transport, and hepatic FMO3 oxidation",
     },
+    # 11. Metabolic Energy Expenditure & Thyroid Domain
+    "bio_metabolic_rate": {
+        "baseline": 1650.0,
+        "unit": "kcal/day",
+        "gain_up": 450.0,
+        "gain_down": 350.0,
+        "safe_lower": 1300.0,
+        "safe_upper": 2100.0,
+        "biological_cv": 0.06,
+        "label": "Basal Metabolic Rate (BMR)",
+        "onset_days": 0.5,
+        "half_time_days": 2.0,
+        "time_to_steady_state_weeks": 1.0,
+        "kinetic_profile": "metabolic_thermogenesis",
+        "time_course_description": "Mitochondrial uncoupling, Na+/K+-ATPase activation, and cellular substrate turnover (2-7 days)",
+    },
+    "bio_free_t3": {
+        "baseline": 3.2,
+        "unit": "pg/mL",
+        "gain_up": 2.8,
+        "gain_down": 1.6,
+        "safe_lower": 2.3,
+        "safe_upper": 4.2,
+        "biological_cv": 0.12,
+        "label": "Free Triiodothyronine (FT3)",
+        "onset_days": 0.25,
+        "half_time_days": 1.0,
+        "time_to_steady_state_weeks": 0.5,
+        "kinetic_profile": "thyroid_endocrine",
+        "time_course_description": "Active thyroid hormone nuclear receptor occupancy and metabolic rate stimulation (1-3 days)",
+    },
+    "bio_free_t4": {
+        "baseline": 1.2,
+        "unit": "ng/dL",
+        "gain_up": 1.2,
+        "gain_down": 0.6,
+        "safe_lower": 0.8,
+        "safe_upper": 1.8,
+        "biological_cv": 0.10,
+        "label": "Free Thyroxine (FT4)",
+        "onset_days": 1.0,
+        "half_time_days": 7.0,
+        "time_to_steady_state_weeks": 4.0,
+        "kinetic_profile": "thyroid_endocrine",
+        "time_course_description": "Pro-hormone thyroxine reservoir and peripheral deiodinase conversion turnover (3-6 weeks to steady state)",
+    },
+    # 12. Neurotrophic & Synaptic Plasticity Domain
+    "bio_bdnf": {
+        "baseline": 25.0,
+        "unit": "ng/mL",
+        "gain_up": 20.0,
+        "gain_down": 12.0,
+        "safe_lower": 15.0,
+        "safe_upper": 45.0,
+        "biological_cv": 0.15,
+        "label": "Brain-Derived Neurotrophic Factor (BDNF)",
+        "onset_days": 1.0,
+        "half_time_days": 3.0,
+        "time_to_steady_state_weeks": 1.5,
+        "kinetic_profile": "synaptic_neurotrophin",
+        "time_course_description": "Hippocampal and cortical BDNF transcription, TrkB autophosphorylation, and synaptogenesis (1-3 weeks)",
+    },
+    "bio_ngf": {
+        "baseline": 15.0,
+        "unit": "pg/mL",
+        "gain_up": 20.0,
+        "gain_down": 8.0,
+        "safe_lower": 5.0,
+        "safe_upper": 35.0,
+        "biological_cv": 0.16,
+        "label": "Nerve Growth Factor (NGF)",
+        "onset_days": 1.0,
+        "half_time_days": 3.0,
+        "time_to_steady_state_weeks": 1.5,
+        "kinetic_profile": "synaptic_neurotrophin",
+        "time_course_description": "Basal forebrain cholinergic neuron trophic support and TrkA receptor signaling",
+    },
+    "bio_acetylcholine": {
+        "baseline": 65.0,
+        "unit": "index",
+        "gain_up": 35.0,
+        "gain_down": 30.0,
+        "safe_lower": 45.0,
+        "safe_upper": 90.0,
+        "biological_cv": 0.12,
+        "label": "Synaptic Acetylcholine Tone",
+        "onset_days": 0.05,
+        "half_time_days": 0.25,
+        "time_to_steady_state_weeks": 0.2,
+        "kinetic_profile": "synaptic_neurotransmission",
+        "time_course_description": "Synaptic cleft ACh concentration, acetylcholinesterase inhibition, and muscarinic/nicotinic transmission",
+    },
+    # 13. Cellular Longevity & Somatotropic Domain
+    "bio_igf1": {
+        "baseline": 180.0,
+        "unit": "ng/mL",
+        "gain_up": 220.0,
+        "gain_down": 100.0,
+        "safe_lower": 115.0,
+        "safe_upper": 307.0,
+        "biological_cv": 0.14,
+        "label": "Insulin-Like Growth Factor 1 (IGF-1)",
+        "onset_days": 1.0,
+        "half_time_days": 4.0,
+        "time_to_steady_state_weeks": 2.0,
+        "kinetic_profile": "endocrine_somatotropic",
+        "time_course_description": "Hepatic GH receptor stimulation and systemic IGF-1 synthesis (1-2 weeks to peak)",
+    },
+    "bio_nad_plus": {
+        "baseline": 30.0,
+        "unit": "μmol/L",
+        "gain_up": 35.0,
+        "gain_down": 15.0,
+        "safe_lower": 20.0,
+        "safe_upper": 60.0,
+        "biological_cv": 0.15,
+        "label": "Intracellular NAD+ Pool",
+        "onset_days": 0.5,
+        "half_time_days": 2.0,
+        "time_to_steady_state_weeks": 1.0,
+        "kinetic_profile": "cellular_bioenergetics",
+        "time_course_description": "Nicotinamide salvage pathway synthesis, CD38 consumption, and sirtuin cofactor availability",
+    },
+    "bio_sirtuin_activity": {
+        "baseline": 100.0,
+        "unit": "index",
+        "gain_up": 60.0,
+        "gain_down": 40.0,
+        "safe_lower": 70.0,
+        "safe_upper": 160.0,
+        "biological_cv": 0.14,
+        "label": "Sirtuin 1 (SIRT1) Deacetylase Activity",
+        "onset_days": 0.5,
+        "half_time_days": 2.5,
+        "time_to_steady_state_weeks": 1.0,
+        "kinetic_profile": "cellular_bioenergetics",
+        "time_course_description": "NAD+-dependent class III histone/protein deacetylation and mitochondrial biogenesis",
+    },
+    # 14. Autonomic Recovery & Precision Endocrine Domain
+    "bio_hrv": {
+        "baseline": 55.0,
+        "unit": "ms",
+        "gain_up": 35.0,
+        "gain_down": 35.0,
+        "safe_lower": 30.0,
+        "safe_upper": 110.0,
+        "biological_cv": 0.18,
+        "label": "Heart Rate Variability (rMSSD)",
+        "onset_days": 0.1,
+        "half_time_days": 0.5,
+        "time_to_steady_state_weeks": 0.3,
+        "kinetic_profile": "rapid_autonomic",
+        "time_course_description": "Autonomic nervous system sympathovagal balance and vagal parasympathetic tone (hours to days)",
+    },
+    "bio_free_testosterone": {
+        "baseline": 120.0,
+        "unit": "pg/mL",
+        "gain_up": 280.0,
+        "gain_down": 95.0,
+        "safe_lower": 50.0,
+        "safe_upper": 210.0,
+        "biological_cv": 0.20,
+        "label": "Calculated Free Testosterone",
+        "onset_days": 0.25,
+        "half_time_days": 1.5,
+        "time_to_steady_state_weeks": 1.0,
+        "kinetic_profile": "direct_endocrine",
+        "time_course_description": "Circulating unbound bioavailable androgen equilibrium (governed by SHBG and Albumin mass action)",
+    },
 }
 
 
@@ -792,6 +1042,18 @@ TISSUE_TARGET_MAP: Dict[str, str] = {
     "bio_cortisol": "Adrenal Cortex & HPA Axis",
     "bio_tsh": "Anterior Pituitary & Thyroid Follicular Cells",
     "bio_tmao": "Intestinal Microbiota, Hepatic FMO3 & Vascular Endothelium",
+    "bio_metabolic_rate": "Mitochondria, Brown/Beige Adipose & Skeletal Muscle",
+    "bio_bdnf": "Hippocampus, Prefrontal Cortex & Central Synapses",
+    "bio_ngf": "Basal Forebrain, Sensory & Sympathetic Neurons",
+    "bio_free_t3": "Thyroid Axis, Hepatic Parenchyma & Target Tissues",
+    "bio_free_t4": "Thyroid Follicles & Peripheral Target Organs",
+    "bio_hrv": "Sinoatrial Node & Vagal Parasympathetic Nervous System",
+    "bio_igf1": "Hepatic Parenchyma, Skeletal Muscle & Epiphyseal Cartilage",
+    "bio_nad_plus": "Mitochondria & Intracellular Nicotinamide Pool",
+    "bio_sirtuin_activity": "Mitochondrial Matrix & Nuclear Chromatin",
+    "bio_acetylcholine": "Basal Forebrain, Hippocampus & Neuromuscular Junctions",
+    "bio_fasting_insulin": "Pancreatic Beta Cells & Peripheral Insulin Receptors",
+    "bio_homa_ir": "Hepatic Parenchyma & Skeletal Muscle Glucose Disposal",
 }
 
 
@@ -843,8 +1105,8 @@ def get_demographic_calibrated_reference_range(
         elif bio_id in {"bio_estradiol", "estradiol"}:
             baseline = 28.0
             safe_lower = 15.0
-            safe_upper = 45.0
-            adjustments.append("Male Sex: Estradiol Reference Range Calibrated (15–45 pg/mL)")
+            safe_upper = 50.0
+            adjustments.append("Male Sex: Estradiol Reference Range Calibrated (15–50 pg/mL)")
         elif bio_id in {"bio_serum_creatinine", "creatinine"}:
             baseline = 0.95
             safe_lower = 0.7
@@ -921,8 +1183,51 @@ def get_demographic_calibrated_reference_range(
         elif bio_id in {"bio_hba1c", "hba1c"} and age_val >= 70:
             safe_upper = 6.5
             adjustments.append(f"Senior Age ({age_val:g}y): HbA1c Target Range Calibrated (4.0–6.5%)")
+        elif bio_id in {"bio_bdnf", "bdnf"}:
+            age_decline = (age_val - 40.0) * 0.15
+            baseline = max(18.0, round(25.0 - age_decline, 1))
+            adjustments.append(f"Age ({age_val:g}y): Baseline BDNF Calibrated for Age Neurotrophin Shift ({baseline:g} ng/mL)")
 
-    # 3. BMI & Weight Adjustments
+    # 3. Dynamic BMR & Metabolic Rate Calibration (Mifflin-St Jeor / Katch-McArdle)
+    if bio_id in {"bio_metabolic_rate", "metabolic_rate", "bmr"}:
+        if weight_kg and height_cm and age_val:
+            s_val = 5.0 if is_male else (-161.0 if is_female else -78.0)
+            msj = (10.0 * weight_kg) + (6.25 * height_cm) - (5.0 * age_val) + s_val
+            bf_pct = float(patient_biometrics.get("body_fat_pct") or 0.0)
+            if bf_pct > 0.0:
+                lbm = weight_kg * (1.0 - (bf_pct / 100.0))
+                km = 370.0 + (21.6 * lbm)
+                bmr_val = round((msj * 0.4) + (km * 0.6), 0)
+            else:
+                bmr_val = round(msj, 0)
+            baseline = max(1000.0, min(3200.0, bmr_val))
+            safe_lower = round(baseline * 0.82, 0)
+            safe_upper = round(baseline * 1.18, 0)
+            adjustments.append(f"Biometric BMR: Individualized Metabolic Rate Calibrated ({baseline:g} kcal/day)")
+        elif weight_kg:
+            mult = 24.0 if is_male else (22.0 if is_female else 23.0)
+            baseline = round(weight_kg * mult, 0)
+            safe_lower = round(baseline * 0.82, 0)
+            safe_upper = round(baseline * 1.18, 0)
+            adjustments.append(f"Weight ({weight_kg:g}kg): Baseline BMR Calibrated ({baseline:g} kcal/day)")
+
+    # 4. Autonomic Heart Rate Variability (HRV) Age Calibration
+    if bio_id in {"bio_hrv", "hrv", "rmssd"}:
+        if age_val:
+            baseline = max(28.0, min(80.0, round(72.0 - (age_val * 0.65), 1)))
+            safe_lower = max(20.0, round(baseline * 0.55, 1))
+            safe_upper = round(baseline * 1.75, 1)
+            adjustments.append(f"Age ({age_val:g}y): Baseline HRV rMSSD Calibrated for Autonomic Reserve ({baseline:g} ms)")
+
+    # 5. Somatotropic IGF-1 Age Calibration
+    if bio_id in {"bio_igf1", "igf1", "igf_1"}:
+        if age_val:
+            baseline = max(120.0, min(240.0, round(250.0 - (age_val * 1.8), 1)))
+            safe_lower = round(baseline * 0.65, 1)
+            safe_upper = round(baseline * 1.60, 1)
+            adjustments.append(f"Age ({age_val:g}y): Baseline IGF-1 Calibrated ({baseline:g} ng/mL)")
+
+    # 6. BMI & Weight Adjustments
     if bmi and bmi >= 30.0:
         if bio_id in {"bio_triglycerides", "triglycerides"}:
             baseline = 140.0
@@ -1259,15 +1564,17 @@ class BiologicalGraph:
                 p75 = min(max_cap, p75)
                 p95 = min(max_cap, p95)
 
-            std_dev = v * cv
+            mean_val = v * math.sqrt(1.0 + cv * cv)
+            std_dev = mean_val * cv
             return {
                 "p5": round(p5, 2),
                 "p25": round(p25, 2),
                 "p50": round(p50, 2),
                 "p75": round(p75, 2),
                 "p95": round(p95, 2),
-                "mean": round(v, 2),
+                "mean": round(mean_val, 2),
                 "std_dev": round(std_dev, 2),
+                "cv": round(cv, 3),
                 "p5_p95_range_str": f"{round(p5, 1)} - {round(p95, 1)}",
             }
 
@@ -1297,6 +1604,18 @@ class BiologicalGraph:
             "qtc_ms": "bio_qtc",
             "platelets_k_ul": "bio_platelets",
             "tmao_umol_l": "bio_tmao", "tmao": "bio_tmao", "tmao_ug_ml": "bio_tmao",
+            "bdnf_ng_ml": "bio_bdnf", "bdnf": "bio_bdnf",
+            "metabolic_rate_kcal": "bio_metabolic_rate", "metabolic_rate": "bio_metabolic_rate", "bmr": "bio_metabolic_rate",
+            "free_t3_pg_ml": "bio_free_t3", "free_t3": "bio_free_t3", "t3": "bio_free_t3",
+            "free_t4_ng_dl": "bio_free_t4", "free_t4": "bio_free_t4", "t4": "bio_free_t4",
+            "fasting_insulin_u_iu_ml": "bio_fasting_insulin", "fasting_insulin": "bio_fasting_insulin", "insulin": "bio_fasting_insulin",
+            "homa_ir": "bio_homa_ir",
+            "igf1_ng_ml": "bio_igf1", "igf1": "bio_igf1", "igf_1": "bio_igf1",
+            "hrv_rmssd_ms": "bio_hrv", "hrv": "bio_hrv", "rmssd": "bio_hrv",
+            "hs_crp_mg_l": "bio_crp", "hs_crp": "bio_crp", "crp": "bio_crp",
+            "nad_plus_umol_l": "bio_nad_plus", "nad_plus": "bio_nad_plus", "nad": "bio_nad_plus",
+            "ngf_pg_ml": "bio_ngf", "ngf": "bio_ngf",
+            "shbg_nmol_l": "bio_shbg", "shbg": "bio_shbg",
         }
 
         # Compute Biomarker Impacts with Bounded Per-Compound Aggregation
@@ -1432,7 +1751,7 @@ class BiologicalGraph:
                 timeline_c_shares = c_shares
 
             # Determine physiological biomarker variability CV
-            bio_cv = float(calib.get("biological_cv", 0.12)) if calib else 0.12
+            bio_cv = float(calib.get("biological_cv", BIOMARKER_CLINICAL_CV.get(bio_id, 0.12))) if calib else BIOMARKER_CLINICAL_CV.get(bio_id, 0.12)
             bio_effective_cv = bio_cv * (1.0 + (unknown_biometric_count * 0.05))
 
             # Compute log-normal percentile distribution curve for estimated biomarker value & delta

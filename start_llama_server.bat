@@ -77,6 +77,7 @@ echo.
 echo [*] Launching llama-server with Unsloth Dynamic V3.0 / RTX 5090 optimizations:
 echo     - Model: %MODEL_PATH%
 echo     - GPU Offload: All Layers (-ngl 99)
+echo     - Host RAM Optimization: Direct VRAM I/O (--no-mmap)
 echo     - Flash Attention (-fa on)
 echo     - 4-bit KV Cache Quantization (-ctk q4_0 -ctv q4_0)
 echo     - Context Window: %LLAMA_CTX% tokens (-c %LLAMA_CTX%)
@@ -86,7 +87,7 @@ echo     - Reasoning Stream Extractor (--reasoning-format deepseek)
 echo     - Speculative MTP Decoding: %SPEC_MSG%
 echo.
 
-"%LLAMA_EXE%" -m "%MODEL_PATH%" %SPEC_FLAGS% -ngl 99 -c %LLAMA_CTX% -b 2048 -ub 1024 -fa on -ctk q4_0 -ctv q4_0 --jinja --reasoning-format deepseek --host 0.0.0.0 --port 8080
+"%LLAMA_EXE%" -m "%MODEL_PATH%" %SPEC_FLAGS% --no-mmap -ngl 99 -c %LLAMA_CTX% -b 2048 -ub 1024 -fa on -ctk q4_0 -ctv q4_0 --jinja --reasoning-format deepseek --host 0.0.0.0 --port 8080
 
 if %errorlevel% neq 0 (
     echo.

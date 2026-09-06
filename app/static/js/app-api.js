@@ -1,12 +1,31 @@
+      let _evaluateSeq = 0;
+      let _evaluateAbortController = null;
+
       // EVALUATE STACK WITH BACKEND
       async function evaluateStack() {
+        const currentSeq = ++_evaluateSeq;
+
+        if (_evaluateAbortController) {
+          try { _evaluateAbortController.abort(); } catch (e) {}
+          _evaluateAbortController = null;
+        }
+
         if (!state.stack.length) {
           updateDashboardEmpty();
+          const loader = document.getElementById('global-loading-bar');
+          if (loader) loader.classList.remove('active');
+          const evalIndicator = document.getElementById('stack-eval-indicator');
+          if (evalIndicator) evalIndicator.style.display = 'none';
           return;
         }
         
         const loader = document.getElementById('global-loading-bar');
         if (loader) loader.classList.add('active');
+        const evalIndicator = document.getElementById('stack-eval-indicator');
+        if (evalIndicator) evalIndicator.style.display = 'inline-flex';
+
+        _evaluateAbortController = new AbortController();
+        const signal = _evaluateAbortController.signal;
 
         const payload = {
           stack: state.stack.map(c => ({
@@ -39,12 +58,15 @@
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(payload),
+            signal,
           });
+          if (currentSeq !== _evaluateSeq) return;
           if (!res.ok) {
             const errData = await res.json().catch(() => ({}));
             throw new Error(errData.detail || `Server returned ${res.status}`);
           }
           const data = await res.json();
+          if (currentSeq !== _evaluateSeq) return;
           state.analysis = data;
 
           if (data.compounds && Array.isArray(data.compounds)) {
@@ -71,7 +93,13 @@
               }
             });
             if (updatedStack) {
-              if (stackCountBadge) stackCountBadge.textContent = `${state.stack.length} items`;
+              if (stackCountBadge) {
+                if (window._pendingLoadingCompounds && window._pendingLoadingCompounds.size > 0) {
+                  stackCountBadge.textContent = `${state.stack.length} items (${window._pendingLoadingCompounds.size} loading)`;
+                } else {
+                  stackCountBadge.textContent = `${state.stack.length} items`;
+                }
+              }
               if (statCompounds) statCompounds.textContent = state.stack.length;
               renderStackList();
             }
@@ -82,16 +110,24 @@
             syncGraphData(state.activeTab === 'graph-tab');
           }
         } catch (err) {
+          if (err && err.name === 'AbortError') return;
+          if (currentSeq !== _evaluateSeq) return;
           console.error('Evaluation error:', err);
           showToast(`Evaluation error: ${err.message || 'Check inputs'}`, 'alert-triangle');
         } finally {
-          const loader = document.getElementById('global-loading-bar');
-          if (loader) loader.classList.remove('active');
+          if (currentSeq === _evaluateSeq) {
+            const loader = document.getElementById('global-loading-bar');
+            if (loader) loader.classList.remove('active');
+            const evalIndicator = document.getElementById('stack-eval-indicator');
+            if (evalIndicator) evalIndicator.style.display = 'none';
+          }
         }
       }
 
       function updateDashboardEmpty() {
         state.analysis = null;
+        const evalIndicator = document.getElementById('stack-eval-indicator');
+        if (evalIndicator) evalIndicator.style.display = 'none';
         if (riskScoreVal) riskScoreVal.textContent = '0';
         if (gaugeCircle) {
           gaugeCircle.style.strokeDashoffset = 377;
@@ -204,13 +240,27 @@
         const totalCount = axes.length;
         const criticalCount = axes.filter(a => a.priority_tier === 1).length;
         const warningCount = axes.filter(a => a.priority_tier === 2).length;
-        const outOfRangeCount = criticalCount + warningCount;
+        
+        const isOutOfRangeOrTail = (a) => {
+          if (a.priority_tier <= 2 || !a.in_safe_range) return true;
+          if (a.has_tail_alert || a.tail_elevation_risk || a.tail_suppression_risk) return true;
+          const dist = a.distribution || {};
+          const p5 = parseFloat(dist.p5);
+          const p95 = parseFloat(dist.p95);
+          const safeLower = parseFloat(a.safe_lower);
+          const safeUpper = parseFloat(a.safe_upper);
+          if (!isNaN(p95) && !isNaN(safeUpper) && p95 > safeUpper) return true;
+          if (!isNaN(p5) && !isNaN(safeLower) && p5 < safeLower) return true;
+          return false;
+        };
+
+        const outOfRangeCount = axes.filter(isOutOfRangeOrTail).length;
         const mitigatedCount = axes.filter(a => a.priority_tier === 3).length;
         const activeShiftCount = axes.filter(a => a.priority_tier === 4).length;
         const baselineCount = axes.filter(a => a.priority_tier === 5).length;
 
         let filteredAxes = axes.filter(a => {
-          if (currentFilter === 'out-of-range') return a.priority_tier <= 2 || !a.in_safe_range;
+          if (currentFilter === 'out-of-range') return isOutOfRangeOrTail(a);
           if (currentFilter === 'counterbalanced') return a.priority_tier === 3 || (a.status && String(a.status).includes('BALANCED'));
           if (currentFilter === 'active-shifts') return a.priority_tier <= 4 && ((a.compounds_breakdown && a.compounds_breakdown.length > 0) || Math.abs((a.estimated_value || 0) - (a.baseline || 0)) > 0.001);
           if (currentFilter === 'baseline') return a.priority_tier === 5;
@@ -271,25 +321,56 @@
           const rangeX = (xMax - xMin) || 1.0;
 
           const width = 340;
-          const height = 95;
-          const baselineY = 78;
+          const height = 100;
+          const baselineY = 74;
           const peakY = 16;
           const chartHeight = baselineY - peakY;
 
           const toX = (v) => Math.max(6, Math.min(width - 6, ((v - xMin) / rangeX) * width));
 
-          const mu = safeP50;
-          const sigma = Math.max(0.001, (safeP95 - safeP5) / 3.29);
           const stepCount = 60;
           const points = [];
 
-          for (let i = 0; i <= stepCount; i++) {
-            const vx = xMin + (i / stepCount) * rangeX;
-            const z = (vx - mu) / sigma;
-            const density = Math.exp(-0.5 * z * z);
-            const px = toX(vx);
-            const py = baselineY - (density * chartHeight);
-            points.push({ x: px, y: py, val: vx });
+                if (safeEst > 0 && safeP5 > 0) {
+            // Exact Log-Normal Probability Density Function normalized to chart height
+            const muLog = Math.log(Math.max(0.0001, safeP50));
+            const sigmaLog = Math.max(0.01, (Math.log(Math.max(0.0001, safeP95)) - Math.log(Math.max(0.0001, safeP5))) / 3.29);
+            const xMode = Math.exp(muLog - sigmaLog * sigmaLog);
+            const modeDensity = (1 / (Math.max(0.0001, xMode) * sigmaLog)) * Math.exp(-0.5 * sigmaLog * sigmaLog);
+
+            let maxFoundDensity = modeDensity;
+            const tempPoints = [];
+            for (let i = 0; i <= stepCount; i++) {
+              const vx = xMin + (i / stepCount) * rangeX;
+              if (vx <= 0) {
+                tempPoints.push({ vx, rawDensity: 0 });
+                continue;
+              }
+              const z = (Math.log(vx) - muLog) / sigmaLog;
+              const rawDensity = (1 / (vx * sigmaLog)) * Math.exp(-0.5 * z * z);
+              if (rawDensity > maxFoundDensity) maxFoundDensity = rawDensity;
+              tempPoints.push({ vx, rawDensity });
+            }
+
+            const peakNorm = Math.max(0.000001, maxFoundDensity);
+            for (const pt of tempPoints) {
+              const normDensity = Math.max(0, Math.min(1.0, pt.rawDensity / peakNorm));
+              const px = toX(pt.vx);
+              const py = baselineY - (normDensity * chartHeight);
+              points.push({ x: px, y: py, val: pt.vx });
+            }
+          } else {
+            // Gaussian bell curve fallback for zero-centered or negative deltas
+            const mu = safeP50;
+            const sigma = Math.max(0.001, (safeP95 - safeP5) / 3.29);
+            for (let i = 0; i <= stepCount; i++) {
+              const vx = xMin + (i / stepCount) * rangeX;
+              const z = (vx - mu) / sigma;
+              const density = Math.exp(-0.5 * z * z);
+              const px = toX(vx);
+              const py = baselineY - (density * chartHeight);
+              points.push({ x: px, y: py, val: vx });
+            }
           }
 
           const pathD = points.map((p, i) => `${i === 0 ? 'M' : 'L'} ${p.x.toFixed(1)} ${p.y.toFixed(1)}`).join(' ');
@@ -303,31 +384,51 @@
           const p50X = toX(safeP50);
           const basePointX = toX(safeBase);
 
+          // Anti-collision label staggered Y positions
+          const isBaseNearP5 = Math.abs(basePointX - p5X) < 28;
+          const isBaseNearP95 = Math.abs(basePointX - p95X) < 28;
+          const baseLabelY = (isBaseNearP5 || isBaseNearP95) ? baselineY + 22 : baselineY + 12;
+          const p5LabelY = baselineY + 12;
+          const p95LabelY = baselineY + 12;
+
           const curveAreaD = pathD + ` L ${points[points.length - 1].x.toFixed(1)} ${baselineY} L ${points[0].x.toFixed(1)} ${baselineY} Z`;
 
           let beginnerSummaryText = '';
           let beginnerBadgeClass = 'safe';
-          if (safeP95 <= safeUpper && safeP5 >= safeLower) {
-            beginnerSummaryText = `${iconSvg('check', { class: 'icon-xs' })} <strong>Safe Target Zone:</strong> 90% of projected outcomes (${safeP5}–${safeP95} ${unit}) remain within healthy limits [${safeLower}–${safeUpper} ${unit}].`;
-            beginnerBadgeClass = 'safe';
-          } else if (safeEst > safeUpper || safeP95 > safeUpper * 1.15) {
-            beginnerSummaryText = `${iconSvg('alert-triangle', { class: 'icon-xs' })} <strong>Elevation Risk:</strong> Projected upper percentile (${safeP95} ${unit}) exceeds safety limit (${safeUpper} ${unit}).`;
+          if (safeEst > safeUpper) {
+            if (axis.status === 'OPTIMIZED_ANABOLIC') {
+              beginnerSummaryText = `${iconSvg('zap', { class: 'icon-xs' })} <strong>Supraphysiological Target:</strong> Expected median at ${safeEst} ${unit} exceeds baseline physiological range [${safeLower}–${safeUpper} ${unit}], targeted for anabolic/therapeutic response. 90% prediction band: ${safeP5}–${safeP95} ${unit}.`;
+              beginnerBadgeClass = 'info';
+            } else {
+              beginnerSummaryText = `${iconSvg('alert-triangle', { class: 'icon-xs' })} <strong>Clinical Elevation:</strong> Expected median (${safeEst} ${unit}) exceeds safe target limit (${safeUpper} ${unit}). 90% prediction band: ${safeP5}–${safeP95} ${unit}.`;
+              beginnerBadgeClass = 'warning';
+            }
+          } else if (safeEst < safeLower) {
+            beginnerSummaryText = `${iconSvg('alert-triangle', { class: 'icon-xs' })} <strong>Clinical Suppression:</strong> Expected median (${safeEst} ${unit}) drops below safe lower threshold (${safeLower} ${unit}). 90% prediction band: ${safeP5}–${safeP95} ${unit}.`;
             beginnerBadgeClass = 'warning';
-          } else if (safeEst < safeLower || safeP5 < safeLower * 0.85) {
-            beginnerSummaryText = `${iconSvg('alert-triangle', { class: 'icon-xs' })} <strong>Suppression Risk:</strong> Lower percentile (${safeP5} ${unit}) drops below physiological floor (${safeLower} ${unit}).`;
+          } else if (safeP95 > safeUpper) {
+            beginnerSummaryText = `${iconSvg('alert-triangle', { class: 'icon-xs' })} <strong>Tail Elevation Risk:</strong> Median (${safeEst} ${unit}) is within limits, but inter-individual variance indicates upper 95th percentile (${safeP95} ${unit}) crosses safety limit (${safeUpper} ${unit}).`;
+            beginnerBadgeClass = 'warning';
+          } else if (safeP5 < safeLower) {
+            beginnerSummaryText = `${iconSvg('alert-triangle', { class: 'icon-xs' })} <strong>Tail Suppression Risk:</strong> Median (${safeEst} ${unit}) is within limits, but inter-individual variance indicates lower 5th percentile (${safeP5} ${unit}) drops below physiological floor (${safeLower} ${unit}).`;
             beginnerBadgeClass = 'warning';
           } else {
-            beginnerSummaryText = `${iconSvg('info', { class: 'icon-xs' })} <strong>Dynamic Shift:</strong> Expected median at ${safeEst} ${unit} (90% distribution between ${safeP5} and ${safeP95} ${unit}).`;
-            beginnerBadgeClass = 'info';
+            beginnerSummaryText = `${iconSvg('check', { class: 'icon-xs' })} <strong>Safe Target Zone:</strong> 90% of projected outcomes (${safeP5}–${safeP95} ${unit}) remain within healthy limits [${safeLower}–${safeUpper} ${unit}]. Expected median: ${safeEst} ${unit}.`;
+            beginnerBadgeClass = 'safe';
           }
+
+          const precisionBadge = axis.is_lab_calibrated
+            ? `<span style="font-size: 0.62rem; color: #34d399; background: rgba(16, 185, 129, 0.15); border: 1px solid rgba(16, 185, 129, 0.3); padding: 1px 6px; border-radius: 4px; font-weight: 700; display: inline-flex; align-items: center; gap: 3px;">${iconSvg('check', { class: 'icon-xs' })} Lab-Calibrated Precision</span>`
+            : `<span style="font-size: 0.62rem; color: #94a3b8; background: rgba(255, 255, 255, 0.06); border: 1px solid rgba(255, 255, 255, 0.14); padding: 1px 6px; border-radius: 4px; font-weight: 600;" title="Population prior estimate. Add lab bloodwork to personalize precision.">○ Population Prior</span>`;
 
           const chartId = `dist-chart-${cardIdx}-${Math.floor(Math.random() * 10000)}`;
 
           return `
             <div class="dist-chart-wrapper" style="background: rgba(5, 11, 24, 0.7); border: 1px solid rgba(0, 242, 254, 0.18); border-radius: 10px; padding: 12px; margin: 10px 0;">
-              <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
+              <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px; flex-wrap: wrap; gap: 4px;">
                 <span style="font-size: 0.74rem; font-weight: 700; color: #00f2fe; display: flex; align-items: center; gap: 6px;">
                   <span>${iconSvg('trending-up', { class: 'icon-xs icon-cyan' })} Projected Outcome Probability Distribution</span>
+                  ${precisionBadge}
                 </span>
                 <button 
                   type="button" 
@@ -339,7 +440,7 @@
                 </button>
               </div>
 
-              <div style="font-size: 0.75rem; line-height: 1.4; color: ${beginnerBadgeClass === 'warning' ? '#f87171' : (beginnerBadgeClass === 'safe' ? '#34d399' : '#94a3b8')}; background: ${beginnerBadgeClass === 'warning' ? 'rgba(239,68,68,0.12)' : (beginnerBadgeClass === 'safe' ? 'rgba(16,185,129,0.12)' : 'rgba(148,163,184,0.12)')}; padding: 6px 10px; border-radius: 6px; margin-bottom: 8px; border: 1px solid ${beginnerBadgeClass === 'warning' ? 'rgba(239,68,68,0.3)' : (beginnerBadgeClass === 'safe' ? 'rgba(16,185,129,0.3)' : 'rgba(148,163,184,0.3)')}; font-weight: 600; display: flex; align-items: center; gap: 6px;">
+              <div style="font-size: 0.75rem; line-height: 1.4; color: ${beginnerBadgeClass === 'warning' ? '#f87171' : (beginnerBadgeClass === 'safe' ? '#34d399' : (beginnerBadgeClass === 'info' ? '#38bdf8' : '#94a3b8'))}; background: ${beginnerBadgeClass === 'warning' ? 'rgba(239,68,68,0.12)' : (beginnerBadgeClass === 'safe' ? 'rgba(16,185,129,0.12)' : (beginnerBadgeClass === 'info' ? 'rgba(56,189,248,0.12)' : 'rgba(148,163,184,0.12)'))}; padding: 6px 10px; border-radius: 6px; margin-bottom: 8px; border: 1px solid ${beginnerBadgeClass === 'warning' ? 'rgba(239,68,68,0.3)' : (beginnerBadgeClass === 'safe' ? 'rgba(16,185,129,0.3)' : (beginnerBadgeClass === 'info' ? 'rgba(56,189,248,0.3)' : 'rgba(148,163,184,0.3)'))}; font-weight: 600; display: flex; align-items: center; gap: 6px;">
                 ${beginnerSummaryText}
               </div>
 
@@ -359,29 +460,39 @@
                   <rect x="${safeLeftX.toFixed(1)}" y="${peakY}" width="${safeWidthX.toFixed(1)}" height="${chartHeight}" fill="url(#${chartId}-safe-grad)" rx="4" />
                   <line x1="${safeLeftX.toFixed(1)}" y1="${peakY}" x2="${safeLeftX.toFixed(1)}" y2="${baselineY}" stroke="#10b981" stroke-dasharray="3,3" stroke-opacity="0.7" stroke-width="1.2" />
                   <line x1="${safeRightX.toFixed(1)}" y1="${peakY}" x2="${safeRightX.toFixed(1)}" y2="${baselineY}" stroke="#10b981" stroke-dasharray="3,3" stroke-opacity="0.7" stroke-width="1.2" />
-                  <text x="${((safeLeftX + safeRightX) / 2).toFixed(1)}" y="${peakY + 10}" fill="#34d399" font-size="7.5" font-weight="800" text-anchor="middle" letter-spacing="0.04em">SAFE TARGET ZONE</text>
+                  
+                  <!-- Safe range boundary numbers on top of dashed lines -->
+                  <text x="${safeLeftX.toFixed(1)}" y="${peakY - 3}" fill="#10b981" font-size="6.8" font-weight="700" text-anchor="middle" opacity="0.9">${safeLower}</text>
+                  <text x="${safeRightX.toFixed(1)}" y="${peakY - 3}" fill="#10b981" font-size="6.8" font-weight="700" text-anchor="middle" opacity="0.9">${safeUpper}</text>
+                  <text x="${((safeLeftX + safeRightX) / 2).toFixed(1)}" y="${peakY + 11}" fill="#34d399" font-size="6.8" font-weight="800" text-anchor="middle" letter-spacing="0.05em" opacity="0.75">TARGET ZONE</text>
 
                   <path d="${curveAreaD}" fill="url(#${chartId}-curve-grad)" />
                   <path d="${pathD}" fill="none" stroke="#00f2fe" stroke-width="2.4" stroke-linecap="round" />
 
+                  <!-- Baseline point and label with collision avoidance -->
                   <line x1="${basePointX.toFixed(1)}" y1="${peakY + 4}" x2="${basePointX.toFixed(1)}" y2="${baselineY}" stroke="#94a3b8" stroke-dasharray="2,2" stroke-width="1.2" />
                   <circle cx="${basePointX.toFixed(1)}" cy="${baselineY}" r="2.8" fill="#94a3b8" />
-                  <text x="${basePointX.toFixed(1)}" y="${baselineY + 12}" fill="#94a3b8" font-size="7.5" font-weight="600" text-anchor="middle">Base: ${safeBase}</text>
+                  <text x="${basePointX.toFixed(1)}" y="${baseLabelY}" fill="#94a3b8" font-size="7.2" font-weight="600" text-anchor="middle">Base: ${safeBase}</text>
 
+                  <!-- Estimate peak point and label -->
                   <line x1="${p50X.toFixed(1)}" y1="${peakY}" x2="${p50X.toFixed(1)}" y2="${baselineY}" stroke="${statusColor}" stroke-width="2" />
                   <circle cx="${p50X.toFixed(1)}" cy="${peakY + 3}" r="4" fill="${statusColor}" stroke="#0b1324" stroke-width="1.5" />
-                  <text x="${p50X.toFixed(1)}" y="${peakY - 3}" fill="${statusColor}" font-size="8.5" font-weight="800" text-anchor="middle">Est: ${safeEst} ${unit}</text>
+                  <text x="${p50X.toFixed(1)}" y="${peakY - 4}" fill="${statusColor}" font-size="8.5" font-weight="800" text-anchor="middle">Est: ${safeEst} ${unit}</text>
 
+                  <!-- p5 and p95 percentile indicators -->
                   <line x1="${p5X.toFixed(1)}" y1="${baselineY - 8}" x2="${p5X.toFixed(1)}" y2="${baselineY}" stroke="#00f2fe" stroke-width="1.5" />
-                  <text x="${p5X.toFixed(1)}" y="${baselineY + 12}" fill="#00f2fe" font-size="7.5" font-weight="700" text-anchor="middle">p5: ${safeP5}</text>
+                  <text x="${p5X.toFixed(1)}" y="${p5LabelY}" fill="#00f2fe" font-size="7.2" font-weight="700" text-anchor="middle">p5: ${safeP5}</text>
 
                   <line x1="${p95X.toFixed(1)}" y1="${baselineY - 8}" x2="${p95X.toFixed(1)}" y2="${baselineY}" stroke="#00f2fe" stroke-width="1.5" />
-                  <text x="${p95X.toFixed(1)}" y="${baselineY + 12}" fill="#00f2fe" font-size="7.5" font-weight="700" text-anchor="middle">p95: ${safeP95}</text>
+                  <text x="${p95X.toFixed(1)}" y="${p95LabelY}" fill="#00f2fe" font-size="7.2" font-weight="700" text-anchor="middle">p95: ${safeP95}</text>
                 </svg>
               </div>
 
               <div id="${chartId}-stats" style="display: ${isPower ? 'block' : 'none'}; margin-top: 10px; padding-top: 10px; border-top: 1px solid rgba(255, 255, 255, 0.08);">
-                <div style="font-size: 0.7rem; font-weight: 800; text-transform: uppercase; color: #00f2fe; margin-bottom: 6px; letter-spacing: 0.04em; display: flex; align-items: center; gap: 4px;">${iconSvg('bar-chart-2', { class: 'icon-xs' })} Power User Percentile Variance & Normal Distribution</div>
+                <div style="font-size: 0.7rem; font-weight: 800; text-transform: uppercase; color: #00f2fe; margin-bottom: 6px; letter-spacing: 0.04em; display: flex; align-items: center; justify-content: space-between;">
+                  <span style="display: inline-flex; align-items: center; gap: 4px;">${iconSvg('bar-chart-2', { class: 'icon-xs' })} Log-Normal Inter-Individual Variance Model (90% Prediction Interval)</span>
+                  <span style="font-size: 0.62rem; color: var(--text-muted); font-weight: 600;">CV: ${(safeStdDev / (safeMean || 1) * 100).toFixed(1)}%</span>
+                </div>
                 <div style="display: grid; grid-template-columns: repeat(5, 1fr); gap: 4px; text-align: center; background: rgba(0, 0, 0, 0.35); padding: 8px; border-radius: 6px; margin-bottom: 6px;">
                   <div>
                     <div style="font-size: 0.62rem; color: var(--text-muted);">p5 (Lower 5%)</div>
@@ -405,10 +516,11 @@
                   </div>
                 </div>
 
-                <div style="display: flex; justify-content: space-between; font-size: 0.7rem; color: var(--text-secondary); background: rgba(255,255,255,0.03); padding: 5px 8px; border-radius: 5px;">
-                  <span>Mean (&mu;): <strong>${safeMean} ${unit}</strong></span>
+                <div style="display: flex; justify-content: space-between; font-size: 0.7rem; color: var(--text-secondary); background: rgba(255,255,255,0.03); padding: 5px 8px; border-radius: 5px; flex-wrap: wrap; gap: 4px;">
+                  <span>Expected Mean (&mu;): <strong>${safeMean} ${unit}</strong></span>
+                  <span>Median: <strong>${safeP50} ${unit}</strong></span>
                   <span>Std Dev (&sigma;): <strong>${safeStdDev.toFixed(2)} ${unit}</strong></span>
-                  <span>90% Span: <strong>${Math.abs(safeP95 - safeP5).toFixed(1)} ${unit}</strong></span>
+                  <span>90% Prediction Band: <strong>${Math.abs(safeP95 - safeP5).toFixed(1)} ${unit}</strong></span>
                 </div>
               </div>
             </div>
@@ -650,7 +762,7 @@
                 </button>
                 ${outOfRangeCount > 0 ? `
                   <button class="axis-filter-btn filter-critical ${currentFilter === 'out-of-range' ? 'active' : ''}" onclick="setAxesFilter('out-of-range')" style="display:inline-flex; align-items:center; gap:4px;">
-                    ${iconSvg('alert-triangle', { class: 'icon-xs' })} Out of Range (${outOfRangeCount})
+                    ${iconSvg('alert-triangle', { class: 'icon-xs' })} Out of Range / Tail Alerts (${outOfRangeCount})
                   </button>
                 ` : ''}
                 ${mitigatedCount > 0 ? `
@@ -1004,13 +1116,20 @@
           route = def.route || 'oral';
         }
 
+        let normTiming = (timing || 'morning').toLowerCase();
+        if (normTiming.includes('bed') || normTiming.includes('night')) normTiming = 'before bed';
+        else if (normTiming.includes('eve') || normTiming.includes('dinner')) normTiming = 'evening';
+        else if (normTiming.includes('mid') || normTiming.includes('noon') || normTiming.includes('afternoon') || normTiming.includes('lunch')) normTiming = 'midday';
+        else if (normTiming.includes('pre-workout') || normTiming.includes('preworkout')) normTiming = 'pre-workout';
+        else if (normTiming !== 'morning' && normTiming !== 'midday' && normTiming !== 'pre-workout' && normTiming !== 'evening' && normTiming !== 'before bed') normTiming = 'morning';
+
         return {
           key,
           name,
           drug_class: drugClass,
           dose,
           unit,
-          timing,
+          timing: normTiming,
           frequency,
           route,
         };

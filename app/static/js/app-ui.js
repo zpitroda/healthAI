@@ -48,84 +48,259 @@
         });
       }
 
-      // DEBOUNCED SEARCH (Instant cache + 100ms fast typeahead)
+      // MODALITY FILTER & DEBOUNCED SEARCH (Instant cache + fast streaming typeahead)
+      window.currentSearchModality = 'all';
+
+      window.setSearchModality = function(modality, btn) {
+        window.currentSearchModality = modality || 'all';
+        const bar = document.getElementById('search-modality-bar');
+        if (bar) {
+          bar.querySelectorAll('.search-mod-btn').forEach(b => b.classList.remove('active'));
+        }
+        if (btn) {
+          btn.classList.add('active');
+        } else if (bar) {
+          const target = bar.querySelector(`.search-mod-btn[data-modality="${window.currentSearchModality}"]`);
+          if (target) target.classList.add('active');
+        }
+
+        const input = document.getElementById('compound-search-input');
+        if (input && input.value.trim().length > 0) {
+          input.dispatchEvent(new Event('input'));
+        }
+      };
+
+      function getModalityBadgeHtml(c) {
+        if (!c) return '';
+        const mod = String(c.modality || '').toLowerCase();
+        const drugClass = String(c.drug_class || '').toLowerCase();
+        const cName = String(c.name || '').toLowerCase();
+        if (mod === 'peptide' || c.is_peptide || drugClass.includes('peptide') || drugClass.includes('glp-1')) {
+          return `<span class="search-mod-badge badge-peptide"><i data-lucide="dna" class="icon-xs icon-teal"></i> Peptide</span>`;
+        }
+        if (mod === 'biologic_antibody' || c.is_biologic || drugClass.includes('biologic') || drugClass.includes('antibody') || drugClass.includes('mab') || cName.endsWith('mab')) {
+          return `<span class="search-mod-badge badge-biologic"><i data-lucide="shield" class="icon-xs icon-purple"></i> Biologic</span>`;
+        }
+        if (mod === 'botanical_natural' || c.is_botanical || drugClass.includes('botanical') || drugClass.includes('herb') || drugClass.includes('phytochemical')) {
+          return `<span class="search-mod-badge badge-botanical"><i data-lucide="leaf" class="icon-xs icon-emerald"></i> Botanical</span>`;
+        }
+        if (mod === 'combination_drug' || c.is_combination || drugClass.includes('combination') || cName.includes('combo')) {
+          return `<span class="search-mod-badge badge-combo"><i data-lucide="layers" class="icon-xs icon-amber"></i> Combo</span>`;
+        }
+        if (mod === 'small_molecule' || (!c.is_peptide && !c.is_biologic && !c.is_botanical && !c.is_combination)) {
+          return `<span class="search-mod-badge badge-small-molecule"><i data-lucide="atom" class="icon-xs icon-blue"></i> Small Molecule</span>`;
+        }
+        return '';
+      }
+
+      const searchLoadingSpinner = document.getElementById('search-loading-spinner');
+      function setSearchSpinnerVisible(visible) {
+        if (searchLoadingSpinner) searchLoadingSpinner.style.display = visible ? 'flex' : 'none';
+      }
+
       let searchTimeout = null;
+      let searchAbortController = null;
       searchInput.addEventListener('input', (e) => {
         const query = e.target.value.trim();
         clearTimeout(searchTimeout);
+        if (searchAbortController) {
+          searchAbortController.abort();
+          searchAbortController = null;
+        }
         if (!query) {
+          setSearchSpinnerVisible(false);
           searchDropdown.style.display = 'none';
           return;
         }
 
         const normQ = query.toLowerCase();
-        if (_searchQueryCache[normQ]) {
-          renderSearchDropdown(_searchQueryCache[normQ]);
+        const activeModality = window.currentSearchModality || 'all';
+        const cacheKey = `${normQ}::${activeModality}`;
+
+        // 1. Instant Cache Check (< 0.01ms)
+        if (_searchQueryCache[cacheKey]) {
+          setSearchSpinnerVisible(false);
+          renderSearchDropdown(_searchQueryCache[cacheKey], true);
           return;
         }
 
-        searchTimeout = setTimeout(() => {
-          fetch(`/api/compounds/search?q=${encodeURIComponent(query)}`)
-            .then(res => res.json())
-            .then(data => {
-              _searchQueryCache[normQ] = data;
-              if (Array.isArray(data)) {
-                data.forEach(item => {
-                  if (item && item.key) {
-                    _clientCatalogCache[item.key] = item;
-                    if (item.key.includes('_')) _clientCatalogCache[item.key.replace(/_/g, '-')] = item;
+        // 2. Instant Local Catalog Search (< 0.05ms)
+        const localMatches = typeof window.filterLocalCatalogIndex === 'function'
+          ? window.filterLocalCatalogIndex(query, activeModality)
+          : [];
+
+        if (localMatches.length > 0) {
+          renderSearchDropdown(localMatches, false);
+          const first = localMatches[0];
+          const isExact = first && (first.name.toLowerCase() === normQ || first.key.toLowerCase() === normQ);
+          // If exact match or 4+ strong local matches, finalize instantly without network delay
+          if (isExact || localMatches.length >= 4) {
+            setSearchSpinnerVisible(false);
+            _searchQueryCache[cacheKey] = localMatches;
+            renderSearchDropdown(localMatches, true);
+            return;
+          }
+        } else {
+          renderSearchDropdown([], false);
+        }
+
+        // 3. Debounced streaming search for external/novel compounds
+        searchTimeout = setTimeout(async () => {
+          searchAbortController = new AbortController();
+          const signal = searchAbortController.signal;
+
+          let accumulatedItems = localMatches.slice();
+          let isStreamingDone = false;
+          setSearchSpinnerVisible(true);
+
+          try {
+            const modalityParam = activeModality !== 'all' ? `&modality=${encodeURIComponent(activeModality)}` : '';
+            const response = await fetch(`/api/compounds/search/stream?q=${encodeURIComponent(query)}${modalityParam}`, { signal });
+            if (!response.ok || !response.body) {
+              throw new Error(`Streaming request failed with status ${response.status}`);
+            }
+
+            const reader = response.body.getReader();
+            const decoder = new TextDecoder();
+            let buffer = '';
+            let currentEvent = 'message';
+
+            while (true) {
+              const { done, value } = await reader.read();
+              if (done) break;
+
+              buffer += decoder.decode(value, { stream: true });
+              const lines = buffer.split('\n');
+              buffer = lines.pop();
+
+              for (const line of lines) {
+                const trimmed = line.trim();
+                if (!trimmed) {
+                  currentEvent = 'message';
+                  continue;
+                }
+                if (trimmed.startsWith('event:')) {
+                  currentEvent = trimmed.slice(6).trim();
+                } else if (trimmed.startsWith('data:')) {
+                  const dataStr = trimmed.startsWith('data: ') ? trimmed.slice(6) : trimmed.slice(5);
+                  let dataVal;
+                  try {
+                    dataVal = JSON.parse(dataStr);
+                  } catch (e) {
+                    dataVal = dataStr;
                   }
-                });
+
+                  if (currentEvent === 'local') {
+                    if (Array.isArray(dataVal) && dataVal.length) {
+                      accumulatedItems = dataVal;
+                      dataVal.forEach(item => {
+                        if (item && item.key) {
+                          _clientCatalogCache[item.key] = item;
+                          if (item.key.includes('_')) _clientCatalogCache[item.key.replace(/_/g, '-')] = item;
+                        }
+                      });
+                      if (searchInput.value.trim().toLowerCase() === normQ && (window.currentSearchModality || 'all') === activeModality) {
+                        renderSearchDropdown(accumulatedItems, false);
+                      }
+                    }
+                  } else if (currentEvent === 'candidates') {
+                    if (Array.isArray(dataVal) && dataVal.length) {
+                      const seen = new Set(accumulatedItems.map(x => x.key));
+                      dataVal.forEach(item => {
+                        if (item && item.key && !seen.has(item.key)) {
+                          seen.add(item.key);
+                          accumulatedItems.push(item);
+                          _clientCatalogCache[item.key] = item;
+                          if (item.key.includes('_')) _clientCatalogCache[item.key.replace(/_/g, '-')] = item;
+                        }
+                      });
+                      if (searchInput.value.trim().toLowerCase() === normQ && (window.currentSearchModality || 'all') === activeModality) {
+                        renderSearchDropdown(accumulatedItems, false);
+                      }
+                    }
+                  } else if (currentEvent === 'done') {
+                    isStreamingDone = true;
+                    setSearchSpinnerVisible(false);
+                    _searchQueryCache[cacheKey] = accumulatedItems;
+                    if (searchInput.value.trim().toLowerCase() === normQ && (window.currentSearchModality || 'all') === activeModality) {
+                      renderSearchDropdown(accumulatedItems, true);
+                    }
+                  }
+                }
               }
-              if (searchInput.value.trim().toLowerCase() === normQ) {
-                renderSearchDropdown(data);
+            }
+
+            setSearchSpinnerVisible(false);
+            if (!isStreamingDone) {
+              _searchQueryCache[cacheKey] = accumulatedItems;
+              if (searchInput.value.trim().toLowerCase() === normQ && (window.currentSearchModality || 'all') === activeModality) {
+                renderSearchDropdown(accumulatedItems, true);
               }
-            })
-            .catch(err => console.error(err));
-        }, 100);
+            }
+          } catch (err) {
+            setSearchSpinnerVisible(false);
+            if (err.name !== 'AbortError') {
+              console.error('Search stream error:', err);
+              renderSearchDropdown(accumulatedItems, true);
+            }
+          }
+        }, 150);
       });
 
-      function renderSearchDropdown(items) {
+      function renderSearchDropdown(items, isDone = true) {
         if (!items || !items.length) {
-          searchDropdown.innerHTML = '<div style="padding: 12px; color: var(--text-muted); font-size: 0.84rem;">No compounds found.</div>';
-          searchDropdown.style.display = 'block';
+          if (isDone) {
+            searchDropdown.innerHTML = '<div style="padding: 12px; color: var(--text-muted); font-size: 0.84rem;">No compounds found.</div>';
+            searchDropdown.style.display = 'block';
+          } else {
+            searchDropdown.innerHTML = '<div style="padding: 12px; color: var(--text-muted); font-size: 0.84rem; display: flex; align-items: center; gap: 8px;"><div class="copilot-loading-spinner" style="width: 14px; height: 14px; border-width: 2px;"></div>Searching catalog & online registries...</div>';
+            searchDropdown.style.display = 'block';
+          }
           return;
         }
 
-        searchDropdown.innerHTML = items.map(c => `
-          <div class="search-item" data-key="${c.key}">
+        const itemsHtml = items.map(c => `
+          <div class="search-item" data-key="${escapeHtml(c.key)}">
             <div class="search-item-info">
-              <span class="search-item-name">${c.name}</span>
-              <span class="search-item-class">${c.drug_class || 'Compound'}</span>
+              <span class="search-item-name">
+                ${escapeHtml(c.name)}
+                ${getModalityBadgeHtml(c)}
+                ${c.is_external ? `<span style="font-size:0.68rem; padding:1px 6px; border-radius:4px; background: rgba(59,130,246,0.15); color: #60a5fa; margin-left: 6px; font-weight: 500;">${escapeHtml(c.source_registry || 'Online Registry')}</span>` : ''}
+              </span>
+              <span class="search-item-class">${escapeHtml(c.drug_class || 'Compound')}</span>
             </div>
-            <span class="search-item-add-btn">+ Add</span>
+            <span class="search-item-add-btn">${c.is_external ? '+ Enrich & Add' : '+ Add'}</span>
           </div>
         `).join('');
 
-        searchDropdown.style.display = 'block';
+        const spinnerHtml = isDone ? '' : '<div style="padding: 6px 12px; color: var(--text-muted); font-size: 0.74rem; display: flex; align-items: center; gap: 6px; border-top: 1px solid var(--border-subtle, rgba(255,255,255,0.06));"><div class="copilot-loading-spinner" style="width: 11px; height: 11px; border-width: 1.5px;"></div>Searching online registries...</div>';
 
-        searchDropdown.querySelectorAll('.search-item').forEach(el => {
-          el.addEventListener('click', () => {
-            const key = el.dataset.key;
-            addCompoundKey(key);
-            searchInput.value = '';
-            searchDropdown.style.display = 'none';
-          });
-        });
+        searchDropdown.innerHTML = itemsHtml + spinnerHtml;
+        searchDropdown.style.display = 'block';
+        if (window.lucide && typeof window.lucide.createIcons === 'function') {
+          window.lucide.createIcons();
+        }
       }
 
+      // GLOBAL DELEGATION FOR QUICK TAGS, SEARCH ITEMS, AND DROPDOWN CLOSE
       document.addEventListener('click', (e) => {
-        if (!searchInput.contains(e.target) && !searchDropdown.contains(e.target)) {
+        const quickTag = e.target.closest('.quick-tag');
+        if (quickTag && quickTag.dataset.key) {
+          e.preventDefault();
+          addCompoundKey(quickTag.dataset.key);
+          return;
+        }
+        const searchItem = e.target.closest('.search-item');
+        if (searchItem && searchItem.dataset.key) {
+          e.preventDefault();
+          addCompoundKey(searchItem.dataset.key);
+          if (searchInput) searchInput.value = '';
+          if (searchDropdown) searchDropdown.style.display = 'none';
+          return;
+        }
+        if (searchInput && searchDropdown && !searchInput.contains(e.target) && !searchDropdown.contains(e.target)) {
           searchDropdown.style.display = 'none';
         }
-      });
-
-      // QUICK ADD TAGS
-      document.querySelectorAll('.quick-tag').forEach(btn => {
-        btn.addEventListener('click', () => {
-          const key = btn.dataset.key;
-          addCompoundKey(key);
-        });
       });
 
       function getDefaultDoseFallback(key) {
@@ -142,6 +317,7 @@
         if (k.includes('yohimbine')) return { dose: 5, unit: 'mg', route: 'oral' };
         if (k.includes('telmisartan')) return { dose: 40, unit: 'mg', route: 'oral' };
         if (k.includes('curcumin')) return { dose: 500, unit: 'mg', route: 'oral' };
+        if (k.includes('nattokinase')) return { dose: 100, unit: 'mg', route: 'oral' };
         if (k.includes('piperine')) return { dose: 10, unit: 'mg', route: 'oral' };
         if (k.includes('bacopa')) return { dose: 300, unit: 'mg', route: 'oral' };
         if (k.includes('lcarnitine') || k.includes('carnitine')) return { dose: 500, unit: 'mg', route: 'oral' };
@@ -173,10 +349,14 @@
         }) || null;
       }
 
+      const _pendingLoadingCompounds = new Map();
+      window._pendingLoadingCompounds = _pendingLoadingCompounds;
+
       function addCompoundKey(key) {
         if (!key) return;
         const cleanKey = String(key).trim().toLowerCase().split(':')[0];
         if (!cleanKey || matchCompoundItem(state.stack, cleanKey)) return;
+        if (_pendingLoadingCompounds.has(cleanKey)) return;
 
         // Fast path: cached client record
         const cached = _clientCatalogCache[cleanKey] || _clientCatalogCache[cleanKey.replace(/-/g, '_')];
@@ -203,12 +383,29 @@
           return;
         }
 
-        fetch(`/catalog/${encodeURIComponent(cleanKey)}`)
+        const displayLabel = cleanKey.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
+        const abortController = new AbortController();
+        _pendingLoadingCompounds.set(cleanKey, {
+          key: cleanKey,
+          name: displayLabel,
+          abortController,
+          startedAt: Date.now()
+        });
+
+        setSearchSpinnerVisible(true);
+        // Render immediately so user sees the new loading card alongside current stack
+        renderStackList();
+
+        fetch(`/catalog/${encodeURIComponent(cleanKey)}`, { signal: abortController.signal })
           .then(res => {
             if (!res.ok) throw new Error('Compound not found');
             return res.json();
           })
           .then(compound => {
+            if (!_pendingLoadingCompounds.has(cleanKey)) return;
+            _pendingLoadingCompounds.delete(cleanKey);
+            if (!_pendingLoadingCompounds.size) setSearchSpinnerVisible(false);
+
             _clientCatalogCache[cleanKey] = compound;
             if (compound.key) _clientCatalogCache[compound.key] = compound;
             const fallback = getDefaultDoseFallback(compound.key || cleanKey);
@@ -217,39 +414,77 @@
             const doseUnit = defDose.dose_unit || compound.unit || fallback.unit;
             const routeVal = compound.route || compound.default_route || fallback.route || 'oral';
 
-            state.stack.push({
-              key: compound.key || cleanKey,
-              name: compound.name || cleanKey.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase()),
-              drug_class: compound.drug_class || 'Compound',
-              mechanism: compound.mechanism || '',
-              dose: doseVal,
-              unit: doseUnit,
-              frequency: 'daily',
-              timing: 'morning',
-              route: routeVal,
-            });
-            showToast(`Added ${compound.name || cleanKey}`, 'check');
+            if (!matchCompoundItem(state.stack, compound.key || cleanKey)) {
+              state.stack.push({
+                key: compound.key || cleanKey,
+                name: compound.name || cleanKey.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase()),
+                drug_class: compound.drug_class || 'Compound',
+                mechanism: compound.mechanism || '',
+                dose: doseVal,
+                unit: doseUnit,
+                frequency: 'daily',
+                timing: 'morning',
+                route: routeVal,
+              });
+              showToast(`Added ${compound.name || cleanKey}`, 'check');
+            }
             syncAndEvaluateStack();
           })
-          .catch(() => {
+          .catch((err) => {
+            if (err && err.name === 'AbortError') {
+              return; // Cancelled intentionally via removeCompoundKey
+            }
+            if (!_pendingLoadingCompounds.has(cleanKey)) return;
+            _pendingLoadingCompounds.delete(cleanKey);
+            if (!_pendingLoadingCompounds.size) setSearchSpinnerVisible(false);
+
             const fallback = getDefaultDoseFallback(cleanKey);
-            state.stack.push({
-              key: cleanKey,
-              name: cleanKey.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase()),
-              drug_class: 'Custom Compound',
-              dose: fallback.dose,
-              unit: fallback.unit,
-              frequency: 'daily',
-              timing: 'morning',
-              route: fallback.route || 'oral',
-            });
-            showToast(`Added ${cleanKey}`, 'check');
+            if (!matchCompoundItem(state.stack, cleanKey)) {
+              state.stack.push({
+                key: cleanKey,
+                name: cleanKey.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase()),
+                drug_class: 'Custom Compound',
+                dose: fallback.dose,
+                unit: fallback.unit,
+                frequency: 'daily',
+                timing: 'morning',
+                route: fallback.route || 'oral',
+              });
+              showToast(`Added ${cleanKey}`, 'check');
+            }
             syncAndEvaluateStack();
           });
       }
 
       function removeCompoundKey(key) {
         if (!key) return;
+        const cleanKey = String(key).trim().toLowerCase().split(':')[0];
+
+        // Check if deleting a currently loading compound
+        let matchedPendingKey = null;
+        if (_pendingLoadingCompounds.has(cleanKey)) {
+          matchedPendingKey = cleanKey;
+        } else {
+          for (const [pKey, pVal] of _pendingLoadingCompounds.entries()) {
+            if (pKey === cleanKey || pVal.name.toLowerCase() === cleanKey || pKey.replace(/[^a-z0-9]/g, '') === cleanKey.replace(/[^a-z0-9]/g, '')) {
+              matchedPendingKey = pKey;
+              break;
+            }
+          }
+        }
+
+        if (matchedPendingKey) {
+          const pending = _pendingLoadingCompounds.get(matchedPendingKey);
+          if (pending && pending.abortController) {
+            try { pending.abortController.abort(); } catch (e) {}
+          }
+          _pendingLoadingCompounds.delete(matchedPendingKey);
+          if (!_pendingLoadingCompounds.size) setSearchSpinnerVisible(false);
+          showToast(`Removed ${pending.name || matchedPendingKey}`, 'x');
+          syncAndEvaluateStack();
+          return;
+        }
+
         const item = matchCompoundItem(state.stack, key);
         if (item) {
           state.stack = state.stack.filter(c => c !== item);
@@ -291,7 +526,13 @@
       }
 
       function renderStackList() {
-        if (stackCountBadge) stackCountBadge.textContent = `${state.stack.length} items`;
+        if (stackCountBadge) {
+          if (_pendingLoadingCompounds && _pendingLoadingCompounds.size > 0) {
+            stackCountBadge.textContent = `${state.stack.length} items (${_pendingLoadingCompounds.size} loading)`;
+          } else {
+            stackCountBadge.textContent = `${state.stack.length} items`;
+          }
+        }
         if (statCompounds) statCompounds.textContent = state.stack.length;
 
         try {
@@ -313,7 +554,10 @@
         const openBtn = document.getElementById('open-full-graph-btn');
         if (openBtn) openBtn.href = targetUrl;
 
-        if (!state.stack.length) {
+        const hasActive = state.stack.length > 0;
+        const hasPending = _pendingLoadingCompounds && _pendingLoadingCompounds.size > 0;
+
+        if (!hasActive && !hasPending) {
           if (emptyPlaceholder) emptyPlaceholder.style.display = 'block';
           if (stackItemsWrap) {
             stackItemsWrap.innerHTML = '';
@@ -325,7 +569,7 @@
         if (emptyPlaceholder) emptyPlaceholder.style.display = 'none';
         if (!stackItemsWrap) return;
 
-        stackItemsWrap.innerHTML = state.stack.map(c => {
+        const stackCardsHtml = state.stack.map(c => {
           const unit = c.unit || 'mg';
           const freq = c.frequency || 'daily';
           const route = c.route || 'oral';
@@ -334,6 +578,13 @@
           const effDisplay = mult !== 1.0 
             ? `≈ ${effDaily >= 1.0 ? effDaily.toFixed(effDaily >= 10 ? 1 : 2) : (effDaily * 1000).toFixed(1)} ${effDaily >= 1.0 ? unit : (unit === 'mg' ? 'μg' : unit)}/day`
             : '';
+
+          let timing = (c.timing || 'morning').toLowerCase();
+          if (timing.includes('bed') || timing.includes('night')) timing = 'before bed';
+          else if (timing.includes('eve') || timing.includes('dinner')) timing = 'evening';
+          else if (timing.includes('mid') || timing.includes('noon') || timing.includes('afternoon') || timing.includes('lunch')) timing = 'midday';
+          else if (timing.includes('pre-workout') || timing.includes('preworkout')) timing = 'pre-workout';
+          else if (timing !== 'morning' && timing !== 'midday' && timing !== 'pre-workout' && timing !== 'evening' && timing !== 'before bed') timing = 'morning';
 
           return `
             <div class="stack-item-card" data-key="${escapeHtml(c.key)}">
@@ -372,17 +623,12 @@
                       <option value="IU" ${unit === 'IU' ? 'selected' : ''}>IU</option>
                     </select>
                   </div>
-                  <select class="control-select stack-timing-select" onchange="updateTiming('${escapeHtml(c.key)}', this.value)" title="Dosing timing">
-                    <option value="morning" ${c.timing === 'morning' ? 'selected' : ''}>Morning</option>
-                    <option value="pre-workout" ${c.timing === 'pre-workout' ? 'selected' : ''}>Pre-Workout</option>
-                    <option value="midday" ${c.timing === 'midday' ? 'selected' : ''}>Midday</option>
-                    <option value="evening" ${c.timing === 'evening' ? 'selected' : ''}>Evening</option>
-                    <option value="before bed" ${c.timing === 'before bed' || c.timing === 'bedtime' ? 'selected' : ''}>Before Bed</option>
-                    <option value="Every Other Day (EOD)" ${c.timing === 'Every Other Day (EOD)' || c.timing === 'every_other_day' ? 'selected' : ''}>Every Other Day (EOD)</option>
-                    <option value="Three Times Weekly (Mon / Wed / Fri)" ${c.timing === 'Three Times Weekly (Mon / Wed / Fri)' || c.timing === 'three_times_weekly' ? 'selected' : ''}>3x Weekly (Mon/Wed/Fri)</option>
-                    <option value="Twice Weekly (Mon / Thu)" ${c.timing === 'Twice Weekly (Mon / Thu)' || c.timing === 'twice_weekly' ? 'selected' : ''}>Twice Weekly (Mon/Thu)</option>
-                    <option value="Weekly" ${c.timing === 'Weekly' || c.timing === 'weekly' ? 'selected' : ''}>Weekly</option>
-                    <option value="As Needed (PRN)" ${c.timing === 'As Needed (PRN)' || c.timing === 'as_needed' ? 'selected' : ''}>As Needed (PRN)</option>
+                  <select class="control-select stack-timing-select" onchange="updateTiming('${escapeHtml(c.key)}', this.value)" title="Time of day">
+                    <option value="morning" ${timing === 'morning' ? 'selected' : ''}>Morning</option>
+                    <option value="midday" ${timing === 'midday' ? 'selected' : ''}>Midday</option>
+                    <option value="pre-workout" ${timing === 'pre-workout' ? 'selected' : ''}>Pre-Workout</option>
+                    <option value="evening" ${timing === 'evening' ? 'selected' : ''}>Evening</option>
+                    <option value="before bed" ${timing === 'before bed' || timing === 'bedtime' ? 'selected' : ''}>Before Bed</option>
                   </select>
                 </div>
                 <div class="stack-item-row stack-item-route-row">
@@ -422,6 +668,32 @@
             </div>
           `;
         }).join('');
+
+        let loadingCardsHtml = '';
+        if (hasPending) {
+          _pendingLoadingCompounds.forEach((item, pKey) => {
+            const loadingCardId = `stack-loading-${pKey.replace(/[^a-z0-9]/g, '-')}`;
+            loadingCardsHtml += `
+              <div id="${loadingCardId}" class="stack-item-loading-card" data-key="${escapeHtml(pKey)}">
+                <div style="display: flex; align-items: center; gap: 10px;">
+                  <span class="copilot-loading-spinner" style="width: 14px; height: 14px; border-width: 2px;"></span>
+                  <div>
+                    <div style="font-size: 0.84rem; font-weight: 600; color: #f8fafc;">Loading ${escapeHtml(item.name)}…</div>
+                    <div style="font-size: 0.70rem; color: var(--accent-cyan); font-family: 'JetBrains Mono', monospace;">Fetching pharmacology & online registries</div>
+                  </div>
+                </div>
+                <div class="stack-item-actions" style="margin-left: auto;">
+                  <button type="button" class="stack-item-remove-btn" onclick="removeCompoundKey('${escapeHtml(pKey)}')" title="Cancel">&times;</button>
+                </div>
+              </div>
+            `;
+          });
+        }
+
+        stackItemsWrap.innerHTML = stackCardsHtml + loadingCardsHtml;
+        if (window.lucide && typeof window.lucide.createIcons === 'function') {
+          window.lucide.createIcons();
+        }
       }
 
       window.updateDoseVal = (key, val) => {
@@ -504,6 +776,15 @@
       const clearStackBtn = document.getElementById('clear-stack-btn');
       if (clearStackBtn) {
         clearStackBtn.addEventListener('click', () => {
+          if (_pendingLoadingCompounds && _pendingLoadingCompounds.size > 0) {
+            _pendingLoadingCompounds.forEach((item) => {
+              if (item && item.abortController) {
+                try { item.abortController.abort(); } catch (e) {}
+              }
+            });
+            _pendingLoadingCompounds.clear();
+          }
+          setSearchSpinnerVisible(false);
           state.stack = [];
           state.analysis = null;
           renderStackList();

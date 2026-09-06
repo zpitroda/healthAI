@@ -100,6 +100,7 @@ SEED_CLINICAL_REFERENCE_DOSES_MG: Dict[str, float] = {
     "magnesium_glycinate": 300.0,
     "fish_oil": 2000.0,       # 2000 mg
     "omega_3": 2000.0,
+    "nattokinase": 100.0,     # 100 mg (2,000 FU)
 
     # RAAS & Blood Pressure
     "telmisartan": 40.0,      # 40 mg
@@ -1340,3 +1341,109 @@ def parse_dose_string_or_spec(spec_input: Any) -> Dict[str, Any]:
             "effective_daily_display": eff_display,
             "route": route_candidate,
         }
+
+
+def calculate_basal_metabolic_rate(biometrics: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
+    """
+    Dynamically calculate individualized Basal Metabolic Rate (BMR) and Total Daily
+    Energy Expenditure (TDEE) using the clinical Mifflin-St Jeor and Katch-McArdle equations.
+    """
+    bio = biometrics or {}
+    weight_kg = float(bio.get("weight_kg") or bio.get("weight") or 75.0)
+    height_cm = float(bio.get("height_cm") or bio.get("height") or 175.0)
+    age_y = float(bio.get("age") or bio.get("age_years") or 30.0)
+    raw_sex = str(bio.get("sex") or bio.get("gender") or "").strip().lower()
+    is_female = raw_sex in ("female", "f", "woman")
+    is_male = raw_sex in ("male", "m", "man")
+    body_fat_pct = float(bio.get("body_fat_pct") or bio.get("bodyfat") or 0.0)
+
+    # 1. Mifflin-St Jeor Formula
+    s_val = 5.0 if is_male else (-161.0 if is_female else -78.0)
+    bmr_msj = (10.0 * weight_kg) + (6.25 * height_cm) - (5.0 * age_y) + s_val
+
+    # 2. Katch-McArdle Formula (Lean Body Mass)
+    lbm_kg = None
+    bmr_km = None
+    if body_fat_pct > 0.0 and body_fat_pct < 60.0:
+        lbm_kg = round(weight_kg * (1.0 - (body_fat_pct / 100.0)), 2)
+        bmr_km = 370.0 + (21.6 * lbm_kg)
+
+    if bmr_km is not None:
+        effective_bmr = round((bmr_msj * 0.4) + (bmr_km * 0.6), 1)
+        formula_used = "Mifflin-St Jeor + Katch-McArdle (LBM Weighted)"
+    else:
+        effective_bmr = round(bmr_msj, 1)
+        formula_used = "Mifflin-St Jeor"
+
+    effective_bmr = max(800.0, min(3500.0, effective_bmr))
+
+    return {
+        "bmr_kcal_day": effective_bmr,
+        "bmr_mifflin_st_jeor": round(bmr_msj, 1),
+        "bmr_katch_mcardle": round(bmr_km, 1) if bmr_km else None,
+        "lbm_kg": lbm_kg,
+        "formula_used": formula_used,
+        "safe_range_lower": round(effective_bmr * 0.82, 0),
+        "safe_range_upper": round(effective_bmr * 1.18, 0),
+        "tdee_sedentary": round(effective_bmr * 1.2, 0),
+        "tdee_lightly_active": round(effective_bmr * 1.375, 0),
+        "tdee_moderately_active": round(effective_bmr * 1.55, 0),
+        "tdee_very_active": round(effective_bmr * 1.725, 0),
+    }
+
+
+def calculate_free_testosterone(
+    total_t_ng_dl: float,
+    shbg_nmol_l: float,
+    albumin_g_dl: float = 4.3,
+) -> Dict[str, Any]:
+    """
+    Calculate biologically unbound Free Testosterone and Bioavailable Testosterone
+    using the validated biophysical mass-action equilibrium solver (Vermeulen et al. 1999).
+    """
+    import math
+
+    t_ng_dl = max(0.1, float(total_t_ng_dl))
+    shbg_val = max(1.0, float(shbg_nmol_l))
+    alb_val = max(1.0, min(6.0, float(albumin_g_dl or 4.3)))
+
+    # Convert to standard SI molar concentrations (mol/L)
+    # Testosterone MW = 288.42 g/mol; 1 ng/dL = 3.467166e-11 mol/L
+    t_molar = t_ng_dl * 3.467166e-11
+    shbg_molar = shbg_val * 1e-9
+    # Albumin MW = 66,437 g/mol; 1 g/dL = 10 g/L -> mol/L
+    alb_molar = (alb_val * 10.0) / 66437.0
+
+    # Association constants at 37°C
+    k_shbg = 1.0e9    # L/mol (affinity of SHBG for testosterone)
+    k_alb = 3.6e4     # L/mol (affinity of albumin for testosterone)
+
+    # Vermeulen quadratic coefficients: a*T_free^2 + b*T_free + c = 0
+    # Let N = 1 + k_alb * [Albumin]
+    n_const = 1.0 + (k_alb * alb_molar)
+    a_coef = k_shbg * n_const
+    b_coef = n_const + (k_shbg * (shbg_molar - t_molar))
+    c_coef = -t_molar
+
+    discriminant = (b_coef ** 2) - (4.0 * a_coef * c_coef)
+    free_t_molar = (-b_coef + math.sqrt(max(0.0, discriminant))) / (2.0 * a_coef)
+
+    # Convert Free Testosterone molar -> pg/mL
+    # MW = 288.42 g/mol -> pg/L = mol/L * 288.42 * 1e12 -> pg/mL = pg/L / 1000
+    free_t_pg_ml = free_t_molar * 288.42 * 1e9
+    free_t_pct = (free_t_molar / t_molar) * 100.0 if t_molar > 0 else 0.0
+
+    # Bioavailable Testosterone (Free T + Albumin-bound T = Free T * N)
+    bioavailable_t_molar = free_t_molar * n_const
+    bioavailable_t_ng_dl = bioavailable_t_molar / 3.467166e-11
+    bioavailable_pct = (bioavailable_t_molar / t_molar) * 100.0 if t_molar > 0 else 0.0
+
+    return {
+        "free_testosterone_pg_ml": round(free_t_pg_ml, 2),
+        "free_testosterone_pct": round(free_t_pct, 2),
+        "bioavailable_testosterone_ng_dl": round(bioavailable_t_ng_dl, 1),
+        "bioavailable_testosterone_pct": round(bioavailable_pct, 1),
+        "total_testosterone_ng_dl": round(t_ng_dl, 1),
+        "shbg_nmol_l": round(shbg_val, 1),
+        "albumin_g_dl": round(alb_val, 2),
+    }

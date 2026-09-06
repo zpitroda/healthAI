@@ -17,8 +17,86 @@
       href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700;800&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=Inter:wght@400;500;600;700&display=swap"
       rel="stylesheet"
     />
-    <link rel="stylesheet" href="/static/css/styles.css" />
-    <link rel="stylesheet" href="/static/css/disclaimer.css" />
+    <link rel="stylesheet" href="/static/css/styles.css?v=20260905_mod" />
+    <link rel="stylesheet" href="/static/css/disclaimer.css?v=20260905_mod" />
+    <style>
+      /* MODALITY FILTER PILLS */
+      .search-modality-bar {
+        display: flex !important;
+        align-items: center !important;
+        flex-wrap: wrap !important;
+        gap: 6px !important;
+        margin-bottom: 10px !important;
+        padding-bottom: 2px !important;
+      }
+      .search-mod-btn {
+        display: inline-flex !important;
+        align-items: center !important;
+        justify-content: center !important;
+        gap: 5px !important;
+        background: rgba(255, 255, 255, 0.04) !important;
+        border: 1px solid rgba(56, 189, 248, 0.14) !important;
+        border-radius: 9999px !important;
+        padding: 4px 11px !important;
+        font-size: 0.72rem !important;
+        font-weight: 700 !important;
+        color: #94a9c4 !important;
+        cursor: pointer !important;
+        white-space: nowrap !important;
+        line-height: 1 !important;
+        vertical-align: middle !important;
+        outline: none !important;
+        box-shadow: none !important;
+        transition: all 0.15s ease !important;
+        user-select: none !important;
+        font-family: inherit !important;
+      }
+      .search-mod-btn:hover {
+        color: #f8fafc !important;
+        background: rgba(255, 255, 255, 0.08) !important;
+        border-color: rgba(255, 255, 255, 0.25) !important;
+        transform: translateY(-1px);
+      }
+      .search-mod-btn:active {
+        transform: translateY(1px) scale(0.97);
+      }
+      .search-mod-btn.active {
+        background: rgba(0, 242, 254, 0.15) !important;
+        color: #00f2fe !important;
+        border-color: rgba(0, 242, 254, 0.5) !important;
+        box-shadow: 0 0 10px rgba(0, 242, 254, 0.2) !important;
+      }
+      .search-mod-btn.active[data-modality="peptide"] {
+        background: rgba(45, 212, 191, 0.15) !important;
+        color: #2dd4bf !important;
+        border-color: rgba(45, 212, 191, 0.5) !important;
+        box-shadow: 0 0 10px rgba(45, 212, 191, 0.2) !important;
+      }
+      .search-mod-btn.active[data-modality="biologic_antibody"] {
+        background: rgba(192, 132, 252, 0.15) !important;
+        color: #c084fc !important;
+        border-color: rgba(192, 132, 252, 0.5) !important;
+        box-shadow: 0 0 10px rgba(192, 132, 252, 0.2) !important;
+      }
+      .search-mod-btn.active[data-modality="botanical_natural"] {
+        background: rgba(16, 185, 129, 0.15) !important;
+        color: #10b981 !important;
+        border-color: rgba(16, 185, 129, 0.5) !important;
+        box-shadow: 0 0 10px rgba(16, 185, 129, 0.2) !important;
+      }
+      .search-mod-btn.active[data-modality="combination_drug"] {
+        background: rgba(245, 158, 11, 0.15) !important;
+        color: #fbbf24 !important;
+        border-color: rgba(245, 158, 11, 0.5) !important;
+        box-shadow: 0 0 10px rgba(245, 158, 11, 0.2) !important;
+      }
+      .search-mod-btn.active[data-modality="small_molecule"] {
+        background: rgba(59, 130, 246, 0.15) !important;
+        color: #60a5fa !important;
+        border-color: rgba(59, 130, 246, 0.5) !important;
+        box-shadow: 0 0 10px rgba(59, 130, 246, 0.2) !important;
+      }
+    </style>
     <script src="https://unpkg.com/lucide@latest/dist/umd/lucide.js"></script>
     <script>
       window.iconSvg = function iconSvg(name, options = {}) {
@@ -231,7 +309,6 @@
               <span class="nav-flagship-tag">2.0</span>
             </a>
             <a href="/compound?key=caffeine" class="nav-link">Compound DB</a>
-            <a href="/admin" class="nav-link">Catalog DB</a>
             <a href="/debug" class="nav-link">Debug Workbench</a>
           </nav>
         </div>
@@ -260,6 +337,10 @@
             <div>
               <h2 class="summary-heading">
                 Pharmacological Stack Assessment
+                <span id="stack-eval-indicator" class="stack-eval-indicator" style="display: none;">
+                  <span class="copilot-loading-spinner" style="width: 12px; height: 12px; border-width: 1.75px;"></span>
+                  <span>Evaluating stack safety…</span>
+                </span>
               </h2>
               <p id="summary-narrative" class="summary-text-box">
                 Add compounds from the search catalog or pick an example stack to evaluate real-time pharmacodynamic collisions, CYP450 enzyme overlaps, and cumulative safety scores.
@@ -346,6 +427,32 @@
 
           <!-- AUTOCOMPLETE SEARCH -->
           <div class="search-container">
+            <div class="search-modality-bar" id="search-modality-bar">
+              <button type="button" class="search-mod-btn active" data-modality="all" onclick="setSearchModality('all', this)" title="All modalities">
+                <i data-lucide="sparkles" class="icon-xs icon-cyan"></i>
+                <span>All</span>
+              </button>
+              <button type="button" class="search-mod-btn" data-modality="peptide" onclick="setSearchModality('peptide', this)" title="Peptides & bio-active hormones">
+                <i data-lucide="dna" class="icon-xs icon-teal"></i>
+                <span>Peptides</span>
+              </button>
+              <button type="button" class="search-mod-btn" data-modality="biologic_antibody" onclick="setSearchModality('biologic_antibody', this)" title="Biologics & monoclonal antibodies">
+                <i data-lucide="shield" class="icon-xs icon-purple"></i>
+                <span>Biologics</span>
+              </button>
+              <button type="button" class="search-mod-btn" data-modality="botanical_natural" onclick="setSearchModality('botanical_natural', this)" title="Botanicals & phytochemical complexes">
+                <i data-lucide="leaf" class="icon-xs icon-emerald"></i>
+                <span>Botanicals</span>
+              </button>
+              <button type="button" class="search-mod-btn" data-modality="combination_drug" onclick="setSearchModality('combination_drug', this)" title="Multi-ingredient combination drugs">
+                <i data-lucide="layers" class="icon-xs icon-amber"></i>
+                <span>Combos</span>
+              </button>
+              <button type="button" class="search-mod-btn" data-modality="small_molecule" onclick="setSearchModality('small_molecule', this)" title="Small molecule therapeutics & supplements">
+                <i data-lucide="atom" class="icon-xs icon-blue"></i>
+                <span>Small Molecules</span>
+              </button>
+            </div>
             <div class="search-input-wrapper">
               <span class="search-icon"><i data-lucide="search" class="icon-sm"></i></span>
               <input
@@ -355,6 +462,9 @@
                 placeholder="Search catalog (e.g. Caffeine, Telmisartan, Curcumin)..."
                 autocomplete="off"
               />
+              <span id="search-loading-spinner" class="search-input-spinner" style="display: none;" title="Searching catalog & registries…">
+                <span class="copilot-loading-spinner" style="width: 13px; height: 13px; border-width: 2px;"></span>
+              </span>
             </div>
             <div id="search-dropdown" class="search-dropdown"></div>
           </div>
@@ -489,6 +599,50 @@
                   <label class="biomarker-label" for="bio-hematocrit">Hematocrit (%)</label>
                   <input type="number" id="bio-hematocrit" class="biomarker-input" placeholder="e.g. 46 (Default: 46%)" min="30" max="65" />
                 </div>
+                <div class="biomarker-field">
+                  <label class="biomarker-label" for="bio-bmr">BMR (kcal/day)</label>
+                  <input type="number" id="bio-bmr" class="biomarker-input" placeholder="e.g. 1750 (Auto MSJ/KM)" min="800" max="4000" />
+                </div>
+                <div class="biomarker-field">
+                  <label class="biomarker-label" for="bio-hrv">HRV rMSSD (ms)</label>
+                  <input type="number" id="bio-hrv" class="biomarker-input" placeholder="e.g. 45 (Wearable)" min="10" max="200" />
+                </div>
+                <div class="biomarker-field">
+                  <label class="biomarker-label" for="bio-freet3">Free T3 (pg/mL)</label>
+                  <input type="number" id="bio-freet3" class="biomarker-input" placeholder="e.g. 3.2" step="0.1" min="1.0" max="15.0" />
+                </div>
+                <div class="biomarker-field">
+                  <label class="biomarker-label" for="bio-freet4">Free T4 (ng/dL)</label>
+                  <input type="number" id="bio-freet4" class="biomarker-input" placeholder="e.g. 1.3" step="0.1" min="0.4" max="5.0" />
+                </div>
+                <div class="biomarker-field">
+                  <label class="biomarker-label" for="bio-insulin">Fasting Insulin (uIU/mL)</label>
+                  <input type="number" id="bio-insulin" class="biomarker-input" placeholder="e.g. 6.0" step="0.5" min="1.0" max="100.0" />
+                </div>
+                <div class="biomarker-field">
+                  <label class="biomarker-label" for="bio-homair">HOMA-IR Score</label>
+                  <input type="number" id="bio-homair" class="biomarker-input" placeholder="e.g. 1.2" step="0.1" min="0.2" max="15.0" />
+                </div>
+                <div class="biomarker-field">
+                  <label class="biomarker-label" for="bio-shbg">SHBG (nmol/L)</label>
+                  <input type="number" id="bio-shbg" class="biomarker-input" placeholder="e.g. 32" min="5" max="150" />
+                </div>
+                <div class="biomarker-field">
+                  <label class="biomarker-label" for="bio-bdnf">BDNF (ng/mL)</label>
+                  <input type="number" id="bio-bdnf" class="biomarker-input" placeholder="e.g. 25" step="0.5" min="5" max="100" />
+                </div>
+                <div class="biomarker-field">
+                  <label class="biomarker-label" for="bio-igf1">IGF-1 (ng/mL)</label>
+                  <input type="number" id="bio-igf1" class="biomarker-input" placeholder="e.g. 190" min="30" max="600" />
+                </div>
+                <div class="biomarker-field">
+                  <label class="biomarker-label" for="bio-nad">NAD+ (umol/L)</label>
+                  <input type="number" id="bio-nad" class="biomarker-input" placeholder="e.g. 30" step="1" min="5" max="120" />
+                </div>
+                <div class="biomarker-field">
+                  <label class="biomarker-label" for="bio-hscrp">hs-CRP (mg/L)</label>
+                  <input type="number" id="bio-hscrp" class="biomarker-input" placeholder="e.g. 0.8" step="0.1" min="0.1" max="25.0" />
+                </div>
               </div>
               <button type="button" class="btn-primary" onclick="openAiStackBuilderModal()" style="width: 100%; margin-top: 10px; padding: 7px 10px; font-size: 0.76rem; font-weight: 800; display: flex; align-items: center; justify-content: center; gap: 6px; background: linear-gradient(135deg, rgba(0,242,254,0.25), rgba(79,70,229,0.35)); border: 1px solid var(--accent-cyan); color: #fff; cursor: pointer; border-radius: var(--radius-sm);">
                 <i data-lucide="sparkles" class="icon-xs icon-cyan"></i> <span>Launch AI Stack Builder for this Profile</span>
@@ -603,7 +757,11 @@
             </div>
 
             <!-- GRAPH CANVAS WORKSPACE & SPLIT INSPECTOR -->
-            <div class="embedded-graph-workspace">
+            <div class="embedded-graph-workspace" style="position: relative;">
+              <div id="embedded-graph-loading" class="embedded-graph-loading-overlay hidden">
+                <span class="copilot-loading-spinner" style="width: 24px; height: 24px; border-width: 2.5px;"></span>
+                <span>Synthesizing multi-tier molecular cascades…</span>
+              </div>
               <div id="embedded-graph-canvas" class="embedded-graph-canvas" aria-label="Interactive biological knowledge graph canvas"></div>
               
               <!-- EMBEDDED NODE INSPECTOR DRAWER -->
@@ -1006,6 +1164,50 @@
                     <label class="biomarker-label" for="builder-bio-hematocrit">Hematocrit (%)</label>
                     <input type="number" id="builder-bio-hematocrit" class="biomarker-input" placeholder="e.g. 46" min="30" max="65" style="font-size: 0.78rem; padding: 5px 8px;" />
                   </div>
+                  <div class="biomarker-field">
+                    <label class="biomarker-label" for="builder-bio-bmr">BMR (kcal/d)</label>
+                    <input type="number" id="builder-bio-bmr" class="biomarker-input" placeholder="e.g. 1750" min="800" max="4000" style="font-size: 0.78rem; padding: 5px 8px;" />
+                  </div>
+                  <div class="biomarker-field">
+                    <label class="biomarker-label" for="builder-bio-hrv">HRV (ms)</label>
+                    <input type="number" id="builder-bio-hrv" class="biomarker-input" placeholder="e.g. 45" min="10" max="200" style="font-size: 0.78rem; padding: 5px 8px;" />
+                  </div>
+                  <div class="biomarker-field">
+                    <label class="biomarker-label" for="builder-bio-freet3">Free T3 (pg/mL)</label>
+                    <input type="number" id="builder-bio-freet3" class="biomarker-input" placeholder="e.g. 3.2" step="0.1" min="1.0" max="15.0" style="font-size: 0.78rem; padding: 5px 8px;" />
+                  </div>
+                  <div class="biomarker-field">
+                    <label class="biomarker-label" for="builder-bio-freet4">Free T4 (ng/dL)</label>
+                    <input type="number" id="builder-bio-freet4" class="biomarker-input" placeholder="e.g. 1.3" step="0.1" min="0.4" max="5.0" style="font-size: 0.78rem; padding: 5px 8px;" />
+                  </div>
+                  <div class="biomarker-field">
+                    <label class="biomarker-label" for="builder-bio-insulin">Insulin (uIU/mL)</label>
+                    <input type="number" id="builder-bio-insulin" class="biomarker-input" placeholder="e.g. 6.0" step="0.5" min="1.0" max="100.0" style="font-size: 0.78rem; padding: 5px 8px;" />
+                  </div>
+                  <div class="biomarker-field">
+                    <label class="biomarker-label" for="builder-bio-homair">HOMA-IR</label>
+                    <input type="number" id="builder-bio-homair" class="biomarker-input" placeholder="e.g. 1.2" step="0.1" min="0.2" max="15.0" style="font-size: 0.78rem; padding: 5px 8px;" />
+                  </div>
+                  <div class="biomarker-field">
+                    <label class="biomarker-label" for="builder-bio-shbg">SHBG (nmol/L)</label>
+                    <input type="number" id="builder-bio-shbg" class="biomarker-input" placeholder="e.g. 32" min="5" max="150" style="font-size: 0.78rem; padding: 5px 8px;" />
+                  </div>
+                  <div class="biomarker-field">
+                    <label class="biomarker-label" for="builder-bio-bdnf">BDNF (ng/mL)</label>
+                    <input type="number" id="builder-bio-bdnf" class="biomarker-input" placeholder="e.g. 25" step="0.5" min="5" max="100" style="font-size: 0.78rem; padding: 5px 8px;" />
+                  </div>
+                  <div class="biomarker-field">
+                    <label class="biomarker-label" for="builder-bio-igf1">IGF-1 (ng/mL)</label>
+                    <input type="number" id="builder-bio-igf1" class="biomarker-input" placeholder="e.g. 190" min="30" max="600" style="font-size: 0.78rem; padding: 5px 8px;" />
+                  </div>
+                  <div class="biomarker-field">
+                    <label class="biomarker-label" for="builder-bio-nad">NAD+ (umol/L)</label>
+                    <input type="number" id="builder-bio-nad" class="biomarker-input" placeholder="e.g. 30" step="1" min="5" max="120" style="font-size: 0.78rem; padding: 5px 8px;" />
+                  </div>
+                  <div class="biomarker-field">
+                    <label class="biomarker-label" for="builder-bio-hscrp">hs-CRP (mg/L)</label>
+                    <input type="number" id="builder-bio-hscrp" class="biomarker-input" placeholder="e.g. 0.8" step="0.1" min="0.1" max="25.0" style="font-size: 0.78rem; padding: 5px 8px;" />
+                  </div>
                 </div>
               </div>
             </div>
@@ -1029,15 +1231,15 @@
         </div>
       </div>
 
-      <!-- API KEY SETTINGS MODAL -->
+      <!-- API KEY & CUSTOM ENDPOINT SETTINGS MODAL -->
       <div id="api-key-modal" class="modal-backdrop">
-        <div class="modal-card" style="max-width: 500px; width: 92%;">
+        <div class="modal-card" style="max-width: 530px; width: 94%;">
           <div class="modal-header" style="border-bottom: 1px solid var(--border-subtle); padding-bottom: 12px; margin-bottom: 14px;">
             <div style="display: flex; align-items: center; gap: 8px;">
-              <i data-lucide="key" class="icon-md icon-cyan"></i>
+              <i data-lucide="cpu" class="icon-md icon-cyan"></i>
               <div>
-                <h3 style="margin: 0; font-size: 1.02rem; font-weight: 800; color: #fff;">OpenRouter / AI API Key</h3>
-                <div style="font-size: 0.72rem; color: var(--text-muted); margin-top: 2px;">Bring Your Own Key (BYOK) for Live Webpage AI Inference</div>
+                <h3 style="margin: 0; font-size: 1.02rem; font-weight: 800; color: #fff;">AI Endpoint & API Key</h3>
+                <div style="font-size: 0.72rem; color: var(--text-muted); margin-top: 2px;">Bring Your Own Key (BYOK) & OpenAI-Compatible Endpoint</div>
               </div>
             </div>
             <button class="modal-close-btn" id="api-key-modal-close" style="font-size: 1.3rem; line-height: 1;">&times;</button>
@@ -1045,40 +1247,78 @@
 
           <div class="modal-body" style="display: flex; flex-direction: column; gap: 14px;">
             <div style="background: rgba(0, 242, 254, 0.05); border: 1px solid rgba(0, 242, 254, 0.2); border-radius: var(--radius-sm); padding: 10px 12px; font-size: 0.78rem; color: var(--text-secondary); line-height: 1.45;">
-              <span><strong>Host Quota Notice:</strong> If the server's OpenRouter token quota has run out, or if you prefer using your personal token budget, enter your OpenRouter (or OpenAI) key below. Your key is stored securely in your browser's <code style="color: var(--accent-cyan);">localStorage</code> and never saved to the server database.</span>
+              <span><strong>Unified OpenAI Compatibility:</strong> HealthAI supports any OpenAI-compatible API. Choose OpenRouter, OpenAI, Groq, DeepSeek, or enter your own custom self-hosted endpoint. Keys and endpoints are stored securely in your browser's <code style="color: var(--accent-cyan);">localStorage</code>.</span>
             </div>
 
+            <!-- PROVIDER PRESETS -->
+            <div>
+              <label style="display: block; font-size: 0.74rem; font-weight: 700; color: var(--text-secondary); margin-bottom: 6px;">
+                AI PROVIDER PRESET
+              </label>
+              <div id="provider-preset-pills" style="display: grid; grid-template-columns: repeat(5, 1fr); gap: 5px;">
+                <button type="button" class="btn-secondary provider-pill active" data-provider="openrouter" style="padding: 6px 4px; font-size: 0.72rem; text-align: center; border-radius: 4px; font-weight: 700;">OpenRouter</button>
+                <button type="button" class="btn-secondary provider-pill" data-provider="openai" style="padding: 6px 4px; font-size: 0.72rem; text-align: center; border-radius: 4px; font-weight: 700;">OpenAI</button>
+                <button type="button" class="btn-secondary provider-pill" data-provider="groq" style="padding: 6px 4px; font-size: 0.72rem; text-align: center; border-radius: 4px; font-weight: 700;">Groq</button>
+                <button type="button" class="btn-secondary provider-pill" data-provider="deepseek" style="padding: 6px 4px; font-size: 0.72rem; text-align: center; border-radius: 4px; font-weight: 700;">DeepSeek</button>
+                <button type="button" class="btn-secondary provider-pill" data-provider="custom" style="padding: 6px 4px; font-size: 0.72rem; text-align: center; border-radius: 4px; font-weight: 700;">Custom</button>
+              </div>
+            </div>
+
+            <!-- API KEY FIELD -->
             <div>
               <label for="user-api-key-input" style="display: flex; justify-content: space-between; align-items: center; font-size: 0.74rem; font-weight: 700; color: var(--text-secondary); margin-bottom: 6px;">
-                <span>YOUR OPENROUTER / OPENAI API KEY</span>
-                <span id="current-key-badge" class="key-status-pill default">Admin Default Key</span>
+                <span id="api-key-label-text">API KEY</span>
+                <span id="current-key-badge" class="key-status-pill default">Admin Default</span>
               </label>
               <div style="display: flex; gap: 6px; align-items: center;">
                 <input type="password" id="user-api-key-input" class="biomarker-input" placeholder="sk-or-v1-..." style="flex: 1; font-family: 'JetBrains Mono', monospace; font-size: 0.8rem; padding: 7px 10px; background: rgba(0,0,0,0.35); border-color: var(--border-subtle);" />
                 <button type="button" id="toggle-key-visibility-btn" class="btn-secondary" style="padding: 7px 10px; font-size: 0.8rem; display: inline-flex; align-items: center; justify-content: center;" title="Toggle Show/Hide Key"><i data-lucide="eye" class="icon-xs"></i></button>
               </div>
-              <div id="key-validation-feedback" style="font-size: 0.72rem; margin-top: 6px; min-height: 18px; line-height: 1.35;"></div>
             </div>
 
+            <!-- CUSTOM ENDPOINT BASE URL FIELD -->
+            <div id="endpoint-url-container" style="display: none;">
+              <label for="user-base-url-input" style="display: flex; justify-content: space-between; align-items: center; font-size: 0.74rem; font-weight: 700; color: var(--text-secondary); margin-bottom: 6px;">
+                <span>OPENAI-COMPATIBLE BASE URL / ENDPOINT</span>
+                <span style="font-size: 0.68rem; color: var(--text-muted);">Must end with /v1</span>
+              </label>
+              <input type="text" id="user-base-url-input" class="biomarker-input" placeholder="https://api.openai.com/v1" style="width: 100%; font-family: 'JetBrains Mono', monospace; font-size: 0.8rem; padding: 7px 10px; background: rgba(0,0,0,0.35); border-color: var(--border-subtle);" />
+            </div>
+
+            <!-- MODEL SELECTION CONTAINER (ONLY VISIBLE FOR CUSTOM ENDPOINT / NON-DEFAULT PROVIDERS) -->
+            <div id="custom-model-container" style="display: none; background: rgba(0,0,0,0.25); border: 1px dashed var(--border-subtle); border-radius: var(--radius-sm); padding: 10px 12px;">
+              <label for="user-model-input" style="display: flex; justify-content: space-between; align-items: center; font-size: 0.74rem; font-weight: 700; color: var(--accent-cyan); margin-bottom: 6px;">
+                <span>MODEL SELECTION (CUSTOM ENDPOINT)</span>
+                <span style="font-size: 0.68rem; color: var(--text-muted);">Unlocked for custom endpoints</span>
+              </label>
+              <input type="text" id="user-model-input" class="biomarker-input" placeholder="e.g. gpt-4o-mini, llama-3.3-70b-versatile, deepseek-chat" style="width: 100%; font-family: 'JetBrains Mono', monospace; font-size: 0.8rem; padding: 7px 10px; background: rgba(0,0,0,0.4); border-color: rgba(0,242,254,0.3);" />
+              <div id="model-quick-chips" style="display: flex; flex-wrap: wrap; gap: 4px; margin-top: 6px;">
+                <!-- Dynamically filled with suggestion pills -->
+              </div>
+            </div>
+
+            <!-- LINKS & CLEAR -->
             <div style="display: flex; justify-content: space-between; align-items: center; font-size: 0.74rem; padding-top: 4px; border-top: 1px solid rgba(255,255,255,0.06);">
-              <a href="https://openrouter.ai/keys" target="_blank" rel="noopener noreferrer" style="color: var(--accent-cyan); text-decoration: none; font-weight: 700; display: inline-flex; align-items: center; gap: 4px;">
-                <span>Get OpenRouter Key (openrouter.ai)</span> <i data-lucide="external-link" class="icon-xs"></i>
+              <a id="provider-portal-link" href="https://openrouter.ai/keys" target="_blank" rel="noopener noreferrer" style="color: var(--accent-cyan); text-decoration: none; font-weight: 700; display: inline-flex; align-items: center; gap: 4px;">
+                <span id="provider-link-text">Get OpenRouter Key (openrouter.ai)</span> <i data-lucide="external-link" class="icon-xs"></i>
               </a>
               <button type="button" id="clear-api-key-btn" style="background: none; border: none; color: #f87171; font-size: 0.72rem; cursor: pointer; text-decoration: underline;">
                 Reset to Server Default
               </button>
             </div>
 
+            <div id="key-validation-feedback" style="font-size: 0.72rem; min-height: 18px; line-height: 1.35;"></div>
+
             <!-- BUTTONS -->
-            <div style="display: flex; gap: 8px; justify-content: flex-end; margin-top: 6px;">
+            <div style="display: flex; gap: 8px; justify-content: flex-end; margin-top: 4px;">
               <button type="button" class="btn-secondary" id="api-key-cancel-btn" style="padding: 6px 14px; font-size: 0.78rem;">Cancel</button>
               <button type="button" class="btn-secondary" id="test-api-key-btn" style="padding: 6px 14px; font-size: 0.78rem; display: inline-flex; align-items: center; gap: 4px;">
                 <i data-lucide="flask-conical" class="icon-xs"></i>
-                <span>Test Key</span>
+                <span>Test Connection</span>
               </button>
               <button type="button" class="btn-primary" id="save-api-key-btn" style="padding: 6px 16px; font-size: 0.78rem; font-weight: 800; display: inline-flex; align-items: center; gap: 4px;">
                 <i data-lucide="save" class="icon-xs"></i>
-                <span>Save Key</span>
+                <span>Save Settings</span>
               </button>
             </div>
           </div>
@@ -1228,6 +1468,50 @@
               <label class="biomarker-label" for="copilot-bio-hematocrit">HCT (%)</label>
               <input type="number" id="copilot-bio-hematocrit" class="biomarker-input" placeholder="46" min="30" max="65" style="font-size: 0.74rem; padding: 4px 6px;" />
             </div>
+            <div class="biomarker-field">
+              <label class="biomarker-label" for="copilot-bio-bmr">BMR (kcal/d)</label>
+              <input type="number" id="copilot-bio-bmr" class="biomarker-input" placeholder="1750" min="800" max="4000" style="font-size: 0.74rem; padding: 4px 6px;" />
+            </div>
+            <div class="biomarker-field">
+              <label class="biomarker-label" for="copilot-bio-hrv">HRV (ms)</label>
+              <input type="number" id="copilot-bio-hrv" class="biomarker-input" placeholder="45" min="10" max="200" style="font-size: 0.74rem; padding: 4px 6px;" />
+            </div>
+            <div class="biomarker-field">
+              <label class="biomarker-label" for="copilot-bio-freet3">fT3 (pg/mL)</label>
+              <input type="number" id="copilot-bio-freet3" class="biomarker-input" placeholder="3.2" step="0.1" min="1.0" max="15.0" style="font-size: 0.74rem; padding: 4px 6px;" />
+            </div>
+            <div class="biomarker-field">
+              <label class="biomarker-label" for="copilot-bio-freet4">fT4 (ng/dL)</label>
+              <input type="number" id="copilot-bio-freet4" class="biomarker-input" placeholder="1.3" step="0.1" min="0.4" max="5.0" style="font-size: 0.74rem; padding: 4px 6px;" />
+            </div>
+            <div class="biomarker-field">
+              <label class="biomarker-label" for="copilot-bio-insulin">Insulin (uIU)</label>
+              <input type="number" id="copilot-bio-insulin" class="biomarker-input" placeholder="6.0" step="0.5" min="1.0" max="100.0" style="font-size: 0.74rem; padding: 4px 6px;" />
+            </div>
+            <div class="biomarker-field">
+              <label class="biomarker-label" for="copilot-bio-homair">HOMA-IR</label>
+              <input type="number" id="copilot-bio-homair" class="biomarker-input" placeholder="1.2" step="0.1" min="0.2" max="15.0" style="font-size: 0.74rem; padding: 4px 6px;" />
+            </div>
+            <div class="biomarker-field">
+              <label class="biomarker-label" for="copilot-bio-shbg">SHBG (nM)</label>
+              <input type="number" id="copilot-bio-shbg" class="biomarker-input" placeholder="32" min="5" max="150" style="font-size: 0.74rem; padding: 4px 6px;" />
+            </div>
+            <div class="biomarker-field">
+              <label class="biomarker-label" for="copilot-bio-bdnf">BDNF (ng/mL)</label>
+              <input type="number" id="copilot-bio-bdnf" class="biomarker-input" placeholder="25" step="0.5" min="5" max="100" style="font-size: 0.74rem; padding: 4px 6px;" />
+            </div>
+            <div class="biomarker-field">
+              <label class="biomarker-label" for="copilot-bio-igf1">IGF-1 (ng/mL)</label>
+              <input type="number" id="copilot-bio-igf1" class="biomarker-input" placeholder="190" min="30" max="600" style="font-size: 0.74rem; padding: 4px 6px;" />
+            </div>
+            <div class="biomarker-field">
+              <label class="biomarker-label" for="copilot-bio-nad">NAD+ (uM)</label>
+              <input type="number" id="copilot-bio-nad" class="biomarker-input" placeholder="30" step="1" min="5" max="120" style="font-size: 0.74rem; padding: 4px 6px;" />
+            </div>
+            <div class="biomarker-field">
+              <label class="biomarker-label" for="copilot-bio-hscrp">hs-CRP (mg/L)</label>
+              <input type="number" id="copilot-bio-hscrp" class="biomarker-input" placeholder="0.8" step="0.1" min="0.1" max="25.0" style="font-size: 0.74rem; padding: 4px 6px;" />
+            </div>
           </div>
           <div style="display: flex; gap: 8px; justify-content: flex-end; margin-top: 4px;">
             <button type="button" class="btn-primary" onclick="openAiStackBuilderModal()" style="padding: 5px 12px; font-size: 0.74rem; font-weight: 800; display: inline-flex; align-items: center; gap: 4px; background: linear-gradient(135deg, rgba(0,242,254,0.25), rgba(79,70,229,0.35)); border: 1px solid var(--accent-cyan); color: #fff; cursor: pointer; border-radius: var(--radius-sm);">
@@ -1317,11 +1601,11 @@
     </div>
 
     <!-- WORKBENCH JAVASCRIPT LOGIC -->
-    <script src="/static/js/app-state.js"></script>
-    <script src="/static/js/app-ui.js"></script>
-    <script src="/static/js/app-api.js"></script>
-    <script src="/static/js/app-copilot.js"></script>
-    <script src="/static/js/disclaimer.js"></script>
+    <script src="/static/js/app-state.js?v=20260905_mod"></script>
+    <script src="/static/js/app-ui.js?v=20260905_mod"></script>
+    <script src="/static/js/app-api.js?v=20260905_mod"></script>
+    <script src="/static/js/app-copilot.js?v=20260905_mod"></script>
+    <script src="/static/js/disclaimer.js?v=20260905_mod"></script>
     <script>
       document.addEventListener('DOMContentLoaded', () => {
         if (window.lucide && typeof window.lucide.createIcons === 'function') {

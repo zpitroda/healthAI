@@ -7,6 +7,81 @@ from typing import Any, Dict, List, Optional, Set, Tuple
 
 from app.services.catalog_service import CatalogService
 from app.services.chemical_structure_engine import is_17a_alkylated, is_19nor_steroid
+from app.knowledge_graph.graph import get_demographic_calibrated_reference_range
+
+# Clinical within-subject biological variation (CV_w) baselines per EFLM / Westgard biological variation specifications
+BIOMARKER_BIOLOGICAL_CV_MAP: Dict[str, float] = {
+    # Tight homeostatic parameters (low biological CV)
+    "bio_blood_pressure": 0.06,
+    "bio_systolic_blood_pressure": 0.06,
+    "bio_diastolic_blood_pressure": 0.06,
+    "bio_serum_potassium": 0.05,
+    "bio_potassium": 0.05,
+    "bio_serum_sodium": 0.03,
+    "bio_sodium": 0.03,
+    "bio_serum_calcium": 0.04,
+    "bio_hematocrit": 0.05,
+    "bio_hemoglobin": 0.05,
+    "bio_platelets": 0.08,
+    "bio_egfr": 0.08,
+    "bio_serum_creatinine": 0.08,
+    "bio_cystatin_c": 0.08,
+    "bio_blood_glucose": 0.07,
+    "bio_fasting_glucose": 0.07,
+    "bio_hba1c": 0.05,
+    "bio_resting_heart_rate": 0.07,
+    "bio_heart_rate": 0.07,
+    # Moderate variability
+    "bio_hdl_c": 0.10,
+    "bio_hdl": 0.10,
+    "bio_ldl_c": 0.10,
+    "bio_ldl": 0.10,
+    "bio_apob": 0.10,
+    "bio_total_cholesterol": 0.09,
+    "bio_triglycerides": 0.16,
+    "bio_alt": 0.15,
+    "bio_ast": 0.15,
+    "bio_ggt": 0.16,
+    "bio_alp": 0.10,
+    "bio_total_bilirubin": 0.18,
+    "bio_gsh_redox_ratio": 0.14,
+    "bio_mda": 0.15,
+    "bio_tsh": 0.14,
+    "bio_free_t3": 0.12,
+    "bio_free_t4": 0.10,
+    # Pulsatile endocrine & inflammatory
+    "bio_estradiol": 0.18,
+    "bio_estrone": 0.18,
+    "bio_dht": 0.18,
+    "bio_dihydrotestosterone": 0.18,
+    "bio_testosterone": 0.18,
+    "bio_free_testosterone": 0.20,
+    "bio_prolactin": 0.18,
+    "bio_cortisol": 0.22,
+    "bio_luteinizing_hormone": 0.20,
+    "bio_lh": 0.20,
+    "bio_follicle_stimulating_hormone": 0.18,
+    "bio_fsh": 0.18,
+    "bio_shbg": 0.14,
+    "bio_crp": 0.22,
+    "bio_hs_crp": 0.22,
+    "bio_tmao": 0.20,
+    "bio_qtc": 0.04,
+    # Metabolic, Wearable & Neurotrophic
+    "bio_metabolic_rate": 0.05,
+    "bio_bmr": 0.05,
+    "bio_fasting_insulin": 0.18,
+    "bio_homa_ir": 0.18,
+    "bio_bdnf": 0.15,
+    "bio_ngf": 0.15,
+    "bio_acetylcholine": 0.14,
+    "bio_synaptic_plasticity": 0.12,
+    "bio_igf1": 0.14,
+    "bio_nad_plus": 0.16,
+    "bio_sirtuin_activity": 0.14,
+    "bio_hrv": 0.15,
+}
+DEFAULT_BIOMARKER_CV: float = 0.12
 
 
 
@@ -20,6 +95,8 @@ class ActionType(str, Enum):
     SUBSTRATE = "substrate"
     INDUCER = "inducer"
     MODULATOR = "modulator"
+    ENHANCER = "enhancer"
+    COFACTOR = "cofactor"
     OTHER = "other"
 
 
@@ -54,11 +131,15 @@ def normalize_action(action: Any) -> ActionType:
     if "negative allosteric" in a_str or a_str == "nam":
         return ActionType.NAM
 
-    # 5. Metabolism / PK
+    # 5. Metabolism / PK / Enzyme Enhancers / Co-factors
     if "substrate" in a_str:
         return ActionType.SUBSTRATE
     if "inducer" in a_str or "induction" in a_str:
         return ActionType.INDUCER
+    if "enhancer" in a_str or "enhancement" in a_str:
+        return ActionType.ENHANCER
+    if "cofactor" in a_str or "co-factor" in a_str:
+        return ActionType.COFACTOR
     if "modulator" in a_str:
         return ActionType.MODULATOR
 
@@ -146,6 +227,22 @@ _TARGET_GENE_SYNONYMS: Dict[str, str] = {
     "lhcgr": "LHCGR", "luteinizing hormone receptor": "LHCGR", "lh receptor": "LHCGR",
     "fshr": "FSHR", "follicle stimulating hormone receptor": "FSHR",
     "tshr": "TSHR", "thyrotropin receptor": "TSHR", "thyroid stimulating hormone receptor": "TSHR",
+    # Immunology, Cytokines & Checkpoints
+    "tnf": "TNF", "tumor necrosis factor": "TNF", "tnf-alpha": "TNF", "p01375": "TNF",
+    "pdcd1": "PDCD1", "pd-1": "PDCD1", "programmed cell death protein 1": "PDCD1", "q15116": "PDCD1",
+    "cd274": "CD274", "pd-l1": "CD274", "q9nzq7": "CD274",
+    "ctla4": "CTLA4", "ctla-4": "CTLA4", "p16410": "CTLA4",
+    "ms4a1": "MS4A1", "cd20": "MS4A1", "p11836": "MS4A1",
+    "il6r": "IL6R", "interleukin-6 receptor": "IL6R", "p08887": "IL6R",
+    "il6": "IL6", "interleukin-6": "IL6", "p05231": "IL6",
+    "il1b": "IL1B", "interleukin-1 beta": "IL1B", "p01584": "IL1B",
+    "il17a": "IL17A", "interleukin-17a": "IL17A", "q16552": "IL17A",
+    "il23a": "IL23A", "interleukin-23": "IL23A", "q9npf7": "IL23A",
+    "jak1": "JAK1", "janus kinase 1": "JAK1", "p23458": "JAK1",
+    "jak2": "JAK2", "janus kinase 2": "JAK2", "o60674": "JAK2",
+    "jak3": "JAK3", "janus kinase 3": "JAK3", "p52333": "JAK3",
+    "ppp3ca": "PPP3CA", "calcineurin": "PPP3CA", "q08209": "PPP3CA",
+    "mtor": "MTOR", "mammalian target of rapamycin": "MTOR", "p42345": "MTOR",
 }
 
 
@@ -259,12 +356,21 @@ def _get_usan_stem(comp: Dict[str, Any]) -> str:
 
 
 def _has_ontology_match(context: str, term: str) -> bool:
-    """Word-boundary protected textual match to avoid substring cross-contamination."""
+    """Exact word-token and multi-word phrase matching without regex."""
     clean_term = term.strip().lower()
-    if not clean_term:
+    if not clean_term or not context:
         return False
-    escaped = re.escape(clean_term)
-    return bool(re.search(rf"\b{escaped}\b", context))
+    if clean_term == context:
+        return True
+    words = context.split()
+    if " " not in clean_term:
+        return clean_term in words
+    term_words = clean_term.split()
+    t_len = len(term_words)
+    for i in range(len(words) - t_len + 1):
+        if words[i:i + t_len] == term_words:
+            return True
+    return False
 
 
 def _has_any_ontology_match(context: str, terms: List[str]) -> bool:
@@ -532,6 +638,10 @@ def _is_antithrombotic_or_anticoagulant(comp: Dict[str, Any]) -> tuple[bool, str
     if _has_any_ontology_match(all_context, ["inhibition of blood coagulation", "decreased platelet aggregation"]):
         return True, "Hemostasis-Impairing Agent"
 
+    # 8. Fibrinolytic & Thrombolytic Enzymes
+    if _has_any_ontology_match(all_context, ["nattokinase", "lumbrokinase", "serrapeptase", "subtilisin", "fibrinolytic enzyme", "thrombolytic enzyme", "fibrinolysis"]):
+        return True, "Fibrinolytic Enzyme"
+
     return False, ""
 
 
@@ -575,11 +685,11 @@ def _is_cns_sedative_or_opioid(comp: Dict[str, Any]) -> tuple[bool, str]:
     all_context = _get_compound_ontology_tags(comp)
 
     # 1. Opioids
-    if ActionType.AGONIST in targets.get("OPRM1", set()) or bool(atc & {"N02A"}) or any("OPIOID" in e for e in epc) or _has_any_ontology_match(all_context, ["opioid receptor agonist", "opioid", "morphine", "oxycodone", "fentanyl", "hydromorphone", "buprenorphine", "methadone", "codeine", "oprm1"]):
+    if ActionType.AGONIST in targets.get("OPRM1", set()) or bool(atc & {"N02A"}) or any("OPIOID" in e for e in epc) or _has_any_ontology_match(all_context, ["opioid receptor agonist", "mu-opioid", "morphine", "oxycodone", "fentanyl", "hydromorphone", "buprenorphine", "methadone", "codeine"]):
         return True, "Opioid Agonist"
 
     # 2. Benzodiazepines
-    if ActionType.PAM in targets.get("GABRA1", set()) or bool(atc & {"N05BA", "N05CD"}) or any("BENZODIAZEPINE" in e for e in epc) or _has_any_ontology_match(all_context, ["benzodiazepine", "diazepam", "alprazolam", "lorazepam", "clonazepam", "midazolam", "gabra1"]):
+    if ActionType.PAM in targets.get("GABRA1", set()) or bool(atc & {"N05BA", "N05CD"}) or any("BENZODIAZEPINE" in e for e in epc) or _has_any_ontology_match(all_context, ["benzodiazepine", "diazepam", "alprazolam", "lorazepam", "clonazepam", "midazolam"]):
         return True, "Benzodiazepine (GABA-A PAM)"
 
     # 3. Z-Drugs
@@ -642,6 +752,9 @@ def _is_alpha2_antagonist(comp: Dict[str, Any]) -> tuple[bool, str]:
 
 def _is_adenosine_antagonist_or_pde_inhibitor(comp: Dict[str, Any]) -> tuple[bool, str]:
     """Identify if a compound is an Adenosine A1/A2A antagonist or non-selective phosphodiesterase inhibitor."""
+    if _is_pde5_inhibitor(comp):
+        return False, ""
+
     targets = _get_target_gene_actions(comp)
     atc = _get_atc_prefixes(comp)
     usan = _get_usan_stem(comp)
@@ -752,6 +865,88 @@ def _is_hormonal_or_endocrine_agent(comp: Dict[str, Any]) -> tuple[bool, str, st
             return True, "Endocrine / Hormonal Compound", "Endocrine System"
 
     return False, "", ""
+
+
+def _is_immunosuppressive_agent(comp: Dict[str, Any]) -> tuple[bool, str]:
+    """
+    Deterministically identifies if a compound is an immunosuppressive, immunomodulatory,
+    or targeted biologic agent (e.g. anti-TNF, anti-IL, checkpoint inhibitor, calcineurin inhibitor,
+    mTOR inhibitor, systemic corticosteroid) based on ATC codes, EPC classes, molecular targets,
+    and USAN stems.
+    """
+    targets = _get_target_gene_actions(comp)
+    atc = _get_atc_prefixes(comp)
+    epc = _get_epc_classes(comp)
+    all_context = _get_compound_ontology_tags(comp)
+
+    # 1. WHO ATC Hierarchy: L04 (Immunosuppressants), H02AB (Corticosteroids for systemic use)
+    if any(a.startswith("L04") for a in atc):
+        return True, "Immunosuppressant (ATC L04)"
+    if any(a.startswith("H02AB") for a in atc):
+        return True, "Systemic Corticosteroid"
+
+    # 2. FDA Established Pharmacologic Classes (EPC)
+    for e in epc:
+        e_upper = e.upper()
+        if "IMMUNOSUPPRESSIVE" in e_upper or "IMMUNOSUPPRESSANT" in e_upper:
+            return True, "Immunosuppressive Agent (EPC)"
+        if "TUMOR_NECROSIS_FACTOR" in e_upper or "TNF_BLOCKER" in e_upper:
+            return True, "Tumor Necrosis Factor (TNF) Inhibitor"
+        if "INTERLEUKIN" in e_upper:
+            return True, "Interleukin Inhibitor"
+        if "JANUS_KINASE" in e_upper or "JAK" in e_upper:
+            return True, "Janus Kinase (JAK) Inhibitor"
+        if "CALCINEURIN" in e_upper:
+            return True, "Calcineurin Inhibitor"
+        if "CD20" in e_upper:
+            return True, "CD20-Directed Monoclonal Antibody"
+        if "PROGRAMMED_DEATH" in e_upper or "PD-1" in e_upper or "PD-L1" in e_upper:
+            return True, "Immune Checkpoint Inhibitor (PD-1/PD-L1)"
+        if "CTLA-4" in e_upper:
+            return True, "Immune Checkpoint Inhibitor (CTLA-4)"
+
+    # 3. Specific Target genes: TNF, IL6R, IL6, IL1B, IL17A, IL23A, IL12B, MS4A1 (CD20), CTLA4, PDCD1, CD274, JAK1, JAK2, JAK3, PPP3CA (Calcineurin)
+    immuno_targets = {
+        "TNF": "TNF-alpha Inhibitor",
+        "IL6R": "IL-6 Receptor Antagonist",
+        "IL6": "IL-6 Inhibitor",
+        "IL1B": "IL-1 beta Antagonist",
+        "IL17A": "IL-17A Inhibitor",
+        "IL23A": "IL-23 Inhibitor",
+        "IL12B": "IL-12/23 Inhibitor",
+        "MS4A1": "CD20 Cytolytic Monoclonal Antibody",
+        "CTLA4": "CTLA-4 Checkpoint Modulator",
+        "PDCD1": "PD-1 Immune Checkpoint Inhibitor",
+        "CD274": "PD-L1 Immune Checkpoint Inhibitor",
+        "JAK1": "JAK Kinase Inhibitor",
+        "JAK2": "JAK Kinase Inhibitor",
+        "JAK3": "JAK Kinase Inhibitor",
+        "PPP3CA": "Calcineurin Inhibitor",
+        "MTOR": "mTOR Inhibitor",
+    }
+    for gene, label in immuno_targets.items():
+        if gene in targets:
+            return True, label
+
+    # 4. USAN Stems
+    usan = _get_usan_stem(comp)
+    if usan:
+        if usan.endswith("limus"):
+            return True, "Immunosuppressive Macrolide / Calcineurin Inhibitor"
+        if usan.endswith("cept"):
+            return True, "Receptor-Fc Fusion Protein / Biologic Modulator"
+
+    # 5. Contextual ontology matches
+    if _has_any_ontology_match(all_context, [
+        "immunosuppressant", "immunosuppressive", "calcineurin inhibitor", "tnf blocker",
+        "tumor necrosis factor alpha inhibitor", "interleukin-6 receptor antagonist",
+        "anti-tnf", "cd20-directed", "janus kinase inhibitor", "jak inhibitor",
+        "checkpoint inhibitor", "pd-1 inhibitor", "pd-l1 inhibitor", "ctla-4 inhibitor",
+        "mycophenolate", "tacrolimus", "cyclosporine", "sirolimus", "everolimus", "azathioprine", "methotrexate"
+    ]):
+        return True, "Immunomodulatory / Immunosuppressive Agent"
+
+    return False, ""
 
 
 def _extract_dosing_interval_h(comp: Dict[str, Any]) -> tuple[float, str]:
@@ -924,6 +1119,19 @@ class InteractionEngine:
         # Lipids & Glycemia
         ldl_mg_dl = _get_val("ldl_mg_dl", 100.0, ["ldl_c_mg_dl", "ldl"])
         hba1c_pct = _get_val("hba1c_pct", 5.2, ["hba1c"])
+
+        # Wearables, Autonomic, Metabolic & Neurotrophic Inputs
+        hrv_rmssd_ms = _get_val("hrv_rmssd_ms", 45.0, ["hrv"])
+        metabolic_rate_kcal = _get_val("metabolic_rate_kcal", 1750.0, ["bmr", "metabolic_rate"])
+        fasting_insulin_u_iu_ml = _get_val("fasting_insulin_u_iu_ml", 6.0, ["fasting_insulin", "insulin"])
+        homa_ir = _get_val("homa_ir", 1.2)
+        free_t3_pg_ml = _get_val("free_t3_pg_ml", 3.2, ["free_t3"])
+        free_t4_ng_dl = _get_val("free_t4_ng_dl", 1.3, ["free_t4"])
+        shbg_nmol_l = _get_val("shbg_nmol_l", 32.0, ["shbg"])
+        bdnf_ng_ml = _get_val("bdnf_ng_ml", 25.0, ["bdnf"])
+        igf1_ng_ml = _get_val("igf1_ng_ml", 190.0, ["igf1"])
+        nad_plus_umol_l = _get_val("nad_plus_umol_l", 30.0, ["nad_plus", "nad"])
+        hs_crp_mg_l = _get_val("hs_crp_mg_l", 0.8, ["hs_crp", "crp"])
 
         # ---------------------------------------------------------
         # 0. CANONICAL ENTITY RESOLUTION & DOSE AGGREGATION
@@ -1296,6 +1504,54 @@ class InteractionEngine:
                 }
                 biomarker_warnings.append(warning)
 
+        # 8. Hypermetabolic Thyrotoxic & Sympathomimetic Strain
+        if (free_t3_pg_ml > 4.2 or any("thyroid" in str(c.get("drug_class", "")).lower() or "t3" in str(c.get("key", "")).lower() for c in compounds)) and (heart_rate > 85.0 or organ_scores["cardiovascular"] > 20):
+            warning = {
+                "biomarker": "Free T3 / Metabolic Rate / Heart Rate",
+                "value": f"Free T3 {free_t3_pg_ml} pg/mL, HR {heart_rate} bpm",
+                "severity": "HIGH_RISK" if (free_t3_pg_ml > 5.0 or heart_rate > 95.0) else "MODERATE_RISK",
+                "title": "Hypermetabolic Thyrotoxic & Sympathomimetic Strain",
+                "description": f"Elevated Free T3 ({free_t3_pg_ml} pg/mL) coupled with cardiovascular/stimulant load accelerates metabolic rate, oxygen consumption, and chronotropic demand ({heart_rate} bpm).",
+                "clinical_recommendation": "Titrate down thermogenic / thyroid doses. Monitor resting heart rate and ECG.",
+            }
+            biomarker_warnings.append(warning)
+
+        # 9. Vagal Tone Depletion / Low Heart Rate Variability (HRV)
+        if hrv_rmssd_ms < 25.0 and (organ_scores["cns_stimulant"] > 10 or heart_rate > 80.0):
+            warning = {
+                "biomarker": "Heart Rate Variability (HRV RMSSD)",
+                "value": f"{hrv_rmssd_ms} ms (Low Parasympathetic Tone)",
+                "severity": "MODERATE_RISK",
+                "title": "Vagal Tone Withdrawal & Autonomic Sympathetic Overdrive",
+                "description": f"Resting HRV RMSSD at {hrv_rmssd_ms} ms under active CNS stimulant load indicates suppressed vagal tone and elevated autonomic strain.",
+                "clinical_recommendation": "Integrate parasympathetic adaptogens (L-Theanine, Ashwagandha, Magnesium Glycinate) and establish daytime stimulant cutoffs.",
+            }
+            biomarker_warnings.append(warning)
+
+        # 10. Insulin Resistance & Hyperinsulinemic Strain
+        if homa_ir > 2.5 or fasting_insulin_u_iu_ml > 12.0:
+            warning = {
+                "biomarker": "Fasting Insulin / HOMA-IR",
+                "value": f"Insulin {fasting_insulin_u_iu_ml} uIU/mL, HOMA-IR {homa_ir}",
+                "severity": "HIGH_RISK" if homa_ir > 3.5 else "MODERATE_RISK",
+                "title": "Peripheral Insulin Resistance & Hyperinsulinemic Strain",
+                "description": f"Fasting insulin ({fasting_insulin_u_iu_ml} uIU/mL) and HOMA-IR ({homa_ir}) indicate compromised insulin sensitivity and metabolic strain.",
+                "clinical_recommendation": "Incorporate insulin sensitizers (Metformin, Berberine, Inositol), optimize carbohydrate distribution, and monitor fasting glucose.",
+            }
+            biomarker_warnings.append(warning)
+
+        # 11. Systemic Chronic Inflammation (hs-CRP)
+        if hs_crp_mg_l > 3.0:
+            warning = {
+                "biomarker": "High-Sensitivity C-Reactive Protein (hs-CRP)",
+                "value": f"{hs_crp_mg_l} mg/L",
+                "severity": "HIGH_RISK" if hs_crp_mg_l > 5.0 else "MODERATE_RISK",
+                "title": "Systemic Micro-Vascular Inflammation (Elevated hs-CRP)",
+                "description": f"Serum hs-CRP of {hs_crp_mg_l} mg/L indicates active vascular inflammation, amplifying endothelial shear damage and atherogenic progression.",
+                "clinical_recommendation": "Incorporate anti-inflammatory support (Curcumin with piperine, Omega-3 fatty acids 2-4g/day) and identify inflammatory drivers.",
+            }
+            biomarker_warnings.append(warning)
+
         # ---------------------------------------------------------
         # FIRST-PRINCIPLES MULTI-DOMAIN DE-DUPLICATED RISK ENGINE
         # ---------------------------------------------------------
@@ -1330,10 +1586,12 @@ class InteractionEngine:
                 s_score = float(s.get("severity_score", 25.0))
                 if "potassium" in stitle or "electrolyte" in stitle or "renal" in stitle:
                     domain_items["renal_electrolyte"].append(s_score)
-                elif "serotonin" in stitle or "sedation" in stitle or "stimulant" in stitle:
+                elif "serotonin" in stitle or "sedation" in stitle or "stimulant" in stitle or "hrv" in stitle or "vagal" in stitle:
                     domain_items["neuro_autonomic"].append(s_score)
                 elif "hepatic" in stitle or "liver" in stitle:
                     domain_items["hepatic"].append(s_score)
+                elif "metabolic" in stitle or "thyroid" in stitle or "insulin" in stitle:
+                    domain_items["metabolic"].append(s_score)
                 else:
                     domain_items["cardiovascular"].append(s_score)
 
@@ -1346,8 +1604,10 @@ class InteractionEngine:
                 domain_items["renal_electrolyte"].append(b_score)
             elif "blood pressure" in btitle or "hypertensive" in btitle or "heart" in btitle:
                 domain_items["cardiovascular"].append(b_score)
-            elif "sleep" in btitle or "stimulant" in btitle or "adenosine" in btitle:
+            elif "sleep" in btitle or "stimulant" in btitle or "adenosine" in btitle or "vagal" in btitle or "hrv" in btitle:
                 domain_items["neuro_autonomic"].append(b_score)
+            elif "metabolic" in btitle or "insulin" in btitle or "thyrotoxic" in btitle or "bmr" in btitle:
+                domain_items["metabolic"].append(b_score)
             else:
                 domain_items["endocrine_hemostatic"].append(b_score)
 
@@ -1520,12 +1780,16 @@ class InteractionEngine:
         e2_shift = shifts_by_id.get("bio_estradiol")
         if e2_shift:
             processed_bio_ids.add("bio_estradiol")
-            baseline = _to_float(e2_shift.get("baseline_value"), 25.0)
+            def_base, def_low, def_up = 28.0, 15.0, 50.0
+            cal_base, cal_low, cal_up, e2_adjustments = get_demographic_calibrated_reference_range(
+                "bio_estradiol", profile_data, def_base, def_low, def_up
+            )
+            baseline = _to_float(e2_shift.get("baseline_value"), cal_base)
             est_val = _to_float(e2_shift.get("estimated_value"), baseline)
             delta = _to_float(e2_shift.get("estimated_delta"), 0.0)
             unit = str(e2_shift.get("unit", "pg/mL"))
-            safe_lower = _to_float(e2_shift.get("safe_lower"), 20.0)
-            safe_upper = _to_float(e2_shift.get("safe_upper"), 35.0)
+            safe_lower = _to_float(e2_shift.get("safe_lower"), cal_low)
+            safe_upper = _to_float(e2_shift.get("safe_upper"), cal_up)
 
             contributions = e2_shift.get("compound_contributions") or e2_shift.get("contributions") or []
             has_ai = (
@@ -1553,7 +1817,7 @@ class InteractionEngine:
 
             participating_labels = [c.get("compound_label") for c in contributions] or [c.get("name") for c in compounds if c.get("name")]
 
-            if has_ai and has_androgen and safe_lower <= est_val <= (safe_upper + 5.0):
+            if has_ai and has_androgen and safe_lower <= est_val <= safe_upper:
                 status = "BALANCED_TARGET"
                 status_label = f"Optimal Target E2 ({est_val} {unit})"
                 status_color = "#10b981"
@@ -1569,6 +1833,10 @@ class InteractionEngine:
                     "risk_reduction_points": 25.0,
                 }
                 active_mitigations.append(mitigation)
+            elif has_ai and has_androgen and safe_upper < est_val <= (safe_upper + 5.0):
+                status = "PARTIAL_COUNTERBALANCE_ELEVATED"
+                status_label = f"Sub-Target Aromatase Control ({est_val} {unit})"
+                status_color = "#f59e0b"
             elif has_ai and (est_val < safe_lower or not has_androgen):
                 status = "HYPOESTROGENIC_CRASH"
                 status_label = f"Crashed E2 Risk ({est_val} {unit})"
@@ -1585,7 +1853,7 @@ class InteractionEngine:
                     "action": "Reduce Dose / Taper",
                     "reason": f"Elevate serum estradiol from {est_val} {unit} back into healthy {safe_lower}-{safe_upper} {unit} range.",
                 })
-            elif has_androgen and est_val > (safe_upper + 10.0):
+            elif has_androgen and est_val > safe_upper:
                 status = "HYPERESTROGENIC_ELEVATION"
                 status_label = f"Supraphysiological E2 ({est_val} {unit})"
                 status_color = "#f59e0b"
@@ -1616,18 +1884,23 @@ class InteractionEngine:
                 "status_color": status_color,
                 "net_delta_str": f"{'+' if delta > 0 else ''}{delta} {unit}",
                 "compounds_breakdown": comp_shares,
+                "biometric_modifiers_applied": e2_adjustments,
             })
 
         # 2. BLOOD PRESSURE & CARDIOVASCULAR AXIS
         bp_shift = shifts_by_id.get("bio_blood_pressure") or shifts_by_id.get("bio_systolic_blood_pressure")
         if bp_shift:
             processed_bio_ids.add(bp_shift.get("biomarker_id"))
-            baseline = float(bp_shift.get("baseline_value", labs.get("blood_pressure") or 120.0))
+            def_base, def_low, def_up = 120.0, 90.0, 128.0
+            cal_base, cal_low, cal_up, bp_adjustments = get_demographic_calibrated_reference_range(
+                "bio_blood_pressure", profile_data, def_base, def_low, def_up
+            )
+            baseline = float(bp_shift.get("baseline_value", labs.get("blood_pressure") or cal_base))
             est_val = float(bp_shift.get("estimated_value", baseline))
             delta = float(bp_shift.get("estimated_delta", 0.0))
             unit = str(bp_shift.get("unit", "mmHg"))
-            safe_lower = float(bp_shift.get("safe_lower") or 90.0)
-            safe_upper = max(128.0, float(bp_shift.get("safe_upper") or 128.0))
+            safe_lower = float(bp_shift.get("safe_lower") or cal_low)
+            safe_upper = max(cal_up, float(bp_shift.get("safe_upper") or cal_up))
 
             contributions = bp_shift.get("compound_contributions") or bp_shift.get("contributions") or []
             hypertensive_comps = [c for c in contributions if c.get("contribution_mag", 0) > 0.05]
@@ -1778,6 +2051,7 @@ class InteractionEngine:
                 "status_color": status_color,
                 "net_delta_str": f"{'+' if delta > 0 else ''}{delta} {unit}",
                 "compounds_breakdown": comp_shares,
+                "biometric_modifiers_applied": bp_adjustments,
             })
 
         # 3. ANDROGEN / 5AR-DHT AXIS
@@ -1786,12 +2060,15 @@ class InteractionEngine:
             processed_bio_ids.add(dht_shift.get("biomarker_id"))
             processed_bio_ids.add("bio_dht")
             processed_bio_ids.add("bio_dihydrotestosterone")
-            baseline = float(dht_shift.get("baseline_value", 45.0))
+            cal_base_dht, cal_low_dht, cal_up_dht, dht_adjustments = get_demographic_calibrated_reference_range(
+                "bio_dht", profile_data, 45.0, 30.0, 85.0
+            )
+            baseline = float(dht_shift.get("baseline_value", cal_base_dht))
             est_val = float(dht_shift.get("estimated_value", baseline))
             delta = float(dht_shift.get("estimated_delta", 0.0))
             unit = str(dht_shift.get("unit", "ng/dL"))
-            safe_lower = float(dht_shift.get("safe_lower", 30.0))
-            safe_upper = float(dht_shift.get("safe_upper", 85.0))
+            safe_lower = float(dht_shift.get("safe_lower", cal_low_dht))
+            safe_upper = float(dht_shift.get("safe_upper", cal_up_dht))
 
             contributions = dht_shift.get("compound_contributions") or dht_shift.get("contributions") or []
             has_5ari = any(c.get("contribution_mag", 0) < -0.05 for c in contributions) or any(
@@ -1822,17 +2099,17 @@ class InteractionEngine:
                     "title": "5-Alpha Reductase & DHT Attenuation",
                     "description": (
                         f"5-alpha reductase inhibitor co-administration (Finasteride/Dutasteride) safely prevents supra-physiological "
-                        f"DHT conversion ({est_val} {unit}, target 30-85 {unit}), mitigating androgenic alopecia and benign prostatic hyperplasia."
+                        f"DHT conversion ({est_val} {unit}, target {safe_lower:g}-{safe_upper:g} {unit}), mitigating androgenic alopecia and benign prostatic hyperplasia."
                     ),
                     "participating_compounds": participating_dht_comps,
                     "benefited_axis": "Dihydrotestosterone (DHT) / 5AR",
                     "risk_reduction_points": 20.0,
                 })
-            elif est_val > 85.0:
+            elif est_val > safe_upper:
                 status = "ELEVATED_DHT"
                 status_label = f"Elevated DHT Load ({est_val} {unit})"
                 status_color = "#f59e0b"
-            elif est_val < 15.0:
+            elif est_val < safe_lower * 0.5:
                 status = "SUPPRESSED_DHT"
                 status_label = f"Suppressed DHT ({est_val} {unit})"
                 status_color = "#60a5fa"
@@ -1856,6 +2133,7 @@ class InteractionEngine:
                 "status_color": status_color,
                 "net_delta_str": f"{'+' if delta > 0 else ''}{delta} {unit}",
                 "compounds_breakdown": comp_shares,
+                "biometric_modifiers_applied": dht_adjustments,
             })
 
         # 4. AUTONOMIC & CHRONOTROPIC AXIS
@@ -1864,12 +2142,15 @@ class InteractionEngine:
             processed_bio_ids.add(hr_shift.get("biomarker_id"))
             processed_bio_ids.add("bio_resting_heart_rate")
             processed_bio_ids.add("bio_heart_rate")
-            baseline = _to_float(hr_shift.get("baseline_value"), labs.get("heart_rate") or 72.0)
+            cal_base_hr, cal_low_hr, cal_up_hr, hr_adjustments = get_demographic_calibrated_reference_range(
+                "bio_resting_heart_rate", profile_data, labs.get("heart_rate") or 72.0, 60.0, 85.0
+            )
+            baseline = _to_float(hr_shift.get("baseline_value"), cal_base_hr)
             est_val = _to_float(hr_shift.get("estimated_value"), baseline)
             delta = _to_float(hr_shift.get("estimated_delta"), 0.0)
             unit = str(hr_shift.get("unit", "bpm"))
-            safe_lower = _to_float(hr_shift.get("safe_lower"), 60.0)
-            safe_upper = _to_float(hr_shift.get("safe_upper"), 85.0)
+            safe_lower = _to_float(hr_shift.get("safe_lower"), cal_low_hr)
+            safe_upper = _to_float(hr_shift.get("safe_upper"), cal_up_hr)
 
             contributions = hr_shift.get("compound_contributions") or hr_shift.get("contributions") or []
             has_stim = any(c.get("contribution_mag", 0) > 0.05 for c in contributions)
@@ -1896,7 +2177,7 @@ class InteractionEngine:
                     "title": "Autonomic Buffering & Chronotropic Stability",
                     "description": (
                         f"Sympathetic overdrive from CNS stimulants is actively cushioned by GABAergic/anxiolytic or cardioselective beta-blocker co-administration "
-                        f"(e.g., L-Theanine or Nebivolol), maintaining healthy resting heart rate ({est_val} {unit}, target 60-85 {unit})."
+                        f"(e.g., L-Theanine or Nebivolol), maintaining healthy resting heart rate ({est_val} {unit}, target {safe_lower:g}-{safe_upper:g} {unit})."
                     ),
                     "participating_compounds": participating_hr_comps,
                     "benefited_axis": "Resting Heart Rate / Chronotropic",
@@ -1937,6 +2218,7 @@ class InteractionEngine:
                 "status_color": status_color,
                 "net_delta_str": f"{'+' if delta > 0 else ''}{delta} {unit}",
                 "compounds_breakdown": comp_shares,
+                "biometric_modifiers_applied": hr_adjustments,
             })
 
         # 5. RENAL & POTASSIUM AXIS
@@ -1945,12 +2227,15 @@ class InteractionEngine:
             processed_bio_ids.add(k_shift.get("biomarker_id"))
             processed_bio_ids.add("bio_serum_potassium")
             processed_bio_ids.add("bio_potassium")
-            baseline = _to_float(k_shift.get("baseline_value"), labs.get("potassium_meq_l") or 4.2)
+            cal_base_k, cal_low_k, cal_up_k, k_adjustments = get_demographic_calibrated_reference_range(
+                "bio_serum_potassium", profile_data, labs.get("potassium_meq_l") or 4.2, 3.5, 5.0
+            )
+            baseline = _to_float(k_shift.get("baseline_value"), cal_base_k)
             est_val = _to_float(k_shift.get("estimated_value"), baseline)
             delta = _to_float(k_shift.get("estimated_delta"), 0.0)
             unit = str(k_shift.get("unit", "mEq/L"))
-            safe_lower = _to_float(k_shift.get("safe_lower"), 3.5)
-            safe_upper = _to_float(k_shift.get("safe_upper"), 5.0)
+            safe_lower = _to_float(k_shift.get("safe_lower"), cal_low_k)
+            safe_upper = _to_float(k_shift.get("safe_upper"), cal_up_k)
 
             contributions = k_shift.get("contributions") or []
             comp_shares = [
@@ -1982,6 +2267,7 @@ class InteractionEngine:
                 "status_color": status_color,
                 "net_delta_str": f"{'+' if delta > 0 else ''}{delta} {unit}",
                 "compounds_breakdown": comp_shares,
+                "biometric_modifiers_applied": k_adjustments,
             })
 
         # 6. SYSTEMIC OXIDATIVE STRESS & REDOX AXIS
@@ -2161,10 +2447,18 @@ class InteractionEngine:
             elif bio_id == "bio_ldl_c":
                 processed_bio_ids.add("bio_ldl")
 
-            hdl_base = labs.get("hdl_c_mg_dl") if labs.get("hdl_c_mg_dl") is not None else labs.get("hdl")
-            hdl_val = _to_float(hdl_base, hdl_shift.get("estimated_value") if hdl_shift else 50.0)
-            ldl_base = labs.get("ldl_mg_dl") if labs.get("ldl_mg_dl") is not None else (labs.get("ldl_c_mg_dl") or labs.get("ldl"))
-            ldl_val = _to_float(ldl_base, ldl_shift.get("estimated_value") if ldl_shift else 95.0)
+            cal_base_hdl, cal_low_hdl, cal_up_hdl, hdl_adj = get_demographic_calibrated_reference_range(
+                "bio_hdl_c", profile_data, 50.0, 40.0, 125.0
+            )
+            cal_base_ldl, cal_low_ldl, cal_up_ldl, ldl_adj = get_demographic_calibrated_reference_range(
+                "bio_ldl_c", profile_data, 95.0, 50.0, 100.0
+            )
+            lipid_adjustments = list(dict.fromkeys(hdl_adj + ldl_adj))
+
+            hdl_base = labs.get("hdl_c_mg_dl") if labs.get("hdl_c_mg_dl") is not None else (labs.get("hdl") or cal_base_hdl)
+            hdl_val = _to_float(hdl_base, hdl_shift.get("estimated_value") if hdl_shift else cal_base_hdl)
+            ldl_base = labs.get("ldl_mg_dl") if labs.get("ldl_mg_dl") is not None else (labs.get("ldl_c_mg_dl") or labs.get("ldl") or cal_base_ldl)
+            ldl_val = _to_float(ldl_base, ldl_shift.get("estimated_value") if ldl_shift else cal_base_ldl)
 
             has_lipid_protective = any(
                 any(w in str(comp.get("drug_class", "")).lower() or w in str(comp.get("name", "")).lower() or w in str(comp.get("key", "")).lower()
@@ -2182,14 +2476,15 @@ class InteractionEngine:
                        for w in ["statin", "pitavastatin", "atorvastatin", "rosuvastatin", "ezetimibe", "pcsk9", "lipid", "androgen", "testosterone"])
             ]
 
-            if (has_lipid_protective or (hdl_val >= 40.0 and ldl_val <= 125.0)) and (has_androgen_load or has_lipid_protective):
+            # Require true multi-agent lipid coverage: must have a lipid-modulating compound co-administered to claim a counterbalance!
+            if has_lipid_protective and (has_androgen_load or hdl_val >= cal_low_hdl):
                 status = "BALANCED_NORMLIPIDEMIC"
                 status_label = f"Normolipidemic Equilibrium (HDL {hdl_val}, LDL {ldl_val} mg/dL)"
                 status_color = "#10b981"
                 active_mitigations.append({
                     "title": "Lipid Protection & Endothelial Counterbalance",
                     "description": (
-                        f"Co-administration of lipid-modulating therapy (e.g. Statin/Ezetimibe) or normolipidemic baseline "
+                        f"Co-administration of lipid-modulating therapy (e.g. Statin/Ezetimibe) "
                         f"effectively counterbalances androgenic lipolytic shift, maintaining cardioprotective HDL-C ({hdl_val} mg/dL) "
                         f"and controlling atherogenic LDL-C ({ldl_val} mg/dL)."
                     ),
@@ -2197,7 +2492,7 @@ class InteractionEngine:
                     "benefited_axis": "Lipid Profile / Cardioprotective",
                     "risk_reduction_points": 20.0,
                 })
-            elif hdl_val < 35.0 or ldl_val >= 135.0:
+            elif hdl_val < cal_low_hdl or ldl_val >= 135.0:
                 if has_lipid_protective:
                     status = "PARTIAL_LIPID_ATTENUATION"
                     status_label = f"Sub-Target Lipid Shift (HDL {hdl_val}, LDL {ldl_val} mg/dL)"
@@ -2231,15 +2526,16 @@ class InteractionEngine:
                 "baseline": hdl_val,
                 "estimated_value": hdl_val,
                 "unit": "mg/dL",
-                "safe_range": "HDL > 40 mg/dL, LDL < 100 mg/dL",
-                "safe_lower": 40.0,
+                "safe_range": f"HDL > {cal_low_hdl:g} mg/dL, LDL < 100 mg/dL",
+                "safe_lower": cal_low_hdl,
                 "safe_upper": 125.0,
-                "in_safe_range": hdl_val >= 40.0 and ldl_val <= 125.0,
+                "in_safe_range": hdl_val >= cal_low_hdl and ldl_val <= 125.0,
                 "status": status,
                 "status_label": status_label,
                 "status_color": status_color,
                 "net_delta_str": f"HDL {hdl_val} / LDL {ldl_val} mg/dL",
                 "compounds_breakdown": [],
+                "biometric_modifiers_applied": lipid_adjustments,
                 "panel": "Lipid Panel",
             })
 
@@ -2247,20 +2543,31 @@ class InteractionEngine:
         testo_shift = shifts_by_id.get("bio_testosterone")
         if testo_shift or (labs.get("bio_testosterone") is not None) or (labs.get("testosterone_ng_dl") is not None):
             processed_bio_ids.add("bio_testosterone")
+            cal_base_t, cal_low_t, cal_up_t, t_adjustments = get_demographic_calibrated_reference_range(
+                "bio_testosterone", profile_data, 550.0, 300.0, 1000.0
+            )
             raw_testo = testo_shift.get("baseline_value") if testo_shift else None
             if raw_testo is None:
-                raw_testo = labs.get("testosterone_ng_dl") or labs.get("bio_testosterone") or 650.0
-            baseline = _to_float(raw_testo, 650.0)
+                raw_testo = labs.get("testosterone_ng_dl") or labs.get("bio_testosterone") or cal_base_t
+            baseline = _to_float(raw_testo, cal_base_t)
             est_val = _to_float(testo_shift.get("estimated_value"), baseline) if testo_shift else baseline
             unit = "ng/dL"
-            safe_lower = 300.0
-            safe_upper = 1000.0
+            safe_lower = cal_low_t
+            safe_upper = cal_up_t
 
-            if est_val > 1000.0:
-                status = "ELEVATED_PHYSIOLOGICAL"
-                status_label = f"Optimized Anabolic Pool ({est_val} {unit})"
-                status_color = "#10b981"
-            elif est_val < 300.0:
+            raw_sex = profile_data.get("sex") if profile_data else None
+            is_female_pt = str(raw_sex).lower().strip() in ["female", "f", "woman"] if raw_sex else False
+
+            if est_val > safe_upper:
+                if is_female_pt:
+                    status = "ELEVATED_ANDROGEN"
+                    status_label = f"Elevated Serum Testosterone ({est_val} {unit})"
+                    status_color = "#f59e0b"
+                else:
+                    status = "OPTIMIZED_ANABOLIC"
+                    status_label = f"Optimized Anabolic Pool ({est_val} {unit})"
+                    status_color = "#38bdf8"
+            elif est_val < safe_lower:
                 status = "SUPPRESSED_TESTOSTERONE"
                 status_label = f"Suppressed Serum Testosterone ({est_val} {unit})"
                 status_color = "#ef4444"
@@ -2284,7 +2591,316 @@ class InteractionEngine:
                 "status_color": status_color,
                 "net_delta_str": f"{est_val} {unit}",
                 "compounds_breakdown": [],
+                "biometric_modifiers_applied": t_adjustments,
                 "panel": "Endocrine Panel",
+            })
+
+        # 10. FREE TESTOSTERONE (VERMEULEN SOLVER) AXIS
+        free_t_shift = shifts_by_id.get("bio_free_testosterone")
+        has_shbg_or_t = (
+            labs.get("shbg_nmol_l") is not None
+            or labs.get("shbg") is not None
+            or labs.get("testosterone_ng_dl") is not None
+            or labs.get("bio_testosterone") is not None
+            or testo_shift is not None
+            or free_t_shift is not None
+        )
+        if free_t_shift or has_shbg_or_t:
+            processed_bio_ids.add("bio_free_testosterone")
+            from app.services.dosing_service import calculate_free_testosterone
+            cal_base_ft, cal_low_ft, cal_up_ft, ft_adjustments = get_demographic_calibrated_reference_range(
+                "bio_free_testosterone", profile_data, 120.0, 50.0, 210.0
+            )
+            raw_total_t = labs.get("testosterone_ng_dl") or labs.get("bio_testosterone") or (testo_shift.get("estimated_value") if testo_shift else None) or 550.0
+            raw_shbg = labs.get("shbg_nmol_l") or labs.get("shbg") or 32.0
+            raw_alb = labs.get("serum_albumin_g_dl") or labs.get("serum_albumin") or 4.3
+            try:
+                tot_t_val = float(raw_total_t)
+                shbg_val = float(raw_shbg)
+                alb_val = float(raw_alb)
+                sol = calculate_free_testosterone(tot_t_val, shbg_val, alb_val)
+                calculated_ft = float(sol.get("free_testosterone_pg_ml", cal_base_ft))
+            except Exception:
+                calculated_ft = cal_base_ft
+
+            baseline = _to_float(free_t_shift.get("baseline_value"), calculated_ft) if free_t_shift else calculated_ft
+            est_val = _to_float(free_t_shift.get("estimated_value"), baseline) if free_t_shift else baseline
+            unit = "pg/mL"
+            safe_lower = cal_low_ft
+            safe_upper = cal_up_ft
+
+            raw_sex = profile_data.get("sex") if profile_data else None
+            is_female_pt = str(raw_sex).lower().strip() in ["female", "f", "woman"] if raw_sex else False
+
+            if est_val > safe_upper:
+                status = "ELEVATED_FREE_ANDROGEN" if is_female_pt else "HIGH_BIOAVAILABLE_ANDROGEN"
+                status_label = f"Elevated Free Testosterone ({est_val} {unit})"
+                status_color = "#f59e0b" if is_female_pt else "#38bdf8"
+            elif est_val < safe_lower:
+                status = "LOW_FREE_TESTOSTERONE"
+                status_label = f"Suboptimal Free Testosterone ({est_val} {unit})"
+                status_color = "#ef4444"
+                if raw_shbg and float(raw_shbg) > 55.0:
+                    uncompensated_risks.append({
+                        "axis": "Free Testosterone",
+                        "severity": "MODERATE_RISK",
+                        "title": f"SHBG Sequestration of Free Androgen ({est_val} {unit})",
+                        "description": f"Elevated SHBG ({raw_shbg} nmol/L) binds circulating testosterone with high affinity (K_d = 1.0 nM), lowering biologically active free testosterone ({est_val} {unit}, target {safe_lower}-{safe_upper} {unit}).",
+                        "clinical_recommendation": "Evaluate Boron (6-10 mg daily), Tongkat Ali, or optimizing insulin/caloric intake to modulate hepatic SHBG expression.",
+                    })
+            else:
+                status = "OPTIMAL_BIOAVAILABLE"
+                status_label = f"Optimal Free Testosterone ({est_val} {unit})"
+                status_color = "#10b981"
+
+            # Check Free T / Estradiol balance if E2 is available
+            e2_val = None
+            if e2_shift:
+                e2_val = _to_float(e2_shift.get("estimated_value"))
+            elif labs.get("estradiol_pg_ml") is not None:
+                e2_val = _to_float(labs.get("estradiol_pg_ml"))
+            if e2_val is not None and not is_female_pt:
+                if e2_val < 12.0 and est_val > 100.0:
+                    uncompensated_risks.append({
+                        "axis": "Androgen / Estrogen Ratio",
+                        "severity": "HIGH_RISK",
+                        "title": "Severe Hypoestrogenemia with High Free Androgen",
+                        "description": f"Free Testosterone is elevated or robust ({est_val} {unit}) while Estradiol is excessively suppressed ({e2_val} pg/mL). This creates neurovascular, articular, and endothelial vulnerability.",
+                        "clinical_recommendation": "Reduce aromatase inhibitor dosage immediately. Target serum E2 between 20-35 pg/mL.",
+                    })
+
+            axes.append({
+                "name": "Free Testosterone (Vermeulen Solver) Axis",
+                "biomarker_id": "bio_free_testosterone",
+                "baseline": baseline,
+                "estimated_value": est_val,
+                "unit": unit,
+                "safe_range": f"{safe_lower} - {safe_upper} {unit}",
+                "safe_lower": safe_lower,
+                "safe_upper": safe_upper,
+                "in_safe_range": safe_lower <= est_val <= safe_upper,
+                "status": status,
+                "status_label": status_label,
+                "status_color": status_color,
+                "net_delta_str": f"{est_val} {unit}",
+                "compounds_breakdown": [],
+                "biometric_modifiers_applied": ft_adjustments,
+                "panel": "Endocrine Panel",
+            })
+
+        # 11. BASAL METABOLIC RATE (BMR) & ENERGY EXPENDITURE AXIS
+        bmr_shift = shifts_by_id.get("bio_metabolic_rate") or shifts_by_id.get("bio_bmr")
+        has_bmr_profile = (
+            profile_data.get("metabolic_rate_kcal") is not None
+            or labs.get("metabolic_rate_kcal") is not None
+            or profile_data.get("weight_kg") is not None
+            or bmr_shift is not None
+        )
+        if bmr_shift or has_bmr_profile:
+            processed_bio_ids.add("bio_metabolic_rate")
+            processed_bio_ids.add("bio_bmr")
+            from app.services.dosing_service import calculate_basal_metabolic_rate
+            bmr_sol = calculate_basal_metabolic_rate(profile_data)
+            cal_base_bmr = float(bmr_sol.get("bmr_kcal_day", 1750.0))
+            cal_low_bmr = float(bmr_sol.get("safe_range_lower", round(cal_base_bmr * 0.82, 0)))
+            cal_up_bmr = float(bmr_sol.get("safe_range_upper", round(cal_base_bmr * 1.18, 0)))
+
+            baseline = _to_float(bmr_shift.get("baseline_value"), cal_base_bmr) if bmr_shift else cal_base_bmr
+            est_val = _to_float(bmr_shift.get("estimated_value"), baseline) if bmr_shift else baseline
+            unit = "kcal/day"
+            safe_lower = cal_low_bmr
+            safe_upper = cal_up_bmr
+
+            delta_pct = ((est_val - baseline) / baseline * 100.0) if baseline > 0 else 0.0
+
+            if delta_pct > 25.0:
+                status = "HYPERMETABOLIC_SURGE"
+                status_label = f"Hypermetabolic Surge ({est_val} {unit}, +{round(delta_pct, 1)}%)"
+                status_color = "#ef4444"
+                uncompensated_risks.append({
+                    "axis": "Metabolic Energy Expenditure",
+                    "severity": "HIGH_RISK",
+                    "title": f"Hypermetabolic Thyrotoxic / Adrenergic Strain (+{round(delta_pct, 1)}% BMR)",
+                    "description": f"Dynamic cascade projects a marked acceleration in energy expenditure to {est_val} kcal/day (+{round(delta_pct, 1)}% over baseline). Excess metabolic turnover induces resting tachycardia, hyperthermia, and protein catabolism.",
+                    "clinical_recommendation": "Calibrate caloric intake, monitor resting heart rate and core temperature, and avoid concurrent high-potency beta-2 agonists and exogenous thyroid hormones.",
+                })
+            elif delta_pct < -20.0:
+                status = "HYPOMETABOLIC_SUPPRESSION"
+                status_label = f"Hypometabolic Crash ({est_val} {unit}, {round(delta_pct, 1)}%)"
+                status_color = "#ef4444"
+                uncompensated_risks.append({
+                    "axis": "Metabolic Energy Expenditure",
+                    "severity": "MODERATE_RISK",
+                    "title": f"Hypometabolic Suppression ({round(delta_pct, 1)}% BMR)",
+                    "description": f"Metabolic expenditure projected to drop by {abs(round(delta_pct, 1))}% ({est_val} kcal/day), indicating significant metabolic slowdown or down-regulated sympathetic tone.",
+                    "clinical_recommendation": "Evaluate thyroid panel (TSH, Free T3) and optimize mitochondrial cofactors.",
+                })
+            elif delta_pct > 5.0:
+                status = "THERMOGENIC_ELEVATION"
+                status_label = f"Thermogenic Activation ({est_val} {unit}, +{round(delta_pct, 1)}%)"
+                status_color = "#38bdf8"
+            else:
+                status = "EUMETABOLIC_HOMEOSTASIS"
+                status_label = f"Homeostatic BMR ({est_val} {unit})"
+                status_color = "#10b981"
+
+            axes.append({
+                "name": "Basal Metabolic Rate (BMR) Axis",
+                "biomarker_id": "bio_metabolic_rate",
+                "baseline": baseline,
+                "estimated_value": est_val,
+                "unit": unit,
+                "safe_range": f"{safe_lower} - {safe_upper} {unit}",
+                "safe_lower": safe_lower,
+                "safe_upper": safe_upper,
+                "in_safe_range": safe_lower <= est_val <= safe_upper,
+                "status": status,
+                "status_label": status_label,
+                "status_color": status_color,
+                "net_delta_str": f"{round(est_val - baseline, 1):+g} {unit}",
+                "compounds_breakdown": [],
+                "biometric_modifiers_applied": [f"Formula: {bmr_sol.get('formula_used', 'Mifflin-St Jeor')} (TDEE: {bmr_sol.get('tdee_moderately_active')} kcal/day)"],
+                "panel": "Metabolic Panel",
+            })
+
+        # 12. AUTONOMIC VAGAL TONE & HEART RATE VARIABILITY (HRV) AXIS
+        hrv_shift = shifts_by_id.get("bio_hrv")
+        has_hrv_profile = (
+            profile_data.get("hrv_rmssd_ms") is not None
+            or labs.get("hrv_rmssd_ms") is not None
+            or labs.get("hrv") is not None
+            or hrv_shift is not None
+        )
+        if hrv_shift or has_hrv_profile:
+            processed_bio_ids.add("bio_hrv")
+            cal_base_hrv, cal_low_hrv, cal_up_hrv, hrv_adjustments = get_demographic_calibrated_reference_range(
+                "bio_hrv", profile_data, 45.0, 25.0, 85.0
+            )
+            raw_hrv = labs.get("hrv_rmssd_ms") or labs.get("hrv") or profile_data.get("hrv_rmssd_ms") or cal_base_hrv
+            baseline = _to_float(hrv_shift.get("baseline_value") if hrv_shift else None, _to_float(raw_hrv, cal_base_hrv))
+            est_val = _to_float(hrv_shift.get("estimated_value"), baseline) if hrv_shift else baseline
+            unit = "ms"
+            safe_lower = cal_low_hrv
+            safe_upper = cal_up_hrv
+
+            contributions = (hrv_shift.get("compound_contributions") or hrv_shift.get("contributions") or []) if hrv_shift else []
+            pos_contribs = [c for c in contributions if c.get("contribution_mag", 0) > 0.03]
+            neg_contribs = [c for c in contributions if c.get("contribution_mag", 0) < -0.03]
+
+            if est_val < 25.0:
+                status = "VAGAL_WITHDRAWAL"
+                status_label = f"Vagal Tone Withdrawal ({est_val} {unit})"
+                status_color = "#ef4444"
+                uncompensated_risks.append({
+                    "axis": "Autonomic Vagal Tone",
+                    "severity": "HIGH_RISK",
+                    "title": f"Vagal Withdrawal & Sympathetic Dominance (HRV {est_val} ms)",
+                    "description": f"HRV RMSSD depressed to {est_val} ms. Parasympathetic vagal suppression limits systemic recovery, accelerates central allostatic load, and predisposes to cardiovascular strain.",
+                    "clinical_recommendation": "Integrate parasympathomimetic or GABAergic counterbalances (L-Theanine 200 mg, Ashwagandha KSM-66, Magnesium Glycinate 300 mg) and time stimulants strictly in morning hours.",
+                })
+            elif pos_contribs and neg_contribs and safe_lower <= est_val <= safe_upper:
+                status = "BALANCED_AUTONOMIC"
+                status_label = f"Balanced Autonomic Tone ({est_val} {unit})"
+                status_color = "#10b981"
+                mitigation = {
+                    "title": "Autonomic Vagal Tone Counterbalance",
+                    "description": f"Parasympathetic adaptogenic / calming agents effectively buffer stimulant-induced vagal withdrawal, maintaining HRV within physiological targets ({est_val} {unit}).",
+                    "participating_compounds": [c.get("compound_label") for c in contributions if abs(c.get("contribution_mag", 0)) > 0.03],
+                    "benefited_axis": "Autonomic Vagal Tone (HRV)",
+                    "risk_reduction_points": 12.0,
+                }
+                active_mitigations.append(mitigation)
+            elif est_val >= safe_lower:
+                status = "ROBUST_VAGAL_TONE"
+                status_label = f"Robust Parasympathetic Tone ({est_val} {unit})"
+                status_color = "#10b981"
+            else:
+                status = "MODERATE_HRV_DEPRESSION"
+                status_label = f"Depressed HRV ({est_val} {unit})"
+                status_color = "#f59e0b"
+
+            axes.append({
+                "name": "Autonomic Vagal Tone & HRV Axis",
+                "biomarker_id": "bio_hrv",
+                "baseline": baseline,
+                "estimated_value": est_val,
+                "unit": unit,
+                "safe_range": f"{safe_lower} - {safe_upper} {unit}",
+                "safe_lower": safe_lower,
+                "safe_upper": safe_upper,
+                "in_safe_range": safe_lower <= est_val <= safe_upper,
+                "status": status,
+                "status_label": status_label,
+                "status_color": status_color,
+                "net_delta_str": f"{round(est_val - baseline, 1):+g} {unit}",
+                "compounds_breakdown": [],
+                "biometric_modifiers_applied": hrv_adjustments,
+                "panel": "Wearables & Autonomic Panel",
+            })
+
+        # 13. NEUROTROPHIC & SYNAPTIC PLASTICITY (BDNF) AXIS
+        bdnf_shift = shifts_by_id.get("bio_bdnf")
+        has_bdnf_profile = (
+            labs.get("bdnf_ng_ml") is not None
+            or labs.get("bdnf") is not None
+            or bdnf_shift is not None
+        )
+        if bdnf_shift or has_bdnf_profile:
+            processed_bio_ids.add("bio_bdnf")
+            cal_base_bdnf, cal_low_bdnf, cal_up_bdnf, bdnf_adjustments = get_demographic_calibrated_reference_range(
+                "bio_bdnf", profile_data, 25.0, 15.0, 45.0
+            )
+            raw_bdnf = labs.get("bdnf_ng_ml") or labs.get("bdnf") or cal_base_bdnf
+            baseline = _to_float(bdnf_shift.get("baseline_value") if bdnf_shift else None, _to_float(raw_bdnf, cal_base_bdnf))
+            est_val = _to_float(bdnf_shift.get("estimated_value"), baseline) if bdnf_shift else baseline
+            unit = "ng/mL"
+            safe_lower = cal_low_bdnf
+            safe_upper = cal_up_bdnf
+
+            contributions = (bdnf_shift.get("compound_contributions") or bdnf_shift.get("contributions") or []) if bdnf_shift else []
+            pos_contribs = [c for c in contributions if c.get("contribution_mag", 0) > 0.03]
+
+            if len(pos_contribs) >= 2:
+                status = "NEUROTROPHIC_SYNERGY"
+                status_label = f"Neurotrophic BDNF Synergy ({est_val} {unit})"
+                status_color = "#38bdf8"
+                active_mitigations.append({
+                    "title": "Neurotrophic BDNF Synergy & Synaptic Plasticity",
+                    "description": f"Co-activation of TrkB / neurotrophin cascades by {', '.join([c.get('compound_label') for c in pos_contribs])} cooperatively elevates BDNF to {est_val} {unit} (+{round(est_val - baseline, 1)} {unit}), enhancing hippocampal LTP and synaptic resilience.",
+                    "participating_compounds": [c.get("compound_label") for c in pos_contribs],
+                    "benefited_axis": "Neurotrophic & Synaptic Plasticity (BDNF)",
+                    "risk_reduction_points": 10.0,
+                })
+            elif est_val > baseline:
+                status = "ENHANCED_NEUROTROPHIN"
+                status_label = f"Enhanced BDNF Expression ({est_val} {unit})"
+                status_color = "#10b981"
+            elif est_val < safe_lower:
+                status = "DEPLETED_NEUROTROPHIN"
+                status_label = f"Suppressed BDNF ({est_val} {unit})"
+                status_color = "#ef4444"
+            else:
+                status = "PHYSIOLOGICAL_BASELINE"
+                status_label = f"Baseline BDNF ({est_val} {unit})"
+                status_color = "#10b981"
+
+            axes.append({
+                "name": "Neurotrophic & Synaptic Plasticity (BDNF) Axis",
+                "biomarker_id": "bio_bdnf",
+                "baseline": baseline,
+                "estimated_value": est_val,
+                "unit": unit,
+                "safe_range": f"{safe_lower} - {safe_upper} {unit}",
+                "safe_lower": safe_lower,
+                "safe_upper": safe_upper,
+                "in_safe_range": safe_lower <= est_val <= safe_upper,
+                "status": status,
+                "status_label": status_label,
+                "status_color": status_color,
+                "net_delta_str": f"{round(est_val - baseline, 1):+g} {unit}",
+                "compounds_breakdown": [],
+                "biometric_modifiers_applied": bdnf_adjustments,
+                "panel": "Neurotrophic Panel",
             })
 
         # 8. ALL OTHER AFFECTED BIOMARKERS FROM DYNAMIC GRAPH CASCADE
@@ -2470,8 +3086,8 @@ class InteractionEngine:
                     "reason": f"Flatten peak-to-trough rollercoaster swings (PTF: {ptf}% -> <50%) and preserve steady-state hormonal equilibrium.",
                 })
 
-            elif tau_t_half_ratio <= 0.85 or ptf <= 60.0 or tau_h <= 84.0:
-                # Stable micro-dosed regimen
+            elif (tau_t_half_ratio <= 0.85 or ptf <= 60.0) and tau_h < 168.0:
+                # Stable micro-dosed regimen with demonstrated low peak-to-trough fluctuation
                 active_mitigations.append({
                     "title": f"Stable Endocrine Micro-Dosing ({comp_name})",
                     "description": (
@@ -2487,14 +3103,21 @@ class InteractionEngine:
         # Calculate Overall Health Index & Equilibrium Status
         num_mitigations = len(active_mitigations)
         num_uncompensated = len(uncompensated_risks)
-        # Calculate Biometric Uncertainty CV Scale
+
+        # Calculate Biometric Uncertainty Scale
         is_sex_known = profile_data.get("sex") is not None if profile_data else False
         is_age_known = profile_data.get("age") is not None if profile_data else False
         is_weight_known = profile_data.get("weight_kg") is not None if profile_data else False
         is_height_known = profile_data.get("height_cm") is not None if profile_data else False
-
         unknown_biometrics_count = sum([not is_sex_known, not is_age_known, not is_weight_known, not is_height_known])
-        cv_scale = 0.20 + (unknown_biometrics_count * 0.06)
+
+        # Patient BMI
+        weight_val = float(profile_data.get("weight_kg")) if (profile_data and profile_data.get("weight_kg")) else None
+        height_val = float(profile_data.get("height_cm")) if (profile_data and profile_data.get("height_cm")) else None
+        patient_bmi = round(weight_val / max(0.5, (height_val / 100.0) ** 2), 1) if (weight_val and height_val) else None
+
+        # Demographic Uncertainty Scale: each unknown demographic factor adds 5% relative variance to biological CV
+        cv_multiplier = 1.0 + (unknown_biometrics_count * 0.05)
 
         # Tag Priority Tiers, Percent Shifts, and Distribution Curves for each Axis
         for a in axes:
@@ -2506,15 +3129,36 @@ class InteractionEngine:
             pct_shift = (abs(est_val - baseline) / max(abs(baseline), 1e-4) * 100.0) if baseline != 0 else (abs(est_val) * 100.0)
             a["percent_shift"] = round(pct_shift, 2)
 
+            # Determine biomarker-specific biological CV
+            bio_id = str(a.get("biomarker_id") or "")
+            base_cv = BIOMARKER_BIOLOGICAL_CV_MAP.get(bio_id, DEFAULT_BIOMARKER_CV)
+            effective_cv = base_cv * cv_multiplier
+
+            # Identify if lab bloodwork is user-calibrated
+            is_lab_calibrated = bool(
+                labs and (
+                    bio_id in labs
+                    or bio_id.replace("bio_", "") in labs
+                    or any(k in str(labs).lower() for k in [bio_id.lower(), bio_id.replace("bio_", "").lower()])
+                )
+            )
+            a["is_lab_calibrated"] = is_lab_calibrated
+            if is_lab_calibrated:
+                # Direct user bloodwork reduces population prior uncertainty
+                effective_cv = max(0.02, effective_cv * 0.85)
+
             # Compute log-normal probability distribution percentiles (p5, p25, p50, p75, p95)
             v = max(0.0001, est_val)
-            sigma_log = math.sqrt(math.log(1.0 + cv_scale * cv_scale))
+            sigma_log = math.sqrt(math.log(1.0 + effective_cv * effective_cv))
             mu_log = math.log(v)
             p5 = round(math.exp(mu_log - 1.645 * sigma_log), 2 if v < 10 else 1)
             p25 = round(math.exp(mu_log - 0.6745 * sigma_log), 2 if v < 10 else 1)
             p50 = round(v, 2 if v < 10 else 1)
             p75 = round(math.exp(mu_log + 0.6745 * sigma_log), 2 if v < 10 else 1)
             p95 = round(math.exp(mu_log + 1.645 * sigma_log), 2 if v < 10 else 1)
+
+            mean_val = round(v * math.sqrt(1.0 + effective_cv * effective_cv), 2 if v < 10 else 1)
+            std_dev = round(mean_val * effective_cv, 2 if v < 10 else 1)
 
             unit_str = str(a.get("unit") or "")
             a["distribution"] = {
@@ -2523,11 +3167,35 @@ class InteractionEngine:
                 "p50": p50,
                 "p75": p75,
                 "p95": p95,
-                "mean": p50,
-                "std_dev": round(v * cv_scale, 2),
+                "mean": mean_val,
+                "std_dev": std_dev,
+                "cv": round(effective_cv, 3),
                 "p5_p95_range_str": f"{p5} - {p95} {unit_str}".strip(),
             }
             a["p5_p95_range_str"] = f"{p5} - {p95} {unit_str}".strip()
+
+            # Tail risk assessment
+            safe_up = a.get("safe_upper")
+            safe_low = a.get("safe_lower")
+            tail_elevation = bool(safe_up is not None and p95 > safe_up)
+            tail_suppression = bool(safe_low is not None and p5 < safe_low)
+            a["tail_elevation_risk"] = tail_elevation
+            a["tail_suppression_risk"] = tail_suppression
+            a["has_tail_alert"] = tail_elevation or tail_suppression
+
+            # Priority Tier Classification:
+            # Tier 1 (Critical Strain): Out of range with high severity or dangerous status
+            # Tier 2 (Moderate Alert / Tail Risk): Moderate elevation/suppression, or out-of-range, or significant tail breach on sensitive axis
+            # Tier 3 (Counterbalanced): Genuine multi-agent protective counterbalances
+            # Tier 4 (Active Shift / Anabolic Optimization): In-range active shifts or intentional supraphysiological targets
+            # Tier 5 (Baseline Stable): Untouched normal baseline axes
+            is_counterbalanced_status = any(k in status for k in ["BALANCED", "NORMOTENSIVE", "EUCHRONIC", "PARTIAL_COUNTERBALANCE"])
+            has_multiple_comps = len(a.get("compounds_breakdown", [])) >= 2
+            is_active_mitigation_axis = any(
+                str(m.get("benefited_axis", "")).lower() in str(a.get("name", "")).lower()
+                or str(a.get("name", "")).lower() in str(m.get("benefited_axis", "")).lower()
+                for m in active_mitigations
+            )
 
             if status_color == "#ef4444" or (not in_safe and any(k in status for k in ["CRASH", "STRAIN", "HYPERKALEMIA", "ELEVATED_RISK", "SUPPRESSED_RISK"])):
                 a["priority_tier"] = 1
@@ -2535,10 +3203,13 @@ class InteractionEngine:
             elif status_color == "#f59e0b" or not in_safe or any(k in status for k in ["ELEVATED", "SUPPRESSED", "HYPOTENSIVE", "MODERATE", "BRADYCARDIA", "HYPOKALEMIA"]):
                 a["priority_tier"] = 2
                 a["priority_label"] = "Moderate Alert"
-            elif any(k in status for k in ["BALANCED", "NORMOTENSIVE", "EUCHRONIC"]) or status_color == "#10b981":
+            elif (is_counterbalanced_status or is_active_mitigation_axis) and (has_multiple_comps or is_active_mitigation_axis):
                 a["priority_tier"] = 3
-                a["priority_label"] = "Counterbalanced"
-            elif abs(est_val - baseline) > 1e-3 or len(a.get("compounds_breakdown", [])) > 0:
+                if tail_elevation or tail_suppression:
+                    a["priority_label"] = "Counterbalanced (Tail Alert)"
+                else:
+                    a["priority_label"] = "Counterbalanced"
+            elif abs(est_val - baseline) > 1e-3 or len(a.get("compounds_breakdown", [])) > 0 or status == "OPTIMIZED_ANABOLIC":
                 a["priority_tier"] = 4
                 a["priority_label"] = "Active Shift"
             else:
@@ -2553,7 +3224,7 @@ class InteractionEngine:
             x.get("name", "")
         ))
 
-        all_in_safe = all(a.get("in_safe_range", True) for a in axes)
+        all_in_safe = all(a.get("in_safe_range", True) or a.get("status") == "OPTIMIZED_ANABOLIC" for a in axes)
 
         if num_uncompensated == 0 and num_mitigations > 0 and all_in_safe:
             overall_status = "OPTIMAL_EQUILIBRIUM"
@@ -2589,8 +3260,9 @@ class InteractionEngine:
                 "weight_kg": profile_data.get("weight_kg") if profile_data else None,
                 "height_cm": profile_data.get("height_cm") if profile_data else None,
                 "body_fat_pct": profile_data.get("body_fat_pct") if profile_data else None,
+                "bmi": patient_bmi,
                 "unknown_biometrics_count": unknown_biometrics_count,
-                "cv_uncertainty_scale": round(cv_scale, 2),
+                "cv_uncertainty_scale": round(cv_multiplier, 2),
             },
             "axes": axes,
             "active_mitigations": active_mitigations,
@@ -2693,6 +3365,18 @@ class InteractionEngine:
 
             is_polyphenol = _has_any_ontology_match(sub_tags, ["curcumin", "turmeric", "resveratrol", "quercetin", "polyphenol", "flavonoid", "coq10", "berberine"])
             is_sensitive_drug = sub_comp.get("is_narrow_therapeutic_index") or _has_any_ontology_match(sub_tags, ["statin", "tacrolimus", "cyclosporine", "digoxin", "warfarin", "theophylline"])
+
+            if is_polyphenol:
+                sub_comp = dict(sub_comp)
+                if not sub_comp.get("is_high_first_pass"):
+                    sub_comp["is_high_first_pass"] = True
+                if not sub_comp.get("bioavailability_f") and sub_comp.get("oral_bioavailability"):
+                    sub_comp["bioavailability_f"] = sub_comp.get("oral_bioavailability")
+                sub_p2 = dict(sub_comp.get("phase2_enzymes") or {})
+                sub_p2_subs = [str(x).upper() for x in sub_p2.get("substrates", [])]
+                if "UGT1A1" not in sub_p2_subs:
+                    sub_p2["substrates"] = list(sub_p2.get("substrates", [])) + ["UGT1A1"]
+                    sub_comp["phase2_enzymes"] = sub_p2
 
             from app.services.pkpd_engine import PKPDEngine
             aucr_val, cmax_mult, _ = PKPDEngine.calculate_ddi_shift(sub_comp, [comp_a if is_pip_a else comp_b])
@@ -2848,10 +3532,25 @@ class InteractionEngine:
             }
 
         # Botanical COMT Inhibition Catecholamine Synergy
-        is_comt_a = _has_any_ontology_match(tags_a, ["egcg", "green tea", "quercetin", "comt inhibitor"])
-        is_comt_b = _has_any_ontology_match(tags_b, ["egcg", "green tea", "quercetin", "comt inhibitor"])
-        is_catechol_a = _has_any_ontology_match(tags_a, ["caffeine", "tyrosine", "ephedrine", "dopamine", "levodopa", "l-dopa", "amphetamine", "synephrine"])
-        is_catechol_b = _has_any_ontology_match(tags_b, ["caffeine", "tyrosine", "ephedrine", "dopamine", "levodopa", "l-dopa", "amphetamine", "synephrine"])
+        targets_a = _get_target_gene_actions(comp_a)
+        targets_b = _get_target_gene_actions(comp_b)
+        atc_a = _get_atc_prefixes(comp_a)
+        atc_b = _get_atc_prefixes(comp_b)
+
+        is_comt_a = ActionType.INHIBITOR in targets_a.get("COMT", set()) or _has_any_ontology_match(tags_a, ["egcg", "green tea", "quercetin", "comt inhibitor"])
+        is_comt_b = ActionType.INHIBITOR in targets_b.get("COMT", set()) or _has_any_ontology_match(tags_b, ["egcg", "green tea", "quercetin", "comt inhibitor"])
+        is_catechol_a = (
+            bool(ActionType.AGONIST in (targets_a.get("ADRA1A", set()) | targets_a.get("ADRB1", set()) | targets_a.get("DRD1", set()) | targets_a.get("DRD2", set())))
+            or bool(ActionType.INHIBITOR in (targets_a.get("SLC6A2", set()) | targets_a.get("SLC6A3", set()) | targets_a.get("ADORA1", set()) | targets_a.get("ADORA2A", set())))
+            or bool(atc_a & {"N06B", "N06BA", "N06BC"})
+            or _has_any_ontology_match(tags_a, ["caffeine", "tyrosine", "ephedrine", "dopamine", "levodopa", "l-dopa", "amphetamine", "synephrine"])
+        )
+        is_catechol_b = (
+            bool(ActionType.AGONIST in (targets_b.get("ADRA1A", set()) | targets_b.get("ADRB1", set()) | targets_b.get("DRD1", set()) | targets_b.get("DRD2", set())))
+            or bool(ActionType.INHIBITOR in (targets_b.get("SLC6A2", set()) | targets_b.get("SLC6A3", set()) | targets_b.get("ADORA1", set()) | targets_b.get("ADORA2A", set())))
+            or bool(atc_b & {"N06B", "N06BA", "N06BC"})
+            or _has_any_ontology_match(tags_b, ["caffeine", "tyrosine", "ephedrine", "dopamine", "levodopa", "l-dopa", "amphetamine", "synephrine"])
+        )
 
         if (is_comt_a and is_catechol_b) or (is_comt_b and is_catechol_a):
             comt_name = name_a if is_comt_a else name_b
@@ -2865,7 +3564,7 @@ class InteractionEngine:
                 "severity": "SYNERGISTIC",
                 "severity_score": -5,
                 "conflict_types": ["SYNERGY", "CATECHOLAMINE_POTENTIATION"],
-                "title": f"Botanical COMT Inhibition & Catecholamine Synergy ({comt_name} + {cat_name})",
+                "title": f"COMT Inhibition & Catecholamine Synergy ({comt_name} + {cat_name})",
                 "description": (
                     f"{comt_name} inhibits Catechol-O-Methyltransferase (COMT), slowing enzymatic degradation of {cat_name} "
                     f"and prolonging synaptic dopamine/norepinephrine signaling and cognitive focus."
@@ -2875,15 +3574,11 @@ class InteractionEngine:
                 "evidence_level": "strong",
             }
 
-        # Botanical 5-Alpha Reductase Inhibition Synergy
-        is_saw_a = _has_any_ontology_match(tags_a, ["saw palmetto", "serenoa", "permixon"])
-        is_saw_b = _has_any_ontology_match(tags_b, ["saw palmetto", "serenoa", "permixon"])
-        is_5ari_a = _has_any_ontology_match(tags_a, ["finasteride", "dutasteride", "5-alpha reductase inhibitor"])
-        is_5ari_b = _has_any_ontology_match(tags_b, ["finasteride", "dutasteride", "5-alpha reductase inhibitor"])
+        # 5-Alpha Reductase Dual Inhibition Synergy
+        is_5ar_a = ActionType.INHIBITOR in (targets_a.get("SRD5A1", set()) | targets_a.get("SRD5A2", set())) or bool(atc_a & {"G04CB"}) or _has_any_ontology_match(tags_a, ["saw palmetto", "serenoa", "permixon", "finasteride", "dutasteride", "5-alpha reductase inhibitor"])
+        is_5ar_b = ActionType.INHIBITOR in (targets_b.get("SRD5A1", set()) | targets_b.get("SRD5A2", set())) or bool(atc_b & {"G04CB"}) or _has_any_ontology_match(tags_b, ["saw palmetto", "serenoa", "permixon", "finasteride", "dutasteride", "5-alpha reductase inhibitor"])
 
-        if (is_saw_a and is_5ari_b) or (is_saw_b and is_5ari_a):
-            saw_name = name_a if is_saw_a else name_b
-            ari_name = name_b if is_saw_a else name_a
+        if is_5ar_a and is_5ar_b and key_a != key_b:
             return {
                 "source_key": key_a,
                 "source_name": name_a,
@@ -2893,8 +3588,8 @@ class InteractionEngine:
                 "severity": "SYNERGISTIC",
                 "severity_score": -5,
                 "conflict_types": ["SYNERGY", "DUAL_5AR_INHIBITION"],
-                "title": f"Additive 5-Alpha Reductase Inhibition ({saw_name} + {ari_name})",
-                "description": f"Co-administration of {saw_name} and {ari_name} provides additive 5-alpha reductase enzyme suppression, reducing follicular DHT conversion.",
+                "title": f"Additive 5-Alpha Reductase Inhibition ({name_a} + {name_b})",
+                "description": f"Co-administration of {name_a} and {name_b} provides additive 5-alpha reductase enzyme suppression, reducing follicular DHT conversion.",
                 "affected_targets": ["5-Alpha Reductase Subtype 1 & 2 (SRD5A1 / SRD5A2)"],
                 "clinical_recommendation": "Monitor for androgenic/DHT suppression symptoms.",
                 "evidence_level": "strong",
@@ -3481,6 +4176,33 @@ class InteractionEngine:
                 ),
                 "affected_targets": ["Renal Proximal Tubules", "Glomerular Filtration Barrier"],
                 "clinical_recommendation": "Monitor baseline serum creatinine, BUN, and eGFR. Maintain aggressive hydration.",
+                "evidence_level": "strong",
+            }
+
+        # 6g. Additive Immunomodulatory & Opportunistic Infection Hazard
+        is_immuno_a, cls_a = _is_immunosuppressive_agent(comp_a)
+        is_immuno_b, cls_b = _is_immunosuppressive_agent(comp_b)
+        if is_immuno_a and is_immuno_b:
+            return {
+                "source_key": key_a,
+                "source_name": name_a,
+                "target_key": key_b,
+                "target_name": name_b,
+                "is_self": False,
+                "severity": "HIGH_RISK",
+                "severity_score": 26,
+                "conflict_types": ["PHARMACODYNAMIC", "IMMUNOMODULATORY_COLLISION", "DOWNSTREAM_CASCADE"],
+                "title": "Compounded Immunosuppression & Opportunistic Infection Hazard",
+                "description": (
+                    f"Co-administration of two potent immunomodulatory agents ({name_a} [{cls_a}] and {name_b} [{cls_b}]) "
+                    f"induces profound additive immune suppression, substantially elevating the risk of opportunistic infections "
+                    f"(fungal, mycobacterial, viral reactivation e.g., HSV/VZV/CMV) and cytopenias."
+                ),
+                "affected_targets": ["Immune Surveillance", "Lymphocyte Proliferation / Signaling Cascade"],
+                "clinical_recommendation": (
+                    "Avoid dual biologic or unprotocolized immunosuppressive stacking. If clinically necessary, "
+                    "maintain strict infectious disease vigilance, baseline latent TB screening, and routine complete blood count monitoring."
+                ),
                 "evidence_level": "strong",
             }
 
@@ -4175,6 +4897,60 @@ class InteractionEngine:
                             f"Dual hERG channel blockade prolongs ventricular repolarization, escalating Torsades de Pointes and ventricular arrhythmia risk."
                         ),
                         "clinical_recommendation": "Obtain baseline 12-lead ECG, monitor QTc intervals, and maintain serum potassium and magnesium at upper-normal targets.",
+                    })
+
+                # 14. Basal Metabolic Rate Acceleration Convergence
+                bmr_ups = {c: v for c, v in contribs.items() if v >= 0.2}
+                if any(k in b_id.lower() for k in ["metabolic_rate", "bmr"]) and len(bmr_ups) >= 2:
+                    net_bmr = sum(bmr_ups.values())
+                    agent_names = [graph.graph.nodes[c].get("label", c) for c in bmr_ups.keys()]
+                    biomarker_alerts.append({
+                        "syndrome": "Biomarker Cascade: Hypermetabolic Acceleration",
+                        "severity": "HIGH_RISK" if net_bmr >= 0.8 else "MODERATE_RISK",
+                        "severity_score": 28 if net_bmr >= 0.8 else 18,
+                        "title": f"Dynamic Cascade Convergence: Hypermetabolic Energy Expenditure ({', '.join(agent_names)})",
+                        "description": (
+                            f"Biological cascade simulation detected multiple compounds ({', '.join(agent_names)}) "
+                            f"converging to accelerate {label} (net vector: +{round(net_bmr, 2)}). "
+                            f"Dual activation of thyroid and sympathomimetic beta-adrenergic cascades markedly increases cellular thermogenesis, resting heart rate, and caloric turnover."
+                        ),
+                        "clinical_recommendation": "Monitor resting heart rate, core body temperature, and caloric intake. Avoid stacking potent thermogenics with thyroid agonists.",
+                    })
+
+                # 15. Vagal Tone / HRV Suppression Convergence
+                hrv_downs = {c: v for c, v in contribs.items() if v <= -0.2}
+                if "hrv" in b_id.lower() and len(hrv_downs) >= 2:
+                    net_hrv = sum(hrv_downs.values())
+                    agent_names = [graph.graph.nodes[c].get("label", c) for c in hrv_downs.keys()]
+                    biomarker_alerts.append({
+                        "syndrome": "Biomarker Cascade: Autonomic Vagal Tone Withdrawal",
+                        "severity": "HIGH_RISK" if net_hrv <= -0.6 else "MODERATE_RISK",
+                        "severity_score": 26 if net_hrv <= -0.6 else 16,
+                        "title": f"Dynamic Cascade Convergence: Vagal HRV Withdrawal ({', '.join(agent_names)})",
+                        "description": (
+                            f"Biological cascade simulation detected multiple compounds ({', '.join(agent_names)}) "
+                            f"depressing {label} (net vector: {round(net_hrv, 2)}). "
+                            f"Compound sympathomimetic stimulation suppresses parasympathetic vagal activity, accelerating autonomic allostatic load."
+                        ),
+                        "clinical_recommendation": "Integrate vagal-supportive adaptogens (L-Theanine, Ashwagandha, Magnesium) and limit late-day CNS stimulant dosing.",
+                    })
+
+                # 16. Neurotrophic & Synaptic Plasticity Convergence
+                bdnf_ups = {c: v for c, v in contribs.items() if v >= 0.2}
+                if "bdnf" in b_id.lower() and len(bdnf_ups) >= 2:
+                    net_bdnf = sum(bdnf_ups.values())
+                    agent_names = [graph.graph.nodes[c].get("label", c) for c in bdnf_ups.keys()]
+                    biomarker_alerts.append({
+                        "syndrome": "Biomarker Cascade: Neurotrophic Synergy",
+                        "severity": "SYNERGISTIC_BENEFIT",
+                        "severity_score": 0,
+                        "title": f"Dynamic Cascade Convergence: Neurotrophic BDNF Synergy ({', '.join(agent_names)})",
+                        "description": (
+                            f"Biological cascade simulation identified multiple compounds ({', '.join(agent_names)}) "
+                            f"converging to elevate {label} (net vector: +{round(net_bdnf, 2)}). "
+                            f"Co-activation of TrkB and neurotrophin cascades supports synaptic plasticity and neuronal resilience."
+                        ),
+                        "clinical_recommendation": "Maintain adequate sleep and choline availability to support synaptic remodeling.",
                     })
         except Exception:
             pass

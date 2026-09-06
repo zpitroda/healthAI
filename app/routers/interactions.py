@@ -4,7 +4,11 @@ from typing import Any, Dict, List
 from fastapi import APIRouter
 from fastapi.responses import JSONResponse
 
-from app.schemas.profiles import InteractionWorkbenchRequest
+from app.schemas.profiles import (
+    InteractionWorkbenchRequest,
+    BMRCalculationRequest,
+    FreeTestosteroneCalculationRequest,
+)
 from app.services.catalog_service import CatalogService
 from app.services.graph_service import parse_compound_spec
 from app.services.interaction_engine import InteractionEngine
@@ -138,3 +142,30 @@ def evaluate_synergy(payload: InteractionWorkbenchRequest) -> JSONResponse:
     if isinstance(result, dict):
         result["disclaimer"] = "HealthAI is an in silico computational pharmacology simulation platform for educational and research evaluation only. Not medical advice. Always consult a licensed healthcare provider."
     return JSONResponse(result, headers=NO_CACHE_HEADERS)
+
+
+@router.post("/api/biometrics/bmr")
+def calculate_bmr_endpoint(payload: BMRCalculationRequest) -> JSONResponse:
+    """
+    Directly compute Basal Metabolic Rate (BMR) and Total Daily Energy Expenditure (TDEE)
+    using validated Mifflin-St Jeor and Katch-McArdle biophysical equations.
+    """
+    from app.services.dosing_service import calculate_basal_metabolic_rate
+    res = calculate_basal_metabolic_rate(payload.model_dump())
+    return JSONResponse(res, headers=NO_CACHE_HEADERS)
+
+
+@router.post("/api/biometrics/free-testosterone")
+def calculate_free_testosterone_endpoint(payload: FreeTestosteroneCalculationRequest) -> JSONResponse:
+    """
+    Directly compute biologically unbound Free Testosterone and Bioavailable Testosterone
+    using the validated Vermeulen law-of-mass-action equilibrium solver.
+    """
+    from app.services.dosing_service import calculate_free_testosterone
+    res = calculate_free_testosterone(
+        total_t_ng_dl=payload.total_t_ng_dl,
+        shbg_nmol_l=payload.shbg_nmol_l,
+        albumin_g_dl=payload.albumin_g_dl or 4.3,
+    )
+    return JSONResponse(res, headers=NO_CACHE_HEADERS)
+

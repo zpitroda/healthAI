@@ -1,6 +1,6 @@
 import json
 import logging
-from typing import Dict, Any, List
+from typing import Dict, Any, List, Optional
 
 from app.knowledge_graph.graph_db import get_graph_database
 from app.services.ai_service import ask_local_llm
@@ -44,12 +44,19 @@ Your sole responsibility is to analyze a compound stack, patient biometrics, and
 ```
 """
 
-async def optimize_protocol(stack: List[str], biometrics: Dict[str, Any], history: str = "") -> Dict[str, Any]:
+async def optimize_protocol(
+    stack: List[str],
+    biometrics: Dict[str, Any],
+    history: str = "",
+    api_key: Optional[str] = None,
+    base_url: Optional[str] = None,
+    model: Optional[str] = None,
+) -> Dict[str, Any]:
     """
     Orchestrates the 3-step optimization process:
     1. GraphRAG Context Extraction
     2. Prompt Construction
-    3. Local LLM Inference
+    3. Local/Cloud LLM Inference
     """
     db = get_graph_database()
     
@@ -89,9 +96,15 @@ async def optimize_protocol(stack: List[str], biometrics: Dict[str, Any], histor
 Analyze the above stack and biometrics against the provided GraphRAG context. Provide dosage adjustments, optimal scheduling, and necessary protective countermeasures in JSON format.
 """
 
-    # 3. Call Local AI
+    # 3. Call AI Inference Engine
     try:
-        response_json = await ask_local_llm(system_prompt=SYSTEM_PROMPT, user_prompt=user_prompt)
+        response_json = await ask_local_llm(
+            system_prompt=SYSTEM_PROMPT,
+            user_prompt=user_prompt,
+            api_key=api_key,
+            base_url=base_url,
+            model=model,
+        )
         return response_json
     except Exception as e:
         logger.error(f"Optimization failed: {e}")

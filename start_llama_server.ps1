@@ -49,6 +49,7 @@ Write-Host "  healthAI - llama-server (Unsloth Dynamic V3.0 / RTX 5090)" -Foregr
 Write-Host "============================================================" -ForegroundColor Cyan
 Write-Host "  - Model: $MODEL_PATH" -ForegroundColor White
 Write-Host "  - GPU Offload: All Layers (-ngl 99)" -ForegroundColor White
+Write-Host "  - Host RAM Optimization: Direct VRAM I/O (--no-mmap)" -ForegroundColor White
 Write-Host "  - Flash Attention: -fa on" -ForegroundColor White
 Write-Host "  - 4-bit KV Cache Quantization: -ctk q4_0 -ctv q4_0" -ForegroundColor White
 Write-Host "  - Context Window: $ContextSize tokens (-c $ContextSize)" -ForegroundColor White
@@ -78,6 +79,7 @@ if (Test-Path $LlamaDir) { Set-Location $LlamaDir }
 
 $ServerArgs = @(
     "-m", $MODEL_PATH,
+    "--no-mmap",
     "-ngl", "99",
     "-c", "$ContextSize",
     "-b", "2048",

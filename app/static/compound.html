@@ -78,7 +78,6 @@
           <a href="/" class="nav-link">Safety Lab</a>
           <a href="/graph" class="nav-link">Knowledge Graph</a>
           <a href="/compound?key=caffeine" class="nav-link active">Compound DB</a>
-          <a href="/admin" class="nav-link">Catalog DB</a>
           <a href="/debug" class="nav-link">Debug Workbench</a>
           <a href="javascript:void(0)" onclick="HealthAIDisclaimer.open('medical')" class="nav-link" style="color:#fbbf24; font-weight:700; display:inline-flex; align-items:center; gap:4px;"><i data-lucide="alert-triangle" class="icon-xs icon-amber"></i> Disclaimer</a>
           <a href="#" id="openInGraphBtn" class="nav-link btn-primary" style="display:inline-flex; align-items:center; gap:5px;"><span>Open in Graph Studio</span> <i data-lucide="external-link" class="icon-xs"></i></a>
@@ -89,7 +88,35 @@
       <div class="layout">
         <!-- LEFT: COMPOUND CLINICAL & ADMET DATA -->
         <main class="panel" id="compoundMain">
-          <div id="compoundLoading" style="color:var(--text-muted); font-size:0.9rem;">Loading compound data…</div>
+          <div id="compoundLoading" class="compound-loading-container">
+            <div class="compound-loading-hero">
+              <div class="compound-loading-orbit">
+                <div class="compound-loading-ring"></div>
+                <div class="compound-loading-ring-inner"></div>
+                <i data-lucide="flask-conical" class="compound-loading-core-icon"></i>
+              </div>
+              <div class="compound-loading-text-wrap">
+                <div class="compound-loading-title">Loading Compound Pharmacology</div>
+                <div class="compound-loading-subtitle">
+                  <span class="compound-loading-dot"></span>
+                  <span id="compoundLoadingStatusText">Fetching molecular targets, ADMET kinetics & clinical safety profile…</span>
+                </div>
+              </div>
+            </div>
+
+            <!-- SKELETON PREVIEW CARDS -->
+            <div class="compound-skeleton-card">
+              <div class="skeleton-shimmer skeleton-hero"></div>
+              <div class="skeleton-grid">
+                <div class="skeleton-shimmer skeleton-box"></div>
+                <div class="skeleton-shimmer skeleton-box"></div>
+                <div class="skeleton-shimmer skeleton-box"></div>
+                <div class="skeleton-shimmer skeleton-box"></div>
+              </div>
+              <div class="skeleton-shimmer skeleton-wide"></div>
+              <div class="skeleton-shimmer skeleton-wide-sm"></div>
+            </div>
+          </div>
           <div id="compoundError" style="color:var(--danger); display:none;"></div>
 
           <div id="compoundContent" style="display:none;">
@@ -266,7 +293,10 @@
               </div>
               <div class="body" style="padding:12px;">
                 <div id="landmarkStudiesGrid" class="evidence-card-grid">
-                  <div style="font-size:0.8rem; color:var(--text-muted);">Loading peer-reviewed study citations...</div>
+                  <div style="font-size:0.8rem; color:var(--text-muted); display:flex; align-items:center; gap:8px;">
+                    <span class="compound-spinner-sm"></span>
+                    <span>Loading peer-reviewed study citations…</span>
+                  </div>
                 </div>
               </div>
             </div>
@@ -278,7 +308,10 @@
               </div>
               <div class="body" style="padding:14px 16px;">
                 <div id="timelineTrack" class="timeline-track">
-                  <div style="font-size:0.8rem; color:var(--text-muted);">Constructing chronological evidence milestones...</div>
+                  <div style="font-size:0.8rem; color:var(--text-muted); display:flex; align-items:center; gap:8px;">
+                    <span class="compound-spinner-sm"></span>
+                    <span>Constructing chronological evidence milestones…</span>
+                  </div>
                 </div>
               </div>
             </div>
@@ -286,54 +319,56 @@
             <!-- SCIENTIFIC CONTROVERSIES & CONFLICTING EVIDENCE RADAR -->
             <div class="list-box" id="controversiesBox">
               <div class="header" style="color:#fbbf24;">
-                <span style="display:inline-flex; align-items:center; gap:6px;"><i data-lucide="alert-triangle" class="icon-xs icon-amber"></i> Scientific Controversies & Conflicting Evidence</span>
+                <span style="display:inline-flex; align-items:center; gap:6px;"><i data-lucide="alert-triangle" class="icon-xs icon-amber"></i> Scientific Controversies & Conflicting Findings</span>
+                <span style="font-size:0.7rem; color:var(--text-muted);">Conflicting Clinical Evidence</span>
               </div>
               <div class="body" style="padding:12px;">
                 <div id="controversiesGrid">
-                  <div style="font-size:0.8rem; color:var(--text-muted);">Scanning for divergent assay reports and trial conflicts...</div>
+                  <div style="font-size:0.8rem; color:var(--text-muted); display:flex; align-items:center; gap:8px;">
+                    <span class="compound-spinner-sm"></span>
+                    <span>Analyzing conflicting research findings…</span>
+                  </div>
                 </div>
               </div>
             </div>
           </div>
         </main>
 
-        <!-- RIGHT: INTERACTIVE PK/PD NEIGHBORHOOD GRAPH -->
-        <aside class="panel graph-panel">
+        <!-- RIGHT: LIVE INTERACTIVE KNOWLEDGE GRAPH -->
+        <aside class="panel" id="compoundGraphPanel">
           <div class="graph-header">
-            <div class="graph-title-wrap">
-              <i data-lucide="network" class="icon-md icon-cyan"></i>
-              <h2 class="graph-title">PK/PD Interaction Network</h2>
+            <div>
+              <div class="panel-title" style="display:inline-flex; align-items:center; gap:6px;"><i data-lucide="network" class="icon-sm icon-cyan"></i> PK/PD Biological Target Network</div>
+              <div class="panel-subtitle">Target Binding, Enzymes, Transporters & Outcome Cascades</div>
             </div>
-
-            <div class="graph-toolbar">
-              <select id="layoutSelect" class="select-custom" title="Layout Engine">
-                <option value="tier_flow" selected>Cascade Tier Flow</option>
-                <option value="concentric">Concentric Radar</option>
-                <option value="cose">Physics Network (COSE)</option>
-                <option value="breadthfirst">Hierarchy (Tree)</option>
+            <div style="display:flex; align-items:center; gap:6px;">
+              <select id="layoutSelect" class="select-layout" title="Graph Layout Style">
+                <option value="concentric">Concentric Orbits</option>
+                <option value="cose">Force-Directed (COSE)</option>
+                <option value="breadthfirst">Hierarchical Flow</option>
                 <option value="circle">Circular Ring</option>
               </select>
-
-              <button id="btnSimulateFlow" class="btn-icon btn-flow" title="Simulate signal and clearance wave" style="display:inline-flex; align-items:center; gap:4px;">
-                <i data-lucide="zap" class="icon-xs"></i> Simulate Flow
+              <button id="btnSimulateFlow" type="button" class="btn-icon btn-flow" title="Simulate multi-tier biological signal propagation">
+                <i data-lucide="play" class="icon-xs"></i> <span>Simulate</span>
               </button>
-              <button id="zoomIn" class="btn-icon" title="Zoom In">+</button>
-              <button id="zoomOut" class="btn-icon" title="Zoom Out">−</button>
-              <button id="fitView" class="btn-icon" title="Fit to Screen">Fit</button>
             </div>
           </div>
 
-          <!-- PK/PD FILTER PILLS -->
-          <div class="graph-filter-matrix">
-            <button class="filter-btn active" data-filter="all">All Interactions</button>
-            <button class="filter-btn" data-filter="pd">Pharmacodynamics (PD)</button>
-            <button class="filter-btn" data-filter="pk">Pharmacokinetics (PK)</button>
+          <!-- NETWORK FILTER PILLS -->
+          <div class="filter-bar">
+            <button class="filter-btn active" data-filter="all">All Tiers</button>
+            <button class="filter-btn" data-filter="targets">Receptors & Enzymes</button>
+            <button class="filter-btn" data-filter="pathways">Pathways & Cascades</button>
             <button class="filter-btn" data-filter="outcomes">Biomarkers & Outcomes</button>
           </div>
 
           <!-- CANVAS WRAPPER -->
           <div class="graph-wrap">
             <div id="compoundGraph" class="graph-canvas" aria-label="Compound PK/PD interaction graph"></div>
+            <div id="graphLoadingOverlay" class="graph-loading-overlay">
+              <span class="compound-spinner-lg"></span>
+              <span class="graph-loading-text">Constructing PK/PD biological network…</span>
+            </div>
 
             <!-- QUICK INSPECTOR CARD -->
             <div id="quickCard" class="quick-card hidden">
@@ -348,7 +383,7 @@
           </div>
 
           <div class="graph-meta-bar">
-            <span id="graphSummary">Loading PK/PD network…</span>
+            <span id="graphSummary" style="display:inline-flex; align-items:center; gap:6px;"><span class="compound-spinner-sm"></span> Loading PK/PD network…</span>
             <span style="color:#38bdf8;">High-DPI Razor-Sharp Engine</span>
           </div>
         </aside>

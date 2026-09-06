@@ -5,8 +5,10 @@ import logging
 import math
 import urllib.parse
 import httpx
+from typing import List, Dict, Any, Optional
 
 from app.services.chemical_structure_engine import is_17a_alkylated, is_steroidal_androgen
+from app.services.live_enrichment import get_shared_http_client
 
 logger = logging.getLogger("healthai.pkpd_enricher")
 
@@ -253,8 +255,12 @@ class PKPDEnricher:
     5. Curated USAN class benchmarks & in silico QSPR fallback models
     """
 
-    def __init__(self, timeout_seconds: float = 6.0):
+    def __init__(self, timeout_seconds: float = 6.0, client: Optional[httpx.Client] = None):
         self.timeout = timeout_seconds
+        self._custom_client = client
+
+    def _client(self) -> httpx.Client:
+        return self._custom_client or get_shared_http_client(timeout_seconds=self.timeout)
 
     def fetch_pubchem_admet(self, query_name: str) -> Dict[str, Any]:
         """Fetch exact physicochemical descriptors from PubChem PUG-REST."""
@@ -266,22 +272,22 @@ class PKPDEnricher:
         url = f"https://pubchem.ncbi.nlm.nih.gov/rest/pug/compound/name/{encoded}/property/InChIKey,CanonicalSMILES,MolecularWeight,XLogP,TPSA,HBondDonorCount,HBondAcceptorCount,RotatableBondCount,Complexity,Charge/JSON"
         
         try:
-            with httpx.Client(timeout=self.timeout) as client:
-                resp = client.get(url)
-                if resp.status_code == 200:
-                    props = resp.json().get("PropertyTable", {}).get("Properties", [])
-                    if props:
-                        first = props[0]
-                        return {
-                            "smiles": first.get("CanonicalSMILES"),
-                            "inchikey": first.get("InChIKey"),
-                            "molecular_weight": float(first.get("MolecularWeight", 0.0)) if first.get("MolecularWeight") else None,
-                            "logp": float(first.get("XLogP", 0.0)) if first.get("XLogP") is not None else None,
-                            "tpsa": float(first.get("TPSA", 0.0)) if first.get("TPSA") is not None else None,
-                            "hbd": int(first.get("HBondDonorCount", 0)) if first.get("HBondDonorCount") is not None else None,
-                            "hba": int(first.get("HBondAcceptorCount", 0)) if first.get("HBondAcceptorCount") is not None else None,
-                            "rotatable_bonds": int(first.get("RotatableBondCount", 0)) if first.get("RotatableBondCount") is not None else None,
-                        }
+            client = self._client()
+            resp = client.get(url)
+            if resp.status_code == 200:
+                props = resp.json().get("PropertyTable", {}).get("Properties", [])
+                if props:
+                    first = props[0]
+                    return {
+                        "smiles": first.get("CanonicalSMILES"),
+                        "inchikey": first.get("InChIKey"),
+                        "molecular_weight": float(first.get("MolecularWeight", 0.0)) if first.get("MolecularWeight") else None,
+                        "logp": float(first.get("XLogP", 0.0)) if first.get("XLogP") is not None else None,
+                        "tpsa": float(first.get("TPSA", 0.0)) if first.get("TPSA") is not None else None,
+                        "hbd": int(first.get("HBondDonorCount", 0)) if first.get("HBondDonorCount") is not None else None,
+                        "hba": int(first.get("HBondAcceptorCount", 0)) if first.get("HBondAcceptorCount") is not None else None,
+                        "rotatable_bonds": int(first.get("RotatableBondCount", 0)) if first.get("RotatableBondCount") is not None else None,
+                    }
         except Exception as e:
             logger.debug("PubChem ADMET query for %s failed: %s", query_name, e)
 
@@ -296,25 +302,25 @@ class PKPDEnricher:
         results: List[Dict[str, Any]] = []
 
         try:
-            with httpx.Client(timeout=self.timeout) as client:
-                resp = client.get(url)
-                if resp.status_code == 200:
-                    activities = resp.json().get("activities", [])
-                    for act in activities:
-                        val = act.get("standard_value")
-                        if val is not None:
-                            try:
-                                val_f = float(val)
-                                results.append({
-                                    "target": act.get("target_pref_name") or act.get("target_chembl_id"),
-                                    "target_id": act.get("target_chembl_id"),
-                                    "affinity_type": act.get("standard_type", "IC50"),
-                                    "affinity_nm": val_f,
-                                    "pchembl": float(act.get("pchembl_value")) if act.get("pchembl_value") else None,
-                                    "action": "inhibitor",
-                                })
-                            except ValueError:
-                                continue
+            client = self._client()
+            resp = client.get(url)
+            if resp.status_code == 200:
+                activities = resp.json().get("activities", [])
+                for act in activities:
+                    val = act.get("standard_value")
+                    if val is not None:
+                        try:
+                            val_f = float(val)
+                            results.append({
+                                "target": act.get("target_pref_name") or act.get("target_chembl_id"),
+                                "target_id": act.get("target_chembl_id"),
+                                "affinity_type": act.get("standard_type", "IC50"),
+                                "affinity_nm": val_f,
+                                "pchembl": float(act.get("pchembl_value")) if act.get("pchembl_value") else None,
+                                "action": "inhibitor",
+                            })
+                        except ValueError:
+                            continue
         except Exception as e:
             logger.debug("ChEMBL bioactivity query for %s failed: %s", chembl_id, e)
 
@@ -329,17 +335,17 @@ class PKPDEnricher:
         pathways: List[Dict[str, str]] = []
 
         try:
-            with httpx.Client(timeout=self.timeout) as client:
-                resp = client.get(url)
-                if resp.status_code == 200:
-                    data = resp.json()
-                    if isinstance(data, list):
-                        for p in data[:5]:
-                            pathways.append({
-                                "id": str(p.get("stId")),
-                                "name": str(p.get("displayName")),
-                                "database": "Reactome",
-                            })
+            client = self._client()
+            resp = client.get(url)
+            if resp.status_code == 200:
+                data = resp.json()
+                if isinstance(data, list):
+                    for p in data[:5]:
+                        pathways.append({
+                            "id": str(p.get("stId")),
+                            "name": str(p.get("displayName")),
+                            "database": "Reactome",
+                        })
         except Exception as e:
             logger.debug("Reactome query for %s failed: %s", uniprot_id, e)
 
@@ -375,23 +381,23 @@ class PKPDEnricher:
         metabolites: List[Dict[str, Any]] = []
 
         try:
-            with httpx.Client(timeout=self.timeout) as client:
-                resp = client.get(url)
-                if resp.status_code == 200:
-                    data = resp.json()
-                    records = data.get("metabolisms", [])
-                    for rec in records:
-                        met_name = rec.get("metabolite_name") or rec.get("metabolite_chembl_id")
-                        if met_name:
-                            enzyme = rec.get("enzyme_name") or rec.get("organism")
-                            metabolites.append({
-                                "name": str(met_name),
-                                "chembl_id": rec.get("metabolite_chembl_id"),
-                                "conversion_enzyme": enzyme,
-                                "activity_type": "active" if rec.get("metabolite_activity") else "metabolite",
-                                "is_active": bool(rec.get("metabolite_activity")),
-                                "relative_exposure_pct": 15.0,
-                            })
+            client = self._client()
+            resp = client.get(url)
+            if resp.status_code == 200:
+                data = resp.json()
+                records = data.get("metabolisms", [])
+                for rec in records:
+                    met_name = rec.get("metabolite_name") or rec.get("metabolite_chembl_id")
+                    if met_name:
+                        enzyme = rec.get("enzyme_name") or rec.get("organism")
+                        metabolites.append({
+                            "name": str(met_name),
+                            "chembl_id": rec.get("metabolite_chembl_id"),
+                            "conversion_enzyme": enzyme,
+                            "activity_type": "active" if rec.get("metabolite_activity") else "metabolite",
+                            "is_active": bool(rec.get("metabolite_activity")),
+                            "relative_exposure_pct": 15.0,
+                        })
         except Exception as e:
             logger.debug("ChEMBL metabolism query for %s failed: %s", chembl_id, e)
 
@@ -409,36 +415,36 @@ class PKPDEnricher:
         pk_text: str = ""
 
         try:
-            with httpx.Client(timeout=self.timeout) as client:
-                resp = client.get(url, params={"search": search_query, "limit": 1})
-                if resp.status_code == 200:
-                    results = resp.json().get("results", [])
-                    if results:
-                        label = results[0]
-                        openfda_info = label.get("openfda", {})
-                        raw_routes = openfda_info.get("route", [])
-                        for r in raw_routes:
-                            r_norm = str(r).strip().lower()
-                            if "oral" in r_norm:
-                                routes_found.append("oral")
-                            elif "sublingual" in r_norm or "buccal" in r_norm:
-                                routes_found.append("sublingual")
-                            elif "subcutaneous" in r_norm:
-                                routes_found.append("subcutaneous")
-                            elif "intramuscular" in r_norm:
-                                routes_found.append("intramuscular")
-                            elif "transdermal" in r_norm or "topical" in r_norm:
-                                routes_found.append("transdermal")
-                            elif "intravenous" in r_norm or "iv" in r_norm:
-                                routes_found.append("intravenous")
-                            elif "inhalation" in r_norm or "nasal" in r_norm:
-                                routes_found.append("inhalation")
-                            elif "rectal" in r_norm:
-                                routes_found.append("rectal")
+            client = self._client()
+            resp = client.get(url, params={"search": search_query, "limit": 1})
+            if resp.status_code == 200:
+                results = resp.json().get("results", [])
+                if results:
+                    label = results[0]
+                    openfda_info = label.get("openfda", {})
+                    raw_routes = openfda_info.get("route", [])
+                    for r in raw_routes:
+                        r_norm = str(r).strip().lower()
+                        if "oral" in r_norm:
+                            routes_found.append("oral")
+                        elif "sublingual" in r_norm or "buccal" in r_norm:
+                            routes_found.append("sublingual")
+                        elif "subcutaneous" in r_norm:
+                            routes_found.append("subcutaneous")
+                        elif "intramuscular" in r_norm:
+                            routes_found.append("intramuscular")
+                        elif "transdermal" in r_norm or "topical" in r_norm:
+                            routes_found.append("transdermal")
+                        elif "intravenous" in r_norm or "iv" in r_norm:
+                            routes_found.append("intravenous")
+                        elif "inhalation" in r_norm or "nasal" in r_norm:
+                            routes_found.append("inhalation")
+                        elif "rectal" in r_norm:
+                            routes_found.append("rectal")
 
-                        clin_pharm = label.get("clinical_pharmacology") or label.get("pharmacokinetics") or []
-                        if clin_pharm:
-                            pk_text = " ".join(clin_pharm) if isinstance(clin_pharm, list) else str(clin_pharm)
+                    clin_pharm = label.get("clinical_pharmacology") or label.get("pharmacokinetics") or []
+                    if clin_pharm:
+                        pk_text = " ".join(clin_pharm) if isinstance(clin_pharm, list) else str(clin_pharm)
         except Exception as e:
             logger.debug("OpenFDA route/PK query for %s failed: %s", cleaned, e)
 
@@ -456,20 +462,20 @@ class PKPDEnricher:
         # 1. Resolve name to CID
         cid = None
         try:
-            with httpx.Client(timeout=self.timeout) as client:
-                cid_resp = client.get(f"https://pubchem.ncbi.nlm.nih.gov/rest/pug/compound/name/{urllib.parse.quote(cleaned)}/cids/JSON")
-                if cid_resp.status_code == 200:
-                    cids = cid_resp.json().get("IdentifierList", {}).get("CID", [])
-                    if cids:
-                        cid = cids[0]
+            client = self._client()
+            cid_resp = client.get(f"https://pubchem.ncbi.nlm.nih.gov/rest/pug/compound/name/{urllib.parse.quote(cleaned)}/cids/JSON")
+            if cid_resp.status_code == 200:
+                cids = cid_resp.json().get("IdentifierList", {}).get("CID", [])
+                if cids:
+                    cid = cids[0]
 
-                if cid:
-                    view_url = f"https://pubchem.ncbi.nlm.nih.gov/rest/pug_view/data/compound/{cid}/JSON?heading=Pharmacokinetics"
-                    view_resp = client.get(view_url)
-                    if view_resp.status_code == 200:
-                        data = view_resp.json()
-                        sections = data.get("Record", {}).get("Section", [])
-                        return {"cid": cid, "pharmacokinetics_sections": bool(sections)}
+            if cid:
+                view_url = f"https://pubchem.ncbi.nlm.nih.gov/rest/pug_view/data/compound/{cid}/JSON?heading=Pharmacokinetics"
+                view_resp = client.get(view_url)
+                if view_resp.status_code == 200:
+                    data = view_resp.json()
+                    sections = data.get("Record", {}).get("Section", [])
+                    return {"cid": cid, "pharmacokinetics_sections": bool(sections)}
         except Exception as e:
             logger.debug("PubChem PUG-View PK query for %s failed: %s", cleaned, e)
 

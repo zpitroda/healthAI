@@ -40,7 +40,7 @@ USAN_STEM_RULES: List[Dict[str, Any]] = [
         "tpsa": 111.8,
         "is_narrow_therapeutic_index": False,
         "dilirank_class": "Less-DILI",
-        "targets": [{"target": "HMG-CoA Reductase", "action": "inhibitor", "family": "Lipid Metabolism", "affinity_ki": 0.005}],
+        "targets": [{"target": "HMG-CoA Reductase", "action": "inhibitor", "family": "Lipid Metabolism", "affinity_ki": 5.0}],
     },
     {
         "pattern": r"(?:sartan)$",
@@ -881,8 +881,8 @@ USAN_STEM_RULES: List[Dict[str, Any]] = [
         "tpsa": 42.5,
         "is_narrow_therapeutic_index": False,
         "targets": [
-            {"target": "Gut Microbiota Carnitine TMA-Lyase (CntA/CntB / yeaW/yeaX)", "action": "inhibitor", "family": "Gut Microbiome / Microbial Lyase", "inhibition_ic50": 0.05, "is_microbial": True},
-            {"target": "HMG-CoA Reductase", "action": "inhibitor", "family": "Lipid Metabolism", "inhibition_ic50": 1.2},
+            {"target": "Gut Microbiota Carnitine TMA-Lyase (CntA/CntB / yeaW/yeaX)", "action": "inhibitor", "family": "Gut Microbiome / Microbial Lyase", "inhibition_ic50": 15000.0, "is_microbial": True},
+            {"target": "HMG-CoA Reductase", "action": "inhibitor", "family": "Lipid Metabolism", "inhibition_ic50": 250000.0},
             {"target": "Endothelial Nitric Oxide Synthase (eNOS / NOS3)", "action": "agonist", "family": "Vascular Endothelium"},
             {"target": "Glutathione Biosynthesis & Cellular Antioxidant Defense (System xc- / Nrf2 / GCL)", "action": "agonist", "family": "Antioxidant Defense"}
         ],
@@ -1038,7 +1038,13 @@ class PharmacologyEnricher:
                     enriched["drug_class"] = rule["class_name"]
 
                 for t in rule.get("targets", []):
-                    matched_targets.append(t)
+                    t_clean = dict(t)
+                    for aff_k in ["affinity_ki", "inhibition_ic50", "ec50"]:
+                        if t_clean.get(aff_k) is not None:
+                            val = float(t_clean[aff_k])
+                            if val < 1.0:
+                                t_clean[aff_k] = round(val * 1000.0, 4)
+                    matched_targets.append(t_clean)
 
         # 2. Match ATC Classification
         all_atcs = list(atc_codes)

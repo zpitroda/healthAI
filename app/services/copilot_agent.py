@@ -1737,35 +1737,39 @@ class CopilotAgent:
         elif tool_name == "calculate_individualized_dosing":
             compound_key = str(arguments.get("compound_key", "")).strip()
             biometrics = arguments.get("biometrics", {})
+            intent = arguments.get("intent") or arguments.get("risk_tolerance") or 1.0
+
+            from app.services.dosing_service import calculate_individualized_dose, get_default_compound_dose
             default_dose = get_default_compound_dose(compound_key)
-            base_mg = float(default_dose.get("dose_mg", 100.0))
-            
+            result = calculate_individualized_dose(compound_key, biometrics=biometrics, intent_or_risk=intent)
+
             weight_kg = float(biometrics.get("weight_kg", 75.0))
             egfr = float(biometrics.get("egfr", 95.0))
             alt_u_l = float(biometrics.get("alt_u_l", 25.0))
             age = int(biometrics.get("age", 30))
 
-            weight_factor = weight_kg / 75.0
-            renal_factor = max(0.4, min(1.2, egfr / 90.0)) if egfr < 60 else 1.0
-            hepatic_factor = max(0.5, min(1.0, 45.0 / alt_u_l)) if alt_u_l > 45 else 1.0
-            age_factor = 0.85 if age >= 65 else 1.0
-
-            adjusted_mg = round(base_mg * weight_factor * renal_factor * hepatic_factor * age_factor, 2)
             return {
                 "compound_key": compound_key,
-                "standard_dose": default_dose.get("dose_display", f"{base_mg} mg"),
-                "adjusted_recommended_dose_mg": adjusted_mg,
+                "standard_dose": default_dose.get("dose_display", f"{default_dose.get('dose_mg', 100.0)} mg"),
+                "adjusted_recommended_dose_mg": result.get("dose_mg"),
+                "adjusted_dose_display": result.get("dose_display"),
+                "route": result.get("route"),
+                "frequency": result.get("frequency"),
                 "scaling_factors": {
-                    "weight_factor": round(weight_factor, 2),
-                    "renal_clearance_factor": round(renal_factor, 2),
-                    "hepatic_clearance_factor": round(hepatic_factor, 2),
-                    "age_factor": age_factor
+                    "weight_factor": round(weight_kg / 75.0, 2),
+                    "renal_clearance_factor": round(max(0.4, min(1.0, egfr / 90.0)) if egfr < 60 else 1.0, 2),
+                    "hepatic_clearance_factor": round(max(0.5, min(1.0, 45.0 / alt_u_l)) if alt_u_l > 45 else 1.0, 2),
+                    "age_factor": 0.85 if age >= 65 else 1.0,
+                    "weight_kg": weight_kg,
+                    "egfr_ml_min": egfr,
+                    "alt_u_l": alt_u_l,
+                    "age_years": age,
                 },
                 "clinical_notes": (
-                    f"Scaled for {weight_kg}kg body weight"
-                    + (f" with {int(renal_factor*100)}% renal adjustment (eGFR: {egfr})" if renal_factor < 1.0 else "")
-                    + (f" with {int(hepatic_factor*100)}% hepatic adjustment (ALT: {alt_u_l})" if hepatic_factor < 1.0 else "")
-                )
+                    f"Individualized for {weight_kg}kg body weight"
+                    + (f", adjusted for renal function (eGFR: {egfr})" if egfr < 60 else "")
+                    + (f", adjusted for hepatic function (ALT: {alt_u_l})" if alt_u_l > 45 else "")
+                ),
             }
 
         elif tool_name in ("search_fda_drug_label", "search_biomedical_literature"):

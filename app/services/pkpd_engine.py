@@ -42,6 +42,16 @@ class PKPDEngine:
         request: PKPDSimulationRequest,
         co_compounds_data: Optional[List[Dict[str, Any]]] = None,
     ) -> PKPDSimulationResponse:
+        # Check if biologic / monoclonal antibody
+        is_biologic = bool(
+            compound.get("is_biologic")
+            or compound.get("modality") in ("biologic_antibody", "protein")
+            or float(compound.get("molecular_weight") or 0) > 10000.0
+        )
+        if is_biologic:
+            from app.services.biologic_pkpd_engine import BiologicPKPDEngine
+            return BiologicPKPDEngine.simulate_biologic(compound, request)
+
         comp_name = str(compound.get("name") or compound.get("canonical_name") or request.compound_key).strip().title()
         route = request.route.lower()
         dose_mg = max(0.1, float(request.dose_mg))
@@ -520,9 +530,35 @@ class PKPDEngine:
         ptf = ((c_max - c_min) / c_avg_ss) * 100.0 if is_steady_state else 0.0
         swing_ratio = round(c_max / max(0.001, c_min), 2) if is_steady_state and c_min > 0 else 1.0
 
-        cl_effective_avg = (effective_active_dose_mg * f_route * 1000.0) / max(1.0, auc_0_tau)
-        k_e_eff = max(0.0001, cl_effective_avg / v_d_total_l)
-        t_half_effective_h = math.log(2.0) / k_e_eff
+        if is_steady_state:
+            cl_effective_avg = (effective_active_dose_mg * f_route * 1000.0) / max(1.0, auc_0_tau)
+            k_e_eff = max(0.0001, cl_effective_avg / v_d_total_l)
+            t_half_effective_h = math.log(2.0) / k_e_eff
+        else:
+            # Single-dose kinetics: determine terminal elimination rate constant lambda_z
+            if n_compartments == 2:
+                k10 = cl_adjusted_l_h / v1_total_l
+                sum_k = k12 + k21 + k10
+                disc = max(0.0, (sum_k * sum_k) - (4.0 * k21 * k10))
+                beta = 0.5 * (sum_k - math.sqrt(disc))
+                lambda_z = max(0.0001, beta)
+            elif is_saturable:
+                cl_linear = (vmax_total_mg_h * 1000.0) / km_ng_ml
+                lambda_z = max(0.0001, cl_linear / v_d_total_l)
+            else:
+                lambda_z = max(0.0001, cl_adjusted_l_h / v_d_total_l)
+
+            # Full trapezoidal AUC_0_tlast + Clast / lambda_z tail extrapolation to infinity
+            auc_0_tlast = sum(
+                0.5 * (time_series[i].c_plasma_ng_ml + time_series[i + 1].c_plasma_ng_ml) * (time_series[i + 1].time_h - time_series[i].time_h)
+                for i in range(len(time_series) - 1)
+            )
+            c_last = time_series[-1].c_plasma_ng_ml
+            auc_inf = auc_0_tlast + (c_last / lambda_z) if lambda_z > 0 else auc_0_tlast
+
+            cl_effective_avg = (effective_active_dose_mg * f_route * 1000.0) / max(1.0, auc_inf)
+            k_e_eff = max(0.0001, cl_effective_avg / v_d_total_l)
+            t_half_effective_h = math.log(2.0) / k_e_eff
 
         if not is_steady_state:
             fluct_level = "STABLE"

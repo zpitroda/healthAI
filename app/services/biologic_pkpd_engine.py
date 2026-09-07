@@ -45,14 +45,29 @@ class BiologicPKPDEngine:
         v2_l = (40.0 / 1000.0) * weight_kg  # ~2.80 L for 70kg
         v_ss_l = v1_l + v2_l                 # ~5.95 L
 
-        # Linear FcRn clearance: ~0.25 L/day (~0.0104 L/h)
-        cl_lin_l_h = 0.25 / 24.0
-        # Inter-compartmental lymphatic clearance Q: ~0.6 L/day
-        q_l_h = 0.6 / 24.0
+        # Allometric weight-based clearance scaling (standard 3/4 exponent)
+        weight_scale = (weight_kg / 70.0) ** 0.75
+
+        # Check empirical compound half-life or clearance if available in catalog
+        empirical_th = compound.get("t_half_numeric")
+        if empirical_th is not None and float(empirical_th) > 0:
+            target_th_h = float(empirical_th)
+            k_el = math.log(2.0) / target_th_h
+            cl_lin_l_h = k_el * v_ss_l
+        else:
+            # Linear FcRn clearance: ~0.25 L/day (~0.0104 L/h) for standard 70kg human
+            cl_lin_l_h = (0.25 / 24.0) * weight_scale
+            # Elimination half-life derived from steady-state whole-body distribution volume Vss
+            k_el = cl_lin_l_h / v_ss_l
+            target_th_h = math.log(2.0) / k_el if k_el > 0 else 504.0
+        t_half_h = target_th_h
+
+        # Inter-compartmental lymphatic clearance Q: ~0.6 L/day (~0.025 L/h) for 70kg
+        q_l_h = (0.6 / 24.0) * weight_scale
 
         # TMDD Parameters (Target saturation)
-        vmax_mg_h = 0.05  # Capacity-limited degradation
-        km_mg_l = 0.002   # Target saturation constant
+        vmax_mg_h = float(compound.get("vmax_mg_h") or 0.05)
+        km_mg_l = float(compound.get("km_mg_l") or 0.002)
 
         # Bioavailability: IV = 1.0, Subcutaneous (SC) ~ 0.65
         route = request.route.lower()
@@ -62,10 +77,6 @@ class BiologicPKPDEngine:
         else:
             bioavailability = 1.0
             ka = 2.0    # Rapid IV infusion
-
-        # Effective biological half-life ~ 21 days (504 hours)
-        k_el = cl_lin_l_h / v1_l
-        t_half_h = 0.693 / k_el if k_el > 0 else 504.0
 
         # 2. Continuous Differential Equation Simulation
         dt = max(0.5, duration_h / 200.0)
@@ -83,6 +94,24 @@ class BiologicPKPDEngine:
 
         # Target receptor affinity Kd (nM)
         target_kd_nm = 0.5  # Standard picomolar-to-nanomolar mAb affinity
+        raw_targets = compound.get("receptor_targets") or []
+        if isinstance(raw_targets, list) and raw_targets:
+            for tgt in raw_targets:
+                if isinstance(tgt, dict):
+                    aff = tgt.get("affinity_kd") or tgt.get("affinity_ki") or tgt.get("ec50") or tgt.get("affinity_nm")
+                    if aff is not None:
+                        try:
+                            val = float(aff)
+                            if val > 0:
+                                target_kd_nm = val
+                                break
+                        except (ValueError, TypeError):
+                            pass
+        elif compound.get("ec50_nm") is not None and float(compound.get("ec50_nm")) > 0:
+            target_kd_nm = float(compound.get("ec50_nm"))
+        elif compound.get("affinity_kd_nm") is not None and float(compound.get("affinity_kd_nm")) > 0:
+            target_kd_nm = float(compound.get("affinity_kd_nm"))
+
         mw_kda = float(compound.get("molecular_weight") or 145000.0)
         factor_mg_l_to_nm = 1e6 / mw_kda
 

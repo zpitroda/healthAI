@@ -2492,13 +2492,30 @@ class CatalogService:
             return row
 
         existing = conn.execute(
-            "SELECT key FROM compounds WHERE canonical_key = ? OR inchikey = ? LIMIT 1",
+            "SELECT key, name, synonyms FROM compounds WHERE canonical_key = ? OR inchikey = ? LIMIT 1",
             (canonical_key, canonical_key),
         ).fetchone()
         if existing is None or existing["key"] == row["key"]:
             return row
 
-        row["key"] = existing["key"]
+        # Only merge if one key is an accession ID (e.g. CHEMBL, CID) or names/keys match
+        e_key = str(existing["key"]).lower()
+        r_key = str(row["key"]).lower()
+        e_name = str(existing["name"] or "").lower()
+        r_name = str(row.get("name") or "").lower()
+
+        is_accession = any(prefix in e_key for prefix in ["chembl", "cid", "pubchem"]) or any(prefix in r_key for prefix in ["chembl", "cid", "pubchem"])
+        norm_match = (
+            _normalize_compound_name(e_key) == _normalize_compound_name(r_key)
+            or _normalize_compound_name(e_name) == _normalize_compound_name(r_name)
+            or e_key in r_key
+            or r_key in e_key
+            or e_name in r_name
+            or r_name in e_name
+        )
+
+        if is_accession or norm_match:
+            row["key"] = existing["key"]
         return row
 
     def deduplicate_database(self) -> int:

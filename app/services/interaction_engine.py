@@ -2903,6 +2903,205 @@ class InteractionEngine:
                 "panel": "Neurotrophic Panel",
             })
 
+        # 14. HEPATIC TRANSAMINASES & HEPATOBILIARY AXIS (ALT / AST / DILI)
+        alt_shift = shifts_by_id.get("bio_alt")
+        ast_shift = shifts_by_id.get("bio_ast")
+        bili_shift = shifts_by_id.get("bio_total_bilirubin")
+        alp_shift = shifts_by_id.get("bio_alp")
+
+        has_hepatic_profile = (
+            alt_shift is not None
+            or ast_shift is not None
+            or labs.get("alt_u_l") is not None
+            or labs.get("alt") is not None
+            or any(is_17a_alkylated(c) or "hepatic" in str(c.get("drug_class", "")).lower() for c in compounds)
+        )
+
+        if has_hepatic_profile:
+            processed_bio_ids.add("bio_alt")
+
+            is_female_pt = str(profile_data.get("sex", "")).lower().strip() in ["female", "f", "woman"] if profile_data else False
+            def_base_alt = 19.0 if is_female_pt else 26.0
+            def_up_alt = 25.0 if is_female_pt else 33.0
+            def_base_ast = 19.0 if is_female_pt else 24.0
+            def_up_ast = 30.0 if is_female_pt else 35.0
+
+            cal_base_alt, cal_low_alt, cal_up_alt, alt_adjustments = get_demographic_calibrated_reference_range(
+                "bio_alt", profile_data, def_base_alt, 8.0 if is_female_pt else 10.0, def_up_alt
+            )
+            cal_base_ast, cal_low_ast, cal_up_ast, ast_adjustments = get_demographic_calibrated_reference_range(
+                "bio_ast", profile_data, def_base_ast, 8.0 if is_female_pt else 10.0, def_up_ast
+            )
+
+            raw_alt_base = labs.get("alt_u_l") or labs.get("alt") or (alt_shift.get("baseline_value") if alt_shift else None) or cal_base_alt
+            baseline_alt = _to_float(raw_alt_base, cal_base_alt)
+            est_alt = _to_float(alt_shift.get("estimated_value") if alt_shift else None, baseline_alt)
+            delta_alt = _to_float(alt_shift.get("estimated_delta") if alt_shift else None, round(est_alt - baseline_alt, 1))
+            unit = str(alt_shift.get("unit") if alt_shift else "U/L")
+
+            raw_ast_base = labs.get("ast_u_l") or labs.get("ast") or (ast_shift.get("baseline_value") if ast_shift else None) or cal_base_ast
+            baseline_ast = _to_float(raw_ast_base, cal_base_ast)
+            est_ast = _to_float(ast_shift.get("estimated_value") if ast_shift else None, baseline_ast)
+
+            raw_bili = labs.get("total_bilirubin_mg_dl") or labs.get("total_bilirubin") or (bili_shift.get("estimated_value") if bili_shift else None) or 0.8
+            est_bili = _to_float(raw_bili, 0.8)
+
+            raw_alp = labs.get("alp_u_l") or labs.get("alp") or (alp_shift.get("estimated_value") if alp_shift else None) or 65.0
+            est_alp = _to_float(raw_alp, 65.0)
+
+            uln_alt = 25.0 if is_female_pt else 33.0
+            uln_ast = 30.0 if is_female_pt else 35.0
+            uln_bili = 1.2
+            uln_alp = 120.0
+            action_threshold_alt = 35.0 if is_female_pt else 45.0
+
+            # 1. CIOMS R-ratio (Pattern of Liver Injury)
+            r_ratio = (max(1.0, est_alt) / uln_alt) / (max(1.0, est_alp) / uln_alp)
+            if r_ratio >= 5.0:
+                pattern = "Hepatocellular (Cytolytic ALT Leakage Dominant)"
+            elif r_ratio > 2.0:
+                pattern = "Mixed (Hepatocellular Injury with Canalicular Cholestasis)"
+            else:
+                pattern = "Cholestatic (Biliary Canalicular Excretory Dominant)"
+
+            # 2. De Ritis Ratio (AST / ALT) - Pharmacology / Toxicology Framework
+            de_ritis = est_ast / max(1.0, est_alt)
+            if de_ritis < 1.0:
+                de_ritis_type = "Toxic Xenobiotic / Metabolic Hepatocellular Profile (ALT > AST)"
+            elif de_ritis >= 2.0:
+                de_ritis_type = "Marked Mitochondrial / Alcoholic / Ischemic Necrosis Strain (AST >> ALT)"
+            else:
+                de_ritis_type = "Balanced Transaminase Profile (AST ≈ ALT)"
+
+            # 3. Hy's Law Assessment (FDA DILI Gold Standard)
+            hys_law_triggered = (est_alt >= (3.0 * uln_alt)) and (est_bili >= (2.0 * uln_bili)) and (est_alp < (2.0 * uln_alp))
+
+            contributions = (alt_shift.get("compound_contributions") or alt_shift.get("contributions") or []) if alt_shift else []
+            comp_shares = [
+                {
+                    "compound_id": c.get("compound_id"),
+                    "compound_label": c.get("compound_label"),
+                    "delta": c.get("estimated_delta", 0.0),
+                    "formatted_delta": c.get("formatted_delta", f"{c.get('estimated_delta', 0.0):+g} {unit}"),
+                    "direction": "UP" if c.get("contribution_mag", 0) > 0 else "DOWN",
+                }
+                for c in contributions
+            ]
+
+            # Identify genuine hepatotoxic xenobiotics and hepatoprotective cofactors
+            hepatotoxic_comps = [
+                c for c in compounds
+                if is_17a_alkylated(c)
+                or any(w in str(c.get("name", "")).lower() or w in str(c.get("key", "")).lower() for w in ["stanozolol", "oxandrolone", "methandrostenolone", "dianabol", "anadrol", "oxymetholone", "halotestin", "fluoxymesterone", "superdrol", "epistane", "acetaminophen", "paracetamol"])
+                or any("hepatotox" in str(w).lower() for w in (c.get("warnings") or []))
+                or any(cs.get("delta", 0) > 5.0 for cs in comp_shares if cs.get("compound_id") == c.get("key"))
+            ]
+
+            hepatoprotective_comps = [
+                c for c in compounds
+                if any(w in str(c.get("name", "")).lower() or w in str(c.get("key", "")).lower() for w in ["tudca", "tauroursodeoxycholic", "udca", "ursodiol", "nac", "acetylcysteine", "silymarin", "milk thistle", "glutathione", "phosphatidylcholine"])
+                or any(cs.get("delta", 0) < -2.0 for cs in comp_shares if cs.get("compound_id") == c.get("key"))
+            ]
+
+            has_hepatotoxin = bool(hepatotoxic_comps)
+            has_hepatoprotectant = bool(hepatoprotective_comps)
+
+            if hys_law_triggered:
+                status = "HYS_LAW_CRITICAL_DILI"
+                status_label = f"CRITICAL: Hy's Law DILI Alert (ALT {est_alt} {unit}, Bili {est_bili} mg/dL)"
+                status_color = "#dc2626"
+                uncompensated_risks.append({
+                    "axis": "Hepatic Transaminases (Hy's Law DILI)",
+                    "severity": "CRITICAL_RISK",
+                    "title": f"Hy's Law Severe Hepatotoxicity (ALT {est_alt} U/L, Bilirubin {est_bili} mg/dL)",
+                    "description": (
+                        f"Stack triggers FDA Hy's Law criteria: ALT ≥ 3x ULN ({est_alt} U/L, ULN {uln_alt} U/L) combined with "
+                        f"Total Bilirubin ≥ 2x ULN ({est_bili} mg/dL, ULN {uln_bili} mg/dL) without primary biliary obstruction. "
+                        f"Clinical literature associates this profile with ~10% risk of acute liver failure."
+                    ),
+                    "clinical_recommendation": "Immediately discontinue hepatotoxic agents. Re-check complete liver panel (ALT, AST, Bilirubin, INR, Albumin) and institute urgent clinical supervision.",
+                })
+            elif has_hepatotoxin and has_hepatoprotectant and est_alt <= action_threshold_alt:
+                status = "BALANCED_HEPATIC"
+                status_label = f"Protected Hepatobiliary Equilibrium (ALT {est_alt} {unit})"
+                status_color = "#10b981"
+                mitigation = {
+                    "title": "Hepatobiliary Cytoprotection & Transaminase Counterbalance",
+                    "description": (
+                        f"Co-administration of hydrophilic bile acid (TUDCA) and/or glutathione precursor (NAC) "
+                        f"effectively counterbalances 17α-alkylated steroid / xenobiotic hepatotoxicity, stabilizing canalicular transport "
+                        f"and keeping ALT within physiological targets ({est_alt} {unit}, target {cal_low_alt:g}–{cal_up_alt:g} {unit})."
+                    ),
+                    "participating_compounds": [c.get("name") or c.get("key") for c in (hepatotoxic_comps + hepatoprotective_comps)],
+                    "benefited_axis": "Hepatic Transaminases (ALT / AST)",
+                    "risk_reduction_points": 25.0,
+                }
+                active_mitigations.append(mitigation)
+            elif has_hepatotoxin and has_hepatoprotectant and est_alt > action_threshold_alt:
+                status = "PARTIAL_HEPATIC_ATTENUATION"
+                status_label = f"Sub-Target Transaminase Protection (ALT {est_alt} {unit})"
+                status_color = "#f59e0b"
+                uncompensated_risks.append({
+                    "axis": "Hepatic Transaminases (ALT / AST)",
+                    "severity": "MODERATE_RISK",
+                    "title": f"Sub-Target Hepatic Protection (ALT {est_alt} U/L)",
+                    "description": (
+                        f"Despite co-administered hepatoprotective support, projected ALT remains elevated at {est_alt} {unit}, "
+                        f"exceeding the clinical action threshold ({action_threshold_alt} {unit})."
+                    ),
+                    "clinical_recommendation": "Titrate TUDCA upward (500–1000 mg/day), reduce oral hepatotoxic compound dosage or cycle length, and monitor weekly liver panels.",
+                })
+            elif has_hepatotoxin and not has_hepatoprotectant:
+                status = "UNCOMPENSATED_HEPATOTOXIC_STRAIN"
+                status_label = f"Uncompensated Hepatocellular Strain (ALT {est_alt} {unit})"
+                status_color = "#ef4444"
+                is_severe_dili = est_alt >= (2.0 * uln_alt)
+                uncompensated_risks.append({
+                    "axis": "Hepatic Transaminases (ALT / AST)",
+                    "severity": "HIGH_RISK" if is_severe_dili else "MODERATE_RISK",
+                    "title": f"Uncompensated Hepatotoxicity ({', '.join([c.get('name', 'Hepatotoxin') for c in hepatotoxic_comps])})",
+                    "description": (
+                        f"Administration of 17α-alkylated oral androgen or hepatotoxic xenobiotic drives alanine aminotransferase "
+                        f"to {est_alt} {unit} (baseline {baseline_alt} {unit}) without concurrent cytoprotective coverage. "
+                        f"DILI pattern: {pattern}."
+                    ),
+                    "clinical_recommendation": "Incorporate TUDCA (250–500 mg daily) and NAC (600–1200 mg daily) to preserve canalicular transport and replenish hepatocyte glutathione reserves.",
+                })
+            elif est_alt > action_threshold_alt:
+                status = "ELEVATED_TRANSAMINASES"
+                status_label = f"Elevated Transaminases (ALT {est_alt} {unit})"
+                status_color = "#f59e0b"
+            else:
+                status = "NORMAL_PHYSIOLOGICAL"
+                status_label = f"Physiological ALT ({est_alt} {unit})"
+                status_color = "#34d399"
+
+            axes.append({
+                "name": "Hepatic Transaminases & Hepatobiliary Axis",
+                "biomarker_id": "bio_alt",
+                "target_tissue": "Hepatic Parenchyma & Biliary Canaliculi (Liver)",
+                "baseline": baseline_alt,
+                "estimated_value": est_alt,
+                "unit": unit,
+                "safe_range": f"{cal_low_alt:g} - {cal_up_alt:g} {unit}",
+                "safe_lower": cal_low_alt,
+                "safe_upper": cal_up_alt,
+                "action_threshold": action_threshold_alt,
+                "in_safe_range": cal_low_alt <= est_alt <= action_threshold_alt,
+                "status": status,
+                "status_label": status_label,
+                "status_color": status_color,
+                "net_delta_str": f"{'+' if delta_alt > 0 else ''}{delta_alt} {unit} (AST: {est_ast} U/L)",
+                "compounds_breakdown": comp_shares,
+                "biometric_modifiers_applied": alt_adjustments + ([f"DILI Pattern: {pattern}"] if est_alt > cal_up_alt else []),
+                "cioms_r_ratio": round(r_ratio, 2),
+                "dili_pattern": pattern,
+                "de_ritis_ratio": round(de_ritis, 2),
+                "de_ritis_classification": de_ritis_type,
+                "hys_law_triggered": hys_law_triggered,
+                "panel": "Hepatic Panel",
+            })
+
         # 8. ALL OTHER AFFECTED BIOMARKERS FROM DYNAMIC GRAPH CASCADE
         for b in cascade_results.get("biomarker_shifts", []):
             bio_id = str(b.get("biomarker_id") or "")

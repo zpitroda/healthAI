@@ -448,8 +448,8 @@ STRUCTURED_TARGET_CASCADE_SCHEMAS: Dict[str, Dict[str, Any]] = {
     "HEPATIC_METABOLISM": {
         "organ": "Hepatic / Systemic",
         "biomarkers": [
-            {"id": "bio_alt", "label": "Alanine Aminotransferase (ALT)", "unit": "U/L", "panel": "Hepatic Panel", "lower": 7.0, "upper": 56.0, "mag": 0.75},
-            {"id": "bio_ast", "label": "Aspartate Aminotransferase (AST)", "unit": "U/L", "panel": "Hepatic Panel", "lower": 10.0, "upper": 40.0, "mag": 0.70},
+            {"id": "bio_alt", "label": "Alanine Aminotransferase (ALT)", "unit": "U/L", "panel": "Hepatic Panel", "lower": 10.0, "upper": 33.0, "mag": 0.75},
+            {"id": "bio_ast", "label": "Aspartate Aminotransferase (AST)", "unit": "U/L", "panel": "Hepatic Panel", "lower": 10.0, "upper": 35.0, "mag": 0.70},
             {"id": "bio_total_bilirubin", "label": "Total Bilirubin", "unit": "mg/dL", "panel": "Hepatic Panel", "lower": 0.2, "upper": 1.2, "mag": 0.60},
         ],
         "phenotypes": [

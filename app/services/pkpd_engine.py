@@ -152,7 +152,22 @@ class PKPDEngine:
         renal_factor = min(1.5, egfr / 100.0)
 
         alt = max(5.0, float(request.alt_u_l or 25.0))
-        hepatic_factor = (0.6 if alt > 80 else (0.8 if alt > 45 else 1.0)) * age_decline_factor
+        uln_alt = 25.0 if sex == "female" else 33.0
+
+        # Continuous biophysical hepatic clearance scaling:
+        # 1. Cytolytic factor: continuous power-law descent above sex-calibrated ULN
+        cytolytic_factor = max(0.70, (uln_alt / max(uln_alt, alt)) ** 0.35)
+
+        # 2. Synthetic factor: serum albumin reflects functional hepatocyte mass (normal 3.5–5.0 g/dL)
+        alb_val = max(1.5, min(6.0, float(request.serum_albumin_g_dl or 4.5)))
+        synthetic_factor = max(0.60, min(1.0, alb_val / 4.0)) if alb_val < 4.0 else 1.0
+
+        # 3. Excretory / Phase II factor: total bilirubin reflects canalicular transport & UGT clearance (normal <= 1.2 mg/dL)
+        raw_bili = getattr(request, "total_bilirubin_mg_dl", None) or 0.8
+        bili_val = max(0.1, float(raw_bili))
+        excretory_factor = max(0.60, min(1.0, 1.2 / bili_val)) if bili_val > 1.2 else 1.0
+
+        hepatic_factor = cytolytic_factor * synthetic_factor * excretory_factor * age_decline_factor
 
         # Pharmacogenomics (PGx) intrinsic clearance scaling
         from app.services.pgx_engine import PGXEngine

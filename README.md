@@ -48,6 +48,7 @@ Whether you are designing a targeted longevity regimen, red-teaming an advanced 
 - [⚙️ How HealthAI Works (Under the Hood)](#️-how-healthai-works-under-the-hood)
   - [Pharmacokinetic (PK) & Transporter Collision Engine](#pharmacokinetic-pk--transporter-collision-engine)
   - [Biophysical Small-Molecule PBPK & Continuous ODE Mathematics](#biophysical-small-molecule-pbpk--continuous-ode-mathematics)
+  - [Clinical Hepatic Axis, DILI Surveillance & Multi-Analyte Clearance](#clinical-hepatic-axis-dili-surveillance--multi-analyte-clearance)
   - [Biologic PK/PD, Target-Mediated Drug Disposition (TMDD) & FcRn Salvage Kinetics](#biologic-pkpd-target-mediated-drug-disposition-tmdd--fcrn-salvage-kinetics)
   - [RxNorm Relational Graph Decomposition & Multi-Ingredient Resolution](#rxnorm-relational-graph-decomposition--multi-ingredient-resolution)
   - [NCBI MeSH Botanical & Phytochemical Resolution Engine](#ncbi-mesh-botanical--phytochemical-resolution-engine)
@@ -80,6 +81,7 @@ Whether you are designing a targeted longevity regimen, red-teaming an advanced 
 | **Progressive SSE Streaming Search** | Dual-tier search: instantaneous sub-millisecond local in-memory index hits streamed immediately via Server-Sent Events, followed seamlessly by live upstream registry query candidates. |
 | **Multi-Provider AI Copilot** | Multi-persona reasoning drawer (Architect, Auditor, Tutor, Labs) with real-time SSE streaming, tool telemetry, interactive **Action Cards**, and customizable LLM backends (Local CUDA, Ollama, OpenRouter, OpenAI). |
 | **Multi-Agent Syndrome Classifiers** | Continuous detection of life-threatening emergent clinical syndromes: Serotonin Toxicity, QTc Prolongation ($hERG$), Renal "Triple Whammy", GABAergic CNS Depression, and Sympathomimetic Crises. |
+| **Clinical Hepatic Axis & DILI Surveillance** | American College of Gastroenterology (ACG) calibrated gender/BMI transaminase ranges, Hy's Law severe DILI surveillance ($\ge 3\times$ ALT + $\ge 2\times$ Bilirubin), CIOMS R-ratio injury categorization, De Ritis ratio ($AST/ALT$), and continuous multi-analyte hepatic clearance. |
 | **Dynamic Lab & PGx Calibration** | Calibrate predictions using 20+ laboratory markers (eGFR, ALT/AST, electrolytes, vitals, lipids) and pharmacogenomic phenotypes (`CYP2D6`, `CYP2C19`, `CYP3A4`, `SLCO1B1`, `COMT`). |
 | **6-Tier Biological Knowledge Graph** | Cytoscape.js canvas mapping interactions from Compounds $\rightarrow$ Molecular Targets $\rightarrow$ Intracellular Cascades $\rightarrow$ Organ Systems $\rightarrow$ Biomarkers $\rightarrow$ Phenotypes. |
 | **Multi-Temporal Cascade Simulator** | Simulate biological signal propagation and homeostatic adaptation across Acute (hours), Sub-Acute (weeks), and Chronic (months) time horizons. |
@@ -433,6 +435,40 @@ HealthAI's small-molecule PK/PD simulation engine (`pkpd_engine.py`) employs mul
 4. **Sigmoidal $E_{max}$ Hill Pharmacodynamics:**
    Translates dynamic biophysical tissue concentration into receptor occupancy and clinical efficacy:
    $$E(C) = E_0 + \frac{E_{max} \cdot C^\gamma}{EC_{50}^\gamma + C^\gamma}$$
+
+---
+
+### Clinical Hepatic Axis, DILI Surveillance & Multi-Analyte Clearance
+
+Drug-induced liver injury (DILI) and hepatic clearance impairment are modeled as dynamic, continuous biophysical phenomena across three interconnected analytical layers:
+
+1. **ACG Clinical Guideline Transaminase Calibration:**
+   Calculates sex- and body composition-adjusted baseline and upper-limit-of-normal (ULN) thresholds:
+   - **Male**: Baseline $26\text{ U/L}$, safe reference range $10-33\text{ U/L}$ ($\text{ULN} = 33\text{ U/L}$).
+   - **Female**: Baseline $19\text{ U/L}$, safe reference range $8-25\text{ U/L}$ ($\text{ULN} = 25\text{ U/L}$).
+   - **Steatosis Scaling**: When $\text{BMI} > 27.5\text{ kg/m}^2$, baseline transaminases and ULN scale by $1.0 + 0.02 \times (\text{BMI} - 27.5)$ to reflect non-alcoholic fatty liver disease (NAFLD/MASLD) background shifts.
+
+2. **Non-Linear DILI Transaminase Expansion & Hepatoprotective Counterbalance:**
+   - **Toxic Overload**: Potent hepatotoxins (e.g. $17\alpha$-alkylated oral AAS such as stanozolol, oxandrolone, oxymetholone) and multi-agent cumulative toxic burdens trigger non-linear transaminase expansion up to $350+\text{ U/L}$, capturing acute toxic necrosis rather than compressed linear shifts.
+   - **Hepatoprotective Counterbalance**: Co-administered cytoprotective agents (such as Tauroursodeoxycholic Acid / TUDCA and N-Acetylcysteine / NAC) dynamically counterbalance toxic cascades by mitigating mitochondrial oxidative stress and toxic hydrophobic bile acid accumulation.
+
+3. **Hy's Law & CIOMS / R-Ratio DILI Surveillance:**
+   - **Hy's Law Severe Hepatotoxicity Alert**: Detected when acute hepatocellular injury ($\text{ALT} \ge 3 \times \text{ULN}$) occurs concurrently with impaired bilirubin excretion ($\text{Total Bilirubin} \ge 2 \times \text{ULN}$) in the absence of primary cholestasis—a clinical triad associated with $10-50\%$ mortality in drug-induced liver necrosis.
+   - **CIOMS / R-Ratio Injury Phenotyping**:
+     $$R = \frac{\text{ALT} / \text{ULN}_{\text{ALT}}}{\text{ALP} / \text{ULN}_{\text{ALP}}}$$
+     Categorizes liver injury into:
+     - **Hepatocellular**: $R \ge 5.0$ (acute cytolytic necrosis).
+     - **Mixed**: $2.0 < R < 5.0$ (dual parenchymal and biliary injury).
+     - **Cholestatic**: $R \le 2.0$ (biliary stasis and canalicular transporter impairment).
+   - **De Ritis Ratio ($AST/ALT$)**: Evaluates subcellular origin of injury: ratios $> 2.0$ indicate severe mitochondrial necrosis or toxic alcoholic pattern; ratios $< 1.0$ indicate early acute viral or steatohepatitic cytolysis.
+
+4. **Multi-Analyte Continuous Hepatic Clearance Model:**
+   In PBPK simulations (`pkpd_engine.py`), hepatic drug clearance is continuously modulated by combining cytolytic, synthetic, and excretory biomarkers:
+   $$F_{\text{cytolytic}} = \min\left(1.0, 1.0 - 0.55 \cdot \text{clip}\left(\frac{\text{ALT} - \text{ULN}}{3 \cdot \text{ULN}}, 0, 1\right)^{0.85}\right)$$
+   $$F_{\text{synthetic}} = \text{clip}\left(\frac{\text{Albumin}}{4.0}, 0.35, 1.0\right)^{1.2}$$
+   $$F_{\text{excretory}} = \text{clip}\left(\frac{1.2}{\max(0.2, \text{Bilirubin})}, 0.40, 1.0\right)^{0.65}$$
+   $$F_{\text{hepatic}} = 0.55 \cdot F_{\text{cytolytic}} + 0.30 \cdot F_{\text{synthetic}} + 0.15 \cdot F_{\text{excretory}}$$
+   $$CL_{\text{hepatic, adjusted}} = CL_{\text{baseline}} \times \left(f_e + (1 - f_e) \cdot F_{\text{hepatic}}\right)$$
 
 ---
 

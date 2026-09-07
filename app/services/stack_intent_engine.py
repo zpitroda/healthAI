@@ -1740,7 +1740,8 @@ class StackIntentEngine:
         weight_scale = max(0.7, min(1.4, weight_kg / 75.0))
         sex_renal_factor = 0.85 if is_female else 1.0
         renal_scale = (max(0.5, min(1.0, (egfr * sex_renal_factor) / 90.0))) if egfr < 60 else 1.0
-        hepatic_scale = max(0.6, min(1.0, 45.0 / alt_u_l)) if alt_u_l > 45 else 1.0
+        uln_alt = 25.0 if is_female else 33.0
+        hepatic_scale = max(0.6, min(1.0, (uln_alt / alt_u_l) ** 0.5)) if alt_u_l > uln_alt else 1.0
         age_scale = 0.9 if age >= 65 else 1.0
 
         if risk_pref in ("conservative", "low", "cautious", "safe"):

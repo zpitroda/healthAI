@@ -360,32 +360,32 @@ BIOMARKER_CLINICAL_CALIBRATION: Dict[str, Dict[str, Any]] = {
     },
     # 1. Hepatobiliary Domain
     "bio_alt": {
-        "baseline": 24.0,
+        "baseline": 26.0,
         "unit": "U/L",
-        "gain_up": 68.0,
-        "gain_down": 14.0,
+        "gain_up": 180.0,
+        "gain_down": 20.0,
         "safe_lower": 10.0,
-        "safe_upper": 45.0,
+        "safe_upper": 33.0,
         "label": "Alanine Aminotransferase (ALT)",
-        "onset_days": 1.0,
-        "half_time_days": 3.0,
-        "time_to_steady_state_weeks": 1.0,
+        "onset_days": 1.5,
+        "half_time_days": 2.5,
+        "time_to_steady_state_weeks": 1.5,
         "kinetic_profile": "hepatic_enzymatic",
-        "time_course_description": "Hepatocellular enzyme leakage and hepatic clearance (3-7 days to peak)",
+        "time_course_description": "Hepatocellular enzyme leakage from metabolic/xenobiotic stress (3-7 days to peak)",
     },
     "bio_ast": {
-        "baseline": 22.0,
+        "baseline": 24.0,
         "unit": "U/L",
-        "gain_up": 56.0,
-        "gain_down": 12.0,
+        "gain_up": 140.0,
+        "gain_down": 18.0,
         "safe_lower": 10.0,
-        "safe_upper": 40.0,
+        "safe_upper": 35.0,
         "label": "Aspartate Aminotransferase (AST)",
         "onset_days": 1.0,
-        "half_time_days": 2.5,
+        "half_time_days": 2.0,
         "time_to_steady_state_weeks": 1.0,
         "kinetic_profile": "hepatic_enzymatic",
-        "time_course_description": "Cytosolic and mitochondrial AST release from metabolic strain (2-5 days)",
+        "time_course_description": "Cytosolic and mitochondrial AST release from hepatobiliary strain (2-5 days to peak)",
     },
     "bio_total_bilirubin": {
         "baseline": 0.6,
@@ -1118,11 +1118,15 @@ def get_demographic_calibrated_reference_range(
             safe_upper = 50.0
             adjustments.append("Male Sex: Hematocrit Range Calibrated (41.0–50.0%)")
         elif bio_id in {"bio_alt", "alt"}:
-            safe_upper = 45.0
-            adjustments.append("Male Sex: ALT Safety Ceiling Calibrated (45 U/L)")
+            baseline = 26.0
+            safe_lower = 10.0
+            safe_upper = 33.0
+            adjustments.append("Male Sex: ALT Reference Range Calibrated (ACG Standard: 10–33 U/L, Action Threshold 45 U/L)")
         elif bio_id in {"bio_ast", "ast"}:
-            safe_upper = 40.0
-            adjustments.append("Male Sex: AST Safety Ceiling Calibrated (40 U/L)")
+            baseline = 24.0
+            safe_lower = 10.0
+            safe_upper = 35.0
+            adjustments.append("Male Sex: AST Reference Range Calibrated (10–35 U/L, Action Threshold 40 U/L)")
         elif bio_id in {"bio_qtc", "qtc"}:
             safe_upper = 450.0
             adjustments.append("Male Sex: QTc Safety Upper Bound Calibrated (450 ms)")
@@ -1158,11 +1162,15 @@ def get_demographic_calibrated_reference_range(
             safe_upper = 46.0
             adjustments.append("Female Sex: Hematocrit Range Calibrated (36.0–46.0%)")
         elif bio_id in {"bio_alt", "alt"}:
-            safe_upper = 35.0
-            adjustments.append("Female Sex: ALT Safety Ceiling Calibrated (35 U/L)")
+            baseline = 19.0
+            safe_lower = 8.0
+            safe_upper = 25.0
+            adjustments.append("Female Sex: ALT Reference Range Calibrated (ACG Standard: 8–25 U/L, Action Threshold 35 U/L)")
         elif bio_id in {"bio_ast", "ast"}:
-            safe_upper = 32.0
-            adjustments.append("Female Sex: AST Safety Ceiling Calibrated (32 U/L)")
+            baseline = 19.0
+            safe_lower = 8.0
+            safe_upper = 30.0
+            adjustments.append("Female Sex: AST Reference Range Calibrated (8–30 U/L, Action Threshold 32 U/L)")
         elif bio_id in {"bio_qtc", "qtc"}:
             safe_upper = 460.0
             adjustments.append("Female Sex: QTc Safety Upper Bound Calibrated (460 ms)")
@@ -1170,6 +1178,13 @@ def get_demographic_calibrated_reference_range(
             safe_lower = 50.0
             baseline = 55.0
             adjustments.append("Female Sex: HDL-C Target Lower Limit Calibrated (≥ 50 mg/dL)")
+
+    # 1b. BMI-Dependent Baseline ALT Adjustment (Metabolic-Associated Steatotic Liver Disease - MASLD)
+    if bmi and bmi > 27.5 and bio_id in {"bio_alt", "alt"}:
+        bmi_excess = bmi - 27.5
+        steatosis_shift = min(15.0, round(bmi_excess * 0.6, 1))
+        baseline = round(baseline + steatosis_shift, 1)
+        adjustments.append(f"Elevated BMI ({bmi:.1f}): Baseline ALT Calibrated (+{steatosis_shift:g} U/L) for Hepatic Steatosis (MASLD) Vulnerability")
 
     # 2. Age-Adjusted Biological Reference Ranges
     if age_val and age_val > 40:
@@ -1463,6 +1478,8 @@ class BiologicalGraph:
 
                 # Apply biometric scaling to signal propagation
                 scaled_mag = cum_mag * biometric_scale
+                if curr in {"bio_alt", "bio_ast", "bio_total_bilirubin", "bio_alp", "bio_ggt"}:
+                    scaled_mag *= hepatic_strain_factor
 
                 if curr_type == "signaling_pathway":
                     pathway_path_signals.setdefault(curr, {}).setdefault(start, []).append(scaled_mag)
@@ -1676,10 +1693,13 @@ class BiologicalGraph:
                         c_gain = float(calib["gain_up"])
                         if bio_id in {"bio_estradiol", "bio_estrone"}:
                             c_gain *= aromatization_rate_mult
+                        # For severe dangerous hepatotoxicity: non-linear expansion into acute DILI ranges (150–350+ U/L)
+                        if bio_id in {"bio_alt", "bio_ast"} and c_mag > 0.40:
+                            c_gain *= (1.0 + (c_mag - 0.40) * 1.5)
                         c_delta = round(c_mag * c_gain, 1 if baseline >= 10 else 2)
                     else:
-                        # Negative modulator counteracts the elevated positive substrate pool only for enzymatic precursor conversions (e.g. aromatase on estrogens, 5AR on DHT)
-                        if has_positive_driver and bio_id in {"bio_estradiol", "bio_estrone", "bio_dht"}:
+                        # Negative modulator counteracts the elevated positive substrate pool (e.g. AIs on estrogens, 5ARIs on DHT, TUDCA/NAC on ALT/liver)
+                        if has_positive_driver and bio_id in {"bio_estradiol", "bio_estrone", "bio_dht", "bio_alt", "bio_ast", "bio_total_bilirubin"}:
                             c_gain_eff = pos_delta_total + float(calib["gain_down"])
                         else:
                             c_gain_eff = float(calib["gain_down"])
@@ -1687,7 +1707,7 @@ class BiologicalGraph:
                             c_gain_eff *= aromatization_rate_mult
                         c_delta = round(c_mag * c_gain_eff, 1 if baseline >= 10 else 2)
                 else:
-                    if has_positive_driver and c_mag < 0 and bio_id in {"bio_estradiol", "bio_estrone", "bio_dht"}:
+                    if has_positive_driver and c_mag < 0 and bio_id in {"bio_estradiol", "bio_estrone", "bio_dht", "bio_alt", "bio_ast", "bio_total_bilirubin"}:
                         c_gain_eff = pos_delta_total + gain
                     else:
                         c_gain_eff = gain

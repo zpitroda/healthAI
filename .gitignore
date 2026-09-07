@@ -133,6 +133,8 @@ logs/
 /dump.txt
 /targets.txt
 /scratch*.txt
+/seed_compounds.txt
+/scratch_emoji_scan.txt
 
 # Root-Level Scratch, Diagnostic, Fix & Ad-Hoc Scripts
 /scratch*.py
@@ -144,10 +146,25 @@ logs/
 /debug*.py
 /benchmark_*.py
 /test_*.py
+/patch.py
+/refactor*.py
+/split.py
 
-# Always track official test suite and fixtures (while ignoring cache)
-!/tests/**
-tests/**/__pycache__/
+# Test Suites, Fixtures, Benchmarks & Test Infrastructure (Site-Essential Files Only)
+tests/
+/tests/
+/tests/**
+test_*.py
+/test_*.py
+
+# Agent Instructions, System Prompts, Internal Architecture & AI Metadata
+GEMINI.md
+PROJECT_MAP.md
+CLAUDE.md
+.cursorrules
+.cursor/
+.agent/
+.gemini/
 
 # Operating System Files
 .DS_Store

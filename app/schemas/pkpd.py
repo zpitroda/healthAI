@@ -150,6 +150,7 @@ class PKPDSimulationRequest(BaseModel):
     egfr_ml_min: Optional[float] = Field(default=None, description="Patient eGFR for renal clearance scaling (auto-calculated from age/sex/weight/creatinine if None)")
     alt_u_l: Optional[float] = Field(default=25.0, description="Patient ALT for hepatic clearance scaling")
     serum_albumin_g_dl: Optional[float] = Field(default=4.5, description="Patient serum albumin for protein binding scaling")
+    total_bilirubin_mg_dl: Optional[float] = Field(default=0.8, description="Patient total bilirubin for hepatic excretory/phase II clearance scaling")
     circadian_dosing_time_h: Optional[float] = Field(default=8.0, ge=0.0, le=24.0, description="Hour of day for administration (0-24, default 8.0 = 8 AM)")
     enable_pbpk_tissues: bool = Field(default=True, description="Enable Rodgers-Rowland whole-body PBPK tissue partitioning")
     enable_receptor_tolerance: bool = Field(default=True, description="Enable dynamic receptor desensitization and internalization ODE")

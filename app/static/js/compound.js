@@ -246,10 +246,14 @@ if (window.lucide && typeof window.lucide.createIcons === 'function') {
         targetInfoModal.classList.remove('hidden');
       }
 
-      targetModalClose.addEventListener('click', () => targetInfoModal.classList.add('hidden'));
-      targetInfoModal.addEventListener('click', (event) => {
-        if (event.target === targetInfoModal) targetInfoModal.classList.add('hidden');
-      });
+      if (targetModalClose && targetInfoModal) {
+        targetModalClose.addEventListener('click', () => targetInfoModal.classList.add('hidden'));
+      }
+      if (targetInfoModal) {
+        targetInfoModal.addEventListener('click', (event) => {
+          if (event.target === targetInfoModal) targetInfoModal.classList.add('hidden');
+        });
+      }
 
       // ==========================================================================
       // CYTOSCAPE HIGH-DPI PK/PD GRAPH RENDERING
@@ -440,11 +444,13 @@ if (window.lucide && typeof window.lucide.createIcons === 'function') {
         return state.cy;
       }
 
-      quickCardDetailBtn.addEventListener('click', () => {
-        if (state.selectedNode) {
-          openTargetModal(state.selectedNode);
-        }
-      });
+      if (quickCardDetailBtn) {
+        quickCardDetailBtn.addEventListener('click', () => {
+          if (state.selectedNode) {
+            openTargetModal(state.selectedNode);
+          }
+        });
+      }
 
       // CASCADE TIER FLOW LAYOUT
       function applyTierFlowLayout(cy) {
@@ -554,36 +560,38 @@ if (window.lucide && typeof window.lucide.createIcons === 'function') {
       }
 
       // SIMULATE CASCADE SIGNAL FLOW
-      btnSimulateFlow.addEventListener('click', () => {
-        if (!state.cy || state.simulating) return;
-        state.simulating = true;
-        btnSimulateFlow.classList.add('active');
-        btnSimulateFlow.innerHTML = `${iconSvg('activity', { class: 'icon-xs' })} Propagating…`;
+      if (btnSimulateFlow) {
+        btnSimulateFlow.addEventListener('click', () => {
+          if (!state.cy || state.simulating) return;
+          state.simulating = true;
+          btnSimulateFlow.classList.add('active');
+          btnSimulateFlow.innerHTML = `${iconSvg('activity', { class: 'icon-xs' })} Propagating…`;
 
-        const cy = state.cy;
-        let step = 0;
-        cy.elements().removeClass('highlighted').addClass('faded');
+          const cy = state.cy;
+          let step = 0;
+          cy.elements().removeClass('highlighted').addClass('faded');
 
-        const interval = setInterval(() => {
-          if (step > 5) {
-            clearInterval(interval);
-            setTimeout(() => {
-              cy.elements().removeClass('faded').removeClass('highlighted');
-              state.simulating = false;
-              btnSimulateFlow.classList.remove('active');
-              btnSimulateFlow.innerHTML = `${iconSvg('zap', { class: 'icon-xs' })} Simulate Flow`;
-            }, 500);
-            return;
-          }
+          const interval = setInterval(() => {
+            if (step > 5) {
+              clearInterval(interval);
+              setTimeout(() => {
+                cy.elements().removeClass('faded').removeClass('highlighted');
+                state.simulating = false;
+                btnSimulateFlow.classList.remove('active');
+                btnSimulateFlow.innerHTML = `${iconSvg('zap', { class: 'icon-xs' })} Simulate Flow`;
+              }, 500);
+              return;
+            }
 
-          const currentNodes = cy.nodes().filter(n => (n.data('tier') || 0) === step);
-          const currentEdges = cy.edges().filter(e => (e.source().data('tier') || 0) === step - 1 || (e.source().data('tier') || 0) === step);
+            const currentNodes = cy.nodes().filter(n => (n.data('tier') || 0) === step);
+            const currentEdges = cy.edges().filter(e => (e.source().data('tier') || 0) === step - 1 || (e.source().data('tier') || 0) === step);
 
-          currentNodes.removeClass('faded').addClass('highlighted');
-          currentEdges.removeClass('faded').addClass('highlighted');
-          step++;
-        }, 350);
-      });
+            currentNodes.removeClass('faded').addClass('highlighted');
+            currentEdges.removeClass('faded').addClass('highlighted');
+            step++;
+          }, 350);
+        });
+      }
 
       // FILTER BUTTONS
       filterBtns.forEach(btn => {
@@ -595,21 +603,32 @@ if (window.lucide && typeof window.lucide.createIcons === 'function') {
         });
       });
 
-      layoutSelect.addEventListener('change', () => renderGraph());
-      document.getElementById('zoomIn').addEventListener('click', () => {
-        if (!state.cy) return;
-        state.cy.zoom(state.cy.zoom() + 0.25);
-      });
-      document.getElementById('zoomOut').addEventListener('click', () => {
-        if (!state.cy) return;
-        state.cy.zoom(state.cy.zoom() - 0.25);
-      });
-      document.getElementById('fitView').addEventListener('click', () => {
-        if (state.cy) {
-          state.cy.fit(undefined, 35);
-          state.cy.center();
-        }
-      });
+      if (layoutSelect) {
+        layoutSelect.addEventListener('change', () => renderGraph());
+      }
+      const zoomInBtn = document.getElementById('zoomIn');
+      if (zoomInBtn) {
+        zoomInBtn.addEventListener('click', () => {
+          if (!state.cy) return;
+          state.cy.zoom(state.cy.zoom() + 0.25);
+        });
+      }
+      const zoomOutBtn = document.getElementById('zoomOut');
+      if (zoomOutBtn) {
+        zoomOutBtn.addEventListener('click', () => {
+          if (!state.cy) return;
+          state.cy.zoom(state.cy.zoom() - 0.25);
+        });
+      }
+      const fitViewBtn = document.getElementById('fitView');
+      if (fitViewBtn) {
+        fitViewBtn.addEventListener('click', () => {
+          if (state.cy) {
+            state.cy.fit(undefined, 35);
+            state.cy.center();
+          }
+        });
+      }
 
       function loadGraph(compound) {
         const key = compound.key || compound.name;
@@ -1062,19 +1081,21 @@ if (window.lucide && typeof window.lucide.createIcons === 'function') {
       // INITIAL FETCH
       fetch(`/catalog/${encodeURIComponent(compoundKey)}`)
         .then((response) => {
-          if (!response.ok) throw new Error('Compound not found');
+          if (!response.ok) throw new Error(`Compound not found (HTTP ${response.status})`);
           return response.json();
         })
         .then((compound) => {
-          compoundLoading.style.display = 'none';
+          if (compoundLoading) compoundLoading.style.display = 'none';
           renderCompound(compound);
           loadGraph(compound);
           loadEvidenceDossier(compoundKey);
         })
         .catch((error) => {
-          compoundLoading.style.display = 'none';
-          compoundError.style.display = 'block';
-          compoundError.textContent = 'Unable to load this compound. Please return to the catalog and select a valid entry.';
+          if (compoundLoading) compoundLoading.style.display = 'none';
+          if (compoundError) {
+            compoundError.style.display = 'block';
+            compoundError.textContent = `Unable to load "${compoundKey}". Please check the spelling or select a valid entry from the catalog.`;
+          }
           const graphOverlay = document.getElementById('graphLoadingOverlay');
           if (graphOverlay) graphOverlay.classList.add('hidden');
           console.error('Failed to fetch compound details', error);

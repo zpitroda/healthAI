@@ -70,14 +70,19 @@ def get_compound_pkpd(compound_key: str) -> JSONResponse:
     }, headers=NO_CACHE_HEADERS)
 
 
-@router.post("/api/compounds/{compound_key}/enrich-full")
-def enrich_compound_full(compound_key: str) -> JSONResponse:
+from datetime import datetime, timezone
+
+@router.api_route("/api/compounds/{compound_key}/enrich-full", methods=["GET", "POST"])
+def enrich_compound_full(compound_key: str, force: bool = False) -> JSONResponse:
     """
     Performs full multi-source structured enrichment (PubChem, ChEMBL Activity, UniProt, Reactome, OpenFDA)
     and saves the enriched quantitative PK/PD parameters to the SQLite database.
     """
     service = CatalogService()
     compound = service.get_compound(compound_key)
+    if compound and compound.get("last_enriched_at") and not force:
+        return JSONResponse(compound, headers=NO_CACHE_HEADERS)
+
     if not compound:
         compound = {
             "key": compound_key.strip().lower().replace(" ", "_"),
@@ -92,6 +97,11 @@ def enrich_compound_full(compound_key: str) -> JSONResponse:
     # 2. Structured PK/PD Enrichment (PubChem PUG-REST + ChEMBL quantitative affinities + USAN)
     pkpd_enricher = PKPDEnricher()
     enriched = pkpd_enricher.enrich_compound_pkpd(enriched)
+
+    # Mark enrichment timestamp
+    enriched["last_enriched_at"] = datetime.now(timezone.utc).isoformat()
+    if enriched.get("source_tier") == "seed":
+        enriched["source_tier"] = "live_enrichment"
 
     # Save to SQLite database
     saved = service.upsert_compound(enriched)

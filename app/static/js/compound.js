@@ -1181,34 +1181,6 @@ if (window.lucide && typeof window.lucide.createIcons === 'function') {
         }
       });
 
-      // Deep Enrich Button Listener
-      const btnDeepEnrich = document.getElementById('btnDeepEnrich');
-      if (btnDeepEnrich) {
-        btnDeepEnrich.addEventListener('click', () => {
-          btnDeepEnrich.innerHTML = `<span class="compound-spinner-sm"></span> Enriching PubChem/ChEMBL/Reactome…`;
-          btnDeepEnrich.style.opacity = '0.7';
-
-          fetch(`/api/compounds/${encodeURIComponent(currentCompoundKey)}/enrich-full`, { method: 'POST' })
-            .then(res => res.json())
-            .then(updated => {
-              btnDeepEnrich.innerHTML = `${iconSvg('check', { class: 'icon-xs icon-emerald' })} Enriched & Saved`;
-              btnDeepEnrich.style.opacity = '1';
-              renderCompound(updated);
-              setTimeout(() => {
-                btnDeepEnrich.innerHTML = `${iconSvg('zap', { class: 'icon-xs' })} Full PK/PD Enrich`;
-              }, 2500);
-            })
-            .catch(err => {
-              console.error('Enrichment failed', err);
-              btnDeepEnrich.innerHTML = `${iconSvg('alert-circle', { class: 'icon-xs icon-rose' })} Enrichment Error`;
-              setTimeout(() => {
-                btnDeepEnrich.innerHTML = `${iconSvg('zap', { class: 'icon-xs' })} Full PK/PD Enrich`;
-                btnDeepEnrich.style.opacity = '1';
-              }, 2500);
-            });
-        });
-      }
-
       // Mobile menu toggle handling
       const compoundMobileMenuBtn = document.getElementById('mobile-menu-toggle');
       const compoundNavLinks = document.getElementById('nav-links');
@@ -1403,7 +1375,10 @@ if (window.lucide && typeof window.lucide.createIcons === 'function') {
         if (graphOverlay) graphOverlay.classList.remove('hidden');
 
         try {
-          const response = await fetch(`/catalog/${encodeURIComponent(key)}`);
+          let response = await fetch(`/catalog/${encodeURIComponent(key)}?full_enrich=true`);
+          if (!response.ok) {
+            response = await fetch(`/catalog/${encodeURIComponent(key)}`);
+          }
           if (!response.ok) {
             throw new Error(`Compound "${key}" not found (HTTP ${response.status})`);
           }

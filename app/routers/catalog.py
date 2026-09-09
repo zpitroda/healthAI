@@ -134,8 +134,13 @@ def list_catalog(
 def get_catalog_item(
     compound_key: str,
     auto_enrich: bool = Query(default=True),
+    full_enrich: bool = Query(default=False),
 ) -> JSONResponse:
     """Retrieve full pharmacology profile for a compound by key or canonical name with write-through cache."""
+    if full_enrich:
+        from app.routers.pkpd import enrich_compound_full
+        return enrich_compound_full(compound_key)
+
     service = get_catalog_service()
     # Check if local hit first to set cache headers
     local_compound = service.get_compound(compound_key, auto_enrich=False)

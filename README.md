@@ -724,13 +724,14 @@ HealthAI provides a clean, modular REST and WebSocket API documented interactive
 | **Knowledge Graph**| `POST` | `/api/graph/cypher` | Executes custom Cypher queries against the Neo4j database. |
 | **PBPK / ODE** | `POST` | `/api/pkpd/simulate` | Simulates 2-compartment small-molecule or biologic TMDD/FcRn curves and Hill PD. |
 | **Catalog** | `GET` | `/catalog` | Paginated catalog listing with multi-token search and modality filtering. |
+| **Catalog** | `GET` | `/catalog/{key}` | Retrieves compound pharmacology; supports `?full_enrich=true` for automatic default enrichment. |
 | **Catalog Index** | `GET` | `/api/compounds/index` | Full in-memory tokenized search prefix index for sub-millisecond autocomplete. |
 | **Catalog Search**| `GET` | `/api/compounds/search` | Typeahead search across compound keys, names, classes, and modalities. |
 | **Catalog Search**| `GET` | `/api/compounds/search/stream` | Progressive dual-tier SSE search (local matches first, live registry stream second). |
 | **Decomposition** | `GET` | `/api/catalog/decompose/{query}` | Decomposes brand/combo drugs into active chemical entities via RxNorm Graph. |
 | **Botanical** | `GET` | `/api/catalog/botanical/{query}` | Resolves crude botanicals to NCBI MeSH Tree B01 & active phytochemicals. |
 | **Modality** | `GET` | `/api/catalog/modality/{query}` | Classifies substance modality across 10 classes via NCATS G-SRS and ChEMBL. |
-| **Catalog** | `POST` | `/api/compounds/{key}/enrich-full` | Triggers full live multi-source enrichment (PubChem, ChEMBL, UniProt, OpenFDA). |
+| **Catalog** | `GET / POST` | `/api/compounds/{key}/enrich-full` | Triggers full live multi-source enrichment (PubChem, ChEMBL, UniProt, OpenFDA) and caches to SQLite. |
 | **Enrichment WS**| `WS` | `/ws/enrichment` | WebSocket stream broadcasting real-time background worker progress and logs. |
 
 ---

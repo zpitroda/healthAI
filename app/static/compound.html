@@ -3,7 +3,7 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Compound Intelligence & PK/PD Network // HealthAI</title>
+    <title>Compound Explorer // PK/PD Network & Intelligence // HealthAI</title>
     <link rel="icon" type="image/x-icon" href="/favicon.ico" />
     <link rel="icon" type="image/png" sizes="32x32" href="/static/favicon-32x32.png" />
     <link rel="icon" type="image/png" sizes="16x16" href="/static/favicon-16x16.png" />
@@ -65,7 +65,7 @@
         <div class="brand-wrap">
           <div class="brand-logo" style="display:inline-flex; align-items:center; justify-content:center;"><i data-lucide="network" class="icon-md icon-cyan"></i></div>
           <div>
-            <div class="brand-title" id="topbarTitle">Compound Intelligence</div>
+            <div class="brand-title" id="topbarTitle">Compound Explorer</div>
           </div>
           <span class="brand-tag">PK/PD Engine</span>
         </div>
@@ -77,12 +77,86 @@
         <nav class="nav-links" id="nav-links">
           <a href="/" class="nav-link">Safety Lab</a>
           <a href="/graph" class="nav-link">Knowledge Graph</a>
-          <a href="/compound?key=caffeine" class="nav-link active">Compound DB</a>
+          <a href="/compound" class="nav-link active">Compound Explorer</a>
           <a href="/debug" class="nav-link">Debug Workbench</a>
           <a href="javascript:void(0)" onclick="HealthAIDisclaimer.open('medical')" class="nav-link" style="color:#fbbf24; font-weight:700; display:inline-flex; align-items:center; gap:4px;"><i data-lucide="alert-triangle" class="icon-xs icon-amber"></i> Disclaimer</a>
           <a href="#" id="openInGraphBtn" class="nav-link btn-primary" style="display:inline-flex; align-items:center; gap:5px;"><span>Open in Graph Studio</span> <i data-lucide="external-link" class="icon-xs"></i></a>
         </nav>
       </header>
+
+      <!-- COMPOUND EXPLORER & SEARCH BAR -->
+      <section class="compound-search-section">
+        <div class="compound-search-container">
+          <div class="compound-search-header-row">
+            <div class="compound-search-heading">
+              <span style="display:inline-flex; align-items:center; gap:6px; font-weight:800; font-size:0.88rem; color:#f8fafc; letter-spacing:-0.2px;">
+                <i data-lucide="flask-conical" class="icon-sm icon-cyan"></i> Compound Catalog & Registry Explorer
+              </span>
+              <span style="font-size:0.75rem; color:var(--text-muted);">Instant search across 90+ verified molecules & live biomedical registries</span>
+            </div>
+
+            <div class="compound-search-modality-bar" id="compound-search-modality-bar">
+              <button type="button" class="search-mod-btn active" data-modality="all" onclick="setCompoundSearchModality('all', this)" title="All modalities">
+                All Modalities
+              </button>
+              <button type="button" class="search-mod-btn" data-modality="small_molecule" onclick="setCompoundSearchModality('small_molecule', this)" title="Small molecule therapeutics & supplements">
+                Small Molecule
+              </button>
+              <button type="button" class="search-mod-btn" data-modality="peptide" onclick="setCompoundSearchModality('peptide', this)" title="Peptides & bio-active hormones">
+                Peptides
+              </button>
+              <button type="button" class="search-mod-btn" data-modality="biologic_antibody" onclick="setCompoundSearchModality('biologic_antibody', this)" title="Biologics & monoclonal antibodies">
+                Biologics
+              </button>
+              <button type="button" class="search-mod-btn" data-modality="botanical_natural" onclick="setCompoundSearchModality('botanical_natural', this)" title="Botanicals & phytochemical complexes">
+                Botanicals
+              </button>
+            </div>
+          </div>
+
+          <div class="compound-search-bar-wrap">
+            <div class="compound-search-input-wrapper">
+              <span class="search-icon"><i data-lucide="search" class="icon-sm"></i></span>
+              <input
+                type="text"
+                id="compound-db-search-input"
+                class="compound-search-input"
+                placeholder="Search compound by name, class, synonym, or novel drug (e.g. Telmisartan, Semaglutide, Tadalafil, Curcumin)..."
+                autocomplete="off"
+                spellcheck="false"
+                aria-label="Search compounds in database"
+              />
+              <span id="compound-search-loading-spinner" class="compound-search-spinner" style="display:none;" title="Searching catalog & registries...">
+                <span class="compound-spinner-sm"></span>
+              </span>
+              <button type="button" id="compound-search-clear-btn" class="compound-search-clear-btn" style="display:none;" title="Clear search">
+                <i data-lucide="x" class="icon-xs"></i>
+              </button>
+              <span class="compound-search-shortcut" title="Press Ctrl+K or / to search"><kbd>Ctrl</kbd><kbd>K</kbd></span>
+            </div>
+
+            <!-- SEARCH DROPDOWN -->
+            <div id="compound-search-dropdown" class="compound-search-dropdown" style="display:none;"></div>
+          </div>
+
+          <!-- QUICK PICKS / POPULAR COMPOUNDS -->
+          <div class="compound-quick-picks">
+            <span class="quick-picks-label"><i data-lucide="sparkles" class="icon-xs icon-cyan"></i> Quick Explore:</span>
+            <div class="quick-picks-chips" id="quickPicksChips">
+              <button type="button" class="quick-chip" data-key="caffeine">Caffeine</button>
+              <button type="button" class="quick-chip" data-key="telmisartan">Telmisartan</button>
+              <button type="button" class="quick-chip" data-key="semaglutide">Semaglutide</button>
+              <button type="button" class="quick-chip" data-key="tadalafil">Tadalafil</button>
+              <button type="button" class="quick-chip" data-key="curcumin">Curcumin</button>
+              <button type="button" class="quick-chip" data-key="clenbuterol">Clenbuterol</button>
+              <button type="button" class="quick-chip" data-key="theanine">L-Theanine</button>
+              <button type="button" class="quick-chip" data-key="creatine">Creatine</button>
+              <button type="button" class="quick-chip" data-key="nebivolol">Nebivolol</button>
+              <button type="button" class="quick-chip" data-key="berberine">Berberine</button>
+            </div>
+          </div>
+        </div>
+      </section>
 
       <!-- SPLIT WORKSPACE -->
       <div class="layout">

@@ -5,13 +5,27 @@ var iconSvg = window.iconSvg || function(name, options = {}) {
 if (window.lucide && typeof window.lucide.createIcons === 'function') {
   window.lucide.createIcons();
 }
+      function escapeHtml(str) {
+        if (str === null || str === undefined) return '';
+        return String(str)
+          .replace(/&/g, '&amp;')
+          .replace(/</g, '&lt;')
+          .replace(/>/g, '&gt;')
+          .replace(/"/g, '&quot;')
+          .replace(/'/g, '&#039;');
+      }
+
       const urlParams = new URLSearchParams(window.location.search);
       let pathCompound = decodeURIComponent(window.location.pathname.split('/').filter(Boolean).slice(-1)[0] || '');
       if (pathCompound === 'compound') pathCompound = '';
-      const compoundKey = urlParams.get('key') || pathCompound || 'caffeine';
+      let currentCompoundKey = urlParams.get('key') || pathCompound || 'caffeine';
       const compoundLoading = document.getElementById('compoundLoading');
       const compoundError = document.getElementById('compoundError');
       const compoundContent = document.getElementById('compoundContent');
+      const compoundSearchInput = document.getElementById('compound-db-search-input');
+      const compoundSearchDropdown = document.getElementById('compound-search-dropdown');
+      const compoundSearchSpinner = document.getElementById('compound-search-loading-spinner');
+      const compoundSearchClearBtn = document.getElementById('compound-search-clear-btn');
       const targetInfoModal = document.getElementById('targetInfoModal');
       const targetModalClose = document.getElementById('targetModalClose');
       const layoutSelect = document.getElementById('layoutSelect');
@@ -67,7 +81,7 @@ if (window.lucide && typeof window.lucide.createIcons === 'function') {
 
       function renderCompound(compound) {
         state.compound = compound;
-        document.getElementById('topbarTitle').textContent = compound.name || compound.key || 'Compound Intelligence';
+        document.getElementById('topbarTitle').textContent = compound.name || compound.key || 'Compound Explorer';
         document.getElementById('compoundName').textContent = compound.name || compound.key || 'Compound';
         document.getElementById('compoundSubtitle').textContent = compound.canonical_name || compound.name || 'No canonical name recorded';
         document.getElementById('compoundRisk').textContent = compound.risk_band || 'LOW';
@@ -943,7 +957,7 @@ if (window.lucide && typeof window.lucide.createIcons === 'function') {
         document.getElementById('simModeTag').textContent = regimen === 'steady_state' ? 'Bateman Steady-State' : 'Single-Dose Oral Curve';
 
         const payload = {
-          compound_key: state.compound.key || compoundKey,
+          compound_key: (state.compound && state.compound.key) ? state.compound.key : currentCompoundKey,
           dose_mg: dose,
           dosing_interval_h: tau,
           simulation_duration_h: tau * 2,
@@ -1174,7 +1188,7 @@ if (window.lucide && typeof window.lucide.createIcons === 'function') {
           btnDeepEnrich.innerHTML = `<span class="compound-spinner-sm"></span> Enriching PubChem/ChEMBL/Reactome…`;
           btnDeepEnrich.style.opacity = '0.7';
 
-          fetch(`/api/compounds/${encodeURIComponent(compoundKey)}/enrich-full`, { method: 'POST' })
+          fetch(`/api/compounds/${encodeURIComponent(currentCompoundKey)}/enrich-full`, { method: 'POST' })
             .then(res => res.json())
             .then(updated => {
               btnDeepEnrich.innerHTML = `${iconSvg('check', { class: 'icon-xs icon-emerald' })} Enriched & Saved`;
@@ -1347,25 +1361,533 @@ if (window.lucide && typeof window.lucide.createIcons === 'function') {
           });
       }
 
-      // INITIAL FETCH
-      fetch(`/catalog/${encodeURIComponent(compoundKey)}`)
-        .then((response) => {
-          if (!response.ok) throw new Error(`Compound not found (HTTP ${response.status})`);
-          return response.json();
-        })
-        .then((compound) => {
+      // ==========================================================================
+      // COMPOUND DYNAMIC LOADING & NAVIGATION
+      // ==========================================================================
+      function updateActiveQuickChips(key) {
+        const normKey = String(key || '').toLowerCase().trim();
+        document.querySelectorAll('.quick-chip').forEach(chip => {
+          const chipKey = String(chip.dataset.key || '').toLowerCase().trim();
+          if (chipKey === normKey) {
+            chip.classList.add('active');
+          } else {
+            chip.classList.remove('active');
+          }
+        });
+      }
+
+      async function loadCompound(key, updateUrl = true) {
+        if (!key) return;
+        key = String(key).trim();
+        currentCompoundKey = key;
+        state.compound = null;
+
+        if (updateUrl) {
+          const targetUrl = `/compound?key=${encodeURIComponent(key)}`;
+          const currentLoc = window.location.pathname + window.location.search;
+          if (currentLoc !== targetUrl) {
+            window.history.pushState({ key }, '', targetUrl);
+          }
+        }
+
+        updateActiveQuickChips(key);
+
+        if (compoundContent) compoundContent.style.display = 'none';
+        if (compoundError) compoundError.style.display = 'none';
+        if (compoundLoading) {
+          compoundLoading.style.display = 'block';
+          const statusText = document.getElementById('compoundLoadingStatusText');
+          if (statusText) statusText.textContent = `Fetching molecular targets, ADMET kinetics & clinical safety profile for ${key}…`;
+        }
+        const graphOverlay = document.getElementById('graphLoadingOverlay');
+        if (graphOverlay) graphOverlay.classList.remove('hidden');
+
+        try {
+          const response = await fetch(`/catalog/${encodeURIComponent(key)}`);
+          if (!response.ok) {
+            throw new Error(`Compound "${key}" not found (HTTP ${response.status})`);
+          }
+          const compound = await response.json();
           if (compoundLoading) compoundLoading.style.display = 'none';
           renderCompound(compound);
+          document.title = `${compound.name || key} // Compound Explorer // HealthAI`;
+
+          // Trigger dynamic PK/PD simulation
+          runPKPDSimulation();
+
+          // Construct Cytoscape interaction network
           loadGraph(compound);
-          loadEvidenceDossier(compoundKey);
-        })
-        .catch((error) => {
+
+          // Fetch and render clinical evidence dossier
+          loadEvidenceDossier(key);
+
+          if (window.lucide && typeof window.lucide.createIcons === 'function') {
+            window.lucide.createIcons();
+          }
+        } catch (err) {
+          console.error('Failed to fetch compound details:', err);
           if (compoundLoading) compoundLoading.style.display = 'none';
           if (compoundError) {
             compoundError.style.display = 'block';
-            compoundError.textContent = `Unable to load "${compoundKey}". Please check the spelling or select a valid entry from the catalog.`;
+            compoundError.innerHTML = `
+              <div style="padding: 16px 20px; background: rgba(239, 68, 68, 0.1); border: 1px solid rgba(239, 68, 68, 0.35); border-radius: 12px; margin-bottom: 20px;">
+                <div style="font-weight: 800; font-size: 1.05rem; color: #ef4444; margin-bottom: 6px; display: flex; align-items: center; gap: 8px;">
+                  <span>⚠️</span> Unable to load "${escapeHtml(key)}"
+                </div>
+                <div style="font-size: 0.85rem; color: var(--text-secondary); margin-bottom: 14px; line-height: 1.5;">
+                  This entry could not be retrieved from the catalog. You can search for another compound above or select one of the verified database entries.
+                </div>
+                <div style="display: flex; gap: 8px; flex-wrap: wrap;">
+                  <button type="button" class="quick-chip active" onclick="loadCompound('caffeine', true)">Explore Caffeine</button>
+                  <button type="button" class="quick-chip" onclick="loadCompound('telmisartan', true)">Explore Telmisartan</button>
+                  <button type="button" class="quick-chip" onclick="loadCompound('semaglutide', true)">Explore Semaglutide</button>
+                </div>
+              </div>
+            `;
           }
-          const graphOverlay = document.getElementById('graphLoadingOverlay');
           if (graphOverlay) graphOverlay.classList.add('hidden');
-          console.error('Failed to fetch compound details', error);
+        }
+      }
+      window.loadCompound = loadCompound;
+
+      // ==========================================================================
+      // SEARCH INDEX PRELOAD & TYPEAHEAD ENGINE
+      // ==========================================================================
+      let _catalogSearchIndex = [];
+      let _searchQueryCache = {};
+      let _clientCatalogCache = {};
+      let currentSearchModality = 'all';
+
+      async function loadCatalogSearchIndex() {
+        try {
+          const cached = localStorage.getItem('healthai_search_index_v2');
+          if (cached) {
+            try {
+              _catalogSearchIndex = JSON.parse(cached);
+              _catalogSearchIndex.forEach(item => {
+                if (item && item.key) _clientCatalogCache[item.key] = item;
+              });
+            } catch (e) {}
+          }
+          const res = await fetch('/api/compounds/index');
+          if (res.ok) {
+            const data = await res.json();
+            if (Array.isArray(data) && data.length) {
+              _catalogSearchIndex = data;
+              data.forEach(item => {
+                if (item && item.key) {
+                  _clientCatalogCache[item.key] = item;
+                  if (item.key.includes('_')) _clientCatalogCache[item.key.replace(/_/g, '-')] = item;
+                }
+              });
+              try {
+                localStorage.setItem('healthai_search_index_v2', JSON.stringify(data));
+              } catch (e) {}
+            }
+          }
+        } catch (err) {
+          console.debug('Index preload deferred:', err);
+        }
+      }
+      loadCatalogSearchIndex();
+
+      window.setCompoundSearchModality = function(modality, btn) {
+        currentSearchModality = modality || 'all';
+        const bar = document.getElementById('compound-search-modality-bar');
+        if (bar) {
+          bar.querySelectorAll('.search-mod-btn').forEach(b => b.classList.remove('active'));
+        }
+        if (btn) {
+          btn.classList.add('active');
+        } else if (bar) {
+          const target = bar.querySelector(`.search-mod-btn[data-modality="${currentSearchModality}"]`);
+          if (target) target.classList.add('active');
+        }
+
+        if (compoundSearchInput && compoundSearchInput.value.trim().length > 0) {
+          compoundSearchInput.dispatchEvent(new Event('input'));
+        }
+      };
+
+      function filterLocalCatalogIndex(query, modality = 'all') {
+        if (!_catalogSearchIndex || !_catalogSearchIndex.length) return [];
+        const q = String(query || '').toLowerCase().trim();
+        if (!q) return [];
+
+        const matches = [];
+        for (const c of _catalogSearchIndex) {
+          if (modality && modality !== 'all') {
+            const mod = String(c.modality || '').toLowerCase();
+            const drugClass = String(c.drug_class || '').toLowerCase();
+            if (modality === 'peptide' && !(mod === 'peptide' || c.is_peptide || drugClass.includes('peptide') || drugClass.includes('glp-1'))) continue;
+            if (modality === 'biologic_antibody' && !(mod === 'biologic_antibody' || c.is_biologic || drugClass.includes('biologic') || drugClass.includes('antibody') || drugClass.includes('mab'))) continue;
+            if (modality === 'botanical_natural' && !(mod === 'botanical_natural' || c.is_botanical || drugClass.includes('botanical') || drugClass.includes('herb'))) continue;
+            if (modality === 'combination_drug' && !(mod === 'combination_drug' || c.is_combination || drugClass.includes('combination') || drugClass.includes('combo'))) continue;
+            if (modality === 'small_molecule' && (c.is_peptide || c.is_biologic || c.is_botanical || c.is_combination || mod !== 'small_molecule')) continue;
+          }
+
+          const cName = String(c.name || '').toLowerCase();
+          const cKey = String(c.key || '').toLowerCase();
+          const cCanon = String(c.canonical_name || '').toLowerCase();
+          const syns = Array.isArray(c.synonyms) ? c.synonyms.map(s => String(s).toLowerCase()) : [];
+
+          let score = 0;
+          if (cName === q || cKey === q) score = 100;
+          else if (syns.includes(q)) score = 90;
+          else if (cName.startsWith(q) || cKey.startsWith(q)) score = 80;
+          else if (syns.some(s => s.startsWith(q))) score = 70;
+          else if (cName.includes(q) || cKey.includes(q) || cCanon.includes(q)) score = 50;
+          else if (syns.some(s => s.includes(q))) score = 40;
+
+          if (score > 0) {
+            matches.push({ score, item: c });
+          }
+        }
+
+        matches.sort((a, b) => b.score - a.score || a.item.name.localeCompare(b.item.name));
+        return matches.map(m => m.item);
+      }
+
+      function getModalityBadge(c) {
+        if (!c) return '';
+        const mod = String(c.modality || '').toLowerCase();
+        const drugClass = String(c.drug_class || '').toLowerCase();
+        const cName = String(c.name || '').toLowerCase();
+        if (mod === 'peptide' || c.is_peptide || drugClass.includes('peptide') || drugClass.includes('glp-1')) {
+          return `<span class="compound-search-badge badge-peptide">${iconSvg('dna', { class: 'icon-xs icon-teal' })} Peptide</span>`;
+        }
+        if (mod === 'biologic_antibody' || c.is_biologic || drugClass.includes('biologic') || drugClass.includes('antibody') || drugClass.includes('mab') || cName.endsWith('mab')) {
+          return `<span class="compound-search-badge badge-biologic">${iconSvg('shield', { class: 'icon-xs icon-purple' })} Biologic</span>`;
+        }
+        if (mod === 'botanical_natural' || c.is_botanical || drugClass.includes('botanical') || drugClass.includes('herb') || drugClass.includes('phytochemical')) {
+          return `<span class="compound-search-badge badge-botanical">${iconSvg('leaf', { class: 'icon-xs icon-emerald' })} Botanical</span>`;
+        }
+        if (mod === 'combination_drug' || c.is_combination || drugClass.includes('combination') || cName.includes('combo')) {
+          return `<span class="compound-search-badge badge-combo">${iconSvg('layers', { class: 'icon-xs icon-amber' })} Combo</span>`;
+        }
+        return `<span class="compound-search-badge badge-small-molecule">${iconSvg('atom', { class: 'icon-xs icon-blue' })} Small Molecule</span>`;
+      }
+
+      let highlightedDropdownIndex = -1;
+
+      function highlightMatch(text, query) {
+        if (!text) return '';
+        if (!query) return escapeHtml(text);
+        const q = query.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+        const regex = new RegExp(`(${q})`, 'gi');
+        return escapeHtml(text).replace(regex, '<mark style="background:rgba(0,242,254,0.3); color:#00f2fe; border-radius:2px; padding:0 2px;">$1</mark>');
+      }
+
+      function renderCompoundSearchDropdown(items, isDone = true, query = '') {
+        if (!compoundSearchDropdown) return;
+        highlightedDropdownIndex = -1;
+
+        if (!items || !items.length) {
+          if (isDone) {
+            compoundSearchDropdown.innerHTML = '<div style="padding: 14px 18px; color: var(--text-muted); font-size: 0.86rem; text-align: center;">No matching compounds found in catalog or registries.</div>';
+            compoundSearchDropdown.style.display = 'block';
+          } else {
+            compoundSearchDropdown.innerHTML = `
+              <div style="padding: 14px 18px; color: var(--text-muted); font-size: 0.86rem; display: flex; align-items: center; justify-content: center; gap: 8px;">
+                <span class="compound-spinner-sm"></span> Searching biomedical registries (PubChem, ChEMBL, RxNorm)…
+              </div>
+            `;
+            compoundSearchDropdown.style.display = 'block';
+          }
+          return;
+        }
+
+        const itemsHtml = items.map((c, idx) => {
+          const isCurrent = (c.key === currentCompoundKey);
+          return `
+            <div class="compound-search-item" data-key="${escapeHtml(c.key)}" data-index="${idx}" style="${isCurrent ? 'background: rgba(0,242,254,0.06);' : ''}">
+              <div class="compound-search-item-info">
+                <div class="compound-search-item-name">
+                  <span>${highlightMatch(c.name, query)}</span>
+                  ${getModalityBadge(c)}
+                  ${c.is_external ? `<span style="font-size:0.68rem; padding:1px 6px; border-radius:4px; background: rgba(59,130,246,0.15); color: #60a5fa; font-weight: 600;">${escapeHtml(c.source_registry || 'Online Registry')}</span>` : ''}
+                  ${isCurrent ? `<span style="font-size:0.68rem; padding:1px 6px; border-radius:4px; background: rgba(16,185,129,0.15); color: #34d399; font-weight: 700;">ACTIVE</span>` : ''}
+                </div>
+                <div class="compound-search-item-sub">
+                  <span>${escapeHtml(c.drug_class || 'Pharmacological Agent')}</span>
+                  ${c.canonical_name && c.canonical_name !== c.name ? `&bull; <span>${escapeHtml(c.canonical_name)}</span>` : ''}
+                  ${c.risk_band ? `&bull; <span style="color:${c.risk_band.includes('HIGH') ? '#ff4b72' : c.risk_band.includes('MOD') ? '#f59e0b' : '#10b981'}; font-weight:700;">${escapeHtml(c.risk_band)}</span>` : ''}
+                </div>
+              </div>
+              <div class="compound-search-item-right">
+                <span class="compound-search-view-btn">${iconSvg('arrow-right', { class: 'icon-xs' })} Select</span>
+              </div>
+            </div>
+          `;
+        }).join('');
+
+        const streamSpinnerHtml = isDone ? '' : `
+          <div style="padding: 8px 16px; color: var(--text-muted); font-size: 0.76rem; display: flex; align-items: center; gap: 8px; border-top: 1px solid rgba(56,189,248,0.1); background: rgba(5,12,24,0.5);">
+            <span class="compound-spinner-sm"></span> Searching live online registries for more candidates…
+          </div>
+        `;
+
+        compoundSearchDropdown.innerHTML = itemsHtml + streamSpinnerHtml;
+        compoundSearchDropdown.style.display = 'block';
+        if (window.lucide && typeof window.lucide.createIcons === 'function') {
+          window.lucide.createIcons();
+        }
+      }
+
+      // Input Event Handling with Debounce & Streaming
+      let searchTimeout = null;
+      let searchAbortController = null;
+
+      if (compoundSearchInput) {
+        compoundSearchInput.addEventListener('input', (e) => {
+          const query = e.target.value.trim();
+          clearTimeout(searchTimeout);
+          if (searchAbortController) {
+            searchAbortController.abort();
+            searchAbortController = null;
+          }
+
+          if (compoundSearchClearBtn) {
+            compoundSearchClearBtn.style.display = query ? 'flex' : 'none';
+          }
+
+          if (!query) {
+            if (compoundSearchSpinner) compoundSearchSpinner.style.display = 'none';
+            if (compoundSearchDropdown) compoundSearchDropdown.style.display = 'none';
+            return;
+          }
+
+          const normQ = query.toLowerCase();
+          const activeModality = currentSearchModality || 'all';
+          const cacheKey = `${normQ}::${activeModality}`;
+
+          // 1. Instant Cache Check (< 0.01ms)
+          if (_searchQueryCache[cacheKey]) {
+            if (compoundSearchSpinner) compoundSearchSpinner.style.display = 'none';
+            renderCompoundSearchDropdown(_searchQueryCache[cacheKey], true, query);
+            return;
+          }
+
+          // 2. Instant Local Catalog Search (< 0.05ms)
+          const localMatches = filterLocalCatalogIndex(query, activeModality);
+          if (localMatches.length > 0) {
+            renderCompoundSearchDropdown(localMatches, false, query);
+            const first = localMatches[0];
+            const isExact = first && (first.name.toLowerCase() === normQ || first.key.toLowerCase() === normQ);
+            if (isExact || localMatches.length >= 5) {
+              if (compoundSearchSpinner) compoundSearchSpinner.style.display = 'none';
+              _searchQueryCache[cacheKey] = localMatches;
+              renderCompoundSearchDropdown(localMatches, true, query);
+              return;
+            }
+          } else {
+            renderCompoundSearchDropdown([], false, query);
+          }
+
+          // 3. Debounced Streaming Search for External/Novel Compounds
+          searchTimeout = setTimeout(async () => {
+            searchAbortController = new AbortController();
+            const signal = searchAbortController.signal;
+            let accumulatedItems = localMatches.slice();
+            let isStreamingDone = false;
+            if (compoundSearchSpinner) compoundSearchSpinner.style.display = 'flex';
+
+            try {
+              const modalityParam = activeModality !== 'all' ? `&modality=${encodeURIComponent(activeModality)}` : '';
+              const response = await fetch(`/api/compounds/search/stream?q=${encodeURIComponent(query)}${modalityParam}`, { signal });
+              if (!response.ok || !response.body) {
+                throw new Error(`Streaming request failed: ${response.status}`);
+              }
+
+              const reader = response.body.getReader();
+              const decoder = new TextDecoder();
+              let buffer = '';
+              let currentEvent = 'message';
+
+              while (true) {
+                const { done, value } = await reader.read();
+                if (done) break;
+
+                buffer += decoder.decode(value, { stream: true });
+                const lines = buffer.split('\n');
+                buffer = lines.pop();
+
+                for (const line of lines) {
+                  const trimmed = line.trim();
+                  if (!trimmed) {
+                    currentEvent = 'message';
+                    continue;
+                  }
+                  if (trimmed.startsWith('event:')) {
+                    currentEvent = trimmed.slice(6).trim();
+                  } else if (trimmed.startsWith('data:')) {
+                    const dataStr = trimmed.startsWith('data: ') ? trimmed.slice(6) : trimmed.slice(5);
+                    let dataVal;
+                    try {
+                      dataVal = JSON.parse(dataStr);
+                    } catch (err) {
+                      dataVal = dataStr;
+                    }
+
+                    if (currentEvent === 'local') {
+                      if (Array.isArray(dataVal) && dataVal.length) {
+                        accumulatedItems = dataVal;
+                        dataVal.forEach(item => {
+                          if (item && item.key) _clientCatalogCache[item.key] = item;
+                        });
+                        if (compoundSearchInput.value.trim().toLowerCase() === normQ) {
+                          renderCompoundSearchDropdown(accumulatedItems, false, query);
+                        }
+                      }
+                    } else if (currentEvent === 'candidates') {
+                      if (Array.isArray(dataVal) && dataVal.length) {
+                        const seen = new Set(accumulatedItems.map(x => x.key));
+                        dataVal.forEach(item => {
+                          if (item && item.key && !seen.has(item.key)) {
+                            seen.add(item.key);
+                            accumulatedItems.push(item);
+                            _clientCatalogCache[item.key] = item;
+                          }
+                        });
+                        if (compoundSearchInput.value.trim().toLowerCase() === normQ) {
+                          renderCompoundSearchDropdown(accumulatedItems, false, query);
+                        }
+                      }
+                    } else if (currentEvent === 'done') {
+                      isStreamingDone = true;
+                      if (compoundSearchSpinner) compoundSearchSpinner.style.display = 'none';
+                      _searchQueryCache[cacheKey] = accumulatedItems;
+                      if (compoundSearchInput.value.trim().toLowerCase() === normQ) {
+                        renderCompoundSearchDropdown(accumulatedItems, true, query);
+                      }
+                    }
+                  }
+                }
+              }
+
+              if (compoundSearchSpinner) compoundSearchSpinner.style.display = 'none';
+              if (!isStreamingDone) {
+                _searchQueryCache[cacheKey] = accumulatedItems;
+                if (compoundSearchInput.value.trim().toLowerCase() === normQ) {
+                  renderCompoundSearchDropdown(accumulatedItems, true, query);
+                }
+              }
+            } catch (err) {
+              if (compoundSearchSpinner) compoundSearchSpinner.style.display = 'none';
+              if (err.name !== 'AbortError') {
+                console.error('Search stream error:', err);
+                renderCompoundSearchDropdown(accumulatedItems, true, query);
+              }
+            }
+          }, 160);
         });
+
+        compoundSearchInput.addEventListener('focus', () => {
+          if (compoundSearchInput.value.trim().length > 0) {
+            compoundSearchInput.dispatchEvent(new Event('input'));
+          }
+        });
+
+        compoundSearchInput.addEventListener('keydown', (e) => {
+          if (!compoundSearchDropdown || compoundSearchDropdown.style.display === 'none') return;
+          const items = compoundSearchDropdown.querySelectorAll('.compound-search-item');
+          if (!items.length) return;
+
+          if (e.key === 'ArrowDown') {
+            e.preventDefault();
+            highlightedDropdownIndex = (highlightedDropdownIndex + 1) % items.length;
+            updateDropdownHighlight(items);
+          } else if (e.key === 'ArrowUp') {
+            e.preventDefault();
+            highlightedDropdownIndex = (highlightedDropdownIndex - 1 + items.length) % items.length;
+            updateDropdownHighlight(items);
+          } else if (e.key === 'Enter') {
+            e.preventDefault();
+            const target = highlightedDropdownIndex >= 0 ? items[highlightedDropdownIndex] : items[0];
+            if (target && target.dataset.key) {
+              selectCompoundFromSearch(target.dataset.key);
+            }
+          } else if (e.key === 'Escape') {
+            e.preventDefault();
+            compoundSearchDropdown.style.display = 'none';
+            compoundSearchInput.blur();
+          }
+        });
+      }
+
+      function updateDropdownHighlight(items) {
+        items.forEach((it, idx) => {
+          if (idx === highlightedDropdownIndex) {
+            it.classList.add('highlighted');
+            it.scrollIntoView({ block: 'nearest' });
+          } else {
+            it.classList.remove('highlighted');
+          }
+        });
+      }
+
+      function selectCompoundFromSearch(key) {
+        if (compoundSearchDropdown) compoundSearchDropdown.style.display = 'none';
+        if (compoundSearchInput) compoundSearchInput.value = '';
+        if (compoundSearchClearBtn) compoundSearchClearBtn.style.display = 'none';
+        loadCompound(key, true);
+      }
+
+      if (compoundSearchClearBtn) {
+        compoundSearchClearBtn.addEventListener('click', () => {
+          if (compoundSearchInput) {
+            compoundSearchInput.value = '';
+            compoundSearchInput.focus();
+          }
+          compoundSearchClearBtn.style.display = 'none';
+          if (compoundSearchDropdown) compoundSearchDropdown.style.display = 'none';
+        });
+      }
+
+      document.addEventListener('click', (e) => {
+        const searchItem = e.target.closest('.compound-search-item');
+        if (searchItem && searchItem.dataset.key) {
+          e.preventDefault();
+          selectCompoundFromSearch(searchItem.dataset.key);
+          return;
+        }
+
+        const quickChip = e.target.closest('.quick-chip');
+        if (quickChip && quickChip.dataset.key) {
+          e.preventDefault();
+          loadCompound(quickChip.dataset.key, true);
+          return;
+        }
+
+        if (compoundSearchInput && compoundSearchDropdown && !compoundSearchInput.contains(e.target) && !compoundSearchDropdown.contains(e.target)) {
+          compoundSearchDropdown.style.display = 'none';
+        }
+      });
+
+      document.addEventListener('keydown', (e) => {
+        if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'k') {
+          e.preventDefault();
+          if (compoundSearchInput) {
+            compoundSearchInput.focus();
+            compoundSearchInput.select();
+          }
+        } else if (e.key === '/' && document.activeElement.tagName !== 'INPUT' && document.activeElement.tagName !== 'TEXTAREA') {
+          e.preventDefault();
+          if (compoundSearchInput) {
+            compoundSearchInput.focus();
+            compoundSearchInput.select();
+          }
+        }
+      });
+
+      window.addEventListener('popstate', () => {
+        const params = new URLSearchParams(window.location.search);
+        const pathPart = decodeURIComponent(window.location.pathname.split('/').filter(Boolean).slice(-1)[0] || '');
+        const popKey = params.get('key') || (pathPart !== 'compound' ? pathPart : '') || 'caffeine';
+        if (popKey && popKey !== currentCompoundKey) {
+          loadCompound(popKey, false);
+        }
+      });
+
+      // INITIAL BOOT
+      loadCompound(currentCompoundKey, false);

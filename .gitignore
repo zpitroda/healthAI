@@ -149,6 +149,7 @@ logs/
 /patch.py
 /refactor*.py
 /split.py
+scripts/enrich_all_compounds.py
 
 # Test Suites, Fixtures, Benchmarks & Test Infrastructure (Site-Essential Files Only)
 tests/
@@ -165,6 +166,7 @@ CLAUDE.md
 .cursor/
 .agent/
 .gemini/
+.codegraph/
 
 # Operating System Files
 .DS_Store

@@ -17,8 +17,8 @@
       href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700;800&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=Inter:wght@400;500;600;700&display=swap"
       rel="stylesheet"
     />
-    <link rel="stylesheet" href="/static/css/compound.css" />
-    <link rel="stylesheet" href="/static/css/disclaimer.css" />
+    <link rel="stylesheet" href="/static/css/compound.css?v=20260909_v5" />
+    <link rel="stylesheet" href="/static/css/disclaimer.css?v=20260909_v5" />
     <script src="https://unpkg.com/lucide@latest/dist/umd/lucide.js"></script>
     <script>
       window.iconSvg = function iconSvg(name, options = {}) {
@@ -147,11 +147,11 @@
               <div class="sim-controls" style="display:grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap:10px; margin-bottom:12px;">
                 <div>
                   <label style="font-size:0.7rem; color:var(--text-secondary); display:block; margin-bottom:3px;">Dose (mg)</label>
-                  <input type="number" id="simDose" value="100" min="1" max="5000" style="width:100%; background:var(--bg-surface); border:1px solid var(--border-subtle); color:var(--text-primary); padding:5px 8px; border-radius:6px; font-family:'JetBrains Mono'; font-size:0.8rem;" />
+                  <input type="number" id="simDose" value="100" min="1" max="5000" aria-label="Simulation Dose in milligrams" style="width:100%; background:var(--bg-surface); border:1px solid var(--border-subtle); color:var(--text-primary); padding:5px 8px; border-radius:6px; font-family:'JetBrains Mono'; font-size:0.8rem;" />
                 </div>
                 <div>
                   <label style="font-size:0.7rem; color:var(--text-secondary); display:block; margin-bottom:3px;">Interval &tau; (hours)</label>
-                  <select id="simTau" style="width:100%; background:var(--bg-surface); border:1px solid var(--border-subtle); color:var(--text-primary); padding:5px 8px; border-radius:6px; font-family:'JetBrains Mono'; font-size:0.8rem;">
+                  <select id="simTau" aria-label="Dosing interval tau in hours" style="width:100%; background:var(--bg-surface); border:1px solid var(--border-subtle); color:var(--text-primary); padding:5px 8px; border-radius:6px; font-family:'JetBrains Mono'; font-size:0.8rem;">
                     <option value="8">q8h (TID)</option>
                     <option value="12">q12h (BID)</option>
                     <option value="24" selected>q24h (Daily)</option>
@@ -161,7 +161,7 @@
                 </div>
                 <div>
                   <label style="font-size:0.7rem; color:var(--text-secondary); display:block; margin-bottom:3px;">Route</label>
-                  <select id="simRoute" style="width:100%; background:var(--bg-surface); border:1px solid var(--border-subtle); color:var(--text-primary); padding:5px 8px; border-radius:6px; font-family:'JetBrains Mono'; font-size:0.8rem;">
+                  <select id="simRoute" aria-label="Route of administration" style="width:100%; background:var(--bg-surface); border:1px solid var(--border-subtle); color:var(--text-primary); padding:5px 8px; border-radius:6px; font-family:'JetBrains Mono'; font-size:0.8rem;">
                     <option value="oral" selected>Oral (PO)</option>
                     <option value="sublingual">Sublingual / Buccal (SL)</option>
                     <option value="subcutaneous">Subcutaneous (SC)</option>
@@ -174,14 +174,14 @@
                 </div>
                 <div>
                   <label style="font-size:0.7rem; color:var(--text-secondary); display:block; margin-bottom:3px;">Regimen Mode</label>
-                  <select id="simRegimen" style="width:100%; background:var(--bg-surface); border:1px solid var(--border-subtle); color:var(--text-primary); padding:5px 8px; border-radius:6px; font-family:'JetBrains Mono'; font-size:0.8rem;">
+                  <select id="simRegimen" aria-label="Simulation regimen mode" style="width:100%; background:var(--bg-surface); border:1px solid var(--border-subtle); color:var(--text-primary); padding:5px 8px; border-radius:6px; font-family:'JetBrains Mono'; font-size:0.8rem;">
                     <option value="steady_state" selected>Steady State (Css)</option>
                     <option value="single">Single Dose (C(t))</option>
                   </select>
                 </div>
                 <div>
                   <label style="font-size:0.7rem; color:var(--text-secondary); display:block; margin-bottom:3px;">Curve Type</label>
-                  <select id="simCurveType" style="width:100%; background:var(--bg-surface); border:1px solid var(--border-subtle); color:var(--text-primary); padding:5px 8px; border-radius:6px; font-family:'JetBrains Mono'; font-size:0.8rem;">
+                  <select id="simCurveType" aria-label="Simulation curve type" style="width:100%; background:var(--bg-surface); border:1px solid var(--border-subtle); color:var(--text-primary); padding:5px 8px; border-radius:6px; font-family:'JetBrains Mono'; font-size:0.8rem;">
                     <option value="pk" selected>PK Concentration C(t)</option>
                     <option value="pd">PD Sigmoidal Hill E(C)</option>
                   </select>
@@ -216,6 +216,10 @@
             <div class="section-heading" style="display:inline-flex; align-items:center; gap:6px;"><i data-lucide="dna" class="icon-sm icon-teal"></i> Hepatic Metabolism & Transporters</div>
             <div class="detail-grid" id="cypTransporterGrid"></div>
 
+            <!-- ORGAN SYSTEM BURDENS -->
+            <div class="section-heading" style="display:inline-flex; align-items:center; gap:6px;"><i data-lucide="activity" class="icon-sm icon-rose"></i> Organ System Impact & Burdens</div>
+            <div class="detail-grid" id="organBurdensGrid"></div>
+
             <!-- CHEMICAL PROPERTIES -->
             <div class="section-heading" style="display:inline-flex; align-items:center; gap:6px;"><i data-lucide="flask-conical" class="icon-sm icon-amber"></i> Physicochemical Properties</div>
             <div class="detail-grid" id="physicochemicalGrid"></div>
@@ -232,8 +236,11 @@
 
             <!-- RECEPTOR TARGETS -->
             <div class="list-box">
-              <div class="header">
+              <div class="header" style="display:flex; justify-content:space-between; align-items:center;">
                 <span style="display:inline-flex; align-items:center; gap:6px;"><i data-lucide="target" class="icon-xs icon-rose"></i> Molecular Targets & Receptors</span>
+                <span id="targetsAffinitySortBadge" style="font-size:0.68rem; font-weight:700; color:#00f2fe; background:rgba(0,242,254,0.1); border:1px solid rgba(0,242,254,0.25); padding:2px 8px; border-radius:12px; display:inline-flex; align-items:center; gap:4px;">
+                  Ranked by Affinity
+                </span>
               </div>
               <div class="body compact">
                 <div id="compoundTargets" class="target-links"></div>
@@ -342,7 +349,7 @@
               <div class="panel-subtitle">Target Binding, Enzymes, Transporters & Outcome Cascades</div>
             </div>
             <div style="display:flex; align-items:center; gap:6px;">
-              <select id="layoutSelect" class="select-layout" title="Graph Layout Style">
+              <select id="layoutSelect" class="select-layout" title="Graph Layout Style" aria-label="Graph Layout Style">
                 <option value="concentric">Concentric Orbits</option>
                 <option value="cose">Force-Directed (COSE)</option>
                 <option value="breadthfirst">Hierarchical Flow</option>
@@ -411,8 +418,8 @@
         document.write('<script src="https://cdn.jsdelivr.net/npm/cytoscape@3.29.0/dist/cytoscape.min.js"><\/script>');
       }
     </script>
-    <script src="/static/js/compound.js"></script>
-    <script src="/static/js/disclaimer.js"></script>
+    <script src="/static/js/compound.js?v=20260909_v5"></script>
+    <script src="/static/js/disclaimer.js?v=20260909_v5"></script>
     <script>
       document.addEventListener('DOMContentLoaded', () => {
         if (window.lucide && typeof window.lucide.createIcons === 'function') {

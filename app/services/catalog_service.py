@@ -453,8 +453,8 @@ CORE_SUPPLEMENT_LIBRARY: Dict[str, Dict[str, Any]] = {
         },
         "reason": "Antagonizes central adenosine A1 and A2A receptors to suppress fatigue and enhance alertness.",
         "receptor_targets": [
-            {"target": "A1 receptor", "action": "antagonist", "family": "GPCR / Adenosine", "gene_symbol": "ADORA1"},
-            {"target": "Adenosine Receptor (ADORA1 / ADORA2A)", "action": "antagonist", "family": "GPCR / Adenosine", "gene_symbol": "ADORA1"}
+            {"target": "Adenosine receptor A1", "action": "antagonist", "family": "GPCR / Adenosine", "gene_symbol": "ADORA1"},
+            {"target": "Adenosine receptor A2a", "action": "antagonist", "family": "GPCR / Adenosine", "gene_symbol": "ADORA2A"}
         ],
         "cyp_enzymes": {"substrates": ["CYP1A2"], "inhibitors": ["CYP1A2"], "inducers": []},
     },
@@ -475,7 +475,7 @@ CORE_SUPPLEMENT_LIBRARY: Dict[str, Dict[str, Any]] = {
             "human_clinical_trials": True,
         },
         "receptor_targets": [
-            {"target": "Glucagon-Like Peptide 1 Receptor (GLP1R)", "action": "agonist", "family": "GPCR Class B", "affinity_ki": 0.0005}
+            {"target": "Glucagon-Like Peptide 1 Receptor (GLP1R)", "action": "agonist", "family": "GPCR Class B", "ec50": 0.069}  # EC50 ~ 69 pM [Lau 2015, PMID: 26011726]
         ],
     },
     "retatrutide": {
@@ -495,9 +495,9 @@ CORE_SUPPLEMENT_LIBRARY: Dict[str, Dict[str, Any]] = {
             "human_clinical_trials": True,
         },
         "receptor_targets": [
-            {"target": "Gastric Inhibitory Polypeptide Receptor (GIPR)", "action": "agonist", "family": "GPCR Class B", "affinity_ki": 0.05},
-            {"target": "Glucagon-Like Peptide 1 Receptor (GLP1R)", "action": "agonist", "family": "GPCR Class B", "affinity_ki": 0.77},
-            {"target": "Glucagon Receptor (GCGR)", "action": "agonist", "family": "GPCR Class B", "affinity_ki": 0.58},
+            {"target": "Gastric Inhibitory Polypeptide Receptor (GIPR)", "action": "agonist", "family": "GPCR Class B", "ec50": 0.05},   # EC50 [Eli Lilly Phase 2]
+            {"target": "Glucagon-Like Peptide 1 Receptor (GLP1R)", "action": "agonist", "family": "GPCR Class B", "ec50": 0.77},   # EC50 [Eli Lilly Phase 2]
+            {"target": "Glucagon Receptor (GCGR)", "action": "agonist", "family": "GPCR Class B", "ec50": 0.58},                   # EC50 [Eli Lilly Phase 2]
         ],
     },
     "nebivolol": {
@@ -2089,6 +2089,108 @@ def compound_matches_modality(comp: Dict[str, Any], target_modality: Optional[st
     return comp_mod == target
 
 
+def deduplicate_targets(targets: Any) -> List[Dict[str, Any]]:
+    """
+    Deduplicate and merge biological targets by canonical gene symbol or normalized target name.
+    Preserves quantitative affinities (keeping most potent / lowest numeric nM concentration),
+    UniProt accessions, AlphaFold structural confidence, Open Targets tractability,
+    and resolves composite multi-receptor entries when specific targets exist.
+    """
+    if not targets or not isinstance(targets, list):
+        return []
+
+    merged: Dict[str, Dict[str, Any]] = {}
+
+    for t in targets:
+        if not isinstance(t, dict):
+            continue
+
+        gene = str(t.get("gene_symbol") or t.get("gene") or "").strip().upper()
+        if gene in ("NONE", "NULL"):
+            gene = ""
+
+        uniprot = str(t.get("uniprot_id") or t.get("uniprot") or "").strip().upper()
+        raw_name = str(t.get("target") or t.get("name") or t.get("label") or "").strip()
+        clean_name = re.sub(r"\s*\([^)]*\)", "", raw_name).strip().lower()
+
+        if gene:
+            dedup_key = f"gene:{gene}"
+        elif uniprot:
+            dedup_key = f"uniprot:{uniprot}"
+        elif clean_name:
+            dedup_key = f"name:{clean_name}"
+        else:
+            continue
+
+        if dedup_key not in merged:
+            merged[dedup_key] = dict(t)
+            continue
+
+        existing = merged[dedup_key]
+
+        # 1. Prefer cleaner/more descriptive name
+        ex_name = str(existing.get("target") or existing.get("name") or "")
+        if len(raw_name) > len(ex_name) and "receptor" in raw_name.lower() and "/" not in raw_name:
+            existing["target"] = raw_name
+
+        # 2. Prefer specific action over modulator
+        new_action = t.get("action")
+        ex_action = existing.get("action")
+        if new_action and (not ex_action or ex_action == "modulator") and new_action != "modulator":
+            existing["action"] = new_action
+
+        # 3. Preserve identifiers
+        if not existing.get("gene_symbol") and gene:
+            existing["gene_symbol"] = gene
+        if not existing.get("uniprot_id") and uniprot:
+            existing["uniprot_id"] = uniprot
+
+        # 4. Preserve quantitative affinities (keep lowest numeric concentration)
+        for aff_field in ["affinity_ki", "inhibition_ic50", "affinity_kd", "ec50", "km_nm", "ki", "kd", "ic50", "km"]:
+            new_val = t.get(aff_field)
+            ex_val = existing.get(aff_field)
+            if new_val is not None:
+                try:
+                    num_new = float(new_val)
+                    if num_new > 0:
+                        if ex_val is None:
+                            existing[aff_field] = num_new
+                        else:
+                            num_ex = float(ex_val)
+                            existing[aff_field] = min(num_new, num_ex)
+                except (ValueError, TypeError):
+                    pass
+
+        # 5. Preserve rich annotations
+        if not existing.get("alphafold_structure") and t.get("alphafold_structure"):
+            existing["alphafold_structure"] = t["alphafold_structure"]
+        if not existing.get("open_targets") and t.get("open_targets"):
+            existing["open_targets"] = t["open_targets"]
+        if not existing.get("target_class") and (t.get("target_class") or t.get("family")):
+            existing["target_class"] = t.get("target_class") or t.get("family")
+
+    # Resolve composite entries if individual components exist
+    composite_keys = [k for k in list(merged.keys()) if "/" in k or " and " in k]
+    for ck in composite_keys:
+        comp_target = merged[ck]
+        if "adenosine" in ck and "a1" in ck and "a2" in ck:
+            if "gene:ADORA1" in merged and "gene:ADORA2A" in merged:
+                comp_ki = comp_target.get("affinity_ki") or comp_target.get("ki")
+                if comp_ki:
+                    for target_key in ["gene:ADORA1", "gene:ADORA2A"]:
+                        cur_ki = merged[target_key].get("affinity_ki")
+                        if not cur_ki:
+                            merged[target_key]["affinity_ki"] = comp_ki
+                        else:
+                            try:
+                                merged[target_key]["affinity_ki"] = min(float(cur_ki), float(comp_ki))
+                            except (ValueError, TypeError):
+                                pass
+                del merged[ck]
+
+    return list(merged.values())
+
+
 _INIT_LOCK = threading.RLock()
 _CATALOG_MEMORY_CACHE: LRUCache = LRUCache(maxsize=1000)
 _CATALOG_NEGATIVE_CACHE: LRUCache = LRUCache(maxsize=2000)
@@ -3414,6 +3516,11 @@ class CatalogService:
             return enricher.enrich_and_cache(key_or_name, catalog_service=self)
 
         enriched = enricher.enrich_compound(compound)
+        try:
+            from app.services.pharmacology_enricher import PharmacologyEnricher
+            enriched = PharmacologyEnricher.enrich_compound(enriched)
+        except Exception:
+            pass
         enriched["source_tier"] = "live_enrichment"
         enriched["last_enriched_at"] = datetime.now(timezone.utc).isoformat()
         return self.upsert_compound(enriched)
@@ -3929,7 +4036,7 @@ class CatalogService:
             "route_of_administration": row.get("route_of_administration"),
             "formulation": row.get("formulation"),
             "mechanism": row["mechanism"],
-            "receptor_targets": self._deserialize(row.get("receptor_targets")),
+            "receptor_targets": deduplicate_targets(self._deserialize(row.get("receptor_targets"))),
             "transporters": self._deserialize(row.get("transporters"), default={"substrates": [], "inhibitors": [], "inducers": []}),
             "phase2_enzymes": self._deserialize(row.get("phase2_enzymes"), default={"substrates": [], "inhibitors": [], "inducers": []}),
             "categories": self._deserialize(row.get("categories")),

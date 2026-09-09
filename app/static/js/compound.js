@@ -98,16 +98,17 @@ if (window.lucide && typeof window.lucide.createIcons === 'function') {
           ? tags.map(tag => `<span class="pill">${tag}</span>`).join('')
           : '<span class="pill">Unclassified Molecule</span>';
 
-        document.getElementById('compoundMechanism').textContent = compound.mechanism || 'No pharmacodynamic mechanism recorded.';
+        document.getElementById('compoundMechanism').textContent = compound.mechanism || compound.reason || 'No pharmacodynamic mechanism recorded.';
 
         // PK & ADMET Grid
         const pkRows = [
-          ['Elimination Half-Life (t½)', compound.t_half_numeric ? `${compound.t_half_numeric} h (numeric)` : (compound.half_life || '—')],
+          ['Elimination Half-Life (t½)', compound.t_half_numeric !== null && compound.t_half_numeric !== undefined ? `${Number(compound.t_half_numeric).toFixed(1)} h` : (compound.half_life || '—')],
           ['Oral Bioavailability (F)', compound.bioavailability_f !== null && compound.bioavailability_f !== undefined ? `${Math.round(compound.bioavailability_f * 100)}% (F=${compound.bioavailability_f})` : (compound.oral_bioavailability ? `${compound.oral_bioavailability}%` : '—')],
-          ['Volume of Distribution (Vd)', compound.volume_of_distribution_l_kg ? `${compound.volume_of_distribution_l_kg} L/kg` : (compound.volume_of_distribution || '—')],
-          ['Systemic Clearance (CL)', compound.clearance_l_h_kg ? `${compound.clearance_l_h_kg} L/h/kg` : (compound.clearance || '—')],
-          ['Absorption Rate (ka)', compound.absorption_rate_ka ? `${compound.absorption_rate_ka} h⁻¹` : '—'],
-          ['Plasma Protein Binding', compound.protein_binding_pct ? `${compound.protein_binding_pct}% (fu=${compound.fraction_unbound !== null && compound.fraction_unbound !== undefined ? compound.fraction_unbound : '—'})` : (compound.protein_binding ? `${compound.protein_binding}%` : '—')],
+          ['Volume of Distribution (Vd)', compound.volume_of_distribution_l_kg !== null && compound.volume_of_distribution_l_kg !== undefined ? `${Number(compound.volume_of_distribution_l_kg).toFixed(2)} L/kg` : (compound.volume_of_distribution || '—')],
+          ['Systemic Clearance (CL)', compound.clearance_l_h_kg !== null && compound.clearance_l_h_kg !== undefined ? `${Number(compound.clearance_l_h_kg).toFixed(2)} L/h/kg` : (compound.clearance || '—')],
+          ['Absorption Rate (ka)', compound.absorption_rate_ka ? `${Number(compound.absorption_rate_ka).toFixed(2)} h⁻¹` : '—'],
+          ['Plasma Protein Binding', compound.protein_binding_pct !== null && compound.protein_binding_pct !== undefined ? `${compound.protein_binding_pct}% (fu=${compound.fraction_unbound !== null && compound.fraction_unbound !== undefined ? compound.fraction_unbound : '—'})` : (compound.protein_binding ? `${compound.protein_binding}%` : '—')],
+          ['Clearance Routes', compound.clearance_routes || 'Hepatic / Renal'],
           ['Biopharmaceutics (BCS)', compound.bcs_class || 'Class II / Unclassified'],
           ['Therapeutic Precision', compound.therapeutic_index ? `TI: ${compound.therapeutic_index}x (MEC: ${compound.mec_ng_ml || '—'} ng/mL, MTC: ${compound.mtc_ng_ml || '—'} ng/mL)` : (compound.is_narrow_therapeutic_index ? '⚠️ Narrow Therapeutic Index (NTI)' : 'Standard Margin')],
         ];
@@ -119,8 +120,9 @@ if (window.lucide && typeof window.lucide.createIcons === 'function') {
         `).join('');
 
         // Populate Dosing Default into Simulator
-        if (compound.dosing && compound.dosing.common) {
-          document.getElementById('simDose').value = compound.dosing.common;
+        const defDose = compound.default_dose?.dose_mg || (compound.dosing && compound.dosing.common) || (compound.dosing?.mg_per_kg?.common ? compound.dosing.mg_per_kg.common * 70 : null) || compound.dose;
+        if (defDose) {
+          document.getElementById('simDose').value = defDose;
         }
 
         // CYP & Transporter Grid
@@ -145,12 +147,47 @@ if (window.lucide && typeof window.lucide.createIcons === 'function') {
           </div>
         `).join('');
 
+        // Organ System Impact & Burdens
+        const organBurdens = compound.organ_burdens || {};
+        const organAxes = [
+          { key: 'hepatic', label: 'Hepatic Burden' },
+          { key: 'renal', label: 'Renal Burden' },
+          { key: 'cardiovascular', label: 'Cardiovascular' },
+          { key: 'cns_stimulant', label: 'CNS Stimulation' },
+          { key: 'sedative', label: 'Sedation Index' },
+        ];
+        const severityBadge = (level) => {
+          const l = String(level || 'none').toLowerCase();
+          const colors = {
+            none: 'background:rgba(16,185,129,0.12); color:#10b981; border:1px solid rgba(16,185,129,0.3);',
+            low: 'background:rgba(59,130,246,0.12); color:#60a5fa; border:1px solid rgba(59,130,246,0.3);',
+            moderate: 'background:rgba(245,158,11,0.12); color:#fbbf24; border:1px solid rgba(245,158,11,0.3);',
+            high: 'background:rgba(244,63,94,0.12); color:#f43f5e; border:1px solid rgba(244,63,94,0.3);',
+            severe: 'background:rgba(225,29,72,0.2); color:#fda4af; border:1px solid rgba(225,29,72,0.5); font-weight:800;',
+          };
+          const style = colors[l] || colors.none;
+          return `<span style="display:inline-block; padding:2px 8px; border-radius:6px; font-size:0.75rem; font-weight:700; text-transform:uppercase; ${style}">${l}</span>`;
+        };
+        const organGrid = document.getElementById('organBurdensGrid');
+        if (organGrid) {
+          organGrid.innerHTML = organAxes.map(axis => `
+            <div class="info-box">
+              <label>${axis.label}</label>
+              <div class="value" style="margin-top:4px;">${severityBadge(organBurdens[axis.key])}</div>
+            </div>
+          `).join('');
+        }
+
         // Physicochemical Grid
         const chemRows = [
           ['Canonical InChIKey', compound.inchikey || '—'],
           ['LogP (Lipophilicity)', compound.logp !== null && compound.logp !== undefined ? compound.logp : '—'],
           ['Polar Surface (TPSA)', compound.tpsa !== null && compound.tpsa !== undefined ? `${compound.tpsa} Å²` : '—'],
           ['Molecular Weight', compound.molecular_weight !== null && compound.molecular_weight !== undefined ? `${compound.molecular_weight} g/mol` : '—'],
+          ['pKa (Dissociation)', compound.pka !== null && compound.pka !== undefined ? Number(compound.pka).toFixed(1) : '—'],
+          ['Hydrogen Bond Donors (HBD)', compound.hbd !== null && compound.hbd !== undefined ? compound.hbd : '—'],
+          ['Hydrogen Bond Acceptors (HBA)', compound.hba !== null && compound.hba !== undefined ? compound.hba : '—'],
+          ['Rotatable Bonds', compound.rotatable_bonds !== null && compound.rotatable_bonds !== undefined ? compound.rotatable_bonds : '—'],
           ['Biological Pathways', (compound.pathway_details && compound.pathway_details.length) ? compound.pathway_details.map(p => p.name || p.id).join(', ') : '—'],
           ['Canonical SMILES', compound.smiles || '—'],
         ];
@@ -179,21 +216,247 @@ if (window.lucide && typeof window.lucide.createIcons === 'function') {
         compoundContent.style.display = 'block';
       }
 
+      function parseTargetAffinity(target) {
+        if (!target || typeof target !== 'object') return null;
+
+        // Metric priority: Ki > Kd > IC50 > EC50 > Km
+        const metrics = [
+          { key: 'affinity_ki', metric: 'Ki' },
+          { key: 'ki', metric: 'Ki' },
+          { key: 'affinity_kd', metric: 'Kd' },
+          { key: 'kd', metric: 'Kd' },
+          { key: 'kd_nm', metric: 'Kd' },
+          { key: 'inhibition_ic50', metric: 'IC50' },
+          { key: 'ic50', metric: 'IC50' },
+          { key: 'ec50', metric: 'EC50' },
+          { key: 'km_nm', metric: 'Km' },
+          { key: 'km', metric: 'Km' },
+        ];
+
+        for (const m of metrics) {
+          const rawVal = target[m.key];
+          if (rawVal !== undefined && rawVal !== null && rawVal !== '') {
+            const num = Number(rawVal);
+            if (!Number.isNaN(num) && num > 0) {
+              return {
+                metric: m.metric,
+                valueNm: num,
+                formatted: formatAffinityValue(m.metric, num)
+              };
+            }
+          }
+        }
+
+        // Check if target.affinity string contains numeric value (e.g. "Ki = 10 nM" or "10 nM")
+        if (target.affinity && typeof target.affinity === 'string') {
+          const match = target.affinity.match(/(Ki|IC50|EC50|Kd|Km)?\s*[=:]?\s*([\d.]+)\s*(pM|nM|uM|µM|mM|M)?/i);
+          if (match) {
+            const metric = (match[1] || 'Affinity').toUpperCase();
+            const val = Number(match[2]);
+            const unit = (match[3] || 'nM').toLowerCase();
+            if (!Number.isNaN(val) && val > 0) {
+              let valueNm = val;
+              if (unit === 'pm') valueNm = val / 1000;
+              else if (unit === 'um' || unit === 'µm') valueNm = val * 1000;
+              else if (unit === 'mm') valueNm = val * 1000000;
+              else if (unit === 'm') valueNm = val * 1000000000;
+              const cleanMetric = metric === 'AFFINITY' ? 'Affinity' : metric;
+              return {
+                metric: cleanMetric,
+                valueNm,
+                formatted: formatAffinityValue(cleanMetric, valueNm)
+              };
+            }
+          }
+        }
+
+        return null;
+      }
+
+      function formatAffinityValue(metric, valueNm) {
+        let valStr = '';
+        if (valueNm < 1) {
+          valStr = `${parseFloat((valueNm * 1000).toFixed(2))} pM`;
+        } else if (valueNm < 1000) {
+          valStr = `${parseFloat(valueNm.toFixed(2))} nM`;
+        } else if (valueNm < 1000000) {
+          valStr = `${parseFloat((valueNm / 1000).toFixed(2))} µM`;
+        } else {
+          valStr = `${parseFloat((valueNm / 1000000).toFixed(2))} mM`;
+        }
+        return `${metric}: ${valStr}`;
+      }
+
+      function getAffinityTierClass(valueNm) {
+        if (valueNm === null || valueNm === undefined) return 'affinity-none';
+        if (valueNm < 100) return 'affinity-high';     // High affinity (< 100 nM)
+        if (valueNm <= 10000) return 'affinity-mid';   // Moderate affinity (100 nM - 10 µM)
+        return 'affinity-low';                         // Micromolar / low affinity (> 10 µM)
+      }
+
+      function normalizeTargetName(name) {
+        if (!name || typeof name !== 'string') return '';
+        return name.replace(/\s*\([^)]*\)/g, '').trim();
+      }
+
+      function deduplicateTargets(targets) {
+        if (!Array.isArray(targets) || !targets.length) return [];
+
+        const merged = new Map();
+
+        for (const t of targets) {
+          if (!t) continue;
+          const isObj = typeof t === 'object';
+          const gene = isObj ? String(t.gene_symbol || t.gene || '').trim().toUpperCase() : '';
+          const cleanGene = (gene === 'NONE' || gene === 'NULL') ? '' : gene;
+          const uniprot = isObj ? String(t.uniprot_id || t.uniprot || '').trim().toUpperCase() : '';
+          const rawName = isObj ? String(t.target || t.name || t.label || '').trim() : String(t).trim();
+          const cleanName = normalizeTargetName(rawName).toLowerCase();
+
+          let dedupKey = '';
+          if (cleanGene) {
+            dedupKey = `gene:${cleanGene}`;
+          } else if (uniprot) {
+            dedupKey = `uniprot:${uniprot}`;
+          } else if (cleanName) {
+            dedupKey = `name:${cleanName}`;
+          } else {
+            continue;
+          }
+
+          if (!merged.has(dedupKey)) {
+            merged.set(dedupKey, isObj ? Object.assign({}, t) : { target: rawName });
+            continue;
+          }
+
+          const existing = merged.get(dedupKey);
+
+          // 1. Prefer cleaner / more descriptive name without abbreviations or slashes
+          const exName = existing.target || existing.name || '';
+          if (rawName.length > exName.length && rawName.toLowerCase().includes('receptor') && !rawName.includes('/')) {
+            existing.target = rawName;
+          }
+
+          // 2. Prefer specific pharmacological action over vague 'modulator'
+          const newAction = isObj ? t.action : '';
+          if (newAction && (!existing.action || existing.action === 'modulator') && newAction !== 'modulator') {
+            existing.action = newAction;
+          }
+
+          // 3. Preserve identifiers
+          if (!existing.gene_symbol && cleanGene) existing.gene_symbol = cleanGene;
+          if (!existing.uniprot_id && uniprot) existing.uniprot_id = uniprot;
+
+          // 4. Preserve quantitative binding affinities (keep highest potency / lowest numeric nM)
+          const affKeys = ['affinity_ki', 'inhibition_ic50', 'affinity_kd', 'ec50', 'km_nm', 'ki', 'kd', 'ic50', 'km'];
+          for (const k of affKeys) {
+            const newV = isObj ? t[k] : undefined;
+            const exV = existing[k];
+            if (newV !== undefined && newV !== null && newV !== '') {
+              const numNew = Number(newV);
+              if (!Number.isNaN(numNew) && numNew > 0) {
+                if (exV === undefined || exV === null || exV === '') {
+                  existing[k] = numNew;
+                } else {
+                  const numEx = Number(exV);
+                  if (!Number.isNaN(numEx)) {
+                    existing[k] = Math.min(numNew, numEx);
+                  }
+                }
+              }
+            }
+          }
+
+          // 5. Preserve structural and disease annotations
+          if (isObj) {
+            if (!existing.alphafold_structure && t.alphafold_structure) existing.alphafold_structure = t.alphafold_structure;
+            if (!existing.open_targets && t.open_targets) existing.open_targets = t.open_targets;
+            if (!existing.target_class && (t.target_class || t.family)) existing.target_class = t.target_class || t.family;
+          }
+        }
+
+        // Collapse composite entries if individual components exist (e.g. "Adenosine A1/A2A Receptor")
+        for (const [key, compTarget] of Array.from(merged.entries())) {
+          if (key.includes('/') || key.includes(' and ')) {
+            const kl = key.toLowerCase();
+            if (kl.includes('adenosine') && kl.includes('a1') && kl.includes('a2')) {
+              if (merged.has('gene:ADORA1') && merged.has('gene:ADORA2A')) {
+                const compKi = compTarget.affinity_ki || compTarget.ki;
+                if (compKi) {
+                  const t1 = merged.get('gene:ADORA1');
+                  const t2 = merged.get('gene:ADORA2A');
+                  if (!t1.affinity_ki) t1.affinity_ki = compKi;
+                  else t1.affinity_ki = Math.min(t1.affinity_ki, compKi);
+                  if (!t2.affinity_ki) t2.affinity_ki = compKi;
+                  else t2.affinity_ki = Math.min(t2.affinity_ki, compKi);
+                }
+                merged.delete(key);
+              }
+            }
+          }
+        }
+
+        return Array.from(merged.values());
+      }
+
+      function sortTargetsByAffinity(targets) {
+        return targets.slice().sort((a, b) => {
+          const affA = parseTargetAffinity(a);
+          const affB = parseTargetAffinity(b);
+
+          if (affA && affB) {
+            return affA.valueNm - affB.valueNm;
+          }
+          if (affA && !affB) return -1;
+          if (!affA && affB) return 1;
+
+          const nameA = String((typeof a === 'object' ? (a.target || a.name || a.gene_symbol) : a) || '').toLowerCase();
+          const nameB = String((typeof b === 'object' ? (b.target || b.name || b.gene_symbol) : b) || '').toLowerCase();
+          return nameA.localeCompare(nameB);
+        });
+      }
+
       function renderTargetPills(compound) {
         const targetField = document.getElementById('compoundTargets');
-        const targets = Array.isArray(compound.receptor_targets) ? compound.receptor_targets : [];
+        const rawTargets = Array.isArray(compound.receptor_targets) ? compound.receptor_targets : [];
 
-        if (!targets.length) {
+        if (!rawTargets.length) {
           targetField.innerHTML = '<span class="pill">No primary targets recorded</span>';
           return;
         }
 
+        const dedupedTargets = deduplicateTargets(rawTargets);
+        const targets = sortTargetsByAffinity(dedupedTargets);
+
         targetField.innerHTML = targets.map((target, index) => {
           const label = typeof target === 'string' ? target : (target.name || target.gene || target.target || `Target ${index + 1}`);
-          const action = typeof target === 'object' && target.action ? ` (${target.action})` : '';
+          const geneSymbol = typeof target === 'object' ? (target.gene_symbol || target.gene || '') : '';
+          const action = typeof target === 'object' && target.action ? target.action : '';
           const tClass = typeof target === 'object' && (target.target_class || target.family || '') ? String(target.target_class || target.family).toLowerCase() : '';
           const icon = tClass.includes('enzyme') ? '⚙️ ' : (tClass.includes('transporter') || tClass.includes('slc') ? '🚪 ' : (tClass.includes('channel') ? '⚡ ' : (tClass.includes('receptor') ? '🧬 ' : '🎯 ')));
-          return `<button type="button" class="target-link" data-target-index="${index}">${icon}${label}${action}</button>`;
+
+          const aff = parseTargetAffinity(target);
+          const tierClass = aff ? getAffinityTierClass(aff.valueNm) : 'affinity-none';
+          const affinityBadge = aff 
+            ? `<span class="target-affinity-badge ${tierClass}" title="Measured binding affinity / potency">${safeText(aff.formatted)}</span>`
+            : `<span class="target-affinity-badge affinity-none" title="No quantitative binding affinity recorded">Affinity: —</span>`;
+
+          const rank = `<span class="target-rank-chip" title="Affinity ranking #${index + 1}">#${index + 1}</span>`;
+
+          return `
+            <button type="button" class="target-link" data-target-index="${index}" title="Click to view AlphaFold 3D structure & full target annotations">
+              <div class="target-info-left">
+                ${rank}
+                <span class="target-icon">${icon}</span>
+                <span class="target-label">${safeText(label)}</span>
+                ${geneSymbol && geneSymbol.toLowerCase() !== label.toLowerCase() ? `<span class="target-gene-badge">${safeText(geneSymbol)}</span>` : ''}
+                ${action ? `<span class="target-action-badge">${safeText(action)}</span>` : ''}
+              </div>
+              <div class="target-affinity-right">
+                ${affinityBadge}
+              </div>
+            </button>
+          `;
         }).join('');
 
         targetField.querySelectorAll('.target-link').forEach((button) => {
@@ -225,12 +488,21 @@ if (window.lucide && typeof window.lucide.createIcons === 'function') {
         }
 
         const detail = typeof target === 'string' ? { name: target } : target;
+        const plddtVal = detail.alphafold_structure ? detail.alphafold_structure.mean_plddt : (detail.mean_plddt || detail.plddt);
+        const aff = parseTargetAffinity(detail);
         const rows = [
-          ['Name', detail.name || detail.target || detail.label || 'Molecular Target'],
+          ['Target Name', detail.name || detail.target || detail.label || 'Molecular Target'],
+          ['Gene Symbol (HGNC)', detail.gene_symbol || detail.gene || '—'],
+          ['UniProt Accession', detail.uniprot_id || detail.uniprot || '—'],
           ['Category / Class', detail.target_class || detail.category || detail.type || detail.target_type || detail.receptor_family || detail.enzyme_family || '—'],
           ['Pharmacological Action', detail.action || detail.mechanism || '—'],
-          ['Binding Affinity (Ki)', detail.affinity_ki ? `${detail.affinity_ki} nM` : '—'],
-          ['Inhibitory Potency (IC50)', detail.inhibition_ic50 ? `${detail.inhibition_ic50} nM` : '—'],
+          ['Primary Binding Affinity', aff ? aff.formatted : '—'],
+          ['Binding Affinity (Ki)', (detail.affinity_ki || detail.ki) ? `${detail.affinity_ki || detail.ki} nM` : '—'],
+          ['Dissociation Constant (Kd)', (detail.affinity_kd || detail.kd || detail.kd_nm) ? `${detail.affinity_kd || detail.kd || detail.kd_nm} nM` : '—'],
+          ['Inhibitory Potency (IC50)', (detail.inhibition_ic50 || detail.ic50) ? `${detail.inhibition_ic50 || detail.ic50} nM` : '—'],
+          ['Effective Concentration (EC50)', detail.ec50 ? `${detail.ec50} nM` : '—'],
+          ['Michaelis Constant (Km)', (detail.km_nm || detail.km) ? `${detail.km_nm || detail.km} nM` : '—'],
+          ['AlphaFold 3D Confidence', plddtVal ? `pLDDT ${plddtVal}% (${Number(plddtVal) >= 90 ? 'Very High' : (Number(plddtVal) >= 70 ? 'Confident' : 'Low')})` : '—'],
           ['Organ System / Panel', detail.organ_system || detail.biomarker_panel || '—'],
           ['Biological Summary', detail.notes || detail.summary || detail.description || '—'],
         ];
@@ -300,7 +572,7 @@ if (window.lucide && typeof window.lucide.createIcons === 'function') {
                 'label': ele => ele.data('label') || ele.data('id'),
                 'font-family': 'Plus Jakarta Sans, -apple-system, sans-serif',
                 'font-size': '11px',
-                'font-weight': '700',
+                'font-weight': 'bold',
                 'text-wrap': 'wrap',
                 'text-max-width': '110px',
                 'color': '#f8fafc',
@@ -330,11 +602,8 @@ if (window.lucide && typeof window.lucide.createIcons === 'function') {
                   if (type === 'transporter') return 'round-tag';
                   return 'ellipse';
                 },
-                'shadow-blur': 14,
-                'shadow-color': ele => colorForNode(ele.data('node_type')),
-                'shadow-opacity': 0.45,
                 'min-zoomed-font-size': 5,
-                'transition-property': 'background-color, border-color, shadow-blur, opacity',
+                'transition-property': 'background-color, border-color, opacity',
                 'transition-duration': '0.2s',
               }
             },

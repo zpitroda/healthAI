@@ -394,26 +394,149 @@
 
       .target-links {
         display: flex;
-        flex-wrap: wrap;
+        flex-direction: column;
         gap: 6px;
+        max-height: 480px;
+        overflow-y: auto;
+        padding-right: 4px;
+      }
+      .target-links::-webkit-scrollbar {
+        width: 4px;
+      }
+      .target-links::-webkit-scrollbar-track {
+        background: transparent;
+      }
+      .target-links::-webkit-scrollbar-thumb {
+        background: rgba(255, 255, 255, 0.15);
+        border-radius: 4px;
       }
 
       .target-link {
         appearance: none;
-        background: rgba(255, 75, 114, 0.1);
-        color: #ffa5ba;
-        border: 1px solid rgba(255, 75, 114, 0.35);
-        border-radius: 999px;
-        padding: 4px 10px;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        gap: 12px;
+        background: rgba(13, 20, 38, 0.75);
+        color: var(--text-primary);
+        border: 1px solid rgba(255, 75, 114, 0.25);
+        border-radius: 8px;
+        padding: 8px 12px;
         cursor: pointer;
-        font-size: 0.75rem;
-        font-weight: 600;
+        font-size: 0.78rem;
+        font-weight: 500;
+        text-align: left;
         transition: all 0.15s ease;
+        width: 100%;
+        box-sizing: border-box;
       }
       .target-link:hover {
-        background: rgba(255, 75, 114, 0.22);
-        border-color: #ff4b72;
+        background: rgba(255, 75, 114, 0.12);
+        border-color: rgba(255, 75, 114, 0.55);
         color: #ffffff;
+        transform: translateX(2px);
+      }
+
+      .target-info-left {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        flex-wrap: wrap;
+        min-width: 0;
+      }
+
+      .target-rank-chip {
+        font-family: 'JetBrains Mono', monospace;
+        font-size: 0.68rem;
+        font-weight: 700;
+        color: var(--text-secondary);
+        background: rgba(255, 255, 255, 0.05);
+        padding: 1px 5px;
+        border-radius: 4px;
+        border: 1px solid rgba(255, 255, 255, 0.1);
+      }
+
+      .target-icon {
+        font-size: 0.85rem;
+        display: inline-flex;
+        align-items: center;
+      }
+
+      .target-label {
+        font-weight: 600;
+        color: #f1f5f9;
+      }
+
+      .target-gene-badge {
+        display: inline-flex;
+        align-items: center;
+        padding: 1px 6px;
+        font-size: 0.68rem;
+        font-family: 'JetBrains Mono', monospace;
+        font-weight: 700;
+        background: rgba(56, 189, 248, 0.12);
+        color: #38bdf8;
+        border: 1px solid rgba(56, 189, 248, 0.3);
+        border-radius: 4px;
+      }
+
+      .target-action-badge {
+        display: inline-flex;
+        align-items: center;
+        padding: 1px 6px;
+        font-size: 0.68rem;
+        font-weight: 600;
+        background: rgba(255, 255, 255, 0.06);
+        color: var(--text-secondary);
+        border: 1px solid rgba(255, 255, 255, 0.1);
+        border-radius: 4px;
+        text-transform: capitalize;
+      }
+
+      .target-affinity-right {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        flex-shrink: 0;
+      }
+
+      .target-affinity-badge {
+        display: inline-flex;
+        align-items: center;
+        gap: 4px;
+        padding: 3px 8px;
+        font-size: 0.74rem;
+        font-family: 'JetBrains Mono', monospace;
+        font-weight: 700;
+        border-radius: 5px;
+        white-space: nowrap;
+      }
+
+      .target-affinity-badge.affinity-high {
+        background: rgba(0, 242, 254, 0.15);
+        color: #00f2fe;
+        border: 1px solid rgba(0, 242, 254, 0.4);
+        box-shadow: 0 0 8px rgba(0, 242, 254, 0.12);
+      }
+
+      .target-affinity-badge.affinity-mid {
+        background: rgba(59, 130, 246, 0.15);
+        color: #60a5fa;
+        border: 1px solid rgba(59, 130, 246, 0.35);
+      }
+
+      .target-affinity-badge.affinity-low {
+        background: rgba(245, 158, 11, 0.12);
+        color: #fbbf24;
+        border: 1px solid rgba(245, 158, 11, 0.3);
+      }
+
+      .target-affinity-badge.affinity-none {
+        background: rgba(255, 255, 255, 0.04);
+        color: var(--text-muted);
+        border: 1px solid rgba(255, 255, 255, 0.08);
+        font-weight: 500;
+        font-size: 0.7rem;
       }
 
       /* ==========================================================================

@@ -1039,11 +1039,8 @@ class PharmacologyEnricher:
 
                 for t in rule.get("targets", []):
                     t_clean = dict(t)
-                    for aff_k in ["affinity_ki", "inhibition_ic50", "ec50"]:
-                        if t_clean.get(aff_k) is not None:
-                            val = float(t_clean[aff_k])
-                            if val < 1.0:
-                                t_clean[aff_k] = round(val * 1000.0, 4)
+                    # All affinity values in USAN_STEM_RULES must be specified in nM.
+                    # No automatic unit conversion is applied — values are used as-is.
                     matched_targets.append(t_clean)
 
         # 2. Match ATC Classification

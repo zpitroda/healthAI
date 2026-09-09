@@ -122,6 +122,31 @@ def infer_target_classification(
 
 
 
+def _clean_spl_text(raw_list: Any, max_items: int = 8) -> List[str]:
+    """Cleans FDA Structured Product Labeling (SPL) text by removing section headers and noisy formatting."""
+    if not raw_list:
+        return []
+    if isinstance(raw_list, str):
+        raw_list = [raw_list]
+    cleaned: List[str] = []
+    for chunk in raw_list:
+        lines = str(chunk).split("\n")
+        for line in lines:
+            l = re.sub(r"^[0-9.]+\s+[A-Z\s]+", "", line).strip()
+            l = re.sub(r"^•\s*", "", l).strip()
+            if len(l) > 15 and not l.startswith("Table ") and not l.isupper() and l not in cleaned:
+                cleaned.append(l)
+                if len(cleaned) >= max_items:
+                    break
+        if len(cleaned) >= max_items:
+            break
+    if not cleaned and raw_list:
+        first_clean = str(raw_list[0]).strip()
+        if first_clean:
+            cleaned.append(first_clean[:350])
+    return cleaned
+
+
 class LiveEnrichmentService:
     """
     Live Online Biomedical & Pharmacological Enrichment Service.
@@ -151,7 +176,7 @@ class LiveEnrichmentService:
         return get_shared_http_client(self.timeout)
 
     def fetch_openfda(self, query_name: str) -> Dict[str, Any]:
-        """Fetch FDA label metadata, pharmacologic classes, and warnings from openFDA API."""
+        """Fetch FDA product labeling, pharmacological classes, boxed warnings, indications, and adverse reactions from openFDA API."""
         cleaned_name = query_name.strip().lower()
         if not cleaned_name:
             return {}
@@ -171,6 +196,9 @@ class LiveEnrichmentService:
             "warnings": [],
             "contraindications": [],
             "drug_interactions": [],
+            "indications": [],
+            "adverse_reactions": [],
+            "dosage_and_administration": [],
             "atc_codes": [],
         }
 
@@ -268,6 +296,21 @@ class LiveEnrichmentService:
                     if label.get("drug_interactions"):
                         di = label["drug_interactions"]
                         result["drug_interactions"] = di if isinstance(di, list) else [str(di)]
+
+                    # Extract indications and clinical usage
+                    if label.get("indications_and_usage"):
+                        iu = label["indications_and_usage"]
+                        result["indications"] = _clean_spl_text(iu, max_items=8)
+
+                    # Extract adverse reactions (side effects)
+                    if label.get("adverse_reactions"):
+                        ar = label["adverse_reactions"]
+                        result["adverse_reactions"] = _clean_spl_text(ar, max_items=12)
+
+                    # Extract clinical dosing guidance
+                    if label.get("dosage_and_administration"):
+                        da = label["dosage_and_administration"]
+                        result["dosage_and_administration"] = _clean_spl_text(da, max_items=5)
         except Exception as e:
             logger.debug("OpenFDA query for %s encountered error: %s", cleaned_name, e)
 
@@ -661,6 +704,9 @@ class LiveEnrichmentService:
             "molecular_weight": None,
             "logp": None,
             "tpsa": None,
+            "hbd": None,
+            "hba": None,
+            "rotatable_bonds": None,
             "synonyms": [],
             "mesh_pharmacology": [],
             "is_veterinary": False,
@@ -670,7 +716,7 @@ class LiveEnrichmentService:
         try:
             client = self._client()
             quoted_name = urllib.parse.quote(cleaned_name)
-            url = f"https://pubchem.ncbi.nlm.nih.gov/rest/pug/compound/name/{quoted_name}/property/Title,IUPACName,MolecularWeight,CanonicalSMILES,InChIKey,XLogP,TPSA/JSON"
+            url = f"https://pubchem.ncbi.nlm.nih.gov/rest/pug/compound/name/{quoted_name}/property/Title,IUPACName,MolecularWeight,CanonicalSMILES,InChIKey,XLogP,TPSA,HBondDonorCount,HBondAcceptorCount,RotatableBondCount/JSON"
             syn_url = f"https://pubchem.ncbi.nlm.nih.gov/rest/pug/compound/name/{quoted_name}/synonyms/JSON"
 
             with concurrent.futures.ThreadPoolExecutor(max_workers=2) as p_exec:
@@ -691,6 +737,9 @@ class LiveEnrichmentService:
                             result["molecular_weight"] = float(p.get("MolecularWeight")) if p.get("MolecularWeight") else None
                             result["logp"] = float(p.get("XLogP")) if p.get("XLogP") is not None else None
                             result["tpsa"] = float(p.get("TPSA")) if p.get("TPSA") is not None else None
+                            result["hbd"] = int(p.get("HBondDonorCount")) if p.get("HBondDonorCount") is not None else None
+                            result["hba"] = int(p.get("HBondAcceptorCount")) if p.get("HBondAcceptorCount") is not None else None
+                            result["rotatable_bonds"] = int(p.get("RotatableBondCount")) if p.get("RotatableBondCount") is not None else None
                 except Exception as pe:
                     logger.debug("PubChem property query error for %s: %s", cleaned_name, pe)
 
@@ -1250,6 +1299,12 @@ class LiveEnrichmentService:
             enriched["logp"] = pubchem_data["logp"]
         if enriched.get("tpsa") is None and pubchem_data.get("tpsa") is not None:
             enriched["tpsa"] = pubchem_data["tpsa"]
+        if enriched.get("hbd") is None and pubchem_data.get("hbd") is not None:
+            enriched["hbd"] = pubchem_data["hbd"]
+        if enriched.get("hba") is None and pubchem_data.get("hba") is not None:
+            enriched["hba"] = pubchem_data["hba"]
+        if enriched.get("rotatable_bonds") is None and pubchem_data.get("rotatable_bonds") is not None:
+            enriched["rotatable_bonds"] = pubchem_data["rotatable_bonds"]
 
         # Merge Synonyms
         existing_synonyms = list(enriched.get("synonyms", []))
@@ -1626,6 +1681,12 @@ class LiveEnrichmentService:
         if not enriched.get("interactions") and fda_data.get("drug_interactions"):
             enriched["interactions"] = fda_data["drug_interactions"]
 
+        if not enriched.get("indications") and fda_data.get("indications"):
+            enriched["indications"] = fda_data["indications"]
+
+        if not enriched.get("side_effects") and fda_data.get("adverse_reactions"):
+            enriched["side_effects"] = fda_data["adverse_reactions"]
+
         # Determine Regulatory & Evidence Tier
         existing_meta = compound_dict.get("metadata", {}) or {}
         is_fda_approved = bool(fda_data.get("pharm_class_epc") or fda_data.get("boxed_warning") or fda_data.get("warnings") or existing_meta.get("is_fda_approved"))
@@ -1984,6 +2045,13 @@ class LiveEnrichmentService:
                 enriched["synonyms"].append(display_name)
             if cleaned not in enriched.get("synonyms", []):
                 enriched["synonyms"].append(cleaned)
+
+        # Apply structured pharmacology & PK/PD benchmarks (organ burdens, clearance routes, dosing, continuous PK)
+        try:
+            from app.services.pharmacology_enricher import PharmacologyEnricher
+            enriched = PharmacologyEnricher.enrich_compound(enriched)
+        except Exception as pe_err:
+            logger.debug("PharmacologyEnricher execution notice for %s: %s", cleaned, pe_err)
 
         self._cache[cache_key] = enriched
         _GLOBAL_LIVE_CACHE[cache_key] = enriched

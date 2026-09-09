@@ -462,33 +462,43 @@ def canonicalize_token(name: str) -> str:
     return re.sub(r"[^a-z0-9]", "", str(name or "").lower())
 
 
+_OPENFDA_DOSING_CACHE: Dict[str, Optional[float]] = {}
+
+
 def fetch_openfda_dosing(query_name: str) -> Optional[float]:
     """Dynamically query OpenFDA drug label API for package strength and recommended dosing."""
     cleaned = query_name.strip().lower()
     if not cleaned:
         return None
+    if cleaned in _OPENFDA_DOSING_CACHE:
+        return _OPENFDA_DOSING_CACHE[cleaned]
     try:
+        from app.services.live_enrichment import get_shared_http_client
+        client = get_shared_http_client(4.0)
         url = "https://api.fda.gov/drug/label.json"
         search_query = f'openfda.generic_name:"{cleaned}"+OR+openfda.brand_name:"{cleaned}"'
-        with httpx.Client(timeout=4.0) as client:
-            resp = client.get(url, params={"search": search_query, "limit": 1})
-            if resp.status_code == 200:
-                results = resp.json().get("results", [])
-                if results:
-                    label = results[0]
-                    # Parse dosage text or active ingredient strength
-                    dosage_text = " ".join(label.get("dosage_and_administration", []))
-                    match = re.search(r"(\d+(?:\.\d+)?)\s*(mg|mcg|microgram|g)", dosage_text, re.IGNORECASE)
-                    if match:
-                        num = float(match.group(1))
-                        u = match.group(2).lower()
-                        if "mcg" in u or "micro" in u:
-                            return num / 1000.0
-                        elif "g" == u:
-                            return num * 1000.0
-                        return num
+        resp = client.get(url, params={"search": search_query, "limit": 1})
+        if resp.status_code == 200:
+            results = resp.json().get("results", [])
+            if results:
+                label = results[0]
+                # Parse dosage text or active ingredient strength
+                dosage_text = " ".join(label.get("dosage_and_administration", []))
+                match = re.search(r"(\d+(?:\.\d+)?)\s*(mg|mcg|microgram|g)", dosage_text, re.IGNORECASE)
+                if match:
+                    num = float(match.group(1))
+                    u = match.group(2).lower()
+                    if "mcg" in u or "micro" in u:
+                        val = num / 1000.0
+                    elif "g" == u:
+                        val = num * 1000.0
+                    else:
+                        val = num
+                    _OPENFDA_DOSING_CACHE[cleaned] = val
+                    return val
     except Exception:
         pass
+    _OPENFDA_DOSING_CACHE[cleaned] = None
     return None
 
 

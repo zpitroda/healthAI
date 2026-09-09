@@ -56,7 +56,7 @@ Whether you are designing a targeted longevity regimen, red-teaming an advanced 
   - [High-Throughput In-Memory Index & Progressive Dual-Tier SSE Search](#high-throughput-in-memory-index--progressive-dual-tier-sse-search)
   - [6-Tier Biological Network Ontology & GraphRAG](#6-tier-biological-network-ontology--graphrag)
   - [Pharmacogenomics (PGx) & Biometric Lab Normalization](#pharmacogenomics-pgx--biometric-lab-normalization)
-  - [Multi-Tier Live Biomedical Enrichment & IUPHAR Integration](#multi-tier-live-biomedical-enrichment--iuphar-integration)
+- [Multi-Tier Live Biomedical Enrichment & Write-Through On-Demand Pipeline](#multi-tier-live-biomedical-enrichment--write-through-on-demand-pipeline)
 - [🚀 Quick Start & Local Setup](#-quick-start--local-setup)
   - [Pre-Seeding Essential Therapeutics (`scripts/seed_top_compounds.py`)](#pre-seeding-essential-therapeutics-scriptsseed_top_compoundspy)
 - [⚡ LLM Inference Configuration (Local GPU & Cloud Providers)](#-llm-inference-configuration-local-gpu--cloud-providers)
@@ -297,8 +297,10 @@ An in-depth scientific dossier and continuous-time pharmacokinetic/pharmacodynam
 - **Subcutaneous (SC) Depot Kinetics:** Models slow lymphatic absorption and incomplete bioavailability ($F_{\text{sc}} \approx 65\%$) vs. instantaneous IV bolus.
 - **Lysosomal Ion-Trapping Calculator:** Computes subcellular sequestration based on Henderson-Hasselbalch basic $pK_a$ partitioning across cytosol (pH 7.2) and acidic lysosomes (pH 4.8).
 - **Dynamic DDI Simulation:** Add co-administered inhibitors or inducers to instantly simulate AUC surges, half-life prolongation, and clearance attenuation curves.
-- **Population Uncertainty Bands:** Visualizes $P_{10}, P_{25}, P_{50}, P_{75}, P_{90}$ population variance confidence intervals.
-- **1-Click Live Multi-Source Re-Enrichment:** Refresh molecular weights, SMILES, target affinities ($K_i, IC_{50}$), and FDA labeling directly from live upstream APIs.
+- **Comprehensive 5-Axis Organ Burdens:** Real-time visual gauges and severity badges (*None*, *Low*, *Moderate*, *High*, *Severe*) evaluating Hepatic, Renal, Cardiovascular, CNS Stimulant, and Sedative physiological burdens.
+- **Expanded Physicochemical Architecture:** Displays $pK_a$, Hydrogen Bond Donors (HBD), Hydrogen Bond Acceptors (HBA), and Rotatable Bond counts alongside MW, LogP, and tPSA.
+- **Affinity-Ranked Target Binding & Interactive Modal:** Molecular targets and receptors are dynamically sorted and ranked in order of binding affinity (highest affinity / lowest numeric dissociation constant $K_i > K_d > IC_{50} > EC_{50} > K_m$ first). Each receptor features prominent, color-coded inline badges displaying exact quantified affinity values (pM, nM, $\mu\text{M}$, mM) without requiring clicks, with full interactive deep-dive modal support (Gene Symbol, UniProt ID, quantitative metrics, AlphaFold $pLDDT$).
+- **1-Click Live Multi-Source Re-Enrichment & On-Demand Ingestion:** Refresh molecular weights, SMILES, target affinities ($K_i, IC_{50}$), indications, adverse reactions, and FDA labeling directly from live upstream APIs with automatic write-through caching into SQLite.
 
 ---
 
@@ -591,12 +593,17 @@ The PGx engine (`pgx_engine.py`) integrates CPIC / PharmGKB activity scores to i
 
 ---
 
-### Multi-Tier Live Biomedical Enrichment & IUPHAR Integration
+### Multi-Tier Live Biomedical Enrichment & Write-Through On-Demand Pipeline
 
-HealthAI implements a robust 3-tier data enrichment architecture:
-- **Tier 1 (Seed Cache):** Instant in-memory curated compound catalog.
-- **Tier 2 (Relational SQLite Cache):** Local `healthai_catalog.db` database.
-- **Tier 3 (Live Upstream REST APIs):** On-demand querying of **NCBI PubChem** (structures, 2D/3D coordinates), **EMBL-EBI ChEMBL** (binding affinities, $K_i, IC_{50}$), **IUPHAR / BPS Guide to PHARMACOLOGY** (peptides, GPCR receptor targets), **UniProt** (target identifiers), **Reactome** (canonical biological pathways), **NIH RxNorm**, **OpenFDA** (adverse events), and **Europe PMC** (dynamic literature ROS/redox mining).
+HealthAI implements an end-to-end 3-tier data enrichment and dynamic ingestion architecture:
+- **Tier 1 (Seed & In-Memory Cache):** Instant in-memory dual-level LRU cache (`_CATALOG_MEMORY_CACHE`, `_CATALOG_ALL_COMPOUNDS`).
+- **Tier 2 (Relational SQLite Persistence):** Local `healthai_catalog.db` database storing complete scientific profiles: mechanisms, indications, side effects, contraindications, drug interactions, 5-axis organ burdens, clearance routes, clinical dosing, physicochemical parameters ($pK_a$, HBD, HBA, rotatable bonds), and receptor target affinities.
+- **Tier 3 (Live Upstream REST APIs & On-Demand Enrichment):** When an uncataloged compound is queried via `/catalog/{compound_key}` or discovered in progressive search, `LiveEnrichmentService` executes a multi-registry ingestion pipeline:
+  - **NCBI PubChem PUG-REST:** Fetches canonical SMILES, InChIKey, MW, XLogP, TPSA, HBD, HBA, and Rotatable Bond counts.
+  - **EMBL-EBI ChEMBL & IUPHAR:** Extracts molecular targets, mechanisms of action, and quantitative binding affinities ($K_i, IC_{50}, EC_{50}, K_m$).
+  - **UniProtKB & AlphaFold:** Resolves primary accessions, gene symbols, protein descriptions, and structural prediction metrics ($pLDDT$).
+  - **OpenFDA & DailyMed SPL:** Extracts approved indications, adverse reactions / side effects, boxed warnings, and clinical dosing guidelines.
+  - **Dynamic Biophysical Profiling:** Automatically runs `PharmacologyEnricher` (deriving 5-axis organ burdens, Phase II metabolism, and clearance routes) and `PKPDEnricher` (continuous ODE parameters $t_{1/2}$, $V_d$, $F$, $CL$, $k_a$) before write-through caching into SQLite.
 
 ---
 
@@ -655,34 +662,28 @@ HealthAI features a multi-provider inference architecture supporting both local 
 
 ### Local Hardware-Accelerated Server (RTX 5090 / CUDA)
 
-HealthAI is pre-configured to interface seamlessly with local hardware-accelerated LLMs via `llama.cpp` / `llama-server`.
+HealthAI interfaces seamlessly with the centralized, system-wide local LLM backend at `L:\local-llm` powered by `llama.cpp` / `llama-server`.
 
-#### 1. Download the Recommended Model (Qwen 3.8-27B GGUF)
-Run the multi-threaded resumable downloader:
-```bash
-python scripts/download_model.py
+#### 1. System-Wide Local LLM Daemon (`L:\local-llm`)
+The local inference engine runs as an independent, standalone service accessible across all projects (`healthAI`, `cortex`, `fitnessdash`) on `http://127.0.0.1:8080/v1`:
+
+```bat
+# Start the system-wide backend directly
+L:\local-llm\start.bat
 ```
-*(Downloads `Qwen3.8-27B-UD-Q6_K.gguf` directly to `models/` with 24 concurrent connection workers and automatic sha256 verification).*
 
-#### 2. Start the Hardware-Accelerated Local Inference Server
-Launch the pre-configured `llama-server` runner:
-
-**Windows Batch:**
+Or via HealthAI's backward-compatible launch shims:
 ```bat
 start_llama_server.bat
 ```
+*(PowerShell: `.\start_llama_server.ps1`)*
 
-**PowerShell:**
-```powershell
-.\start_llama_server.ps1
-```
-
-##### Included GPU Optimizations:
-- **Speculative Multi-Target Prediction (MTP):** `--spec-draft-mtp --spec-draft-n-max 2`
-- **Flash Attention:** `-fa`
-- **4-bit Quantized KV Cache:** `-ctk q4_0 -ctv q4_0`
-- **Large Context Window:** `-c 65536` (64k context)
-- **Auto-Connection:** HealthAI automatically detects and connects to the active LLM server on port `8080`.
+##### Included GPU Optimizations (RTX 5090):
+- **Full GPU Layer Offload:** `-ngl 99` with Direct VRAM I/O (`--no-mmap`).
+- **Speculative Multi-Target Prediction (MTP):** `--spec-type draft-mtp --spec-draft-n-max 2` draft model acceleration.
+- **Flash Attention:** `-fa on` for high prompt evaluation throughput.
+- **4-bit Quantized KV Cache:** `-ctk q4_0 -ctv q4_0` enabling a full **65,536 token context window** within ~28.5 GB VRAM alongside 27B parameters.
+- **Auto-Detection:** HealthAI's `start.bat` / `start.ps1` automatically probes `http://127.0.0.1:8080/v1` and connects seamlessly without requiring local model weights or binaries inside the repository.
 
 ### Local Ollama / vLLM & Custom OpenAI-Compatible Endpoints
 

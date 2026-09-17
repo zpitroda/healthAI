@@ -444,8 +444,18 @@ CORE_SUPPLEMENT_LIBRARY: Dict[str, Dict[str, Any]] = {
         "molecular_weight": 194.19,
         "logp": -0.07,
         "oral_bioavailability": 0.99,
-        "volume_of_distribution": 0.6,
+        "bioavailability_f": 0.99,
+        "half_life": "4.8 hours",
+        "t_half_numeric": 4.8,
+        "volume_of_distribution": 0.65,
+        "volume_of_distribution_l_kg": 0.65,
+        "clearance_l_h_kg": 0.094,
+        "absorption_rate_ka": 2.8,
+        "t_max_h": 0.75,
         "protein_binding": 36.0,
+        "protein_binding_pct": 36.0,
+        "fraction_unbound": 0.64,
+        "renal_clearance_fraction": 0.02,
         "dosing": {
             "unit": "mg/day",
             "basis": "bodyweight",
@@ -467,15 +477,25 @@ CORE_SUPPLEMENT_LIBRARY: Dict[str, Dict[str, Any]] = {
         "molecular_weight": 4113.58,
         "logp": -1.2,
         "oral_bioavailability": 0.89,
-        "volume_of_distribution": 12.5,
+        "bioavailability_f": 0.89,
+        "half_life": "168 hours (7.0 days)",
+        "t_half_numeric": 168.0,
+        "volume_of_distribution": 0.125,
+        "volume_of_distribution_l_kg": 0.125,
+        "clearance_l_h_kg": 0.00051,
+        "absorption_rate_ka": 0.015,
+        "t_max_h": 48.0,
         "protein_binding": 99.0,
+        "protein_binding_pct": 99.0,
+        "fraction_unbound": 0.01,
+        "renal_clearance_fraction": 0.03,
         "metadata": {
             "evidence_tier": "FDA_APPROVED_CLINICAL_DATA",
             "regulatory_status": "APPROVED_RX",
             "human_clinical_trials": True,
         },
         "receptor_targets": [
-            {"target": "Glucagon-Like Peptide 1 Receptor (GLP1R)", "action": "agonist", "family": "GPCR Class B", "ec50": 0.069}  # EC50 ~ 69 pM [Lau 2015, PMID: 26011726]
+            {"target": "Glucagon-Like Peptide 1 Receptor (GLP1R)", "action": "agonist", "family": "GPCR Class B", "ec50": 0.069, "gene_symbol": "GLP1R"}
         ],
     },
     "retatrutide": {
@@ -509,10 +529,18 @@ CORE_SUPPLEMENT_LIBRARY: Dict[str, Dict[str, Any]] = {
         "molecular_weight": 405.44,
         "logp": 4.1,
         "oral_bioavailability": 0.12,
-        "half_life": "10-12 hours (Extensive Metabolizers) / 19-30 hours (Poor Metabolizers)",
-        "t_half_numeric": 12.0,
-        "volume_of_distribution": 10.5,
+        "bioavailability_f": 0.12,
+        "half_life": "16 hours",
+        "t_half_numeric": 16.0,
+        "volume_of_distribution": 10.0,
+        "volume_of_distribution_l_kg": 10.0,
+        "clearance_l_h_kg": 0.43,
+        "absorption_rate_ka": 1.2,
+        "t_max_h": 2.0,
         "protein_binding": 98.0,
+        "protein_binding_pct": 98.0,
+        "fraction_unbound": 0.02,
+        "renal_clearance_fraction": 0.38,
         "mechanism": "Highly selective competitive beta-1 adrenergic receptor antagonist combined with d-enantiomer mediated endothelial nitric oxide synthase (eNOS / NOS3) activation and beta-3 adrenergic agonism, producing systemic peripheral vasodilation with minimal bronchoconstrictive or inotropic depression.",
         "receptor_targets": [
             {"target": "Beta-1 Adrenergic Receptor (ADRB1)", "action": "antagonist", "family": "GPCR / Adrenergic", "affinity_ki": 0.9, "gene_symbol": "ADRB1"},
@@ -1504,10 +1532,18 @@ CORE_THERAPEUTIC_LIBRARY: Dict[str, Dict[str, Any]] = {
         "molecular_weight": 405.44,
         "logp": 4.1,
         "oral_bioavailability": 0.12,
+        "bioavailability_f": 0.12,
         "half_life": "16 hours",
         "t_half_numeric": 16.0,
         "volume_of_distribution": 10.0,
+        "volume_of_distribution_l_kg": 10.0,
+        "clearance_l_h_kg": 0.43,
+        "absorption_rate_ka": 1.2,
+        "t_max_h": 2.0,
         "protein_binding": 98.0,
+        "protein_binding_pct": 98.0,
+        "fraction_unbound": 0.02,
+        "renal_clearance_fraction": 0.38,
         "evidence_level": "gold_standard",
         "mechanism": "Highly selective beta-1 adrenergic antagonist (>30-fold selectivity over beta-2) with direct endothelial nitric oxide synthase (eNOS) activation via beta-3 agonism, lowering peripheral vascular resistance without erectile dysfunction or bronchospasm.",
         "receptor_targets": [
@@ -1571,10 +1607,18 @@ CORE_THERAPEUTIC_LIBRARY: Dict[str, Dict[str, Any]] = {
         "molecular_weight": 129.16,
         "logp": -1.4,
         "oral_bioavailability": 0.55,
-        "half_life": "6.2 hours",
-        "t_half_numeric": 6.2,
-        "volume_of_distribution": 654.0,
+        "bioavailability_f": 0.55,
+        "half_life": "5.0 hours",
+        "t_half_numeric": 5.0,
+        "volume_of_distribution": 3.2,
+        "volume_of_distribution_l_kg": 3.2,
+        "clearance_l_h_kg": 0.50,
+        "absorption_rate_ka": 0.60,
+        "t_max_h": 2.5,
         "protein_binding": 0.0,
+        "protein_binding_pct": 0.0,
+        "fraction_unbound": 1.0,
+        "renal_clearance_fraction": 0.90,
         "evidence_level": "gold_standard",
         "mechanism": "Inhibits mitochondrial respiratory complex I, shifting the AMP/ATP ratio to activate AMP-activated protein kinase (AMPK), suppressing hepatic gluconeogenesis, enhancing GLUT4-mediated peripheral insulin sensitivity, and inducing cellular autophagy.",
         "receptor_targets": [
@@ -1582,6 +1626,11 @@ CORE_THERAPEUTIC_LIBRARY: Dict[str, Dict[str, Any]] = {
             {"target": "AMP-Activated Protein Kinase (PRKAA1 / AMPK)", "action": "activator", "family": "Metabolic Kinase", "gene_symbol": "PRKAA1"}
         ],
         "cyp_enzymes": {"substrates": [], "inhibitors": [], "inducers": []},
+        "transporters": {
+            "substrates": ["OCT1", "OCT2", "MATE1", "MATE2-K"],
+            "inhibitors": [],
+            "inducers": []
+        },
         "organ_burdens": {"renal": {"score": 5.0, "severity": "MINIMAL"}},
     },
     "clenbuterol": {
@@ -1626,6 +1675,460 @@ CORE_THERAPEUTIC_LIBRARY: Dict[str, Dict[str, Any]] = {
         ],
         "cyp_enzymes": {"substrates": ["CYP3A4"], "inhibitors": [], "inducers": []},
         "organ_burdens": {"hepatic": {"score": 5.0, "severity": "MINIMAL"}},
+    },
+    "clonidine": {
+        "name": "Clonidine",
+        "canonical_name": "Clonidine (Catapres)",
+        "synonyms": ["catapres", "clonidine", "clonidinum", "catapresan"],
+        "drug_class": "Centrally Acting Alpha-2 Adrenergic Agonist / Imidazoline Agonist",
+        "categories": ["Antihypertensive", "Sympatholytic", "Alpha-2 Agonist", "Prescription"],
+        "molecular_weight": 230.09,
+        "logp": 1.6,
+        "oral_bioavailability": 0.75,
+        "bioavailability_f": 0.75,
+        "half_life": "12.0 hours",
+        "t_half_numeric": 12.0,
+        "volume_of_distribution": 2.1,
+        "volume_of_distribution_l_kg": 2.1,
+        "clearance_l_h_kg": 0.12,
+        "absorption_rate_ka": 1.5,
+        "t_max_h": 2.0,
+        "protein_binding": 30.0,
+        "protein_binding_pct": 30.0,
+        "fraction_unbound": 0.70,
+        "renal_clearance_fraction": 0.65,
+        "evidence_level": "gold_standard",
+        "mechanism": "Centrally acting alpha-2A adrenergic receptor and imidazoline I1 receptor agonist in the rostral ventrolateral medulla, reducing central sympathetic outflow, systemic vascular resistance, and heart rate.",
+        "receptor_targets": [
+            {"target": "Alpha-2A Adrenergic Receptor (ADRA2A)", "action": "agonist", "family": "GPCR / Adrenergic", "affinity_ki": 0.5, "gene_symbol": "ADRA2A"},
+            {"target": "Alpha-2B Adrenergic Receptor (ADRA2B)", "action": "agonist", "family": "GPCR / Adrenergic", "affinity_ki": 5.0, "gene_symbol": "ADRA2B"},
+            {"target": "Alpha-2C Adrenergic Receptor (ADRA2C)", "action": "agonist", "family": "GPCR / Adrenergic", "affinity_ki": 2.0, "gene_symbol": "ADRA2C"},
+            {"target": "Imidazoline I1 Receptor", "action": "agonist", "family": "Imidazoline Receptor", "gene_symbol": "NISCH"}
+        ],
+        "cyp_enzymes": {"substrates": ["CYP2D6"], "inhibitors": [], "inducers": []},
+        "organ_burdens": {"cardiovascular": {"score": 0.0}}
+    },
+    "atorvastatin": {
+        "name": "Atorvastatin",
+        "canonical_name": "Atorvastatin Calcium (Lipitor)",
+        "synonyms": ["lipitor", "atorvastatin", "atorvastatine"],
+        "drug_class": "HMG-CoA Reductase Inhibitor / Statin",
+        "categories": ["Antihyperlipidemic", "Statin", "Cardioprotective", "Prescription"],
+        "molecular_weight": 558.64,
+        "logp": 5.7,
+        "oral_bioavailability": 0.14,
+        "bioavailability_f": 0.14,
+        "half_life": "14.0 hours",
+        "t_half_numeric": 14.0,
+        "volume_of_distribution": 5.4,
+        "volume_of_distribution_l_kg": 5.4,
+        "clearance_l_h_kg": 0.267,
+        "absorption_rate_ka": 1.2,
+        "t_max_h": 1.5,
+        "protein_binding": 98.0,
+        "protein_binding_pct": 98.0,
+        "fraction_unbound": 0.02,
+        "renal_clearance_fraction": 0.02,
+        "evidence_level": "gold_standard",
+        "mechanism": "Potent competitive reversible inhibitor of HMG-CoA reductase (HMGCR), the rate-limiting enzyme in cholesterol biosynthesis, upregulating hepatic LDL receptors and clearing atherogenic ApoB-containing lipoproteins.",
+        "receptor_targets": [
+            {"target": "HMG-CoA Reductase (HMGCR)", "action": "inhibitor", "family": "Enzyme / Cholesterol Biosynthesis", "affinity_ki": 8.0, "gene_symbol": "HMGCR"}
+        ],
+        "cyp_enzymes": {"substrates": ["CYP3A4"], "inhibitors": ["CYP3A4"], "inducers": []},
+        "transporters": {"substrates": ["OATP1B1", "OATP1B3", "P-gp"], "inhibitors": ["OATP1B1"], "inducers": []},
+        "organ_burdens": {"hepatic": {"score": 15.0, "severity": "MILD"}}
+    },
+    "ketoconazole": {
+        "name": "Ketoconazole",
+        "canonical_name": "Ketoconazole (Nizoral)",
+        "synonyms": ["nizoral", "ketoconazole", "extina", "kuric"],
+        "drug_class": "Broad-Spectrum Imidazole Antifungal / Potent CYP3A4 Inhibitor",
+        "categories": ["Antifungal", "CYP3A4 Inhibitor", "Prescription"],
+        "molecular_weight": 531.43,
+        "logp": 4.3,
+        "oral_bioavailability": 0.75,
+        "bioavailability_f": 0.75,
+        "half_life": "8.0 hours",
+        "t_half_numeric": 8.0,
+        "volume_of_distribution": 1.5,
+        "volume_of_distribution_l_kg": 1.5,
+        "clearance_l_h_kg": 0.13,
+        "absorption_rate_ka": 1.5,
+        "t_max_h": 1.5,
+        "protein_binding": 99.0,
+        "protein_binding_pct": 99.0,
+        "fraction_unbound": 0.01,
+        "renal_clearance_fraction": 0.05,
+        "evidence_level": "gold_standard",
+        "mechanism": "Inhibits fungal lanosterol 14-alpha demethylase (CYP51A1), preventing ergosterol biosynthesis. Potent mechanism-based and competitive inhibitor of mammalian CYP3A4, CYP2C9, and P-glycoprotein.",
+        "receptor_targets": [
+            {"target": "Sterol 14-Alpha Demethylase (CYP51A1)", "action": "inhibitor", "family": "Cytochrome P450", "gene_symbol": "CYP51A1"},
+            {"target": "Cytochrome P450 3A4 (CYP3A4)", "action": "inhibitor", "family": "Cytochrome P450 / Drug Metabolism", "affinity_ki": 0.015, "gene_symbol": "CYP3A4"}
+        ],
+        "cyp_enzymes": {"substrates": ["CYP3A4"], "inhibitors": ["CYP3A4", "CYP2C9", "CYP2C19"], "inducers": []},
+        "transporters": {"substrates": ["P-gp"], "inhibitors": ["P-gp"], "inducers": []},
+        "organ_burdens": {"hepatic": {"score": 40.0, "severity": "ELEVATED"}}
+    },
+    "daridorexant": {
+        "name": "Daridorexant",
+        "canonical_name": "Daridorexant (Quviviq)",
+        "synonyms": ["quviviq", "daridorexant", "act541468"],
+        "drug_class": "Dual Orexin Receptor Antagonist (DORA)",
+        "categories": ["Sedative-Hypnotic", "Insomnia Agent", "Orexin Antagonist", "Prescription"],
+        "molecular_weight": 450.92,
+        "logp": 3.4,
+        "oral_bioavailability": 0.62,
+        "bioavailability_f": 0.62,
+        "half_life": "8.0 hours",
+        "t_half_numeric": 8.0,
+        "volume_of_distribution": 0.44,
+        "volume_of_distribution_l_kg": 0.44,
+        "clearance_l_h_kg": 0.038,
+        "absorption_rate_ka": 1.4,
+        "t_max_h": 1.2,
+        "protein_binding": 99.7,
+        "protein_binding_pct": 99.7,
+        "fraction_unbound": 0.003,
+        "renal_clearance_fraction": 0.01,
+        "evidence_level": "gold_standard",
+        "mechanism": "Dual orexin receptor antagonist (DORA) reversibly blocking OX1R and OX2R, attenuating the hyperarousal drive of endogenous orexins A and B to promote sleep onset and maintenance without morning grogginess.",
+        "receptor_targets": [
+            {"target": "Orexin Receptor Type 1 (OX1R / HCRTR1)", "action": "antagonist", "family": "GPCR / Neuropeptide", "affinity_ki": 1.8, "gene_symbol": "HCRTR1"},
+            {"target": "Orexin Receptor Type 2 (OX2R / HCRTR2)", "action": "antagonist", "family": "GPCR / Neuropeptide", "affinity_ki": 2.0, "gene_symbol": "HCRTR2"}
+        ],
+        "cyp_enzymes": {"substrates": ["CYP3A4"], "inhibitors": [], "inducers": []},
+        "organ_burdens": {"cardiovascular": {"score": 0.0}}
+    },
+    "midazolam": {
+        "name": "Midazolam",
+        "canonical_name": "Midazolam (Versed)",
+        "synonyms": ["versed", "midazolam", "hypnovel", "dormicum"],
+        "drug_class": "Short-Acting Benzodiazepine / FDA Index CYP3A4 Substrate",
+        "categories": ["Sedative", "Anesthetic Adjunct", "CYP3A4 Probe", "Prescription"],
+        "molecular_weight": 325.77,
+        "logp": 3.9,
+        "oral_bioavailability": 0.35,
+        "bioavailability_f": 0.35,
+        "half_life": "2.5 hours",
+        "t_half_numeric": 2.5,
+        "volume_of_distribution": 1.2,
+        "volume_of_distribution_l_kg": 1.2,
+        "clearance_l_h_kg": 0.33,
+        "absorption_rate_ka": 2.0,
+        "t_max_h": 0.75,
+        "protein_binding": 97.0,
+        "protein_binding_pct": 97.0,
+        "fraction_unbound": 0.03,
+        "renal_clearance_fraction": 0.01,
+        "evidence_level": "gold_standard",
+        "mechanism": "Positive allosteric modulator of GABAA receptors, increasing chloride conductance and neuronal hyperpolarization to produce sedation, anxiolysis, and anterograde amnesia. Cleared >90% by CYP3A4/5.",
+        "receptor_targets": [
+            {"target": "GABA-A Receptor Alpha-1 Beta-2 Gamma-2", "action": "positive_allosteric_modulator", "family": "Ligand-Gated Ion Channel / GABA", "affinity_ki": 5.0, "gene_symbol": "GABRA1"}
+        ],
+        "cyp_enzymes": {"substrates": ["CYP3A4", "CYP3A5"], "inhibitors": [], "inducers": []},
+        "organ_burdens": {"cardiovascular": {"score": 0.0}}
+    },
+    "clarithromycin": {
+        "name": "Clarithromycin",
+        "canonical_name": "Clarithromycin (Biaxin)",
+        "synonyms": ["biaxin", "clarithromycin", "klacid"],
+        "drug_class": "Macrolide Antibiotic / Strong CYP3A4 & P-gp Inhibitor",
+        "categories": ["Antibiotic", "Macrolide", "CYP3A4 Inhibitor", "Prescription"],
+        "molecular_weight": 747.95,
+        "logp": 3.2,
+        "oral_bioavailability": 0.55,
+        "bioavailability_f": 0.55,
+        "half_life": "5.0 hours",
+        "t_half_numeric": 5.0,
+        "volume_of_distribution": 3.5,
+        "volume_of_distribution_l_kg": 3.5,
+        "clearance_l_h_kg": 0.48,
+        "absorption_rate_ka": 1.2,
+        "t_max_h": 2.0,
+        "protein_binding": 70.0,
+        "protein_binding_pct": 70.0,
+        "fraction_unbound": 0.30,
+        "renal_clearance_fraction": 0.35,
+        "evidence_level": "gold_standard",
+        "mechanism": "Reversibly binds the 50S ribosomal subunit of susceptible bacteria, inhibiting translocation of aminoacyl transfer-RNA and protein synthesis. Strong mechanism-based inhibitor of CYP3A4 and P-gp.",
+        "receptor_targets": [
+            {"target": "Bacterial 50S Ribosomal Subunit (23S rRNA)", "action": "inhibitor", "family": "Bacterial Ribosome"},
+            {"target": "Cytochrome P450 3A4 (CYP3A4)", "action": "inhibitor", "family": "Cytochrome P450 / Drug Metabolism", "affinity_ki": 0.15, "gene_symbol": "CYP3A4"}
+        ],
+        "cyp_enzymes": {"substrates": ["CYP3A4"], "inhibitors": ["CYP3A4"], "inducers": []},
+        "transporters": {"substrates": ["P-gp"], "inhibitors": ["P-gp", "OATP1B1"], "inducers": []},
+        "organ_burdens": {"hepatic": {"score": 20.0, "severity": "MODERATE"}}
+    },
+    "fluconazole": {
+        "name": "Fluconazole",
+        "canonical_name": "Fluconazole (Diflucan)",
+        "synonyms": ["diflucan", "fluconazole", "triflucan"],
+        "drug_class": "Triazole Antifungal / Potent CYP2C9 & Moderate CYP3A4 Inhibitor",
+        "categories": ["Antifungal", "CYP2C9 Inhibitor", "CYP3A4 Inhibitor", "Prescription"],
+        "molecular_weight": 306.27,
+        "logp": 0.5,
+        "oral_bioavailability": 0.90,
+        "bioavailability_f": 0.90,
+        "half_life": "30.0 hours",
+        "t_half_numeric": 30.0,
+        "volume_of_distribution": 0.70,
+        "volume_of_distribution_l_kg": 0.70,
+        "clearance_l_h_kg": 0.016,
+        "absorption_rate_ka": 1.5,
+        "t_max_h": 1.5,
+        "protein_binding": 12.0,
+        "protein_binding_pct": 12.0,
+        "fraction_unbound": 0.88,
+        "renal_clearance_fraction": 0.80,
+        "evidence_level": "gold_standard",
+        "mechanism": "Highly selective inhibitor of fungal cytochrome P450-dependent sterol 14-alpha-demethylase (CYP51). Clinically potent inhibitor of mammalian CYP2C9 and moderate inhibitor of CYP3A4.",
+        "receptor_targets": [
+            {"target": "Sterol 14-Alpha Demethylase (CYP51A1)", "action": "inhibitor", "family": "Cytochrome P450", "gene_symbol": "CYP51A1"},
+            {"target": "Cytochrome P450 2C9 (CYP2C9)", "action": "inhibitor", "family": "Cytochrome P450 / Drug Metabolism", "affinity_ki": 7000.0, "gene_symbol": "CYP2C9"},
+            {"target": "Cytochrome P450 3A4 (CYP3A4)", "action": "inhibitor", "family": "Cytochrome P450 / Drug Metabolism", "affinity_ki": 15000.0, "gene_symbol": "CYP3A4"}
+        ],
+        "cyp_enzymes": {"substrates": [], "inhibitors": ["CYP2C9", "CYP3A4", "CYP2C19"], "inducers": []},
+        "organ_burdens": {"hepatic": {"score": 15.0, "severity": "MILD"}}
+    },
+    "warfarin": {
+        "name": "Warfarin",
+        "canonical_name": "Warfarin Sodium (Coumadin)",
+        "synonyms": ["coumadin", "warfarin", "jantoven", "marevan"],
+        "drug_class": "Vitamin K Antagonist (VKA) / Oral Anticoagulant",
+        "categories": ["Anticoagulant", "Narrow Therapeutic Index", "CYP2C9 Probe", "Prescription"],
+        "molecular_weight": 308.33,
+        "logp": 2.7,
+        "oral_bioavailability": 0.99,
+        "bioavailability_f": 0.99,
+        "half_life": "40.0 hours",
+        "t_half_numeric": 40.0,
+        "volume_of_distribution": 0.14,
+        "volume_of_distribution_l_kg": 0.14,
+        "clearance_l_h_kg": 0.0024,
+        "absorption_rate_ka": 1.2,
+        "t_max_h": 2.0,
+        "protein_binding": 99.0,
+        "protein_binding_pct": 99.0,
+        "fraction_unbound": 0.01,
+        "renal_clearance_fraction": 0.01,
+        "evidence_level": "gold_standard",
+        "mechanism": "Competitive inhibitor of vitamin K epoxide reductase complex 1 (VKORC1), depleting reduced vitamin K (hydroquinone) and inhibiting post-translational gamma-carboxylation of clotting factors II, VII, IX, and X.",
+        "receptor_targets": [
+            {"target": "Vitamin K Epoxide Reductase Complex Subunit 1 (VKORC1)", "action": "inhibitor", "family": "Enzyme / Coagulation", "affinity_ki": 0.3, "gene_symbol": "VKORC1"}
+        ],
+        "cyp_enzymes": {"substrates": ["CYP2C9", "CYP3A4", "CYP1A2"], "fractions": {"CYP2C9": 0.80, "CYP3A4": 0.10, "CYP1A2": 0.10}, "inhibitors": [], "inducers": []},
+        "organ_burdens": {"cardiovascular": {"score": 0.0}}
+    },
+    "lisinopril": {
+        "name": "Lisinopril",
+        "canonical_name": "Lisinopril (Prinivil / Zestril)",
+        "synonyms": ["prinivil", "zestril", "lisinopril"],
+        "drug_class": "Angiotensin Converting Enzyme (ACE) Inhibitor",
+        "categories": ["Antihypertensive", "Renoprotective", "Cardioprotective", "Prescription"],
+        "molecular_weight": 405.49,
+        "logp": -1.2,
+        "oral_bioavailability": 0.28,
+        "bioavailability_f": 0.28,
+        "half_life": "12.0 hours",
+        "t_half_numeric": 12.0,
+        "volume_of_distribution": 0.70,
+        "volume_of_distribution_l_kg": 0.70,
+        "clearance_l_h_kg": 0.040,
+        "absorption_rate_ka": 0.30,
+        "t_max_h": 6.5,
+        "protein_binding": 0.0,
+        "protein_binding_pct": 0.0,
+        "fraction_unbound": 1.0,
+        "renal_clearance_fraction": 1.0,
+        "evidence_level": "gold_standard",
+        "mechanism": "Competitive inhibitor of angiotensin converting enzyme (ACE), preventing conversion of angiotensin I to angiotensin II, causing systemic vasodilation and selective efferent arteriolar vasodilation in the glomerulus.",
+        "receptor_targets": [
+            {"target": "Angiotensin-Converting Enzyme (ACE)", "action": "inhibitor", "family": "Enzyme / Renin-Angiotensin", "affinity_ki": 0.1, "gene_symbol": "ACE"}
+        ],
+        "cyp_enzymes": {"substrates": [], "inhibitors": [], "inducers": []},
+        "organ_burdens": {"cardiovascular": {"score": 0.0}, "renal": {"score": 10.0, "severity": "MILD"}}
+    },
+    "hydrochlorothiazide": {
+        "name": "Hydrochlorothiazide",
+        "canonical_name": "Hydrochlorothiazide (Microzide / HCTZ)",
+        "synonyms": ["hctz", "microzide", "hydrochlorothiazide", "esidrix"],
+        "drug_class": "Thiazide Diuretic",
+        "categories": ["Diuretic", "Antihypertensive", "Prescription"],
+        "molecular_weight": 297.74,
+        "logp": -0.07,
+        "oral_bioavailability": 0.70,
+        "bioavailability_f": 0.70,
+        "half_life": "9.5 hours",
+        "t_half_numeric": 9.5,
+        "volume_of_distribution": 3.8,
+        "volume_of_distribution_l_kg": 3.8,
+        "clearance_l_h_kg": 0.28,
+        "absorption_rate_ka": 1.2,
+        "t_max_h": 2.0,
+        "protein_binding": 65.0,
+        "protein_binding_pct": 65.0,
+        "fraction_unbound": 0.35,
+        "renal_clearance_fraction": 0.95,
+        "evidence_level": "gold_standard",
+        "mechanism": "Inhibits the Na+/Cl- cotransporter (SLC12A3 / NCCT) in the distal convoluted tubule of the nephron, promoting natriuresis, volume depletion, and reduction of peripheral vascular resistance.",
+        "receptor_targets": [
+            {"target": "Sodium Chloride Cotransporter (SLC12A3 / NCCT)", "action": "inhibitor", "family": "Solute Carrier Transporter", "affinity_ki": 25.0, "gene_symbol": "SLC12A3"}
+        ],
+        "cyp_enzymes": {"substrates": [], "inhibitors": [], "inducers": []},
+        "transporters": {"substrates": ["OAT1", "OAT3"], "inhibitors": [], "inducers": []},
+        "organ_burdens": {"renal": {"score": 15.0, "severity": "MILD"}}
+    },
+    "ibuprofen": {
+        "name": "Ibuprofen",
+        "canonical_name": "Ibuprofen (Advil / Motrin)",
+        "synonyms": ["advil", "motrin", "ibuprofen", "nurofen"],
+        "drug_class": "Non-Steroidal Anti-Inflammatory Drug (NSAID)",
+        "categories": ["NSAID", "Analgesic", "Anti-Inflammatory", "Antipyretic", "OTC"],
+        "molecular_weight": 206.28,
+        "logp": 3.5,
+        "oral_bioavailability": 0.95,
+        "bioavailability_f": 0.95,
+        "half_life": "2.0 hours",
+        "t_half_numeric": 2.0,
+        "volume_of_distribution": 0.15,
+        "volume_of_distribution_l_kg": 0.15,
+        "clearance_l_h_kg": 0.052,
+        "absorption_rate_ka": 2.0,
+        "t_max_h": 1.5,
+        "protein_binding": 99.0,
+        "protein_binding_pct": 99.0,
+        "fraction_unbound": 0.01,
+        "renal_clearance_fraction": 0.01,
+        "evidence_level": "gold_standard",
+        "mechanism": "Non-selective reversible inhibitor of cyclooxygenase-1 (PTGS1 / COX-1) and cyclooxygenase-2 (PTGS2 / COX-2), suppressing prostaglandin synthesis and causing afferent arteriolar vasoconstriction in the renal glomerulus.",
+        "receptor_targets": [
+            {"target": "Cyclooxygenase-1 (PTGS1 / COX-1)", "action": "inhibitor", "family": "Enzyme / Prostaglandin Synthesis", "affinity_ki": 5.0, "gene_symbol": "PTGS1"},
+            {"target": "Cyclooxygenase-2 (PTGS2 / COX-2)", "action": "inhibitor", "family": "Enzyme / Prostaglandin Synthesis", "affinity_ki": 2.0, "gene_symbol": "PTGS2"}
+        ],
+        "cyp_enzymes": {"substrates": ["CYP2C9", "CYP2C19"], "inhibitors": [], "inducers": []},
+        "organ_burdens": {"renal": {"score": 25.0, "severity": "MODERATE"}, "hepatic": {"score": 5.0, "severity": "MINIMAL"}}
+    },
+    "fluoxetine": {
+        "name": "Fluoxetine",
+        "canonical_name": "Fluoxetine (Prozac)",
+        "synonyms": ["prozac", "fluoxetine", "sarafem"],
+        "drug_class": "Selective Serotonin Reuptake Inhibitor (SSRI) / Strong CYP2D6 Inhibitor",
+        "categories": ["Antidepressant", "SSRI", "CYP2D6 Inhibitor", "Prescription"],
+        "molecular_weight": 309.33,
+        "logp": 4.1,
+        "oral_bioavailability": 0.80,
+        "bioavailability_f": 0.80,
+        "half_life": "48.0 hours",
+        "t_half_numeric": 48.0,
+        "volume_of_distribution": 35.0,
+        "volume_of_distribution_l_kg": 35.0,
+        "clearance_l_h_kg": 0.50,
+        "absorption_rate_ka": 0.8,
+        "t_max_h": 6.0,
+        "protein_binding": 94.0,
+        "protein_binding_pct": 94.0,
+        "fraction_unbound": 0.06,
+        "renal_clearance_fraction": 0.02,
+        "evidence_level": "gold_standard",
+        "mechanism": "Selective inhibitor of the presynaptic serotonin transporter (SLC6A4 / SERT), blocking reuptake of 5-HT into terminal boutons and enhancing serotonergic neurotransmission. Strong mechanism-based inhibitor of CYP2D6.",
+        "receptor_targets": [
+            {"target": "Serotonin Transporter (SLC6A4 / SERT)", "action": "inhibitor", "family": "Monoamine Transporter", "affinity_ki": 0.8, "gene_symbol": "SLC6A4"},
+            {"target": "Cytochrome P450 2D6 (CYP2D6)", "action": "inhibitor", "family": "Cytochrome P450 / Drug Metabolism", "affinity_ki": 15.0, "gene_symbol": "CYP2D6"}
+        ],
+        "cyp_enzymes": {"substrates": ["CYP2D6", "CYP2C9", "CYP3A4"], "inhibitors": ["CYP2D6", "CYP2C19"], "inducers": []},
+        "organ_burdens": {"hepatic": {"score": 15.0, "severity": "MILD"}}
+    },
+    "dextromethorphan": {
+        "name": "Dextromethorphan",
+        "canonical_name": "Dextromethorphan (Delsym / Robitussin)",
+        "synonyms": ["dxm", "dextromethorphan", "delsym", "robitussin"],
+        "drug_class": "NMDA Receptor Antagonist / Sigma-1 Agonist / FDA Index CYP2D6 Substrate",
+        "categories": ["Antitussive", "NMDA Antagonist", "CYP2D6 Probe", "OTC"],
+        "molecular_weight": 271.40,
+        "logp": 3.8,
+        "oral_bioavailability": 0.11,
+        "bioavailability_f": 0.11,
+        "half_life": "3.5 hours",
+        "t_half_numeric": 3.5,
+        "volume_of_distribution": 5.5,
+        "volume_of_distribution_l_kg": 5.5,
+        "clearance_l_h_kg": 1.1,
+        "absorption_rate_ka": 1.8,
+        "t_max_h": 2.0,
+        "protein_binding": 65.0,
+        "protein_binding_pct": 65.0,
+        "fraction_unbound": 0.35,
+        "renal_clearance_fraction": 0.01,
+        "evidence_level": "gold_standard",
+        "mechanism": "Sigma-1 receptor agonist and uncompetitive NMDA receptor antagonist; also weakly inhibits SERT and NET. Primary metabolic clearance via rapid CYP2D6 O-demethylation to active dextrorphan.",
+        "receptor_targets": [
+            {"target": "Sigma-1 Receptor (SIGMAR1)", "action": "agonist", "family": "Opioid-like Chaperone", "affinity_ki": 150.0, "gene_symbol": "SIGMAR1"},
+            {"target": "NMDA Receptor GluN1/GluN2B (GRIN1 / GRIN2B)", "action": "antagonist", "family": "Ionotropic Glutamate Receptor", "affinity_ki": 1500.0, "gene_symbol": "GRIN1"},
+            {"target": "Serotonin Transporter (SLC6A4 / SERT)", "action": "inhibitor", "family": "Monoamine Transporter", "affinity_ki": 23.0, "gene_symbol": "SLC6A4"}
+        ],
+        "cyp_enzymes": {"substrates": ["CYP2D6", "CYP3A4"], "fractions": {"CYP2D6": 0.85, "CYP3A4": 0.15}, "inhibitors": [], "inducers": []},
+        "organ_burdens": {"cardiovascular": {"score": 0.0}}
+    },
+    "haloperidol": {
+        "name": "Haloperidol",
+        "canonical_name": "Haloperidol (Haldol)",
+        "synonyms": ["haldol", "haloperidol", "serenace"],
+        "drug_class": "Typical Butyrophenone Antipsychotic / High-Potency D2 Blocker",
+        "categories": ["Antipsychotic", "Dopamine D2 Blocker", "Prescription"],
+        "molecular_weight": 375.86,
+        "logp": 4.3,
+        "oral_bioavailability": 0.60,
+        "bioavailability_f": 0.60,
+        "half_life": "20.0 hours",
+        "t_half_numeric": 20.0,
+        "volume_of_distribution": 18.0,
+        "volume_of_distribution_l_kg": 18.0,
+        "clearance_l_h_kg": 0.62,
+        "absorption_rate_ka": 1.0,
+        "t_max_h": 4.0,
+        "protein_binding": 92.0,
+        "protein_binding_pct": 92.0,
+        "fraction_unbound": 0.08,
+        "renal_clearance_fraction": 0.01,
+        "evidence_level": "gold_standard",
+        "mechanism": "High-potency competitive antagonist at dopamine D2 receptors in the mesolimbic and nigrostriatal pathways. Also blocks alpha-1 adrenergic and hERG potassium channels.",
+        "receptor_targets": [
+            {"target": "Dopamine D2 Receptor (DRD2)", "action": "antagonist", "family": "GPCR / Dopamine", "affinity_ki": 0.28, "gene_symbol": "DRD2"},
+            {"target": "Alpha-1A Adrenergic Receptor (ADRA1A)", "action": "antagonist", "family": "GPCR / Adrenergic", "affinity_ki": 12.0, "gene_symbol": "ADRA1A"},
+            {"target": "Potassium Voltage-Gated Channel Subfamily H Member 2 (KCNH2 / hERG)", "action": "inhibitor", "family": "Voltage-Gated Ion Channel", "affinity_ki": 30.0, "gene_symbol": "KCNH2"}
+        ],
+        "cyp_enzymes": {"substrates": ["CYP2D6", "CYP3A4"], "inhibitors": ["CYP2D6"], "inducers": []},
+        "organ_burdens": {"cardiovascular": {"score": 25.0, "severity": "MODERATE"}}
+    },
+    "citalopram": {
+        "name": "Citalopram",
+        "canonical_name": "Citalopram Hydrobromide (Celexa)",
+        "synonyms": ["celexa", "citalopram", "cipramil"],
+        "drug_class": "Selective Serotonin Reuptake Inhibitor (SSRI)",
+        "categories": ["Antidepressant", "SSRI", "Prescription"],
+        "molecular_weight": 324.39,
+        "logp": 3.5,
+        "oral_bioavailability": 0.80,
+        "bioavailability_f": 0.80,
+        "half_life": "35.0 hours",
+        "t_half_numeric": 35.0,
+        "volume_of_distribution": 12.0,
+        "volume_of_distribution_l_kg": 12.0,
+        "clearance_l_h_kg": 0.24,
+        "absorption_rate_ka": 1.2,
+        "t_max_h": 4.0,
+        "protein_binding": 80.0,
+        "protein_binding_pct": 80.0,
+        "fraction_unbound": 0.20,
+        "renal_clearance_fraction": 0.12,
+        "evidence_level": "gold_standard",
+        "mechanism": "Highly selective inhibitor of the serotonin transporter (SLC6A4 / SERT), preventing presynaptic 5-HT reuptake. Displays dose-dependent hERG inhibition and QT prolongation.",
+        "receptor_targets": [
+            {"target": "Serotonin Transporter (SLC6A4 / SERT)", "action": "inhibitor", "family": "Monoamine Transporter", "affinity_ki": 1.6, "gene_symbol": "SLC6A4"},
+            {"target": "Potassium Voltage-Gated Channel Subfamily H Member 2 (KCNH2 / hERG)", "action": "inhibitor", "family": "Voltage-Gated Ion Channel", "affinity_ki": 4000.0, "gene_symbol": "KCNH2"}
+        ],
+        "cyp_enzymes": {"substrates": ["CYP2C19", "CYP3A4", "CYP2D6"], "inhibitors": ["CYP2D6"], "inducers": []},
+        "organ_burdens": {"cardiovascular": {"score": 20.0, "severity": "MODERATE"}}
     },
 }
 
@@ -1721,6 +2224,41 @@ CANONICAL_SYNONYM_MAP: Dict[str, str] = {
     "bystolic": "nebivolol",
     "lopressor": "metoprolol",
     "tenormin": "atenolol",
+    "catapres": "clonidine",
+    "clonidine": "clonidine",
+    "lipitor": "atorvastatin",
+    "atorvastatin": "atorvastatin",
+    "nizoral": "ketoconazole",
+    "ketoconazole": "ketoconazole",
+    "quviviq": "daridorexant",
+    "daridorexant": "daridorexant",
+    "versed": "midazolam",
+    "midazolam": "midazolam",
+    "biaxin": "clarithromycin",
+    "clarithromycin": "clarithromycin",
+    "diflucan": "fluconazole",
+    "fluconazole": "fluconazole",
+    "coumadin": "warfarin",
+    "warfarin": "warfarin",
+    "prinivil": "lisinopril",
+    "zestril": "lisinopril",
+    "lisinopril": "lisinopril",
+    "hctz": "hydrochlorothiazide",
+    "microzide": "hydrochlorothiazide",
+    "hydrochlorothiazide": "hydrochlorothiazide",
+    "advil": "ibuprofen",
+    "motrin": "ibuprofen",
+    "ibuprofen": "ibuprofen",
+    "prozac": "fluoxetine",
+    "fluoxetine": "fluoxetine",
+    "dxm": "dextromethorphan",
+    "delsym": "dextromethorphan",
+    "robitussin": "dextromethorphan",
+    "dextromethorphan": "dextromethorphan",
+    "haldol": "haloperidol",
+    "haloperidol": "haloperidol",
+    "celexa": "citalopram",
+    "citalopram": "citalopram",
     # Supplements & Nutraceuticals
     "astaxanthin": "astaxanthin",
     "asta": "astaxanthin",
@@ -2724,8 +3262,26 @@ class CatalogService:
             )
             ON CONFLICT(key) DO UPDATE SET
                 name = excluded.name,
+                canonical_name = COALESCE(excluded.canonical_name, compounds.canonical_name),
                 drug_class = excluded.drug_class,
                 mechanism = excluded.mechanism,
+                half_life = COALESCE(excluded.half_life, compounds.half_life),
+                t_half_numeric = COALESCE(excluded.t_half_numeric, compounds.t_half_numeric),
+                oral_bioavailability = COALESCE(excluded.oral_bioavailability, compounds.oral_bioavailability),
+                bioavailability_f = COALESCE(excluded.bioavailability_f, compounds.bioavailability_f),
+                volume_of_distribution = COALESCE(excluded.volume_of_distribution, compounds.volume_of_distribution),
+                volume_of_distribution_l_kg = COALESCE(excluded.volume_of_distribution_l_kg, compounds.volume_of_distribution_l_kg),
+                clearance_l_h_kg = COALESCE(excluded.clearance_l_h_kg, compounds.clearance_l_h_kg),
+                protein_binding = COALESCE(excluded.protein_binding, compounds.protein_binding),
+                protein_binding_pct = COALESCE(excluded.protein_binding_pct, compounds.protein_binding_pct),
+                fraction_unbound = COALESCE(excluded.fraction_unbound, compounds.fraction_unbound),
+                absorption_rate_ka = COALESCE(excluded.absorption_rate_ka, compounds.absorption_rate_ka),
+                t_max_h = COALESCE(excluded.t_max_h, compounds.t_max_h),
+                renal_clearance_fraction = COALESCE(excluded.renal_clearance_fraction, compounds.renal_clearance_fraction),
+                cyp_enzymes = COALESCE(excluded.cyp_enzymes, compounds.cyp_enzymes),
+                transporters = COALESCE(excluded.transporters, compounds.transporters),
+                receptor_targets = COALESCE(excluded.receptor_targets, compounds.receptor_targets),
+                organ_burdens = COALESCE(excluded.organ_burdens, compounds.organ_burdens),
                 updated_at = CURRENT_TIMESTAMP
         """
         if ext_conn:
@@ -2812,14 +3368,51 @@ class CatalogService:
             "evidence_level": compound.get("evidence_level", "moderate"),
             "risk_band": compound.get("risk_band", "low"),
             "graph_tags": self._serialize(compound.get("graph_tags", [])),
-            "t_half_numeric": compound.get("t_half_numeric"),
-            "bioavailability_f": compound.get("bioavailability_f"),
-            "volume_of_distribution_l_kg": compound.get("volume_of_distribution_l_kg"),
+            "t_half_numeric": (
+                compound.get("t_half_numeric")
+                if compound.get("t_half_numeric") is not None
+                else (
+                    __import__("app.services.pkpd_engine", fromlist=["PKPDEngine"]).PKPDEngine._parse_hours_from_string(str(compound.get("half_life")))
+                    if compound.get("half_life")
+                    else None
+                )
+            ),
+            "bioavailability_f": (
+                compound.get("bioavailability_f")
+                if compound.get("bioavailability_f") is not None
+                else (
+                    (lambda v: (
+                        (lambda n: min(1.0, max(0.001, n / 100.0 if n > 1.0 else n)))(float(str(v).replace("%", "").replace("<", "").replace(">", "").split("-")[0].split()[0].strip()))
+                        if v is not None and any(c.isdigit() for c in str(v)) else None
+                    ))(compound.get("oral_bioavailability"))
+                )
+            ),
+            "volume_of_distribution_l_kg": (
+                compound.get("volume_of_distribution_l_kg")
+                if compound.get("volume_of_distribution_l_kg") is not None
+                else (
+                    __import__("app.services.pkpd_engine", fromlist=["PKPDEngine"]).PKPDEngine._parse_vd_from_string(compound.get("volume_of_distribution"))
+                    if compound.get("volume_of_distribution") is not None
+                    else None
+                )
+            ),
             "clearance_l_h_kg": compound.get("clearance_l_h_kg"),
             "t_max_h": compound.get("t_max_h"),
             "c_max_ng_ml": compound.get("c_max_ng_ml"),
-            "fraction_unbound": compound.get("fraction_unbound"),
-            "protein_binding_pct": compound.get("protein_binding_pct"),
+            "fraction_unbound": (
+                compound.get("fraction_unbound")
+                if compound.get("fraction_unbound") is not None
+                else (
+                    (lambda p: max(0.001, (100.0 - float(str(p).replace("%", "").replace("<", "").replace(">", "").strip())) / 100.0) if p is not None and any(c.isdigit() for c in str(p)) else None)(compound.get("protein_binding"))
+                )
+            ),
+            "protein_binding_pct": (
+                compound.get("protein_binding_pct")
+                if compound.get("protein_binding_pct") is not None
+                else (
+                    (lambda p: min(99.9, max(0.0, float(str(p).replace("%", "").replace("<", "").replace(">", "").strip()))) if p is not None and any(c.isdigit() for c in str(p)) else None)(compound.get("protein_binding"))
+                )
+            ),
             "absorption_rate_ka": compound.get("absorption_rate_ka"),
             "renal_clearance_fraction": compound.get("renal_clearance_fraction"),
             "bcs_class": compound.get("bcs_class"),
@@ -3459,7 +4052,24 @@ class CatalogService:
                 comp = self.get_compound(raw_key, auto_enrich=False)
             except TypeError:
                 comp = self.get_compound(raw_key)
-            canonical_id = (comp.get("canonical_key") or comp.get("parent_compound_id") or comp.get("inchikey") or comp.get("key") or raw_key).lower() if comp else raw_key.lower()
+
+            parent_id = str(comp.get("parent_compound_id") or "").strip().lower() if comp else ""
+            canon_key = str(comp.get("canonical_key") or "").strip().lower() if comp else ""
+            is_inchikey = len(canon_key) == 27 and canon_key.count("-") == 2
+            
+            norm_raw = _normalize_compound_name(raw_key)
+            syn_map_key = CANONICAL_SYNONYM_MAP.get(norm_raw)
+            
+            if parent_id:
+                canonical_id = parent_id
+            elif syn_map_key:
+                canonical_id = syn_map_key.lower()
+            elif canon_key and not is_inchikey and not any(canon_key.startswith(p) for p in ["chembl", "cid", "pubchem"]):
+                canonical_id = canon_key
+            elif comp and comp.get("key"):
+                canonical_id = str(comp["key"]).lower()
+            else:
+                canonical_id = raw_key.lower()
 
             dose_val = item.get("dose") if item.get("dose") is not None else item.get("dose_mg")
             try:
@@ -3468,6 +4078,14 @@ class CatalogService:
                 dose_mg = None
 
             unit = str(item.get("unit") or "mg").strip()
+
+            if canonical_id in merged_by_canonical:
+                existing = merged_by_canonical[canonical_id]
+                # Ensure distinct compounds are not merged if names/keys are completely different
+                e_name = _normalize_compound_name(existing.get("name") or existing.get("key"))
+                r_name = _normalize_compound_name(item.get("name") or raw_key)
+                if e_name and r_name and e_name != r_name and not (e_name in r_name or r_name in e_name) and not (parent_id and existing.get("key") == parent_id):
+                    canonical_id = f"{canonical_id}_{raw_key.lower()}"
 
             if canonical_id in merged_by_canonical:
                 existing = merged_by_canonical[canonical_id]

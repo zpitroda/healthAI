@@ -119,6 +119,21 @@ SEED_CLINICAL_REFERENCE_DOSES_MG: Dict[str, float] = {
     "amlodipine": 5.0,        # 5 mg
     "diltiazem": 120.0,       # 120 mg
     "verapamil": 80.0,        # 80 mg
+    "hydrochlorothiazide": 25.0, # 25 mg
+    "hctz": 25.0,
+    "ibuprofen": 400.0,       # 400 mg
+    "warfarin": 5.0,          # 5 mg
+    "midazolam": 5.0,         # 5 mg
+    "clarithromycin": 500.0,  # 500 mg
+    "fluconazole": 200.0,     # 200 mg
+    "ketoconazole": 200.0,    # 200 mg
+    "fluoxetine": 20.0,       # 20 mg
+    "dextromethorphan": 30.0, # 30 mg
+    "dxm": 30.0,
+    "haloperidol": 5.0,       # 5 mg
+    "citalopram": 20.0,       # 20 mg
+    "daridorexant": 50.0,     # 50 mg
+
 
     # Metabolic & Lipids
     "metformin": 500.0,       # 500 mg
@@ -767,6 +782,37 @@ def calculate_individualized_dose(
     key_name = (compound_spec_or_key.get("key") or compound_spec_or_key.get("name") or "") if isinstance(compound_spec_or_key, dict) else str(compound_spec_or_key)
     inferred_route, inferred_freq = infer_compound_route_and_frequency(key_name)
 
+    # Calculate estimated receptor saturation for the individualized dose
+    estimated_ro_pct = None
+    target_occupancies_list = []
+    try:
+        from app.services.catalog_service import CatalogService
+        from app.services.pkpd_engine import PKPDEngine
+        from app.schemas.pkpd import PKPDSimulationRequest
+
+        catalog_svc = CatalogService()
+        comp_rec = compound_spec_or_key if isinstance(compound_spec_or_key, dict) else (catalog_svc.get_compound(key_name, auto_enrich=False) or catalog_svc.find_by_synonym(key_name) or {})
+        if comp_rec:
+            sim_req = PKPDSimulationRequest(
+                compound_key=comp_rec.get("key") or key_name,
+                dose_mg=final_mg,
+                dosing_interval_h=24.0,
+                simulation_duration_h=48.0,
+                route=inferred_route,
+                weight_kg=weight_kg,
+                egfr_ml_min=egfr,
+                alt_u_l=alt,
+                age=age,
+                sex=sex if sex != "unspecified" else None,
+                steady_state=True,
+            )
+            sim_res = PKPDEngine.simulate(comp_rec, sim_req)
+            if sim_res.target_occupancies:
+                estimated_ro_pct = sim_res.target_occupancies[0].peak_saturation_pct
+                target_occupancies_list = [to.model_dump() for to in sim_res.target_occupancies]
+    except Exception as ro_err:
+        logger.debug("Failed to simulate target occupancy for individualized dose: %s", ro_err)
+
     return {
         "dose_mg": final_mg,
         "dose_val": val,
@@ -775,6 +821,8 @@ def calculate_individualized_dose(
         "dose_display": f"{val:g} {unit}",
         "frequency": inferred_freq,
         "route": inferred_route,
+        "estimated_receptor_occupancy_pct": estimated_ro_pct,
+        "target_occupancies": target_occupancies_list,
         "basis": "individualized_biometric_calculation",
     }
 

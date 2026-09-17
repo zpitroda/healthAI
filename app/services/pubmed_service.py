@@ -883,6 +883,38 @@ SEED_LITERATURE_DB: Dict[str, List[Dict[str, Any]]] = {
             "url": "https://pubmed.ncbi.nlm.nih.gov/9115206/",
         }
     ],
+    "mirabegron": [
+        {
+            "pmid": "25565205",
+            "title": "Activation of human brown adipose tissue by a β3-adrenergic receptor agonist",
+            "journal": "Cell Metab",
+            "pub_year": "2015",
+            "pub_date": "2015-01-06",
+            "authors": ["Cypess AM", "Weiner LS", "Roberts-Toler C", "et al."],
+            "doi": "10.1016/j.cmet.2014.12.009",
+            "evidence_type": "Human Clinical Trial (Crossover)",
+            "evidence_tier": "rct_landmark",
+            "sample_size": 12,
+            "claim_topics": ["beta3_selectivity", "brown_adipose_tissue", "thermogenesis", "cardiovascular_safety", "cross_reactivity"],
+            "clinical_finding": "High-dose Mirabegron (200mg) stimulated human brown adipose tissue (BAT) glucose uptake and resting metabolic rate (+203 kcal/day), but lost β3-selectivity, resulting in off-target β1/β2 cross-activation with marked cardiovascular stimulation (heart rate +14 bpm, systolic BP +11 mmHg).",
+            "url": "https://pubmed.ncbi.nlm.nih.gov/25565205/",
+        },
+        {
+            "pmid": "17961233",
+            "title": "Effect of (R)-2-(2-aminothiazol-4-yl)-4'-{2-[(2-hydroxy-2-phenylethyl)amino]ethyl}acetanilide (YM178), a novel selective beta3-adrenoceptor agonist, on bladder function",
+            "journal": "J Pharmacol Exp Ther",
+            "pub_year": "2007",
+            "pub_date": "2007-10-25",
+            "authors": ["Takasu T", "Ukai M", "Sato S", "et al."],
+            "doi": "10.1124/jpet.107.128785",
+            "evidence_type": "In Vitro & In Vivo Binding Pharmacology",
+            "evidence_tier": "in_vitro_binding",
+            "sample_size": None,
+            "claim_topics": ["receptor_selectivity", "ki_ec50", "beta3", "beta1", "beta2"],
+            "clinical_finding": "Human β3-adrenergic receptor EC50 = 22.4 nM (Ki ≈ 2.2 nM) with >400-fold functional selectivity over human β1 (Ki ≈ 260 nM) and β2 (Ki ≈ 390 nM) receptors in cAMP accumulation assays.",
+            "url": "https://pubmed.ncbi.nlm.nih.gov/17961233/",
+        },
+    ],
 }
 
 SEED_CLINICAL_TRIALS_DB: Dict[str, List[Dict[str, Any]]] = {
@@ -1607,27 +1639,42 @@ class PubMedService:
         titles_list: List[Dict[str, Any]] = []
         seen_pmids: Set[str] = set()
 
-        # 1. Check local seed database for instant matches
-        tokens = [t for t in re.split(r"[\s_,\-]+", cleaned_query) if len(t) >= 3]
-        if tokens:
-            for seed_key, cites in SEED_LITERATURE_DB.items():
+        # 1. Check local seed database for instant matches on compound keys / specific entity tokens
+        GENERIC_STOPWORDS = {
+            "receptor", "receptors", "selectivity", "selective", "agonist", "antagonist",
+            "inhibitor", "blocker", "dose", "doses", "dosing", "study", "trial", "effect",
+            "effects", "clinical", "human", "blood", "pressure", "metabolism", "metabolic",
+            "protein", "loss", "fat", "acid", "daily", "high", "patient", "patients",
+            "treatment", "therapy", "pharmacokinetics", "pharmacology", "versus", "compared",
+            "levels", "level", "rate", "tissue", "system", "activity", "syndrome", "beta"
+        }
+        q_norm = re.sub(r"[^a-z0-9]+", " ", cleaned_query)
+        q_tokens = [w for w in q_norm.split() if len(w) >= 3 and w not in GENERIC_STOPWORDS]
+
+        for seed_key, cites in SEED_LITERATURE_DB.items():
+            seed_key_norm = seed_key.replace("_", " ")
+            seed_parts = [p for p in seed_key.split("_") if len(p) >= 3 and p not in GENERIC_STOPWORDS]
+            is_match = (
+                seed_key in cleaned_query
+                or seed_key_norm in cleaned_query
+                or (seed_parts and any(p in q_tokens for p in seed_parts))
+            )
+            if is_match:
                 for c in cites:
                     p = str(c.get("pmid") or "")
                     if p and p not in seen_pmids:
-                        text_corpus = f"{c.get('title', '')} {c.get('clinical_finding', '')} {seed_key}".lower()
-                        if any(t in text_corpus for t in tokens):
-                            seen_pmids.add(p)
-                            titles_list.append({
-                                "pmid": p,
-                                "title": c.get("title", ""),
-                                "journal": c.get("journal", ""),
-                                "pub_year": str(c.get("pub_year", "")),
-                                "authors": c.get("authors", [])[:2] + (["et al."] if len(c.get("authors", [])) > 2 else []),
-                                "doi": c.get("doi"),
-                                "evidence_type": c.get("evidence_type", "Clinical Trial"),
-                                "is_open_access": False,
-                                "pmcid": None,
-                            })
+                        seen_pmids.add(p)
+                        titles_list.append({
+                            "pmid": p,
+                            "title": c.get("title", ""),
+                            "journal": c.get("journal", ""),
+                            "pub_year": str(c.get("pub_year", "")),
+                            "authors": c.get("authors", [])[:2] + (["et al."] if len(c.get("authors", [])) > 2 else []),
+                            "doi": c.get("doi"),
+                            "evidence_type": c.get("evidence_type", "Clinical Trial"),
+                            "is_open_access": False,
+                            "pmcid": None,
+                        })
 
         # 2. Query Europe PMC REST API (rich open access + title metadata)
         try:

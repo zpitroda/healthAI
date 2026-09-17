@@ -17,7 +17,7 @@ import threading
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
 PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-MODELS_DIR = os.path.join(PROJECT_ROOT, "models")
+MODELS_DIR = r"L:\local-llm\models" if os.path.isdir(r"L:\local-llm\models") else os.path.join(PROJECT_ROOT, "models")
 DEFAULT_HF_REPO = "unsloth/Qwen3.8-27B-GGUF"
 DEFAULT_MODEL_FILE = "Qwen3.8-27B-UD-Q6_K_M.gguf"
 DEFAULT_HF_URL = os.getenv(

@@ -406,6 +406,28 @@ def is_5alpha_reductase_substrate(compound: Dict[str, Any]) -> bool:
 
 
 
+def prune_dead_end_intermediate_nodes(graph: BiologicalGraph) -> None:
+    """
+    Iteratively prunes intermediate Tier 2 (signaling_pathway) and Tier 3 (physiology)
+    nodes that have zero outgoing edges (dead ends that do not reach any biomarker, phenotype, or target).
+    Preserves genuine biological cascades and clinical endpoints.
+    """
+    changed = True
+    while changed:
+        changed = False
+        nodes_to_remove = []
+        for node_id, data in list(graph.graph.nodes(data=True)):
+            nt = str(data.get("node_type", "")).lower()
+            if nt in ("signaling_pathway", "physiology", "pathway", "reaction"):
+                if graph.graph.out_degree(node_id) == 0:
+                    nodes_to_remove.append(node_id)
+        if nodes_to_remove:
+            for node_id in nodes_to_remove:
+                if graph.graph.has_node(node_id):
+                    graph.graph.remove_node(node_id)
+            changed = True
+
+
 def build_selected_compound_graph(stack: List[Any], catalog_service: CatalogService | None = None) -> BiologicalGraph:
     """
     Builds a multi-tier dynamic biological cascade graph for the selected stack:
@@ -744,6 +766,29 @@ def build_selected_compound_graph(stack: List[Any], catalog_service: CatalogServ
                     "pre_computed_stress": True,
                 })
 
+        # Alpha-2 Adrenergic Receptor Blockers (ADRA2A / Yohimbine / Rauwolscine)
+        is_alpha2_blocker = (
+            ActionType.ANTAGONIST in comp_targets_map.get("ADRA2A", set())
+            or any(w in c_name_lower or w in drug_class_lower for w in ["yohimbine", "rauwolscine", "alpha-2 blocker", "alpha 2 blocker", "adra2a antagonist", "alpha-2 antagonist"])
+        )
+        if is_alpha2_blocker:
+            a2_eff = -min(0.95, 0.50 + 0.30 * math.log10(max(0.5, dose_mg / 2.5)))
+            for t in receptor_targets:
+                if any(w in str(t.get("target", "")).lower() for w in ["alpha-2", "adra2"]):
+                    if not t.get("affinity_ki"):
+                        t["action"] = "antagonist"
+                        t["intrinsic_efficacy"] = a2_eff
+                        t["pre_computed_stress"] = True
+            if not any("alpha-2" in str(t.get("target", "")).lower() or t.get("gene_symbol") in ("ADRA2A", "ADRA2B", "ADRA2C") for t in receptor_targets):
+                receptor_targets.append({
+                    "target": "Alpha-2A Adrenergic Receptor (ADRA2A)",
+                    "action": "antagonist",
+                    "family": "GPCR / Adrenergic",
+                    "gene_symbol": "ADRA2A",
+                    "intrinsic_efficacy": a2_eff,
+                    "pre_computed_stress": True,
+                })
+
         # Beta-Alanine / Carnosine Synthesis (CARNS1 & MRGPRD)
         is_beta_alanine = (
             ActionType.SUBSTRATE in comp_targets_map.get("CARNS1", set())
@@ -766,7 +811,7 @@ def build_selected_compound_graph(stack: List[Any], catalog_service: CatalogServ
                 "intrinsic_efficacy": carns_eff,
                 "pre_computed_stress": True,
             })
-            if paresthesia_eff > 0:
+            if paresthesia_eff > 0.0:
                 receptor_targets.append({
                     "target": "Mas-Related G-Protein Coupled Receptor Member D (MRGPRD / Cutaneous Paresthesia)",
                     "action": "agonist",
@@ -1331,7 +1376,15 @@ def build_selected_compound_graph(stack: List[Any], catalog_service: CatalogServ
             dyn_cascade = pathway_service.get_dynamic_target_cascade(target_id, {"label": target_label, "name": target_raw})
 
             # Check Canonical Cascade Mapping
-            if matched_cascade:
+            has_matched_endpoints = bool(
+                matched_cascade
+                and (
+                    matched_cascade.get("biomarkers")
+                    or matched_cascade.get("phenotypes")
+                    or matched_cascade.get("bridges")
+                )
+            )
+            if matched_cascade and has_matched_endpoints:
                 clean_tgt = re.sub(r"[^a-z0-9_]", "_", str(target_id).lower()).strip("_")
                 p_info = matched_cascade["pathway"]
                 phys_info = matched_cascade["physiology"]
@@ -1433,8 +1486,8 @@ def build_selected_compound_graph(stack: List[Any], catalog_service: CatalogServ
                         edge_data=EdgeData(vector_magnitude=pheno_mag),
                     )
 
-            # Universal Dynamic Target Cascade Fallback for unmapped targets from Reactome & Open Targets
-            if not matched_cascade:
+            else:
+                # Universal Dynamic Target Cascade Fallback for unmapped targets from Reactome & Open Targets
                 p_dyn = dyn_cascade.get("pathway", {})
                 phys_dyn = dyn_cascade.get("physiology", {})
 
@@ -1736,6 +1789,9 @@ def build_selected_compound_graph(stack: List[Any], catalog_service: CatalogServ
                                 ),
                             )
 
+    # Prune intermediate pathway/physiology nodes that lead to no downstream endpoints
+    prune_dead_end_intermediate_nodes(graph)
+
     if graph.graph.number_of_nodes() == 0:
         graph = build_testosterone_alopecia_graph()
 
@@ -1815,6 +1871,9 @@ def filter_graph_by_stack(graph: BiologicalGraph, stack: List[Any] | None, max_d
                 label=item.title(),
                 node_type="compound",
             )
+
+    # Prune any orphaned dead-end intermediate nodes after subgraph filtering
+    prune_dead_end_intermediate_nodes(filtered)
 
     return filtered
 

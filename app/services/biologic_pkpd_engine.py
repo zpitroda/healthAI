@@ -9,6 +9,7 @@ from app.schemas.pkpd import (
     PKPDSimulationResponse,
     TimePoint,
     QuantitativeTargetAffinity,
+    TargetReceptorOccupancy,
     TissuePartitionCoefficients,
     LysosomalTrappingInfo,
     DistributionPercentiles,
@@ -34,10 +35,10 @@ class BiologicPKPDEngine:
         request: PKPDSimulationRequest,
     ) -> PKPDSimulationResponse:
         comp_name = str(compound.get("name") or compound.get("canonical_name") or request.compound_key).strip().title()
-        dose_mg = max(1.0, float(request.dose_mg))
-        duration_h = max(24.0, min(336.0, float(request.simulation_duration_h)))
-        tau_h = max(24.0, float(request.dosing_interval_h))
-        weight_kg = max(30.0, float(request.weight_kg if request.weight_kg is not None else 70.0))
+        dose_mg = max(0.0001, float(request.dose_mg))
+        duration_h = max(1.0, min(720.0, float(request.simulation_duration_h)))
+        tau_h = max(1.0, float(request.dosing_interval_h))
+        weight_kg = max(20.0, float(request.weight_kg if request.weight_kg is not None else 70.0))
 
         # 1. Monoclonal Antibody Physiological Volumes & Clearances (per kg scaling)
         # Vascular distribution: ~45 mL/kg; Interstitial distribution: ~40 mL/kg
@@ -94,23 +95,48 @@ class BiologicPKPDEngine:
 
         # Target receptor affinity Kd (nM)
         target_kd_nm = 0.5  # Standard picomolar-to-nanomolar mAb affinity
+        target_name = str(compound.get("mechanism_of_action") or "Target Antigen")
+        target_gene = None
+        target_action = "blocker / neutralizer"
         raw_targets = compound.get("receptor_targets") or []
+        targets_list: List[Dict[str, Any]] = []
         if isinstance(raw_targets, list) and raw_targets:
             for tgt in raw_targets:
                 if isinstance(tgt, dict):
-                    aff = tgt.get("affinity_kd") or tgt.get("affinity_ki") or tgt.get("ec50") or tgt.get("affinity_nm")
+                    t_name = tgt.get("target") or tgt.get("target_name") or tgt.get("name") or target_name
+                    t_gene = tgt.get("gene_symbol") or tgt.get("gene")
+                    t_act = tgt.get("action") or tgt.get("action_type") or target_action
+                    aff = tgt.get("affinity_kd") or tgt.get("affinity_ki") or tgt.get("ec50") or tgt.get("affinity_nm") or tgt.get("kd") or tgt.get("ki")
+                    aff_val = None
                     if aff is not None:
                         try:
                             val = float(aff)
                             if val > 0:
-                                target_kd_nm = val
-                                break
+                                aff_val = val
                         except (ValueError, TypeError):
                             pass
+                    targets_list.append({
+                        "name": str(t_name),
+                        "gene": t_gene,
+                        "action": str(t_act),
+                        "affinity_nm": aff_val if aff_val is not None else target_kd_nm,
+                    })
+                    if aff_val is not None and target_kd_nm == 0.5:
+                        target_kd_nm = aff_val
+                        target_name = str(t_name)
+                        target_gene = t_gene
         elif compound.get("ec50_nm") is not None and float(compound.get("ec50_nm")) > 0:
             target_kd_nm = float(compound.get("ec50_nm"))
         elif compound.get("affinity_kd_nm") is not None and float(compound.get("affinity_kd_nm")) > 0:
             target_kd_nm = float(compound.get("affinity_kd_nm"))
+
+        if not targets_list:
+            targets_list.append({
+                "name": target_name,
+                "gene": target_gene,
+                "action": target_action,
+                "affinity_nm": target_kd_nm,
+            })
 
         mw_kda = float(compound.get("molecular_weight") or 145000.0)
         factor_mg_l_to_nm = 1e6 / mw_kda
@@ -230,6 +256,51 @@ class BiologicPKPDEngine:
 
         c_avg_calc = (auc * 1000.0) / max(1.0, duration_h)
 
+        # Compute Dynamic Target Receptor Saturation & Occupancy for biologic targets
+        c_free_peak_nm = c_max * factor_mg_l_to_nm
+        c_free_avg_nm = (c_avg_calc / 1000.0) * factor_mg_l_to_nm
+        c_trough_mg_l = (points[-1].c_plasma_ng_ml / 1000.0) if points else 0.0
+        c_free_trough_nm = c_trough_mg_l * factor_mg_l_to_nm
+
+        biologic_occupancies: List[TargetReceptorOccupancy] = []
+        for t_item in targets_list:
+            t_aff = t_item["affinity_nm"]
+            ro_peak = (c_free_peak_nm / (c_free_peak_nm + t_aff) * 100.0) if (c_free_peak_nm + t_aff) > 0 else 0.0
+            ro_avg = (c_free_avg_nm / (c_free_avg_nm + t_aff) * 100.0) if (c_free_avg_nm + t_aff) > 0 else 0.0
+            ro_trough = (c_free_trough_nm / (c_free_trough_nm + t_aff) * 100.0) if (c_free_trough_nm + t_aff) > 0 else 0.0
+
+            peak_sat = round(min(100.0, max(0.0, ro_peak)), 1)
+            avg_sat = round(min(100.0, max(0.0, ro_avg)), 1)
+            trough_sat = round(min(100.0, max(0.0, ro_trough)), 1)
+
+            if peak_sat >= 85.0:
+                sat_state = "Near-Complete Saturation (>85%)"
+            elif peak_sat >= 65.0:
+                sat_state = "Substantial Engagement (65-85%)"
+            elif peak_sat >= 35.0:
+                sat_state = "Moderate Modulation (35-65%)"
+            elif peak_sat >= 10.0:
+                sat_state = "Partial Engagement (10-35%)"
+            else:
+                sat_state = "Minimal / Trace (<10%)"
+
+            biologic_occupancies.append(
+                TargetReceptorOccupancy(
+                    target_name=t_item["name"],
+                    gene_symbol=t_item["gene"],
+                    affinity_type="Kd",
+                    affinity_value_nm=round(t_aff, 2),
+                    action_type=t_item["action"],
+                    c_free_peak_nm=round(c_free_peak_nm, 2),
+                    c_free_avg_nm=round(c_free_avg_nm, 2),
+                    c_free_trough_nm=round(c_free_trough_nm, 2),
+                    peak_saturation_pct=peak_sat,
+                    avg_saturation_pct=avg_sat,
+                    trough_saturation_pct=trough_sat,
+                    saturation_state=sat_state,
+                )
+            )
+
         return PKPDSimulationResponse(
             compound_key=str(compound.get("key") or request.compound_key),
             compound_name=comp_name,
@@ -268,6 +339,7 @@ class BiologicPKPDEngine:
             time_series=points,
             pd_curve_concentrations=pd_conc_points,
             pd_curve_effects=pd_effect_points,
+            target_occupancies=biologic_occupancies,
             evidence_tier="regulatory_human_clinical",
             human_data_present=True,
         )

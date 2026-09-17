@@ -430,9 +430,181 @@ if (window.lucide && typeof window.lucide.createIcons === 'function') {
         });
       }
 
+      function getSaturationClass(pct) {
+        if (pct === null || pct === undefined) return 'saturation-none';
+        if (pct >= 85) return 'saturation-complete';
+        if (pct >= 65) return 'saturation-high';
+        if (pct >= 35) return 'saturation-mod';
+        if (pct >= 10) return 'saturation-low';
+        return 'saturation-trace';
+      }
+
+      function getSaturationFillColor(pct) {
+        if (pct >= 85) return '#00f2fe';
+        if (pct >= 65) return '#34d399';
+        if (pct >= 35) return '#38bdf8';
+        if (pct >= 10) return '#fbbf24';
+        return '#94a3b8';
+      }
+
+      function getEstimatedTargetSaturation(target, compound) {
+        const aff = parseTargetAffinity(target);
+        if (!aff || !aff.valueNm || aff.valueNm <= 0) {
+          return null;
+        }
+
+        const kdNm = aff.valueNm;
+        const isObj = typeof target === 'object' && target !== null;
+        const tName = String((isObj ? (target.target || target.name || target.label) : target) || '').toLowerCase();
+        const gene = String((isObj ? (target.gene_symbol || target.gene) : '') || '').toLowerCase();
+
+        const doseEl = document.getElementById('simDose');
+        const routeEl = document.getElementById('simRoute');
+        const doseMg = doseEl ? (parseFloat(doseEl.value) || 100) : (compound ? (compound.default_dose?.dose_mg || compound.dose || 100) : 100);
+        const route = routeEl ? (routeEl.value || 'oral').toLowerCase() : 'oral';
+
+        // 1. Check if pkpdSimData has simulated target_occupancies
+        if (pkpdSimData && Array.isArray(pkpdSimData.target_occupancies) && pkpdSimData.target_occupancies.length) {
+          const matched = pkpdSimData.target_occupancies.find(to => {
+            const matchName = String(to.target_name || '').toLowerCase();
+            const matchGene = String(to.gene_symbol || '').toLowerCase();
+            if (gene && matchGene && gene === matchGene) return true;
+            if (tName && matchName && (tName.includes(matchName) || matchName.includes(tName))) return true;
+            return false;
+          });
+          if (matched && matched.peak_saturation_pct !== undefined) {
+            const simDose = parseFloat(pkpdSimData.dose_mg) || doseMg;
+            let peakPct = matched.peak_saturation_pct;
+            let avgPct = matched.avg_saturation_pct;
+            let troughPct = matched.trough_saturation_pct;
+            let cFreePeak = matched.c_free_peak_nm;
+            let cFreeAvg = matched.c_free_avg_nm;
+            let cFreeTrough = matched.c_free_trough_nm;
+
+            if (simDose > 0 && Math.abs(simDose - doseMg) > 0.1) {
+              const scaleRatio = doseMg / simDose;
+              cFreePeak = parseFloat((cFreePeak * scaleRatio).toFixed(2));
+              cFreeAvg = parseFloat((cFreeAvg * scaleRatio).toFixed(2));
+              cFreeTrough = parseFloat((cFreeTrough * scaleRatio).toFixed(2));
+              peakPct = parseFloat((Math.min(100, Math.max(0, (cFreePeak / (cFreePeak + kdNm)) * 100))).toFixed(1));
+              avgPct = parseFloat((Math.min(100, Math.max(0, (cFreeAvg / (cFreeAvg + kdNm)) * 100))).toFixed(1));
+              troughPct = parseFloat((Math.min(100, Math.max(0, (cFreeTrough / (cFreeTrough + kdNm)) * 100))).toFixed(1));
+            }
+
+            let state = 'Minimal / Trace (<10%)';
+            if (peakPct >= 85.0) state = 'Near-Complete Saturation (>85%)';
+            else if (peakPct >= 65.0) state = 'Substantial Engagement (65-85%)';
+            else if (peakPct >= 35.0) state = 'Moderate Modulation (35-65%)';
+            else if (peakPct >= 10.0) state = 'Partial Engagement (10-35%)';
+
+            return {
+              peakPct: peakPct,
+              avgPct: avgPct,
+              troughPct: troughPct,
+              cFreePeakNm: cFreePeak,
+              cFreeAvgNm: cFreeAvg,
+              cFreeTroughNm: cFreeTrough,
+              state: state,
+              source: Math.abs(simDose - doseMg) <= 0.1 ? 'continuous_ode_simulation' : 'proportional_dose_scaling'
+            };
+          }
+        }
+
+        // 2. Dynamic Bateman Biophysical Calculation based on Current Dose Input
+        const mw = parseFloat(compound?.molecular_weight) || 300.0;
+
+        // Unbound fraction fu
+        let fu = 0.05;
+        if (compound?.fraction_unbound !== undefined && compound.fraction_unbound !== null) {
+          fu = parseFloat(compound.fraction_unbound);
+        } else if (compound?.protein_binding_pct !== undefined && compound.protein_binding_pct !== null) {
+          fu = Math.max(0.002, 1.0 - (parseFloat(compound.protein_binding_pct) / 100.0));
+        } else if (compound?.protein_binding !== undefined && compound.protein_binding !== null) {
+          const pb = parseFloat(compound.protein_binding);
+          fu = Math.max(0.002, 1.0 - (pb > 1.0 ? pb / 100.0 : pb));
+        }
+
+        // Bioavailability F
+        let fBio = 0.70;
+        if (route === 'intravenous') {
+          fBio = 1.0;
+        } else if (compound?.bioavailability_f !== undefined && compound.bioavailability_f !== null) {
+          fBio = parseFloat(compound.bioavailability_f);
+        } else if (compound?.oral_bioavailability !== undefined && compound.oral_bioavailability !== null) {
+          const ob = parseFloat(compound.oral_bioavailability);
+          fBio = ob > 1.0 ? ob / 100.0 : ob;
+        }
+
+        // Vd in Liters
+        let vdLiters = 70.0 * 1.5;
+        if (compound?.volume_of_distribution_l_kg) {
+          vdLiters = parseFloat(compound.volume_of_distribution_l_kg) * 70.0;
+        } else if (compound?.volume_of_distribution) {
+          const rawVd = parseFloat(compound.volume_of_distribution);
+          vdLiters = rawVd > 30.0 ? rawVd : rawVd * 70.0;
+        }
+
+        // Free biophase peak concentration Cu (nM)
+        let cFreeNm = 0;
+        if (pkpdSimData && pkpdSimData.c_max_ng_ml) {
+          cFreeNm = (pkpdSimData.c_max_ng_ml * fu * 1000.0) / mw;
+        } else {
+          cFreeNm = (doseMg * fBio * fu * 1e6) / (Math.max(5.0, vdLiters) * mw);
+        }
+
+        let cAvgNm = 0;
+        if (pkpdSimData && pkpdSimData.c_avg_ss_ng_ml) {
+          cAvgNm = (pkpdSimData.c_avg_ss_ng_ml * fu * 1000.0) / mw;
+        } else {
+          cAvgNm = cFreeNm * 0.75;
+        }
+
+        let cTroughNm = 0;
+        if (pkpdSimData && pkpdSimData.c_min_trough_ng_ml) {
+          cTroughNm = (pkpdSimData.c_min_trough_ng_ml * fu * 1000.0) / mw;
+        } else {
+          cTroughNm = cFreeNm * 0.50;
+        }
+
+        const roPeak = (cFreeNm / (cFreeNm + kdNm)) * 100.0;
+        const roAvg = (cAvgNm / (cAvgNm + kdNm)) * 100.0;
+        const roTrough = (cTroughNm / (cTroughNm + kdNm)) * 100.0;
+
+        const peakPct = parseFloat(Math.min(100.0, Math.max(0.0, roPeak)).toFixed(1));
+        const avgPct = parseFloat(Math.min(100.0, Math.max(0.0, roAvg)).toFixed(1));
+        const troughPct = parseFloat(Math.min(100.0, Math.max(0.0, roTrough)).toFixed(1));
+
+        let satState = 'Minimal / Trace (<10%)';
+        if (peakPct >= 85.0) satState = 'Near-Complete Saturation (>85%)';
+        else if (peakPct >= 65.0) satState = 'Substantial Engagement (65-85%)';
+        else if (peakPct >= 35.0) satState = 'Moderate Modulation (35-65%)';
+        else if (peakPct >= 10.0) satState = 'Partial Engagement (10-35%)';
+
+        return {
+          peakPct: peakPct,
+          avgPct: avgPct,
+          troughPct: troughPct,
+          cFreePeakNm: parseFloat(cFreeNm.toFixed(2)),
+          cFreeAvgNm: parseFloat(cAvgNm.toFixed(2)),
+          cFreeTroughNm: parseFloat(cTroughNm.toFixed(2)),
+          state: satState,
+          source: 'biophysical_bateman_estimation'
+        };
+      }
+
       function renderTargetPills(compound) {
         const targetField = document.getElementById('compoundTargets');
         const rawTargets = Array.isArray(compound.receptor_targets) ? compound.receptor_targets : [];
+
+        // Update active dose display in section header
+        const doseEl = document.getElementById('simDose');
+        const routeEl = document.getElementById('simRoute');
+        const curDose = doseEl ? (parseFloat(doseEl.value) || 100) : (compound.default_dose?.dose_mg || compound.dose || 100);
+        const curRoute = routeEl ? (routeEl.value || 'oral').toUpperCase() : 'ORAL';
+        const doseDisp = document.getElementById('targetsDoseDisplay');
+        if (doseDisp) {
+          doseDisp.textContent = `${curDose} mg (${curRoute})`;
+        }
 
         if (!rawTargets.length) {
           targetField.innerHTML = '<span class="pill">No primary targets recorded</span>';
@@ -455,6 +627,25 @@ if (window.lucide && typeof window.lucide.createIcons === 'function') {
             ? `<span class="target-affinity-badge ${tierClass}" title="Measured binding affinity / potency">${safeText(aff.formatted)}</span>`
             : `<span class="target-affinity-badge affinity-none" title="No quantitative binding affinity recorded">Affinity: —</span>`;
 
+          const satInfo = getEstimatedTargetSaturation(target, compound);
+          const satClass = satInfo ? getSaturationClass(satInfo.peakPct) : 'saturation-none';
+          const satBadge = satInfo
+            ? `
+              <div class="target-saturation-wrap" title="Estimated Target Saturation at ${curDose} mg: Peak ${satInfo.peakPct}%, Avg ${satInfo.avgPct}%, Trough ${satInfo.troughPct}% (${satInfo.state})">
+                <span class="target-saturation-badge ${satClass}">
+                  ${satInfo.peakPct}% Sat
+                </span>
+                <div class="target-saturation-track">
+                  <div class="target-saturation-fill" style="width:${satInfo.peakPct}%; background:${getSaturationFillColor(satInfo.peakPct)};"></div>
+                </div>
+              </div>
+            `
+            : `
+              <div class="target-saturation-wrap" title="Affinity constant uncharacterized for saturation calculation">
+                <span class="target-saturation-badge saturation-none">Sat: —</span>
+              </div>
+            `;
+
           const rank = `<span class="target-rank-chip" title="Affinity ranking #${index + 1}">#${index + 1}</span>`;
 
           return `
@@ -468,6 +659,7 @@ if (window.lucide && typeof window.lucide.createIcons === 'function') {
               </div>
               <div class="target-affinity-right">
                 ${affinityBadge}
+                ${satBadge}
               </div>
             </button>
           `;
@@ -504,6 +696,51 @@ if (window.lucide && typeof window.lucide.createIcons === 'function') {
         const detail = typeof target === 'string' ? { name: target } : target;
         const plddtVal = detail.alphafold_structure ? detail.alphafold_structure.mean_plddt : (detail.mean_plddt || detail.plddt);
         const aff = parseTargetAffinity(detail);
+        const satInfo = getEstimatedTargetSaturation(detail, state.compound);
+        const doseEl = document.getElementById('simDose');
+        const routeEl = document.getElementById('simRoute');
+        const curDose = doseEl ? (parseFloat(doseEl.value) || 100) : 100;
+        const curRoute = routeEl ? (routeEl.value || 'oral').toUpperCase() : 'ORAL';
+
+        let saturationCardHtml = '';
+        if (satInfo) {
+          saturationCardHtml = `
+            <div style="margin-bottom:14px; padding:12px; background:rgba(10,16,31,0.85); border:1px solid rgba(0,242,254,0.25); border-radius:8px;">
+              <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px; flex-wrap:wrap; gap:6px;">
+                <span style="font-size:0.75rem; font-weight:800; color:#00f2fe; text-transform:uppercase; letter-spacing:0.5px; display:inline-flex; align-items:center; gap:5px;">
+                  ⚡ Estimated Target Saturation (Dose: ${curDose} mg ${curRoute})
+                </span>
+                <span class="target-saturation-badge ${getSaturationClass(satInfo.peakPct)}" style="font-size:0.72rem;">${satInfo.state}</span>
+              </div>
+              <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(110px, 1fr)); gap:8px;">
+                <div class="saturation-metric-card">
+                  <span class="sat-title">Peak Saturation (Cmax)</span>
+                  <span class="sat-val" style="color:${getSaturationFillColor(satInfo.peakPct)};">${satInfo.peakPct}%</span>
+                  <span class="sat-sub">Max Target Engagement</span>
+                </div>
+                <div class="saturation-metric-card">
+                  <span class="sat-title">Avg Steady-State</span>
+                  <span class="sat-val" style="color:#38bdf8;">${satInfo.avgPct}%</span>
+                  <span class="sat-sub">Equilibrium Plateau</span>
+                </div>
+                <div class="saturation-metric-card">
+                  <span class="sat-title">Trough Saturation</span>
+                  <span class="sat-val" style="color:#a78bfa;">${satInfo.troughPct}%</span>
+                  <span class="sat-sub">Pre-Dose Residual</span>
+                </div>
+                <div class="saturation-metric-card">
+                  <span class="sat-title">Free Unbound Cu</span>
+                  <span class="sat-val" style="color:#f8fafc; font-size:0.95rem;">${satInfo.cFreePeakNm} nM</span>
+                  <span class="sat-sub">Biophase Ligand Drive</span>
+                </div>
+              </div>
+              <div style="margin-top:8px; font-size:0.68rem; color:var(--text-muted); line-height:1.3;">
+                Biophysical Hill / Langmuir isotherm: RO% = [Cu] / ([Cu] + Kd) &times; 100%. Scaled dynamically from administered dose, bioavailability, and plasma protein binding.
+              </div>
+            </div>
+          `;
+        }
+
         const rows = [
           ['Target Name', detail.name || detail.target || detail.label || 'Molecular Target'],
           ['Gene Symbol (HGNC)', detail.gene_symbol || detail.gene || '—'],
@@ -522,7 +759,7 @@ if (window.lucide && typeof window.lucide.createIcons === 'function') {
         ];
 
         modalTitle.textContent = detail.name || detail.target || detail.label || 'Target Details';
-        modalContent.innerHTML = rows.map(([label, value]) => `
+        modalContent.innerHTML = saturationCardHtml + rows.map(([label, value]) => `
           <div class="target-modal-row">
             <strong>${label}</strong>
             <div style="font-size:0.82rem; line-height:1.4; color:var(--text-primary);">${safeText(value)}</div>
@@ -977,6 +1214,9 @@ if (window.lucide && typeof window.lucide.createIcons === 'function') {
           pkpdSimData = data;
           renderSimStats(data);
           drawPKPDChart(data, curveType);
+          if (state.compound) {
+            renderTargetPills(state.compound);
+          }
         })
         .catch(err => console.error('PK/PD simulation failure', err));
       }
@@ -1176,8 +1416,14 @@ if (window.lucide && typeof window.lucide.createIcons === 'function') {
       ['simDose', 'simTau', 'simRoute', 'simRegimen', 'simCurveType'].forEach(id => {
         const el = document.getElementById(id);
         if (el) {
-          el.addEventListener('input', runPKPDSimulation);
-          el.addEventListener('change', runPKPDSimulation);
+          el.addEventListener('input', () => {
+            if (state.compound) renderTargetPills(state.compound);
+            runPKPDSimulation();
+          });
+          el.addEventListener('change', () => {
+            if (state.compound) renderTargetPills(state.compound);
+            runPKPDSimulation();
+          });
         }
       });
 

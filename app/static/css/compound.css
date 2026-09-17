@@ -539,6 +539,123 @@
         font-size: 0.7rem;
       }
 
+      .targets-dose-badge {
+        font-size: 0.68rem;
+        font-family: 'JetBrains Mono', monospace;
+        font-weight: 600;
+        color: #e2e8f0;
+        background: rgba(15, 23, 42, 0.85);
+        border: 1px solid rgba(56, 189, 248, 0.25);
+        padding: 2px 8px;
+        border-radius: 12px;
+        display: inline-flex;
+        align-items: center;
+        gap: 4px;
+      }
+      .targets-dose-badge strong {
+        color: #38bdf8;
+      }
+
+      .target-saturation-wrap {
+        display: inline-flex;
+        flex-direction: column;
+        gap: 3px;
+        align-items: flex-end;
+      }
+
+      .target-saturation-badge {
+        display: inline-flex;
+        align-items: center;
+        gap: 4px;
+        padding: 3px 8px;
+        font-size: 0.74rem;
+        font-family: 'JetBrains Mono', monospace;
+        font-weight: 700;
+        border-radius: 5px;
+        white-space: nowrap;
+      }
+
+      .target-saturation-badge.saturation-complete {
+        background: rgba(0, 242, 254, 0.18);
+        color: #00f2fe;
+        border: 1px solid rgba(0, 242, 254, 0.5);
+        box-shadow: 0 0 10px rgba(0, 242, 254, 0.2);
+      }
+
+      .target-saturation-badge.saturation-high {
+        background: rgba(16, 185, 129, 0.16);
+        color: #34d399;
+        border: 1px solid rgba(16, 185, 129, 0.45);
+        box-shadow: 0 0 8px rgba(16, 185, 129, 0.15);
+      }
+
+      .target-saturation-badge.saturation-mod {
+        background: rgba(56, 189, 248, 0.14);
+        color: #38bdf8;
+        border: 1px solid rgba(56, 189, 248, 0.35);
+      }
+
+      .target-saturation-badge.saturation-low {
+        background: rgba(245, 158, 11, 0.12);
+        color: #fbbf24;
+        border: 1px solid rgba(245, 158, 11, 0.35);
+      }
+
+      .target-saturation-badge.saturation-trace {
+        background: rgba(148, 163, 184, 0.10);
+        color: #94a3b8;
+        border: 1px solid rgba(148, 163, 184, 0.25);
+      }
+
+      .target-saturation-badge.saturation-none {
+        background: rgba(255, 255, 255, 0.04);
+        color: var(--text-muted);
+        border: 1px solid rgba(255, 255, 255, 0.08);
+        font-weight: 500;
+        font-size: 0.7rem;
+      }
+
+      .target-saturation-track {
+        width: 100%;
+        min-width: 58px;
+        height: 3px;
+        background: rgba(255, 255, 255, 0.08);
+        border-radius: 2px;
+        overflow: hidden;
+      }
+
+      .target-saturation-fill {
+        height: 100%;
+        border-radius: 2px;
+        transition: width 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+      }
+
+      .saturation-metric-card {
+        padding: 10px 12px;
+        border-radius: 8px;
+        background: rgba(15, 23, 42, 0.75);
+        border: 1px solid rgba(56, 189, 248, 0.2);
+        display: flex;
+        flex-direction: column;
+        gap: 2px;
+      }
+      .saturation-metric-card .sat-title {
+        font-size: 0.68rem;
+        color: var(--text-muted);
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+        font-weight: 600;
+      }
+      .saturation-metric-card .sat-val {
+        font-size: 1.1rem;
+        font-family: 'JetBrains Mono', monospace;
+        font-weight: 800;
+      }
+      .saturation-metric-card .sat-sub {
+        font-size: 0.7rem;
+        color: var(--text-secondary);
+      }
+
       /* ==========================================================================
          GRAPH PANEL & CANVAS
          ========================================================================== */

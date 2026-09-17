@@ -605,6 +605,47 @@
         box-shadow: 0 0 10px rgba(0, 242, 254, 0.2);
       }
 
+      .view-mode-toggle {
+        display: inline-flex;
+        align-items: center;
+        background: rgba(12, 24, 38, 0.95);
+        border: 1px solid rgba(0, 242, 254, 0.3);
+        border-radius: 8px;
+        padding: 2px;
+        margin-left: 4px;
+      }
+
+      .view-mode-btn {
+        background: transparent;
+        border: none;
+        color: var(--text-muted);
+        font-size: 0.70rem;
+        font-weight: 700;
+        padding: 3px 8px;
+        border-radius: 6px;
+        cursor: pointer;
+        transition: all 0.15s ease;
+        white-space: nowrap;
+      }
+
+      .view-mode-btn:hover {
+        color: var(--text-primary);
+      }
+
+      .view-mode-btn.active {
+        background: rgba(0, 242, 254, 0.18);
+        color: #00f2fe;
+        box-shadow: 0 0 8px rgba(0, 242, 254, 0.25);
+      }
+
+      .node-badge-primary {
+        border-color: #00f2fe !important;
+        color: #00f2fe !important;
+        background: rgba(0, 242, 254, 0.15) !important;
+        font-weight: 800 !important;
+        box-shadow: 0 0 10px rgba(0, 242, 254, 0.3) !important;
+      }
+
       .hud-tier-filters {
         display: flex;
         align-items: center;

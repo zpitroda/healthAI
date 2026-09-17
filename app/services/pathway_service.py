@@ -104,6 +104,15 @@ INITIAL_TARGET_SEED_METADATA: Dict[str, Dict[str, str]] = {
     "catechol-o-methyltransferase (comt)": {"symbol": "COMT", "uniprot": "P21964", "ensembl": "ENSG00000093010", "name": "Catechol-O-Methyltransferase (COMT)"},
 
     "gaba-a": {"symbol": "GABRA1", "uniprot": "P14867", "ensembl": "ENSG00000022355", "name": "GABA-A Receptor Alpha-1 (GABRA1)"},
+    "gabra1": {"symbol": "GABRA1", "uniprot": "P14867", "ensembl": "ENSG00000022355", "name": "GABA-A Receptor Alpha-1 (GABRA1)"},
+    "gabra2": {"symbol": "GABRA2", "uniprot": "P47869", "ensembl": "ENSG00000151834", "name": "GABA-A Receptor Alpha-2 (GABRA2)"},
+    "gabra3": {"symbol": "GABRA3", "uniprot": "P34903", "ensembl": "ENSG00000011465", "name": "GABA-A Receptor Alpha-3 (GABRA3)"},
+    "gabra4": {"symbol": "GABRA4", "uniprot": "P48169", "ensembl": "ENSG00000109158", "name": "GABA-A Receptor Alpha-4 (GABRA4)"},
+    "gabra5": {"symbol": "GABRA5", "uniprot": "P31644", "ensembl": "ENSG00000186297", "name": "GABA-A Receptor Alpha-5 (GABRA5)"},
+    "gabra6": {"symbol": "GABRA6", "uniprot": "Q16445", "ensembl": "ENSG00000164400", "name": "GABA-A Receptor Alpha-6 (GABRA6)"},
+    "gaba receptor subunit alpha 5": {"symbol": "GABRA5", "uniprot": "P31644", "ensembl": "ENSG00000186297", "name": "GABA-A Receptor Alpha-5 (GABRA5)"},
+    "gaba receptor subunit alpha-5": {"symbol": "GABRA5", "uniprot": "P31644", "ensembl": "ENSG00000186297", "name": "GABA-A Receptor Alpha-5 (GABRA5)"},
+    "gaba receptor subunit alpha 5 receptor": {"symbol": "GABRA5", "uniprot": "P31644", "ensembl": "ENSG00000186297", "name": "GABA-A Receptor Alpha-5 (GABRA5)"},
     "glutamate": {"symbol": "GRIN1", "uniprot": "Q05586", "ensembl": "ENSG00000176884", "name": "NMDA Glutamate Receptor Subunit 1 (GRIN1)"},
     # Nootropics & Research Chemical Targets
     "gria1": {"symbol": "GRIA1", "uniprot": "P42261", "ensembl": "ENSG00000120251", "name": "Glutamate Ionotropic Receptor AMPA Type Subunit 1 (GRIA1 / AMPA)"},
@@ -335,6 +344,14 @@ STRUCTURED_TARGET_CASCADE_SCHEMAS: Dict[str, Dict[str, Any]] = {
         "phenotypes": [
             {"id": "pheno_sympathetic_activation", "label": "Sympathoadrenal Arousal, Lipolysis & Chronotropic Stimulation", "cat": "therapeutic_benefit", "sev": "moderate", "mag": -0.85},
             {"id": "pheno_tachycardia", "label": "Resting Tachycardia & Sympathetic Vasoconstriction", "cat": "adverse_effect", "sev": "moderate", "mag": -0.75},
+        ],
+        "bridges": [
+            {
+                "target_node_pattern": r"(?:beta-1|adrb1|beta-2|adrb2|cardiovascular)",
+                "edge_type": "MODULATES",
+                "vector_magnitude": -0.80,
+                "description": "Presynaptic alpha-2 adrenergic receptor blockade disinhibits synaptic norepinephrine release, flooding postsynaptic beta-1 and beta-2 adrenergic receptors",
+            }
         ],
     },
     "ADORA1": {
@@ -796,10 +813,34 @@ TARGET_EXACT_MAP: Dict[str, str] = {
     # 10. GABRA1 / GABA-A
     "gabra1": "GABRA1",
     "gabra2": "GABRA1",
+    "gabra3": "GABRA1",
+    "gabra4": "GABRA1",
+    "gabra5": "GABRA1",
+    "gabra6": "GABRA1",
+    "gabrb1": "GABRA1",
+    "gabrb2": "GABRA1",
+    "gabrb3": "GABRA1",
+    "gabrg1": "GABRA1",
+    "gabrg2": "GABRA1",
+    "gabrg3": "GABRA1",
+    "gabrd": "GABRA1",
+    "gabre": "GABRA1",
+    "gabrp": "GABRA1",
+    "gabrq": "GABRA1",
     "gaba-a": "GABRA1",
+    "gaba a": "GABRA1",
+    "gabaa": "GABRA1",
+    "gaba-a receptor": "GABRA1",
+    "gaba receptor": "GABRA1",
     "theanine": "GABRA1",
     "gaba-a receptor (gabra1 / gabra2)": "GABRA1",
     "gaba-a receptor alpha-1 (gabra1)": "GABRA1",
+    "gaba receptor subunit alpha 5": "GABRA1",
+    "gaba receptor subunit alpha-5": "GABRA1",
+    "gaba receptor subunit alpha 5 receptor": "GABRA1",
+    "gaba-a receptor subunit alpha-5": "GABRA1",
+    "gamma-aminobutyric acid receptor subunit alpha-5": "GABRA1",
+    "gamma-aminobutyric acid type a receptor subunit alpha 5": "GABRA1",
 
     # 11. GRIN1 / NMDA
     "grin1": "GRIN1",
@@ -1119,6 +1160,38 @@ def resolve_schema_key(sym: str, target_name: str, target_node_id: str) -> str |
         tok_lower = token.lower()
         if tok_lower in TARGET_EXACT_MAP:
             return TARGET_EXACT_MAP[tok_lower]
+
+    # 6. Biological Family & Subunit Prefix Fallbacks
+    if (
+        s_clean.startswith("gabra")
+        or s_clean.startswith("gabrb")
+        or s_clean.startswith("gabrg")
+        or s_clean.startswith("gabrd")
+        or "gaba receptor" in t_clean
+        or "gaba-a" in t_clean
+        or "gabaa" in t_clean
+        or "gamma-aminobutyric acid receptor" in t_clean
+        or "gamma-aminobutyric acid type a" in t_clean
+    ):
+        return "GABRA1"
+    if s_clean.startswith("gabbr") or "gaba-b" in t_clean or "gabab" in t_clean:
+        return "GABBR1" if "GABBR1" in STRUCTURED_TARGET_CASCADE_SCHEMAS else "GABRA1"
+    if s_clean.startswith("grin") or "nmda" in t_clean:
+        return "GRIN1"
+    if s_clean.startswith("gria") or "ampa" in t_clean:
+        return "GRIA2" if "GRIA2" in STRUCTURED_TARGET_CASCADE_SCHEMAS else "GRIA1"
+    if s_clean.startswith("chrna") or s_clean.startswith("chrnb") or "nachr" in t_clean:
+        return "CHRNA7"
+    if s_clean.startswith("adra1"):
+        return "ADRA1A" if "ADRA1A" in STRUCTURED_TARGET_CASCADE_SCHEMAS else "AGTR1"
+    if s_clean.startswith("adra2"):
+        return "ADRA2A"
+    if s_clean.startswith("adrb1") or s_clean.startswith("adrb2") or s_clean.startswith("adrb3"):
+        return "ADRB1"
+    if s_clean.startswith("drd"):
+        return "DRD2"
+    if s_clean.startswith("htr1") or s_clean.startswith("htr2"):
+        return "HTR1A" if "HTR1A" in STRUCTURED_TARGET_CASCADE_SCHEMAS else None
 
     return None
 

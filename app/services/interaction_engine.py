@@ -1366,8 +1366,8 @@ class InteractionEngine:
 
             syndrome_alerts.append(syn)
 
-        # Dynamic Biomarker Vector Convergence Evaluator
-        vector_alerts = self._evaluate_biomarker_vector_convergence(compounds, labs)
+        # Dynamic Biomarker Vector Convergence Evaluator (calibrated by individual receptor saturation & cascade shifts)
+        vector_alerts = self._evaluate_biomarker_vector_convergence(compounds, labs, cascade_results=cascade_results, graph=graph)
         for valert in vector_alerts:
             # Check if this alert was successfully counterbalanced by full stack balance
             is_mitigated = False
@@ -4755,40 +4755,67 @@ class InteractionEngine:
         self,
         compounds: List[Dict[str, Any]],
         labs: Dict[str, Any],
+        cascade_results: Optional[Dict[str, Any]] = None,
+        graph: Optional[Any] = None,
     ) -> List[Dict[str, Any]]:
         """
         Dynamically calculates multi-compound biomarker vector convergence across the biological cascade graph.
-        Zero hardcoded drug names: Computes net vector sums across all active compounds.
+        Zero hardcoded drug names: Computes net vector sums across all active compounds, directly calibrated
+        by individual receptor saturation and dose-dependent downstream cascade shifts.
         """
         biomarker_alerts: List[Dict[str, Any]] = []
         if len(compounds) < 2:
             return biomarker_alerts
 
         try:
-            from app.services.graph_service import build_selected_compound_graph
-
-            stack_keys = [str(c.get("key") or c.get("name") or "") for c in compounds if c]
-            graph = build_selected_compound_graph(stack_keys)
-            start_nodes = [n for n in graph.graph.nodes() if graph.graph.nodes[n].get("node_type") == "compound"]
-
-            if not start_nodes:
-                return biomarker_alerts
-
-            # Measure directional contributions per origin compound
             compound_biomarker_vectors: Dict[str, Dict[str, float]] = {}
-            for start in start_nodes:
-                c_res = graph.propagate_cascade([start])
-                for b in c_res.get("biomarker_shifts", []):
-                    b_id = b.get("biomarker_id", "")
-                    shift = float(b.get("net_shift", 0.0))
-                    if abs(shift) > 0.05:
-                        if b_id not in compound_biomarker_vectors:
-                            compound_biomarker_vectors[b_id] = {}
-                        compound_biomarker_vectors[b_id][start] = shift
+            node_labels: Dict[str, str] = {}
+
+            # Primary: Extract dose- and saturation-calibrated compound contributions from cascade_results
+            cascade_shifts = (cascade_results or {}).get("biomarker_shifts", [])
+            if cascade_shifts:
+                for b in cascade_shifts:
+                    b_id = str(b.get("biomarker_id", ""))
+                    if not b_id:
+                        continue
+                    node_labels[b_id] = str(b.get("name") or b.get("label") or b_id)
+                    shares = b.get("compound_contributions") or b.get("contributions") or []
+                    for c_share in shares:
+                        c_id = str(c_share.get("compound_id", ""))
+                        c_label = str(c_share.get("compound_label", c_id))
+                        node_labels[c_id] = c_label
+                        mag = float(c_share.get("contribution_mag", 0.0))
+                        if abs(mag) > 0.05:
+                            compound_biomarker_vectors.setdefault(b_id, {})[c_id] = mag
+            else:
+                from app.services.graph_service import build_selected_compound_graph
+
+                stack_keys = [str(c.get("key") or c.get("name") or "") for c in compounds if c]
+                if not graph:
+                    graph = build_selected_compound_graph(stack_keys)
+                start_nodes = [n for n in graph.graph.nodes() if graph.graph.nodes[n].get("node_type") == "compound"]
+
+                if not start_nodes:
+                    return biomarker_alerts
+
+                # Fallback: Measure directional contributions per origin compound
+                for start in start_nodes:
+                    c_res = graph.propagate_cascade([start])
+                    for b in c_res.get("biomarker_shifts", []):
+                        b_id = b.get("biomarker_id", "")
+                        shift = float(b.get("net_shift", 0.0))
+                        if abs(shift) > 0.05:
+                            compound_biomarker_vectors.setdefault(b_id, {})[start] = shift
+
+            def _get_entity_label(node_key: str) -> str:
+                if node_key in node_labels:
+                    return node_labels[node_key]
+                if graph and graph.graph.has_node(node_key):
+                    return str(graph.graph.nodes[node_key].get("label", node_key))
+                return node_key
 
             for b_id, contribs in compound_biomarker_vectors.items():
-                b_data = graph.graph.nodes.get(b_id, {})
-                label = b_data.get("label", b_id)
+                label = _get_entity_label(b_id)
 
                 # 1. Potassium retention convergence (at least 2 compounds pushing K+ up)
                 k_ups = {c: v for c, v in contribs.items() if v >= 0.2}
@@ -4797,7 +4824,7 @@ class InteractionEngine:
                     potassium_val = labs.get("potassium_meq_l") if labs.get("potassium_meq_l") is not None else 4.2
                     egfr_val = labs.get("egfr") if labs.get("egfr") is not None else 90.0
                     is_severe = net_k >= 0.8 or potassium_val >= 4.8 or egfr_val < 60.0
-                    agent_names = [graph.graph.nodes[c].get("label", c) for c in k_ups.keys()]
+                    agent_names = [_get_entity_label(c) for c in k_ups.keys()]
                     biomarker_alerts.append({
                         "syndrome": "Biomarker Cascade: Hyperkalemia Multiplier",
                         "severity": "SEVERE_CONTRAINDICATION" if is_severe else "HIGH_RISK",
@@ -4817,7 +4844,7 @@ class InteractionEngine:
                     net_qtc = sum(qtc_ups.values())
                     qtc_val = labs.get("qtc_ms") if labs.get("qtc_ms") is not None else 420.0
                     is_severe = net_qtc >= 0.8 or qtc_val >= 480.0
-                    agent_names = [graph.graph.nodes[c].get("label", c) for c in qtc_ups.keys()]
+                    agent_names = [_get_entity_label(c) for c in qtc_ups.keys()]
                     biomarker_alerts.append({
                         "syndrome": "Biomarker Cascade: QTc Prolongation & TdP Risk",
                         "severity": "SEVERE_CONTRAINDICATION" if is_severe else "HIGH_RISK",
@@ -4842,7 +4869,7 @@ class InteractionEngine:
                         for s in synergistic_benefits
                     )
                     if is_high_risk or not has_synergy:
-                        agent_names = [graph.graph.nodes[c].get("label", c) for c in bp_downs.keys()]
+                        agent_names = [_get_entity_label(c) for c in bp_downs.keys()]
                         biomarker_alerts.append({
                             "syndrome": "Biomarker Cascade: Additive Antihypertensive Response",
                             "severity": "HIGH_RISK" if is_high_risk else "MODERATE_RISK",
@@ -4863,7 +4890,7 @@ class InteractionEngine:
                     net_bp_up = sum(bp_ups.values())
                     bp_val = labs.get("blood_pressure") if labs.get("blood_pressure") is not None else 120.0
                     is_high_bp = net_bp_up >= 0.8 or bp_val >= 135.0
-                    agent_names = [graph.graph.nodes[c].get("label", c) for c in bp_ups.keys()]
+                    agent_names = [_get_entity_label(c) for c in bp_ups.keys()]
                     biomarker_alerts.append({
                         "syndrome": "Biomarker Cascade: Additive Hypertensive Strain",
                         "severity": "HIGH_RISK",
@@ -4883,7 +4910,7 @@ class InteractionEngine:
                 if "heart_rate" in b_id.lower() and len(hr_downs) >= 2:
                     net_hr = sum(hr_downs.values())
                     is_high_risk = len(hr_downs) >= 3
-                    agent_names = [graph.graph.nodes[c].get("label", c) for c in hr_downs.keys()]
+                    agent_names = [_get_entity_label(c) for c in hr_downs.keys()]
                     biomarker_alerts.append({
                         "syndrome": "Biomarker Cascade: Additive Bradycardia",
                         "severity": "HIGH_RISK" if is_high_risk else "MODERATE_RISK",
@@ -4903,7 +4930,7 @@ class InteractionEngine:
                     net_hr_up = sum(hr_ups.values())
                     hr_val = labs.get("heart_rate") if labs.get("heart_rate") is not None else 72.0
                     is_severe_hr = net_hr_up >= 0.8 or hr_val >= 85.0
-                    agent_names = [graph.graph.nodes[c].get("label", c) for c in hr_ups.keys()]
+                    agent_names = [_get_entity_label(c) for c in hr_ups.keys()]
                     biomarker_alerts.append({
                         "syndrome": "Biomarker Cascade: Tachycardia & Inotropic Overdrive",
                         "severity": "SEVERE_CONTRAINDICATION" if is_severe_hr else "HIGH_RISK",
@@ -4924,7 +4951,7 @@ class InteractionEngine:
                     net_bleed = sum(bleed_ups.values())
                     platelets_val = labs.get("platelets_k_ul") if labs.get("platelets_k_ul") is not None else 250.0
                     is_severe = net_bleed >= 0.8 or platelets_val < 100.0
-                    agent_names = [graph.graph.nodes[c].get("label", c) for c in bleed_ups.keys()]
+                    agent_names = [_get_entity_label(c) for c in bleed_ups.keys()]
                     biomarker_alerts.append({
                         "syndrome": "Biomarker Cascade: Compounded Hemorrhagic Risk",
                         "severity": "SEVERE_CONTRAINDICATION" if is_severe else "HIGH_RISK",
@@ -4943,7 +4970,7 @@ class InteractionEngine:
                 if "serotonin" in b_id.lower() and len(sero_ups) >= 2:
                     net_sero = sum(sero_ups.values())
                     is_severe = net_sero >= 0.8
-                    agent_names = [graph.graph.nodes[c].get("label", c) for c in sero_ups.keys()]
+                    agent_names = [_get_entity_label(c) for c in sero_ups.keys()]
                     biomarker_alerts.append({
                         "syndrome": "Biomarker Cascade: Serotonin Toxicity Risk",
                         "severity": "SEVERE_CONTRAINDICATION" if is_severe else "HIGH_RISK",
@@ -4961,7 +4988,7 @@ class InteractionEngine:
                 ach_downs = {c: v for c, v in contribs.items() if v <= -0.3}
                 if "acetylcholine" in b_id.lower() and len(ach_downs) >= 2:
                     net_ach = sum(ach_downs.values())
-                    agent_names = [graph.graph.nodes[c].get("label", c) for c in ach_downs.keys()]
+                    agent_names = [_get_entity_label(c) for c in ach_downs.keys()]
                     biomarker_alerts.append({
                         "syndrome": "Biomarker Cascade: Anticholinergic Delirium Risk",
                         "severity": "HIGH_RISK",
@@ -4981,7 +5008,7 @@ class InteractionEngine:
                     net_glu = sum(glu_downs.values())
                     glucose_val = labs.get("fasting_glucose_mg_dl") if labs.get("fasting_glucose_mg_dl") is not None else 95.0
                     is_severe = abs(net_glu) >= 0.8 or glucose_val < 70.0
-                    agent_names = [graph.graph.nodes[c].get("label", c) for c in glu_downs.keys()]
+                    agent_names = [_get_entity_label(c) for c in glu_downs.keys()]
                     biomarker_alerts.append({
                         "syndrome": "Biomarker Cascade: Synergistic Hypoglycemia",
                         "severity": "SEVERE_CONTRAINDICATION" if is_severe else "HIGH_RISK",
@@ -5001,7 +5028,7 @@ class InteractionEngine:
                     net_egfr = sum(egfr_downs.values())
                     egfr_val = labs.get("egfr") if labs.get("egfr") is not None else 90.0
                     is_severe = abs(net_egfr) >= 0.7 or egfr_val < 60.0
-                    agent_names = [graph.graph.nodes[c].get("label", c) for c in egfr_downs.keys()]
+                    agent_names = [_get_entity_label(c) for c in egfr_downs.keys()]
                     biomarker_alerts.append({
                         "syndrome": "Biomarker Cascade: Renal Hemodynamic Strain",
                         "severity": "SEVERE_CONTRAINDICATION" if is_severe else "HIGH_RISK",
@@ -5020,7 +5047,7 @@ class InteractionEngine:
                 if ("cns_arousal" in b_id.lower() or "respiratory" in b_id.lower()) and len(cns_downs) >= 2:
                     net_cns = sum(cns_downs.values())
                     is_severe = abs(net_cns) >= 0.8
-                    agent_names = [graph.graph.nodes[c].get("label", c) for c in cns_downs.keys()]
+                    agent_names = [_get_entity_label(c) for c in cns_downs.keys()]
                     biomarker_alerts.append({
                         "syndrome": "Biomarker Cascade: Central & Respiratory Depression",
                         "severity": "SEVERE_CONTRAINDICATION" if is_severe else "HIGH_RISK",

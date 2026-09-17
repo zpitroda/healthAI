@@ -173,7 +173,8 @@
         <!-- HUD DOMAIN & TIER FILTER PILLS -->
         <div class="hud-top-filters">
           <div class="graph-filter-matrix" id="domainFilters">
-            <button class="filter-btn active" data-filter="all">All Interactions</button>
+            <button class="filter-btn active" data-filter="primary" id="btnFilterPrimary" title="Spotlight primary clinical biomarkers and therapeutic/adverse outcomes" style="display:inline-flex; align-items:center; gap:4px; border-color:rgba(0,242,254,0.45);"><i data-lucide="star" class="icon-xs icon-cyan"></i> Primary Focus (★)</button>
+            <button class="filter-btn" data-filter="all" id="btnFilterAll">All Interactions</button>
             <button class="filter-btn" data-filter="convergence" id="btnFilterConvergence" title="Show molecular targets with multiple compound inputs" style="display:inline-flex; align-items:center; gap:4px;"><i data-lucide="crosshair" class="icon-xs"></i> Converging Targets</button>
             <button class="filter-btn" id="btnToggleControversies" title="Highlight scientifically debated relationships with low consensus scores" style="display:inline-flex; align-items:center; gap:4px;"><i data-lucide="alert-triangle" class="icon-xs icon-amber"></i> Controversies Radar</button>
             <div class="filter-btn" style="display:inline-flex; align-items:center; gap:6px; background:rgba(8,13,25,0.9); cursor:default;">
@@ -184,6 +185,10 @@
             <button class="filter-btn" data-filter="pd">Pharmacodynamics (PD)</button>
             <button class="filter-btn" data-filter="pk">Pharmacokinetics (PK)</button>
             <button class="filter-btn" data-filter="outcomes">Biomarkers & Outcomes</button>
+            <div class="view-mode-toggle" id="viewModeToggle" title="Toggle between streamlined direct clinical focus and full 6-tier cascade">
+              <button class="view-mode-btn active" data-mode="compact" id="btnViewCompact" title="Direct Focus: Streamlined clinical view connecting primary targets directly to outcomes">Direct Focus</button>
+              <button class="view-mode-btn" data-mode="full" id="btnViewFull" title="Full 6-tier canonical biological cascade graph">Full 6-Tier</button>
+            </div>
           </div>
           <div class="hud-tier-filters" id="typeFilters"></div>
         </div>

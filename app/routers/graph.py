@@ -156,6 +156,42 @@ def graph_data(
             raise HTTPException(status_code=404, detail=f"Node '{focus_str}' was not found in the graph.")
         graph = graph.subgraph_from_node(focus_str, max_depth=depth_val)
 
+    # Index cascade simulation results by node ID for downstream effect strength scoring
+    biomarker_map = {b.get("biomarker_id"): b for b in cascade_results.get("biomarker_shifts", [])}
+    phenotype_map = {p.get("phenotype_id"): p for p in cascade_results.get("phenotypes", [])}
+    pathway_map = {p.get("pathway_id"): p for p in cascade_results.get("activated_pathways", [])}
+
+    # Pass 1: Identify all primary endpoints (biomarkers & phenotypes with significant biological shifts)
+    primary_endpoint_ids: set[str] = set()
+    for node_id, attrs in graph.graph.nodes(data=True):
+        nt = attrs.get("node_type", "unknown")
+        if nt == "biomarker":
+            b_data = biomarker_map.get(node_id)
+            if b_data:
+                delta_pct = abs(float(b_data.get("delta_pct", 0.0)))
+                net_shift = abs(float(b_data.get("net_shift", 0.0)))
+                is_crit = node_id in ("bio_qtc", "bio_potassium", "bio_blood_pressure", "bio_alt", "bio_heart_rate", "bio_hematocrit", "bio_testosterone", "bio_egfr", "bio_hba1c")
+                if (delta_pct >= 10.0) or (net_shift >= 0.35) or (b_data.get("in_safe_range") is False) or (is_crit and delta_pct >= 5.0):
+                    primary_endpoint_ids.add(node_id)
+        elif nt == "phenotype":
+            p_data = phenotype_map.get(node_id)
+            if p_data:
+                risk_delta = abs(float(p_data.get("risk_delta_pct", 0.0)))
+                net_score = abs(float(p_data.get("net_score", 0.0)))
+                sev = str(p_data.get("severity", "moderate")).lower()
+                if (risk_delta >= 18.0) or (net_score >= 0.35) or (sev in ("high", "severe", "critical")) or (p_data.get("risk_status") == "HIGH_RISK"):
+                    primary_endpoint_ids.add(node_id)
+
+    # Pass 2: Calculate directed causal reachability to primary clinical outcomes
+    import networkx as nx
+    nodes_leading_to_primary: set[str] = set(primary_endpoint_ids)
+    for pe_id in primary_endpoint_ids:
+        if graph.graph.has_node(pe_id):
+            try:
+                nodes_leading_to_primary.update(nx.ancestors(graph.graph, pe_id))
+            except Exception:
+                pass
+
     nodes = []
     for node_id, attrs in graph.graph.nodes(data=True):
         nt = attrs.get("node_type", "unknown")
@@ -172,6 +208,73 @@ def graph_data(
             pk_pd = "PD"
 
         comb = combined_effects.get(node_id)
+        leads_to_primary = bool(node_id in nodes_leading_to_primary)
+
+        # Dynamic Downstream Effect Strength & Primary Classification
+        effect_magnitude = 0.5
+        is_primary = False
+        effect_tier = "secondary"
+        formatted_delta: Optional[str] = None
+        relative_strength_pct = 50
+
+        if nt == "compound":
+            effect_magnitude = 1.0
+            is_primary = True
+            effect_tier = "origin"
+            relative_strength_pct = 100
+        elif nt == "biomarker":
+            b_data = biomarker_map.get(node_id)
+            if b_data:
+                delta_pct = abs(float(b_data.get("delta_pct", 0.0)))
+                net_shift = abs(float(b_data.get("net_shift", 0.0)))
+                effect_magnitude = round(min(1.0, max(delta_pct / 35.0, net_shift / 0.75)), 3)
+                is_primary = bool(node_id in primary_endpoint_ids)
+                effect_tier = "primary" if is_primary else ("secondary" if effect_magnitude >= 0.20 else "minor")
+                formatted_delta = b_data.get("formatted_change") or f"{b_data.get('direction', 'SHIFT')} ({b_data.get('net_shift')})"
+                relative_strength_pct = int(min(100, max(10, effect_magnitude * 100)))
+            else:
+                effect_magnitude = 0.25
+                is_primary = False
+                effect_tier = "minor"
+                relative_strength_pct = 25
+        elif nt == "phenotype":
+            p_data = phenotype_map.get(node_id)
+            if p_data:
+                risk_delta = abs(float(p_data.get("risk_delta_pct", 0.0)))
+                net_score = abs(float(p_data.get("net_score", 0.0)))
+                effect_magnitude = round(min(1.0, max(risk_delta / 60.0, net_score)), 3)
+                is_primary = bool(node_id in primary_endpoint_ids)
+                effect_tier = "primary" if is_primary else ("secondary" if effect_magnitude >= 0.20 else "minor")
+                formatted_delta = p_data.get("formatted_risk") or f"{round(risk_delta)}% Shift"
+                relative_strength_pct = int(min(100, max(10, effect_magnitude * 100)))
+            else:
+                effect_magnitude = 0.25
+                is_primary = False
+                effect_tier = "minor"
+                relative_strength_pct = 25
+        elif nt in ("receptor", "enzyme", "transporter", "ion_channel", "target"):
+            if comb:
+                sat = float(comb.get("receptor_saturation_pct", 50.0))
+                net = abs(float(comb.get("net_activation_score", 0.5)))
+                effect_magnitude = round(min(1.0, sat / 100.0), 3)
+                is_primary = bool(leads_to_primary or sat >= 35.0 or net >= 0.35)
+                effect_tier = "primary" if is_primary else ("secondary" if leads_to_primary else "minor")
+                formatted_delta = f"{float(comb.get('net_activation_pct', 0)):+.1f}% Net Activation" if comb.get('net_activation_pct') is not None else None
+                relative_strength_pct = int(min(100, max(10, effect_magnitude * 100)))
+            else:
+                is_primary = bool(leads_to_primary)
+                effect_magnitude = 0.75 if is_primary else 0.30
+                effect_tier = "primary" if is_primary else "minor"
+                relative_strength_pct = 75 if is_primary else 30
+        elif nt in ("signaling_pathway", "pathway", "physiology"):
+            pw_data = pathway_map.get(node_id)
+            net = abs(float(pw_data.get("net_score", 0.5))) if pw_data else 0.35
+            effect_magnitude = round(min(1.0, net), 3)
+            is_primary = bool(leads_to_primary)
+            effect_tier = "primary" if is_primary else "minor"
+            formatted_delta = f"{round(net * 100)}% Activity" if pw_data else None
+            relative_strength_pct = int(min(100, max(10, effect_magnitude * 100)))
+
         node_payload = {
             "id": node_id,
             "label": attrs.get("label", node_id),
@@ -202,8 +305,19 @@ def graph_data(
             "net_activation_score": comb.get("net_activation_score") if comb else None,
             "net_activation_pct": comb.get("net_activation_pct") if comb else None,
             "receptor_state": comb.get("receptor_state") if comb else None,
+            "effect_magnitude": effect_magnitude,
+            "relative_strength_pct": relative_strength_pct,
+            "is_primary": is_primary,
+            "effect_tier": effect_tier,
+            "leads_to_primary": leads_to_primary,
+            "formatted_delta": formatted_delta,
         }
         nodes.append(node_payload)
+
+    # Lookup map for fast edge enrichment
+    node_is_primary = {n["id"]: n["is_primary"] for n in nodes}
+    node_leads_to_primary = {n["id"]: n.get("leads_to_primary", False) for n in nodes}
+    node_effect_mag = {n["id"]: n["effect_magnitude"] for n in nodes}
 
     def _readable_edge_label(edge_type: str, mag: float) -> str:
         """Convert internal edge type + magnitude into a concise, human-readable graph label."""
@@ -254,6 +368,10 @@ def graph_data(
     for source, target, attrs in graph.graph.edges(data=True):
         raw_type = attrs.get("edge_type", "")
         mag = float(attrs.get("vector_magnitude", 1.0))
+        leads_prim_edge = bool(node_leads_to_primary.get(source, False) and node_leads_to_primary.get(target, False))
+        is_prim_edge = bool(leads_prim_edge or node_is_primary.get(target, False) or (node_is_primary.get(source, False) and mag >= 0.7))
+        downstream_mag = node_effect_mag.get(target, round(abs(mag), 2))
+        
         if raw_type == "SUBSTRATE_OF":
             # The enzyme acts upon the substrate compound: orient arrow from Enzyme -> Substrate with active verb METABOLIZES
             edges.append({
@@ -266,6 +384,10 @@ def graph_data(
                 "affinity_ki": attrs.get("affinity_ki"),
                 "inhibition_ic50": attrs.get("inhibition_ic50"),
                 "is_bridge": bool(attrs.get("is_bridge", False)),
+                "is_primary_edge": is_prim_edge,
+                "leads_to_primary": leads_prim_edge,
+                "cascade_strength": round(abs(mag), 2),
+                "downstream_effect_magnitude": downstream_mag,
                 "description": attrs.get("description") or f"{target} metabolizes {source}",
             })
         else:
@@ -279,6 +401,10 @@ def graph_data(
                 "affinity_ki": attrs.get("affinity_ki"),
                 "inhibition_ic50": attrs.get("inhibition_ic50"),
                 "is_bridge": bool(attrs.get("is_bridge", False)),
+                "is_primary_edge": is_prim_edge,
+                "leads_to_primary": leads_prim_edge,
+                "cascade_strength": round(abs(mag), 2),
+                "downstream_effect_magnitude": downstream_mag,
                 "description": attrs.get("description"),
             })
 

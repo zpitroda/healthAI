@@ -213,8 +213,9 @@ function escapeHtml(str) {
         try {
           let cleanJson = typeof rawMarkdown === 'string' ? rawMarkdown.trim() : rawMarkdown;
           if (typeof cleanJson === 'string') {
-            // Strip think blocks and action_card XML tags
-            cleanJson = cleanJson.replace(/<think[\s\S]*?(<\/think>|$)/gi, '').trim();
+            // Strip think/thought blocks and action_card XML tags
+            cleanJson = cleanJson.replace(/<(think|thought|scratchpad|clinical_notes)[\s\S]*?(<\/\1>|$)/gi, '').trim();
+            cleanJson = cleanJson.replace(/<unused\d+>thought[\s\S]*?(<\/thought>|$)/gi, '').trim();
             cleanJson = cleanJson.replace(/<action_card[\s\S]*?(<\/action_card>|$)/gi, '').trim();
             cleanJson = cleanJson.replace(/^```json\s*/i, '').replace(/^```\s*/, '').replace(/```\s*$/i, '').trim();
             
@@ -734,10 +735,11 @@ function escapeHtml(str) {
       function renderMarkdownLite(rawText) {
         if (!rawText) return '';
 
-        // 1. Strip raw action_card, think, and scratchpad tags completely from text bubble
+        // 1. Strip raw action_card, think, thought, and scratchpad tags completely from text bubble
         let text = String(rawText).replace(/<action_card[\s\S]*?(<\/action_card>|$)/gi, '').trim();
-        text = text.replace(/<think[\s\S]*?(<\/think>|$)/gi, '').trim();
-        text = text.replace(/<scratchpad[\s\S]*?(<\/scratchpad>|$)/gi, '').trim();
+        text = text.replace(/<(think|thought|scratchpad|clinical_notes)[\s\S]*?(<\/\1>|$)/gi, '').trim();
+        text = text.replace(/<unused\d+>thought[\s\S]*?(<\/thought>|$)/gi, '').trim();
+        text = text.replace(/^thought\s*\n.*?(?:\n\n|$)/gis, '').trim();
         if (!text) return '';
 
         // 2. Extract and protect code blocks
@@ -853,12 +855,12 @@ function escapeHtml(str) {
         openrouter: {
           name: 'OpenRouter',
           baseUrl: '',
-          defaultModel: '',
+          defaultModel: 'qwen/qwen3.8-27b',
           keyPlaceholder: 'sk-or-v1-...',
           portalUrl: 'https://openrouter.ai/keys',
           portalText: 'Get OpenRouter Key (openrouter.ai)',
           isCustom: false,
-          quickModels: []
+          quickModels: ['qwen/qwen3.8-27b', 'qwen/qwen3.8-flash', 'qwen/qwen3.8-max-0902', 'meta-llama/llama-3.3-70b-instruct']
         },
         openai: {
           name: 'OpenAI',
@@ -1649,8 +1651,9 @@ function escapeHtml(str) {
         let text = typeof rawText === 'string' ? rawText.trim() : (rawText ? JSON.stringify(rawText) : '');
 
         // 1. Strip reasoning / scratchpad / think tags
-        text = text.replace(/<think[\s\S]*?(<\/think>|$)/gi, '').trim();
-        text = text.replace(/<scratchpad[\s\S]*?(<\/scratchpad>|$)/gi, '').trim();
+        text = text.replace(/<(think|thought|scratchpad|clinical_notes)[\s\S]*?(<\/\1>|$)/gi, '').trim();
+        text = text.replace(/<unused\d+>thought[\s\S]*?(<\/thought>|$)/gi, '').trim();
+        text = text.replace(/^thought\s*\n.*?(?:\n\n|$)/gis, '').trim();
 
         // 2. Extract action_card tag or text if present
         let actionCardData = lastActionCardPayload;
@@ -1682,7 +1685,43 @@ function escapeHtml(str) {
         const actionPayload = actionCardData ? (actionCardData.payload || actionCardData) : null;
         const proto = parseProtocolData(text, actionPayload);
         if (proto && proto.compounds && proto.compounds.length > 0) {
-          return { textHeader: '', protocol: proto, actionCard: null };
+          let textHeader = '';
+          let cleanJsonStr = text.replace(/^```json\s*/i, '').replace(/^```\s*/, '').replace(/```\s*$/i, '').trim();
+          if (cleanJsonStr.startsWith('"') && cleanJsonStr.endsWith('"')) {
+            cleanJsonStr = cleanJsonStr.slice(1, -1).replace(/\\"/g, '"').replace(/\\n/g, '\n');
+          }
+          let parsed = null;
+          try {
+            parsed = JSON.parse(cleanJsonStr);
+          } catch (e) {
+            parsed = extractFirstBalancedJson(cleanJsonStr);
+          }
+          if (parsed && Array.isArray(parsed.blocks)) {
+            const textParts = [];
+            parsed.blocks.forEach(b => {
+              if (b && (b.type === 'text' || typeof b.content === 'string') && b.content) {
+                textParts.push(b.content);
+              }
+            });
+            textHeader = textParts.join('\n\n');
+          } else if (parsed && typeof parsed.content === 'string' && parsed.content) {
+            textHeader = parsed.content;
+          } else if (parsed && typeof parsed.response === 'string' && parsed.response) {
+            textHeader = parsed.response;
+          } else if (parsed && typeof parsed.message === 'string' && parsed.message) {
+            textHeader = parsed.message;
+          } else if (parsed && typeof parsed.text === 'string' && parsed.text) {
+            textHeader = parsed.text;
+          } else if (parsed && typeof parsed.summary === 'string' && parsed.summary && parsed.summary !== proto.summary) {
+            textHeader = parsed.summary;
+          }
+          if (!textHeader) {
+            const nonJsonText = text.replace(/\{[\s\S]*\}/g, '').trim();
+            if (nonJsonText.length > 10) {
+              textHeader = nonJsonText;
+            }
+          }
+          return { textHeader: textHeader, protocol: proto, actionCard: null };
         }
 
         // 4. If not a protocol proposal, try to parse JSON blocks / structured properties

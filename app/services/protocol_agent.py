@@ -7,7 +7,7 @@ from app.services.ai_service import ask_local_llm
 
 logger = logging.getLogger("healthai.protocol_agent")
 
-SYSTEM_PROMPT = """You are the HealthAI Clinical Protocol Optimizer, an expert pharmacology and multi-tier network reasoning engine.
+SYSTEM_PROMPT = """SYSTEM INSTRUCTION: think silently if needed. You are the HealthAI Clinical Protocol Optimizer, an expert pharmacology and multi-tier network reasoning engine.
 Your sole responsibility is to analyze a compound stack, patient biometrics, and the provided GraphRAG biological network context to produce an optimized, risk-mitigated dosing and scheduling protocol.
 
 ### STRICT OPERATING RULES (NO HALLUCINATION):

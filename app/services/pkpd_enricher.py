@@ -566,10 +566,17 @@ class PKPDEnricher:
             t_max_calc = max(0.15, min(1.0, math.log(ka_route / ke) / (ka_route - ke))) if ka_route != ke else 0.5
         elif route_clean == "subcutaneous":
             # Interstitial subcutaneous lymphatic & capillary absorption
-            # Lipophilic compounds exhibit prolonged depot interstitial retention
-            lipophilic_delay = max(0.6, min(2.0, 1.0 + (logp * 0.15)))
-            f_route = min(0.98, max(0.60, 0.85 + (0.05 * min(2.0, logp))))
-            ka_route = max(0.15, 0.50 / lipophilic_delay)
+            if is_peptide or mw > 1000:
+                # Peptides and therapeutic macromolecules undergo lymphatic transit
+                # Subcutaneous bioavailability is high (~80-90%), unlike oral proteolysis (<1%)
+                f_route = float(compound.get("bioavailability_f") if float(compound.get("bioavailability_f") or 0) > 0.1 else 0.85)
+                ka_route = float(compound.get("absorption_rate_ka") if float(compound.get("absorption_rate_ka") or 0) < 0.1 else 0.015)
+            else:
+                # Small lipophilic/hydrophilic molecules exhibit capillary uptake
+                lipophilic_delay = max(0.6, min(2.0, 1.0 + (logp * 0.15)))
+                f_route = min(0.98, max(0.60, 0.85 + (0.05 * min(2.0, logp))))
+                ka_route = max(0.15, 0.50 / lipophilic_delay)
+
             first_pass_pct = 0.0
             bypass_pct = 100.0
             ke = math.log(2.0) / max(0.1, base_t_half)
@@ -578,7 +585,7 @@ class PKPDEnricher:
                 apparent_t_half = math.log(2.0) / ka_route
             else:
                 apparent_t_half = base_t_half
-            t_max_calc = max(0.5, math.log(ka_route / ke) / (ka_route - ke)) if abs(ka_route - ke) > 0.01 else 2.0
+            t_max_calc = max(0.5, math.log(ka_route / ke) / (ka_route - ke)) if abs(ka_route - ke) > 0.001 else 2.0
         elif route_clean == "intramuscular":
             # Deep vascular intramuscular depot
             f_route = min(1.0, max(0.70, 0.90 + (0.02 * min(2.0, logp))))

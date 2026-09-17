@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Optional
 from fastapi import APIRouter, HTTPException
 from fastapi.responses import JSONResponse
 
@@ -52,8 +52,8 @@ def simulate_pkpd(request: PKPDSimulationRequest) -> JSONResponse:
 
 
 @router.get("/api/compounds/{compound_key}/pkpd")
-def get_compound_pkpd(compound_key: str) -> JSONResponse:
-    """Retrieve extracted quantitative PK and PD parameters for a compound."""
+def get_compound_pkpd(compound_key: str, dose_mg: Optional[float] = None) -> JSONResponse:
+    """Retrieve extracted quantitative PK and PD parameters for a compound with dose-dependent target occupancies."""
     service = CatalogService()
     compound = service.get_compound(compound_key)
     if not compound:
@@ -62,11 +62,84 @@ def get_compound_pkpd(compound_key: str) -> JSONResponse:
     pk_params = PKPDEngine.extract_pk_parameters(compound)
     pd_params = PKPDEngine.extract_pd_parameters(compound)
 
+    # Compute target occupancies at requested or default dose
+    if dose_mg is None or dose_mg <= 0:
+        from app.services.dosing_service import get_default_compound_dose
+        def_dose_info = get_default_compound_dose(compound)
+        calc_dose = float(def_dose_info.get("dose_mg") or 100.0)
+    else:
+        calc_dose = dose_mg
+
+    sim_req = PKPDSimulationRequest(
+        compound_key=compound["key"],
+        dose_mg=calc_dose,
+        dosing_interval_h=24.0,
+        simulation_duration_h=48.0,
+        route="oral",
+        steady_state=True,
+    )
+    sim_res = PKPDEngine.simulate(compound, sim_req)
+
     return JSONResponse({
         "compound_key": compound["key"],
         "name": compound.get("name") or compound["key"],
+        "simulated_dose_mg": calc_dose,
         "pk": pk_params.model_dump(),
         "pd": pd_params.model_dump(),
+        "target_occupancies": [to.model_dump() for to in sim_res.target_occupancies],
+    }, headers=NO_CACHE_HEADERS)
+
+
+@router.get("/api/compounds/{compound_key}/receptor-occupancy")
+def get_compound_receptor_occupancy(
+    compound_key: str,
+    dose_mg: Optional[float] = None,
+    route: str = "oral",
+    dosing_interval_h: float = 24.0,
+    steady_state: bool = True,
+) -> JSONResponse:
+    """
+    Calculates dose-dependent target receptor saturation (occupancy %) across all molecular targets
+    for a specific compound and dosing regimen.
+    """
+    service = CatalogService()
+    compound = service.get_compound(compound_key)
+    if not compound:
+        raise HTTPException(status_code=404, detail=f"Compound '{compound_key}' not found in catalog.")
+
+    if dose_mg is None or dose_mg <= 0:
+        from app.services.dosing_service import get_default_compound_dose
+        def_dose_info = get_default_compound_dose(compound)
+        dose_mg = float(def_dose_info.get("dose_mg") or 100.0)
+
+    req = PKPDSimulationRequest(
+        compound_key=compound["key"],
+        dose_mg=dose_mg,
+        dosing_interval_h=dosing_interval_h,
+        simulation_duration_h=max(48.0, dosing_interval_h * 2),
+        route=route,
+        steady_state=steady_state,
+    )
+    sim_res = PKPDEngine.simulate(compound, req)
+    circadian = PKPDEngine.calculate_circadian_receptor_occupancy(
+        compound=compound,
+        dose_mg=dose_mg,
+        route=route,
+        dosing_interval_h=dosing_interval_h,
+    )
+
+    return JSONResponse({
+        "compound_key": compound["key"],
+        "compound_name": sim_res.compound_name,
+        "dose_mg": dose_mg,
+        "route": route,
+        "dosing_interval_h": dosing_interval_h,
+        "steady_state": steady_state,
+        "c_max_ng_ml": sim_res.c_max_ng_ml,
+        "c_avg_ss_ng_ml": sim_res.c_avg_ss_ng_ml,
+        "c_min_trough_ng_ml": sim_res.c_min_trough_ng_ml,
+        "target_occupancies": [to.model_dump() for to in sim_res.target_occupancies],
+        "circadian_windows": circadian.get("targets", []),
     }, headers=NO_CACHE_HEADERS)
 
 

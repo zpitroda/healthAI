@@ -307,11 +307,16 @@
 
             <!-- RECEPTOR TARGETS -->
             <div class="list-box">
-              <div class="header" style="display:flex; justify-content:space-between; align-items:center;">
-                <span style="display:inline-flex; align-items:center; gap:6px;"><i data-lucide="target" class="icon-xs icon-rose"></i> Molecular Targets & Receptors</span>
-                <span id="targetsAffinitySortBadge" style="font-size:0.68rem; font-weight:700; color:#00f2fe; background:rgba(0,242,254,0.1); border:1px solid rgba(0,242,254,0.25); padding:2px 8px; border-radius:12px; display:inline-flex; align-items:center; gap:4px;">
-                  Ranked by Affinity
-                </span>
+              <div class="header" style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:8px;">
+                <span style="display:inline-flex; align-items:center; gap:6px;"><i data-lucide="target" class="icon-xs icon-rose"></i> Molecular Targets & Estimated Receptor Saturation</span>
+                <div style="display:inline-flex; align-items:center; gap:6px;">
+                  <span id="targetsDoseContext" class="targets-dose-badge" title="Estimated saturation based on currently active dose and administration route">
+                    Dose: <strong id="targetsDoseDisplay">100 mg (PO)</strong>
+                  </span>
+                  <span id="targetsAffinitySortBadge" style="font-size:0.68rem; font-weight:700; color:#00f2fe; background:rgba(0,242,254,0.1); border:1px solid rgba(0,242,254,0.25); padding:2px 8px; border-radius:12px; display:inline-flex; align-items:center; gap:4px;">
+                    Ranked by Affinity
+                  </span>
+                </div>
               </div>
               <div class="body compact">
                 <div id="compoundTargets" class="target-links"></div>

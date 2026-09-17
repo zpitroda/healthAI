@@ -53,6 +53,29 @@ class QuantitativeTargetAffinity(BaseModel):
     confidence_score: Optional[float] = Field(default=1.0, ge=0.0, le=1.0)
 
 
+class TargetReceptorOccupancy(BaseModel):
+    model_config = ConfigDict(extra="ignore")
+
+    target_name: str = Field(..., description="Target protein name or symbol")
+    gene_symbol: Optional[str] = Field(default=None, description="HGNC Gene Symbol")
+    uniprot_id: Optional[str] = Field(default=None, description="UniProt Accession ID")
+    affinity_type: str = Field(default="Kd", description="Ki, IC50, EC50, or Kd")
+    affinity_value_nm: float = Field(..., description="Binding affinity in nanomolar (nM)")
+    action_type: Optional[str] = Field(default=None, description="Pharmacological action: agonist, antagonist, inhibitor, etc.")
+
+    # Unbound Free Concentrations at Target Biophase (nM)
+    c_free_peak_nm: float = Field(default=0.0, description="Peak unbound concentration Cu,max in nM")
+    c_free_avg_nm: float = Field(default=0.0, description="Steady-state average unbound concentration Cu,avg in nM")
+    c_free_trough_nm: float = Field(default=0.0, description="Trough unbound concentration Cu,min in nM")
+
+    # Estimated Receptor Saturation / Occupancy (%)
+    peak_saturation_pct: float = Field(default=0.0, ge=0.0, le=100.0, description="Peak receptor occupancy RO_max (%)")
+    avg_saturation_pct: float = Field(default=0.0, ge=0.0, le=100.0, description="Steady-state average receptor occupancy RO_avg (%)")
+    trough_saturation_pct: float = Field(default=0.0, ge=0.0, le=100.0, description="Trough receptor occupancy RO_trough (%)")
+
+    saturation_state: str = Field(default="Minimal / Trace (<10%)", description="Clinical target saturation status")
+
+
 class PathwayAnnotation(BaseModel):
     model_config = ConfigDict(extra="ignore")
 
@@ -287,6 +310,9 @@ class PKPDSimulationResponse(BaseModel):
     # Pharmacodynamic Hill Curve Points for Visualization
     pd_curve_concentrations: List[float]
     pd_curve_effects: List[float]
+
+    # Target Receptor Saturation & Dynamic Occupancy Breakdown
+    target_occupancies: List[TargetReceptorOccupancy] = Field(default_factory=list, description="Dose-dependent receptor saturation and occupancy across all target receptors")
 
     # Evidence Tier & Preclinical Data Disclosures
     evidence_tier: Optional[str] = Field(default="regulatory_human_clinical", description="Empirical evidence tier (clinical, pilot, animal, in vitro, allometric)")

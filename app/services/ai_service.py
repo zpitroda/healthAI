@@ -106,16 +106,11 @@ def get_reasoning_params(base_url: str = "") -> Dict[str, Any]:
             return {"reasoning_effort": effort}
         return {}
 
-    # For local llama-server / vLLM (Unsloth Dynamic Qwen3.8 Jinja template)
+    # For local llama-server / vLLM / OpenAI-compatible backends running MedGemma
     if "127.0.0.1" in active_base or "localhost" in active_base or not active_base:
-        enable_thinking = effort != "none"
-        return {
-            "reasoning_effort": effort,
-            "chat_template_kwargs": {
-                "reasoning_effort": effort,
-                "enable_thinking": enable_thinking,
-            },
-        }
+        if effort in ("high", "medium", "low"):
+            return {"reasoning_effort": effort}
+        return {}
 
     return {}
 
@@ -131,25 +126,23 @@ def get_candidate_urls() -> list[str]:
     return [u.rstrip("/") for u in candidates if u]
 
 
-DEFAULT_MODEL = os.getenv("OPENAI_MODEL", "Qwen3.8-27B-UD-Q6_K_M.gguf")
+DEFAULT_MODEL = os.getenv("OPENAI_MODEL", "qwen3.8:27b")
 
 # Priority list for automatic model resolution if configured model is not installed
 MODEL_PREFERENCES = [
     "qwen3.8:27b",
-    "Qwen3.8-27B-UD-Q6_K_M",
+    "qwen/qwen3.8-27b",
+    "Qwen3.8-27B-UD-Q6_K_M.gguf",
+    "qwen3.8-27b",
+    "qwen3.8:27B",
     "qwen3.8",
-    "qwen3.6:27b",
-    "qwen3.6",
-    "qwen3:27b",
-    "qwen3:30b",
-    "qwen3:32b",
-    "qwen3",
-    "qwen-3-32b",
-    "qwen-2.5-32b",
-    "qwen2.5:32b",
-    "qwen2.5:14b",
-    "qwen2.5:7b",
+    "qwen",
+    "google/medgemma-27b-text-it",
+    "medgemma-27b-text-it-Q6_K.gguf",
+    "google/gemma-4-31b-it",
+    "gemma-3-27b-it",
     "llama-3.3-70b-versatile",
+    "meta-llama/llama-3.3-70b-instruct",
     "llama3.3:70b",
     "llama3.1:8b",
     "llama3.1",
@@ -235,11 +228,20 @@ async def get_best_available_model(
 
     active_url = base_url or await resolve_active_endpoint(custom_api_key=custom_api_key)
     env_model = os.getenv("OPENAI_MODEL")
-    default_for_url = "qwen/qwen3.8-27b" if "openrouter.ai" in active_url.lower() else DEFAULT_MODEL
-    target = preferred_model or env_model or default_for_url
 
-    # If using cloud API (OpenRouter/Groq/OpenAI), use configured model directly
-    if ("openrouter.ai" in active_url.lower() or os.getenv("OPENAI_BASE_URL") or custom_api_key) and (preferred_model or env_model):
+    if "openrouter.ai" in active_url.lower():
+        if preferred_model and preferred_model.strip():
+            return preferred_model.strip()
+        if env_model and "/" in env_model:
+            return env_model.strip()
+        return "qwen/qwen3.8-27b"
+
+    # For local endpoint or general endpoint
+    default_for_url = DEFAULT_MODEL
+    target = preferred_model or (env_model if env_model and "/" not in env_model else None) or default_for_url
+
+    # If using cloud API with non-OpenRouter endpoint, use configured model directly
+    if (os.getenv("OPENAI_BASE_URL") or custom_api_key) and not any(h in active_url.lower() for h in ("127.0.0.1", "localhost", "0.0.0.0")) and (preferred_model or env_model):
         return target
 
     cache_key = f"{active_url}:{target}"
@@ -291,10 +293,10 @@ def get_candidate_fallback_models(primary_model: str, base_url: str) -> list[str
     if "openrouter.ai" in active_base:
         openrouter_fallbacks = [
             "qwen/qwen3.8-27b",
-            "qwen/qwen3.8-27b-20260814",
-            "qwen/qwen-2.5-72b-instruct",
-            "qwen/qwen-2.5-coder-32b-instruct",
+            "qwen/qwen3.8-flash",
+            "qwen/qwen3.8-max-0902",
             "meta-llama/llama-3.3-70b-instruct",
+            "google/gemma-4-31b-it",
         ]
         for m in openrouter_fallbacks:
             if m not in candidates:
@@ -302,23 +304,19 @@ def get_candidate_fallback_models(primary_model: str, base_url: str) -> list[str
     elif os.getenv("OPENAI_BASE_URL") and not any(h in active_base for h in ("localhost", "127.0.0.1", "0.0.0.0")):
         cloud_fallbacks = [
             "qwen/qwen3.8-27b",
-            "qwen-2.5-72b-instruct",
             "llama-3.3-70b-versatile",
+            "meta-llama/llama-3.3-70b-instruct",
         ]
         for m in cloud_fallbacks:
             if m not in candidates:
                 candidates.append(m)
-    else:
         local_fallbacks = [
-            "Qwen3.8-27B-UD-Q6_K_M.gguf",
-            "qwen3.8-27b-ud-q6_k_m.gguf",
             "qwen3.8:27b",
+            "Qwen3.8-27B-UD-Q6_K_M.gguf",
+            "qwen3.8-27b",
+            "qwen3.8:27B",
             "qwen3.8",
-            "qwen3.6:27b",
-            "qwen3.6",
-            "qwen3:27b",
-            "qwen2.5:32b",
-            "qwen2.5:14b",
+            "medgemma-27b-text-it-Q6_K.gguf",
             "llama3.3:70b",
             "llama3.1:8b",
         ]
@@ -330,8 +328,9 @@ def get_candidate_fallback_models(primary_model: str, base_url: str) -> list[str
 
 def _extract_json_from_llm_response(content: str) -> Dict[str, Any]:
     """
-    Extracts and parses JSON object from LLM response, stripping Qwen3 / Unsloth thinking tags
-    (<think>...</think>), markdown code blocks, or leading/trailing whitespace.
+    Extracts and parses JSON object from LLM response, stripping MedGemma thinking tags
+    (<thought>...</thought>, <think>...</think>, <scratchpad>...</scratchpad>), markdown code blocks,
+    or leading/trailing whitespace.
     """
     import re
     cleaned = (content or "").strip()
@@ -344,8 +343,12 @@ def _extract_json_from_llm_response(content: str) -> Dict[str, Any]:
     except json.JSONDecodeError:
         pass
 
-    # Strip Qwen3 / Unsloth Dynamic <think>...</think> or <thought>...</thought> tags
+    # Strip MedGemma / Gemma 3 / clinical reasoning tags (<thought>, <think>, <scratchpad>, <clinical_notes>, <reasoning>)
     without_thoughts = re.sub(r'<(think|thought|scratchpad|clinical_notes|reasoning)>.*?</\1>', '', cleaned, flags=re.DOTALL | re.IGNORECASE).strip()
+    # Also strip potential Gemma unused token wrappers (e.g. <unused94>thought...) or unclosed thought preambles
+    without_thoughts = re.sub(r'<unused\d+>thought.*?(?:</thought>|\n\n|$)', '', without_thoughts, flags=re.DOTALL | re.IGNORECASE).strip()
+    without_thoughts = re.sub(r'^thought\s*\n.*?(?=\{|\n\n|```|\Z)', '', without_thoughts, flags=re.DOTALL | re.IGNORECASE).strip()
+
     try:
         return json.loads(without_thoughts)
     except json.JSONDecodeError:
@@ -388,7 +391,7 @@ async def ask_local_llm(
 ) -> Dict[str, Any]:
     """
     Sends a prompt to the active OpenAI-compatible instance (local llama-server/Ollama, OpenRouter, Groq, OpenAI, or custom endpoint)
-    and enforces a JSON response using structured outputs / JSON Object mode with Qwen3 hyperparameter tuning.
+    and enforces a JSON response using structured outputs / JSON Object mode with MedGemma 27B hyperparameter tuning.
     Includes automatic failover for cloud rate limits (429) or model unavailability, and detects token budget exhaustion.
     """
     active_base = await resolve_active_endpoint(custom_api_key=api_key, custom_base_url=base_url)
@@ -494,7 +497,7 @@ async def stream_local_llm_chat(
             "temperature": temperature,
             "top_p": top_p,
             "max_tokens": token_limit,
-            "stop": ["<|im_end|>", "<|endoftext|>", "<|im_start|>"],
+            "stop": ["<|im_end|>", "<|im_start|>", "<|endoftext|>", "<end_of_turn>", "<start_of_turn>", "<eos>"],
             **reasoning_cfg,
         }
 

@@ -9,6 +9,7 @@ from app.schemas.pkpd import (
     PKPDSimulationResponse,
     TimePoint,
     QuantitativeTargetAffinity,
+    TargetReceptorOccupancy,
     PathwayAnnotation,
     DistributionPercentiles,
     MetricDistribution,
@@ -241,7 +242,10 @@ class PKPDEngine:
             trans_info = compound.get("transporters") or {}
             trans_subs = [str(t).upper() for t in (trans_info.get("substrates") or [])] if isinstance(trans_info, dict) else []
 
-            for other in co_compounds_data:
+            for raw_other in co_compounds_data:
+                other = raw_other.get("compound") if (isinstance(raw_other, dict) and isinstance(raw_other.get("compound"), dict)) else raw_other
+                if not isinstance(other, dict):
+                    continue
                 if str(other.get("key")) == str(compound.get("key")):
                     continue
                 other_pk = cls.extract_pk_parameters(other)
@@ -264,10 +268,30 @@ class PKPDEngine:
                     inh_vd = max(1.0, other_pk.volume_of_distribution_l_kg * weight_kg)
                     inh_ke = max(0.001, math.log(2.0) / max(0.1, other_pk.t_half_h))
                     inh_ka = max(0.1, other_pk.absorption_rate_ka)
-                    inh_f = max(0.05, min(1.0, other_pk.bioavailability_f))
-                    inh_dose_mg = max(10.0, float(other.get("dose") or other.get("dose_mg") or 100.0))
-                    inh_tau = max(1.0, float(other.get("dosing_interval_h") or 24.0))
-                    inh_ki = other_pk.ki_ng_ml or 500.0
+                    inh_f = max(0.01, min(1.0, float(other_pk.bioavailability_f or other.get("bioavailability_f") or 0.70)))
+                    inh_dose_mg = max(10.0, float(raw_other.get("dose_mg") or other.get("dose") or other.get("dose_mg") or 100.0))
+                    inh_tau = max(1.0, float(raw_other.get("dosing_interval_h") or other.get("dosing_interval_h") or 24.0))
+
+                    # Resolve Ki (ng/mL) dynamically from target affinities or biophysical potency
+                    inh_mw = float(other.get("molecular_weight") or 350.0)
+                    ki_nm_cand = None
+                    for tgt in (other.get("receptor_targets") or []):
+                        if isinstance(tgt, dict):
+                            t_sym = str(tgt.get("gene_symbol") or tgt.get("target") or "").upper()
+                            if any(s in t_sym for s in substrates):
+                                v = tgt.get("affinity_ki") or tgt.get("affinity_kd") or tgt.get("ki")
+                                if v is not None:
+                                    try:
+                                        ki_nm_cand = float(v)
+                                        break
+                                    except (ValueError, TypeError):
+                                        pass
+                    if ki_nm_cand is None:
+                        is_strong = any(k in str(other.get("key") or other.get("name") or "").lower() for k in [
+                            "ketoconazole", "clarithromycin", "itraconazole", "ritonavir", "fluvoxamine", "paroxetine", "fluoxetine"
+                        ])
+                        ki_nm_cand = 25.0 if is_strong else 250.0
+                    inh_ki = (ki_nm_cand * inh_mw) / 1000.0
 
                     inhibitor_profiles.append({
                         "name": other.get("name") or other.get("key"),
@@ -545,35 +569,44 @@ class PKPDEngine:
         ptf = ((c_max - c_min) / c_avg_ss) * 100.0 if is_steady_state else 0.0
         swing_ratio = round(c_max / max(0.001, c_min), 2) if is_steady_state and c_min > 0 else 1.0
 
+        # Analytical terminal elimination rate constant lambda_z
+        # Calculate effective average clearance realized in the continuous simulation
         if is_steady_state:
             cl_effective_avg = (effective_active_dose_mg * f_route * 1000.0) / max(1.0, auc_0_tau)
-            k_e_eff = max(0.0001, cl_effective_avg / v_d_total_l)
-            t_half_effective_h = math.log(2.0) / k_e_eff
         else:
-            # Single-dose kinetics: determine terminal elimination rate constant lambda_z
-            if n_compartments == 2:
-                k10 = cl_adjusted_l_h / v1_total_l
-                sum_k = k12 + k21 + k10
-                disc = max(0.0, (sum_k * sum_k) - (4.0 * k21 * k10))
-                beta = 0.5 * (sum_k - math.sqrt(disc))
-                lambda_z = max(0.0001, beta)
-            elif is_saturable:
-                cl_linear = (vmax_total_mg_h * 1000.0) / km_ng_ml
-                lambda_z = max(0.0001, cl_linear / v_d_total_l)
-            else:
-                lambda_z = max(0.0001, cl_adjusted_l_h / v_d_total_l)
-
             # Full trapezoidal AUC_0_tlast + Clast / lambda_z tail extrapolation to infinity
             auc_0_tlast = sum(
                 0.5 * (time_series[i].c_plasma_ng_ml + time_series[i + 1].c_plasma_ng_ml) * (time_series[i + 1].time_h - time_series[i].time_h)
                 for i in range(len(time_series) - 1)
             )
-            c_last = time_series[-1].c_plasma_ng_ml
-            auc_inf = auc_0_tlast + (c_last / lambda_z) if lambda_z > 0 else auc_0_tlast
+            # Initial estimate of lambda_z for tail extrapolation
+            if n_compartments == 2:
+                k10_init = cl_adjusted_l_h / v1_total_l
+                sum_k_init = k12 + k21 + k10_init
+                disc_init = max(0.0, (sum_k_init * sum_k_init) - (4.0 * k21 * k10_init))
+                lambda_z_init = max(0.0001, 0.5 * (sum_k_init - math.sqrt(disc_init)))
+            else:
+                lambda_z_init = max(0.0001, cl_adjusted_l_h / v_d_total_l)
 
+            c_last = time_series[-1].c_plasma_ng_ml
+            auc_inf = auc_0_tlast + (c_last / lambda_z_init) if lambda_z_init > 0 else auc_0_tlast
             cl_effective_avg = (effective_active_dose_mg * f_route * 1000.0) / max(1.0, auc_inf)
-            k_e_eff = max(0.0001, cl_effective_avg / v_d_total_l)
-            t_half_effective_h = math.log(2.0) / k_e_eff
+
+        # Realized terminal elimination rate constant lambda_z and effective half-life
+        # incorporating dynamic enzyme inhibition/induction, transporter modulation, and saturation
+        if n_compartments == 2:
+            k10_eff = cl_effective_avg / v1_total_l
+            sum_k_eff = k12 + k21 + k10_eff
+            disc_eff = max(0.0, (sum_k_eff * sum_k_eff) - (4.0 * k21 * k10_eff))
+            beta_eff = 0.5 * (sum_k_eff - math.sqrt(disc_eff))
+            lambda_z = max(0.0001, beta_eff)
+        elif is_saturable:
+            cl_linear = (vmax_total_mg_h * 1000.0) / km_ng_ml
+            lambda_z = max(0.0001, min(cl_linear, cl_effective_avg) / v_d_total_l)
+        else:
+            lambda_z = max(0.0001, cl_effective_avg / v_d_total_l)
+
+        t_half_effective_h = math.log(2.0) / lambda_z
 
         if not is_steady_state:
             fluct_level = "STABLE"
@@ -599,7 +632,7 @@ class PKPDEngine:
             fluct_level = "STABLE"
             fluct_warning = None
 
-        rac = 1.0 / (1.0 - math.exp(-k_e_eff * tau)) if is_steady_state else 1.0
+        rac = 1.0 / (1.0 - math.exp(-lambda_z * tau)) if is_steady_state else 1.0
 
         pct_in_window = round((time_in_window_count / steps) * 100.0, 1)
         pct_toxic = round((time_in_toxic_count / steps) * 100.0, 1)
@@ -648,6 +681,69 @@ class PKPDEngine:
                     human_weight_kg=weight_kg,
                 )
                 allometric_extrapolation_obj = AllometricExtrapolation(**allo_dict)
+
+        # Compute Dynamic Target Receptor Saturation & Occupancy for all compound targets
+        target_occupancies_list: List[TargetReceptorOccupancy] = []
+        comp_mw = float(compound.get("molecular_weight") or 300.0)
+        c_free_peak_ng = c_max * fu_adjusted
+        c_free_avg_ng = c_avg_ss * fu_adjusted
+        c_free_trough_ng = c_min * fu_adjusted
+
+        c_free_peak_nm = (c_free_peak_ng * 1000.0) / comp_mw
+        c_free_avg_nm = (c_free_avg_ng * 1000.0) / comp_mw
+        c_free_trough_nm = (c_free_trough_ng * 1000.0) / comp_mw
+
+        cand_targets = pd_params.target_affinities
+        if not cand_targets:
+            default_aff = pd_params.ec50_nm or 25.0
+            cand_targets = [
+                QuantitativeTargetAffinity(
+                    target_name="Primary Target",
+                    affinity_type="Kd",
+                    affinity_value_nm=default_aff,
+                    action_type="modulator",
+                )
+            ]
+
+        for tgt in cand_targets:
+            aff_nm = max(0.001, float(tgt.affinity_value_nm))
+            # Langmuir / Hill isotherm for receptor saturation: Cu / (Cu + Kd)
+            ro_peak = (c_free_peak_nm / (c_free_peak_nm + aff_nm) * 100.0) if (c_free_peak_nm + aff_nm) > 0 else 0.0
+            ro_avg = (c_free_avg_nm / (c_free_avg_nm + aff_nm) * 100.0) if (c_free_avg_nm + aff_nm) > 0 else 0.0
+            ro_trough = (c_free_trough_nm / (c_free_trough_nm + aff_nm) * 100.0) if (c_free_trough_nm + aff_nm) > 0 else 0.0
+
+            peak_sat = round(min(100.0, max(0.0, ro_peak)), 1)
+            avg_sat = round(min(100.0, max(0.0, ro_avg)), 1)
+            trough_sat = round(min(100.0, max(0.0, ro_trough)), 1)
+
+            if peak_sat >= 85.0:
+                sat_state = "Near-Complete Saturation (>85%)"
+            elif peak_sat >= 65.0:
+                sat_state = "Substantial Engagement (65-85%)"
+            elif peak_sat >= 35.0:
+                sat_state = "Moderate Modulation (35-65%)"
+            elif peak_sat >= 10.0:
+                sat_state = "Partial Engagement (10-35%)"
+            else:
+                sat_state = "Minimal / Trace (<10%)"
+
+            target_occupancies_list.append(
+                TargetReceptorOccupancy(
+                    target_name=tgt.target_name,
+                    gene_symbol=tgt.gene_symbol,
+                    uniprot_id=tgt.uniprot_id,
+                    affinity_type=tgt.affinity_type,
+                    affinity_value_nm=round(aff_nm, 2),
+                    action_type=tgt.action_type,
+                    c_free_peak_nm=round(c_free_peak_nm, 2),
+                    c_free_avg_nm=round(c_free_avg_nm, 2),
+                    c_free_trough_nm=round(c_free_trough_nm, 2),
+                    peak_saturation_pct=peak_sat,
+                    avg_saturation_pct=avg_sat,
+                    trough_saturation_pct=trough_sat,
+                    saturation_state=sat_state,
+                )
+            )
 
         return PKPDSimulationResponse(
             compound_key=request.compound_key,
@@ -706,6 +802,7 @@ class PKPDEngine:
             time_series=time_series,
             pd_curve_concentrations=pd_conc_points,
             pd_curve_effects=pd_effect_points,
+            target_occupancies=target_occupancies_list,
             evidence_tier=evidence_tier_val,
             human_data_present=human_data_present,
             data_limitations=data_limitations_obj,
@@ -768,7 +865,9 @@ class PKPDEngine:
             else:
                 base_part = (w_t / w_plasma) + (p_ow * nl_t / w_plasma) + ((0.3 * p_ow + 0.7) * np_t / w_plasma)
                 if pka > 7.0:
-                    ion_pair_factor = min(20.0, 1.0 + (pka - 7.0) * 1.5) * (ap_t / 0.003)
+                    # Acidic phospholipid binding is restricted by membrane affinity for hydrophilic molecules
+                    mem_factor = min(1.0, max(0.05, math.pow(p_ow, 0.5))) if p_ow < 1.0 else 1.0
+                    ion_pair_factor = min(20.0, 1.0 + (pka - 7.0) * 1.5) * (ap_t / 0.003) * mem_factor
                     base_part += ion_pair_factor
                 kp = fu * base_part
 
@@ -779,10 +878,11 @@ class PKPDEngine:
                 is_pgp_sub = any("P-GP" in s or "ABCB1" in s or "BCRP" in s or "ABCG2" in s for s in trans_subs)
                 efflux_ratio = 3.5 if is_pgp_sub else (1.2 if mw > 450 else 1.0)
                 tpsa = float(compound.get("tpsa") or 60.0)
-                psa_factor = max(0.2, min(1.0, 1.2 - (tpsa / 140.0)))
-                kp = (kp * psa_factor) / efflux_ratio
+                psa_factor = max(0.05, min(1.0, 1.2 - (tpsa / 120.0)))
+                bbb_perm = min(1.0, max(0.05, math.pow(10.0, logp * 0.75))) if logp < 0 else 1.0
+                kp = (kp * psa_factor * bbb_perm) / efflux_ratio
 
-            kp_dict[t_name] = max(0.05, min(50.0, round(kp, 3)))
+            kp_dict[t_name] = max(0.02, min(50.0, round(kp, 3)))
 
         return TissuePartitionCoefficients(
             kp_brain=kp_dict["brain"],
@@ -896,6 +996,8 @@ class PKPDEngine:
         Calculates the quantitative Area Under the Curve Ratio (AUCR) and Cmax multiplier
         resulting from competitive CYP and transporter inhibition or induction.
         AUCR = 1 / [ (1 - sum(fm)) + sum( fm / (1 + [I]/Ki) ) ]
+        Dynamically calculates inhibitor unbound concentration [I]u from dose and Vd,
+        and accounts for gut-wall first-pass extraction (Fg) for oral CYP3A4/P-gp substrates.
         """
         if not co_compounds:
             return 1.0, 1.0, []
@@ -917,27 +1019,69 @@ class PKPDEngine:
 
         is_high_first_pass = (
             bool(substrate_compound.get("is_high_first_pass"))
-            or float(substrate_compound.get("bioavailability_f") or 0.7) < 0.25
+            or float(substrate_compound.get("bioavailability_f") or 0.7) < 0.35
             or "UGT1A1" in phase2_substrates
         )
 
         if not substrates and not trans_substrates and not phase2_substrates and not is_high_first_pass:
             return 1.0, 1.0, []
 
-        # Fractional contribution of major enzymes (default equal split among substrates)
+        # Fractional contribution of major enzymes (from metadata or physiological default)
         n_subs = len(substrates)
-        fm_map: Dict[str, float] = {sub: (0.75 / max(1, n_subs)) for sub in substrates}
+        raw_fractions = cyp_info.get("fractions") or cyp_info.get("fm") or {}
+        if isinstance(raw_fractions, dict) and raw_fractions:
+            fm_map: Dict[str, float] = {str(k).upper(): float(v) for k, v in raw_fractions.items()}
+        elif n_subs == 1:
+            fm_map = {substrates[0]: 0.90}
+        elif n_subs > 1:
+            # Primary listed substrate carries dominant hepatic clearance (0.75), remaining share 0.15
+            primary_sub = substrates[0]
+            fm_map = {primary_sub: 0.75}
+            rem_subs = substrates[1:]
+            rem_share = 0.15 / max(1, len(rem_subs))
+            for s in rem_subs:
+                fm_map[s] = rem_share
+        else:
+            fm_map = {}
 
         total_inhib_factor = 0.0
+        gut_bioavailability_boost = 1.0
         interacting_enzymes = []
 
-        for other in co_compounds:
+        for raw_other in co_compounds:
+            other = raw_other.get("compound") if (isinstance(raw_other, dict) and isinstance(raw_other.get("compound"), dict)) else raw_other
+            if not isinstance(other, dict):
+                continue
             if str(other.get("key")) == str(substrate_compound.get("key")):
                 continue
 
             other_cyp_inh = [str(x).upper() for x in (other.get("cyp_enzymes") or {}).get("inhibitors", [])]
             other_trans_inh = [str(t).upper() for t in (other.get("transporters") or {}).get("inhibitors", [])]
             other_cyp_ind = [str(x).upper() for x in (other.get("cyp_enzymes") or {}).get("inducers", [])]
+
+            # Resolve inhibitor biophysical parameters to derive average steady-state unbound concentration presenting to hepatocytes
+            # In chronic clinical dosing, 24h AUC shift is governed by time-averaged hepatic inlet concentration (Rowland & Tozer / FDA PBPK guidance)
+            inh_dose = float(raw_other.get("dose_mg") or other.get("dose_mg") or other.get("standard_dose") or (other.get("dosing") or {}).get("standard_dose") or (other.get("dosing") or {}).get("common") or 100.0)
+            inh_f = float(other.get("bioavailability_f") or 0.70)
+            inh_vd_l = max(5.0, float(other.get("volume_of_distribution_l_kg") or 1.0) * 70.0)
+            inh_fu = max(0.001, min(1.0, float(other.get("fraction_unbound") or 0.10)))
+            inh_mw = max(50.0, float(other.get("molecular_weight") or 350.0))
+            inh_th = float(other.get("t_half_numeric") or 12.0)
+            inh_tau = max(1.0, float(raw_other.get("dosing_interval_h") or other.get("dosing_interval_h") or 24.0))
+
+            # Systemic clearance CL = Vd * ke
+            inh_ke = math.log(2.0) / max(1.0, inh_th)
+            inh_cl_l_h = max(0.1, inh_vd_l * inh_ke)
+
+            # Steady-state average systemic concentration: C_avg,ss = (Dose * F) / (CL * tau)
+            c_avg_sys_ng_ml = (inh_dose * inh_f * 1000.0) / (inh_cl_l_h * inh_tau)
+
+            # Hepatic portal vein contribution averaged across dosing interval: delta_C_portal = (Fa * Dose) / (Qh * tau) [Qh = 90 L/h]
+            c_portal_avg_ng_ml = (inh_dose * inh_f * 1000.0) / (90.0 * inh_tau)
+
+            # Total unbound presenting concentration to hepatic enzymes (ng/mL -> nM)
+            c_u_hepatic_ng_ml = (c_avg_sys_ng_ml + c_portal_avg_ng_ml) * inh_fu
+            i_u_nm = max(0.1, (c_u_hepatic_ng_ml * 1000.0) / inh_mw)
 
             is_bioenhancer = (
                 bool(other.get("is_bioenhancer"))
@@ -947,12 +1091,12 @@ class PKPDEngine:
 
             # Special bioenhancer effect (boosts high first-pass / P-gp / UGT1A1 / CYP3A4 substrate AUC)
             if is_bioenhancer and (is_high_first_pass or "CYP3A4" in substrates or "P-GP" in trans_substrates or "UGT1A1" in phase2_substrates):
-                total_inhib_factor += 0.65  # ~2.8x exposure multiplier
+                total_inhib_factor += 0.55
                 interacting_enzymes.append(f"Intestinal P-gp & First-Pass Bioenhancement by {other.get('name') or other.get('key')}")
 
             # Special PXR nuclear induction effect (strongly induces CYP3A4, CYP2C9, P-gp)
             if is_broad_inducer and ("CYP3A4" in substrates or "CYP2C9" in substrates or "P-GP" in trans_substrates):
-                total_inhib_factor -= 0.60  # ~0.4x exposure reduction
+                total_inhib_factor -= 0.60  # Speeds clearance / decreases exposure
                 other_name = other.get('name') or other.get('key')
                 interacting_enzymes.append(f"Nuclear PXR Enzyme & P-gp Induction by {other_name}")
 
@@ -963,8 +1107,55 @@ class PKPDEngine:
                     inh_clean = str(inh).upper()
                     if inh_clean in substrates:
                         fm = fm_map.get(inh_clean, 0.4)
-                        i_over_ki = 3.0
-                        total_inhib_factor += fm * (1.0 - (1.0 / (1.0 + i_over_ki)))
+                        
+                        # Dynamically determine Ki for this inhibitor-enzyme pair
+                        ki_nm = None
+                        for tgt in (other.get("receptor_targets") or []):
+                            if isinstance(tgt, dict):
+                                tgt_sym = str(tgt.get("gene_symbol") or tgt.get("target") or "").upper()
+                                if inh_clean in tgt_sym:
+                                    val = tgt.get("affinity_ki") or tgt.get("affinity_kd") or tgt.get("ki") or tgt.get("kd") or tgt.get("ic50")
+                                    if val is not None:
+                                        try:
+                                            ki_nm = float(val)
+                                            break
+                                        except (ValueError, TypeError):
+                                            pass
+
+                        if ki_nm is None:
+                            if other.get("ki_nm"):
+                                ki_nm = float(other.get("ki_nm"))
+                            elif other.get("ki_ng_ml"):
+                                ki_nm = float(other.get("ki_ng_ml")) * 1000.0 / inh_mw
+                            else:
+                                # Biophysical potency tiers:
+                                # Strong clinical index inhibitors (e.g. ketoconazole, clarithromycin, itraconazole, fluvoxamine)
+                                is_strong_index = any(k in str(other.get("key") or other.get("name") or "").lower() for k in [
+                                    "ketoconazole", "clarithromycin", "itraconazole", "ritonavir", "fluvoxamine", "paroxetine", "fluoxetine"
+                                ])
+                                ki_nm = 30.0 if is_strong_index else 450.0
+
+                        is_mbi = (
+                            "mechanism-based" in str(other.get("mechanism") or "").lower()
+                            or "time-dependent" in str(other.get("mechanism") or "").lower()
+                            or any(m in str(other.get("key") or "").lower() for m in ["fluoxetine", "paroxetine", "clarithromycin", "erythromycin", "diltiazem", "ritonavir"])
+                        )
+                        i_over_ki = max(0.01, i_u_nm / max(1.0, ki_nm))
+                        if is_mbi:
+                            # Mechanism-based irreversible inhibition turnover amplification: (1 + kinact / kdeg)
+                            i_over_ki *= 12.0
+                        fraction_cleared = fm * (1.0 - (1.0 / (1.0 + i_over_ki)))
+                        total_inhib_factor += fraction_cleared
+                        
+                        # Gut-wall first-pass CYP3A4 / P-gp inhibition multiplier (FDA 2-site DDI model)
+                        if inh_clean == "CYP3A4" and is_high_first_pass:
+                            # Intestinal lumen concentration [I]gut in 250 mL water volume (uM)
+                            i_gut_um = (inh_dose * 1000.0) / (250.0 * inh_mw)
+                            ki_um = ki_nm / 1000.0
+                            i_gut_ratio = i_gut_um / max(0.01, ki_um)
+                            gut_boost = 1.0 + min(2.5, 0.45 * (1.0 - (1.0 / (1.0 + (i_gut_ratio * 0.05)))))
+                            gut_bioavailability_boost = max(gut_bioavailability_boost, gut_boost)
+
                         if inh_clean not in interacting_enzymes:
                             interacting_enzymes.append(f"{inh_clean} Inhibition by {other.get('name') or other.get('key')}")
 
@@ -997,13 +1188,14 @@ class PKPDEngine:
                         if p_clean not in interacting_enzymes:
                             interacting_enzymes.append(f"{p_clean} Glucuronidation Inhibition by {other.get('name') or other.get('key')}")
 
-        aucr = 1.0 / max(0.15, 1.0 - total_inhib_factor)
-        aucr = max(0.3, min(8.0, aucr))
+        base_aucr = 1.0 / max(0.02, 1.0 - total_inhib_factor)
+        aucr = base_aucr * gut_bioavailability_boost
+        aucr = max(0.1, min(40.0, aucr))
 
-        # Cmax increases with inhibition but dampened by absorption
-        cmax_mult = math.sqrt(aucr) if aucr >= 1.0 else aucr
+        # Cmax increases with inhibition and absorption boost
+        cmax_mult = max(0.2, min(8.0, math.sqrt(aucr) * (1.0 + 0.10 * total_inhib_factor)))
 
-        return aucr, cmax_mult, interacting_enzymes
+        return round(aucr, 2), round(cmax_mult, 2), interacting_enzymes
 
     @classmethod
     def extract_pk_parameters(cls, compound: Dict[str, Any]) -> PKParameters:
@@ -1062,12 +1254,17 @@ class PKPDEngine:
         fe_val = compound.get("renal_clearance_fraction")
         if fe_val is None:
             cr_routes = str(compound.get("clearance_routes") or "").lower()
-            if "renal (100%)" in cr_routes or "renal (80%)" in cr_routes:
-                fe_val = 0.85
+            trans_info = compound.get("transporters") or {}
+            trans_subs = [str(t).upper() for t in (trans_info.get("substrates") or [])] if isinstance(trans_info, dict) else []
+            has_active_renal = any(t in trans_subs for t in ["OCT2", "SLC22A2", "OAT1", "SLC22A6", "OAT3", "SLC22A8", "MATE1", "SLC47A1", "MATE2-K", "SLC47A2"])
+            if "renal (100%)" in cr_routes or "renal (90%)" in cr_routes or "renal (80%)" in cr_routes or (has_active_renal and "hepatic" not in cr_routes):
+                fe_val = 0.90
             elif "renal" in cr_routes and ("hepatic" in cr_routes or "biliary" in cr_routes):
                 fe_val = 0.35
             elif "hepatic" in cr_routes or "biliary" in cr_routes:
                 fe_val = 0.05
+            elif has_active_renal:
+                fe_val = 0.85
             else:
                 fe_val = 0.30
 
@@ -1149,20 +1346,66 @@ class PKPDEngine:
         affinities: List[QuantitativeTargetAffinity] = []
         raw_targets = compound.get("receptor_targets") or []
         if isinstance(raw_targets, list):
+            import re
             for t in raw_targets:
                 if isinstance(t, dict):
                     t_name = str(t.get("target") or t.get("name") or "Target")
-                    raw_val = t.get("affinity_ki") or t.get("inhibition_ic50") or t.get("ec50")
-                    try:
-                        aff_val = float(raw_val) if (raw_val is not None and float(raw_val) > 0.0) else 10.0
-                    except (ValueError, TypeError):
-                        aff_val = 10.0
-                    aff_type = "Ki" if t.get("affinity_ki") else ("IC50" if t.get("inhibition_ic50") else "EC50")
+                    gene_sym = t.get("gene_symbol") or t.get("gene")
+                    uniprot = t.get("accessions") or t.get("uniprot_id") or t.get("uniprot")
+                    # Priority order: Ki > Kd > IC50 > EC50 > Km
+                    raw_val = None
+                    aff_type = "Kd"
+                    for k, typ in [
+                        ("affinity_ki", "Ki"),
+                        ("ki", "Ki"),
+                        ("affinity_kd", "Kd"),
+                        ("kd", "Kd"),
+                        ("kd_nm", "Kd"),
+                        ("inhibition_ic50", "IC50"),
+                        ("ic50", "IC50"),
+                        ("ec50", "EC50"),
+                        ("km_nm", "Km"),
+                        ("km", "Km"),
+                    ]:
+                        v = t.get(k)
+                        if v is not None:
+                            try:
+                                fv = float(v)
+                                if fv > 0.0:
+                                    raw_val = fv
+                                    aff_type = typ
+                                    break
+                            except (ValueError, TypeError):
+                                pass
+
+                    if raw_val is None and t.get("affinity"):
+                        # Parse string e.g. "Ki = 3.7 nM", "Kd: 15 nM", or "20 nM"
+                        m = re.search(r"(ki|ic50|ec50|kd|km)?\s*[=:]?\s*([\d.]+)\s*(pm|nm|um|µm|mm|m)?", str(t.get("affinity")), re.IGNORECASE)
+                        if m:
+                            typ_str = m.group(1)
+                            val_str = m.group(2)
+                            unit_str = (m.group(3) or "nm").lower()
+                            try:
+                                fv = float(val_str)
+                                if unit_str == "pm":
+                                    fv /= 1000.0
+                                elif unit_str in ("um", "µm"):
+                                    fv *= 1000.0
+                                elif unit_str == "mm":
+                                    fv *= 1000000.0
+                                if typ_str:
+                                    aff_type = typ_str.upper()
+                                raw_val = fv
+                            except (ValueError, TypeError):
+                                pass
+
+                    aff_val = raw_val if (raw_val is not None and raw_val > 0.0) else 10.0
                     affinities.append(
                         QuantitativeTargetAffinity(
                             target_name=t_name,
                             target_chembl_id=t.get("target_id") or t.get("target_chembl_id"),
-                            uniprot_id=t.get("accessions") or t.get("uniprot_id"),
+                            uniprot_id=str(uniprot) if uniprot else None,
+                            gene_symbol=str(gene_sym) if gene_sym else None,
                             affinity_type=aff_type,
                             affinity_value_nm=aff_val,
                             action_type=str(t.get("action") or "modulator"),
@@ -1208,29 +1451,74 @@ class PKPDEngine:
 
     @staticmethod
     def _parse_hours_from_string(text: str, default: float = 6.0) -> float:
+        """
+        Robustly parses elimination half-life into numeric hours across multi-unit strings,
+        ranges, parenthetical notes, and days/weeks annotations.
+        """
         if not text:
             return default
-        clean = text.lower().replace("hours", "").replace("hour", "").replace("hrs", "").replace("hr", "").replace("h", "")
-        parts = clean.split("-")
         try:
-            nums = [float(p.strip()) for p in parts if p.strip()]
-            return sum(nums) / len(nums) if nums else default
-        except ValueError:
-            return default
+            raw = str(text).lower().strip()
+            # 1. Match weeks (e.g. "1-2 weeks", "2 weeks", "3.5 wks")
+            import re
+            wk_match = re.search(r"(\d+(?:\.\d+)?)(?:\s*(?:-|to)\s*(\d+(?:\.\d+)?))?\s*(?:weeks|week|wks|wk|w\b)", raw)
+            if wk_match:
+                n1 = float(wk_match.group(1))
+                n2 = float(wk_match.group(2)) if wk_match.group(2) else n1
+                return ((n1 + n2) / 2.0) * 168.0
+
+            # 2. Match hours (e.g. "168 hours (7 days)", "4-6 hours", "144 hrs", "24h")
+            hr_match = re.search(r"(\d+(?:\.\d+)?)(?:\s*(?:-|to)\s*(\d+(?:\.\d+)?))?\s*(?:hours|hour|hrs|hr|h\b)", raw)
+            if hr_match:
+                n1 = float(hr_match.group(1))
+                n2 = float(hr_match.group(2)) if hr_match.group(2) else n1
+                return (n1 + n2) / 2.0
+
+            # 3. Match days (e.g. "7 days", "5-7 days", "approx 5d")
+            day_match = re.search(r"(\d+(?:\.\d+)?)(?:\s*(?:-|to)\s*(\d+(?:\.\d+)?))?\s*(?:days|day|d\b)", raw)
+            if day_match:
+                n1 = float(day_match.group(1))
+                n2 = float(day_match.group(2)) if day_match.group(2) else n1
+                return ((n1 + n2) / 2.0) * 24.0
+
+            # 4. Match minutes (e.g. "30 minutes", "45 mins", "15m")
+            min_match = re.search(r"(\d+(?:\.\d+)?)(?:\s*(?:-|to)\s*(\d+(?:\.\d+)?))?\s*(?:minutes|minute|mins|min|m\b)", raw)
+            if min_match:
+                n1 = float(min_match.group(1))
+                n2 = float(min_match.group(2)) if min_match.group(2) else n1
+                return ((n1 + n2) / 2.0) / 60.0
+
+            # 5. Fallback: match any standalone numbers or ranges
+            num_match = re.search(r"(\d+(?:\.\d+)?)(?:\s*(?:-|to)\s*(\d+(?:\.\d+)?))?", raw)
+            if num_match:
+                n1 = float(num_match.group(1))
+                n2 = float(num_match.group(2)) if num_match.group(2) else n1
+                val = (n1 + n2) / 2.0
+                return val if val > 0 else default
+        except Exception:
+            pass
+        return default
 
     @staticmethod
     def _parse_vd_from_string(value: Any, default: float = 1.5) -> float:
+        """Parses volume of distribution in L/kg from string or numeric input."""
         if value is None:
             return default
-        text = str(value).lower().replace("l/kg", "").replace("liters", "").replace("l", "")
         try:
-            num = float(text.split("-")[0].strip())
-            # If absolute liters given (e.g. 380 L), convert to L/kg for standard 70kg human
-            if num > 20.0:
-                return round(num / 70.0, 2)
-            return max(0.05, num)
-        except ValueError:
-            return default
+            import re
+            raw = str(value).lower().strip()
+            m = re.search(r"(\d+(?:\.\d+)?)", raw)
+            if m:
+                num = float(m.group(1))
+                if "l/kg" in raw or "l per kg" in raw:
+                    return max(0.05, num)
+                elif num > 20.0:
+                    # Absolute liters (e.g. 380 L) -> convert to L/kg for standard 70kg human
+                    return max(0.05, round(num / 70.0, 2))
+                return max(0.05, num)
+        except Exception:
+            pass
+        return default
 
     @classmethod
     def calculate_circadian_receptor_occupancy(
@@ -1291,7 +1579,7 @@ class PKPDEngine:
         ]
 
         target_results = []
-        for tgt in targets[:4]:
+        for tgt in targets:
             t_name = tgt.target_name
             kd_nm = max(0.01, float(tgt.affinity_value_nm))
             # Kd in ng/mL = (Kd_nM * MW) / 1000

@@ -52,7 +52,8 @@ const graphContainer = document.getElementById('graph-canvas');
         baseData: { nodes: [], edges: [], cascade_simulation: {}, combined_effects: {} },
         data: { nodes: [], edges: [], cascade_simulation: {}, combined_effects: {} },
         filtered: { nodes: [], edges: [] },
-        filterMode: 'all',
+        filterMode: 'primary',
+        viewMode: 'compact', // 'full' or 'compact'
         typeFilter: new Set(),
         search: '',
         selectedNode: null,
@@ -452,6 +453,36 @@ const graphContainer = document.getElementById('graph-canvas');
           if (node.organ_system) metaRows.push(`<div class="metric-card"><div class="metric-label">Organ System</div><div class="metric-value">${node.organ_system}</div></div>`);
           if (node.pathway_database) metaRows.push(`<div class="metric-card"><div class="metric-label">Pathway DB</div><div class="metric-value">${node.pathway_database}</div></div>`);
 
+          let effectBadgeHtml = '';
+          if (node.is_primary) {
+            effectBadgeHtml = '<span class="node-badge node-badge-primary">★ PRIMARY OUTCOME</span>';
+          } else if (node.effect_tier === 'secondary') {
+            effectBadgeHtml = '<span class="node-badge" style="border-color:rgba(56,189,248,0.5); color:#38bdf8; background:rgba(56,189,248,0.1);">SECONDARY EFFECT</span>';
+          } else if (node.effect_tier === 'minor') {
+            effectBadgeHtml = '<span class="node-badge" style="border-color:rgba(148,163,184,0.3); color:#94a3b8; background:rgba(148,163,184,0.06);">MINOR / SUB-CLINICAL</span>';
+          }
+
+          let effectStrengthCard = '';
+          if (node.node_type === 'biomarker' || node.node_type === 'phenotype' || node.formatted_delta) {
+            const relPct = node.relative_strength_pct || Math.round((node.effect_magnitude || 0.5) * 100);
+            effectStrengthCard = `
+              <div class="global-dose-card" style="margin-top:6px; background:rgba(12,24,38,0.85); border:1px solid rgba(0,242,254,0.25);">
+                <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:4px;">
+                  <span style="font-size:0.68rem; text-transform:uppercase; font-weight:700; color:#38bdf8; letter-spacing:0.04em;">Clinical Effect Magnitude</span>
+                  <span style="font-family:'JetBrains Mono',monospace; font-weight:800; color:#00f2fe; font-size:0.75rem;">${relPct}% Relative Strength</span>
+                </div>
+                <div style="width:100%; height:6px; background:rgba(255,255,255,0.08); border-radius:3px; overflow:hidden; margin-bottom:6px;">
+                  <div style="width:${relPct}%; height:100%; background:linear-gradient(90deg, #38bdf8, #00f2fe); border-radius:3px;"></div>
+                </div>
+                ${node.formatted_delta ? `
+                <div style="font-size:0.72rem; color:var(--text-secondary); display:flex; justify-content:space-between; align-items:center;">
+                  <span>Modeled Impact:</span>
+                  <strong style="color:#00f2fe; font-family:'JetBrains Mono',monospace;">${node.formatted_delta}</strong>
+                </div>` : ''}
+              </div>
+            `;
+          }
+
           nodePanel.innerHTML = `
             <div>
               <div class="node-hero-title">${getNodeLabel(node)}</div>
@@ -460,6 +491,7 @@ const graphContainer = document.getElementById('graph-canvas');
                   ${(node.node_type || 'node').toUpperCase()}
                 </span>
                 <span class="node-badge" style="color:#38bdf8;">Tier ${node.tier !== undefined ? node.tier : 1}: ${node.tier_name || 'Target'}</span>
+                ${effectBadgeHtml}
                 <span class="node-badge" style="font-family:'JetBrains Mono',monospace;">${node.id}</span>
               </div>
             </div>
@@ -467,6 +499,7 @@ const graphContainer = document.getElementById('graph-canvas');
             ${compoundGlobalDoseCard}
             ${combinedWidgetHtml}
             ${compoundConvergingTargetsHtml}
+            ${effectStrengthCard}
 
             ${metaRows.length ? `<div class="metrics-grid">${metaRows.join('')}</div>` : ''}
 
@@ -942,11 +975,90 @@ const graphContainer = document.getElementById('graph-canvas');
       function filterGraph() {
         const search = state.search.trim().toLowerCase();
         const mode = state.filterMode || 'all';
+        const isCompact = state.viewMode === 'compact';
         const nodeIdsInScope = new Set();
 
-        state.filtered.nodes = state.data.nodes.filter(node => {
+        let candidateNodes = state.data.nodes || [];
+        let candidateEdges = [...(state.data.edges || [])];
+
+        // In Direct Clinical Focus (Compact) mode:
+        // Collapse redundant 1:1 intermediate tiers (signaling_pathway & physiology)
+        // and connect molecular targets directly to downstream clinical endpoints.
+        if (isCompact) {
+          const intermediateTypes = new Set(['signaling_pathway', 'physiology']);
+          const targets = candidateNodes.filter(n => ['receptor', 'enzyme', 'transporter', 'ion_channel', 'target'].includes(n.node_type));
+          
+          const targetToEndpoints = new Map();
+          targets.forEach(t => targetToEndpoints.set(t.id, new Set()));
+
+          const outEdges = new Map();
+          (state.data.edges || []).forEach(e => {
+            if (!outEdges.has(e.source)) outEdges.set(e.source, []);
+            outEdges.get(e.source).push(e);
+          });
+
+          targets.forEach(tgt => {
+            const queue = [tgt.id];
+            const visited = new Set([tgt.id]);
+            while (queue.length) {
+              const curr = queue.shift();
+              const edges = outEdges.get(curr) || [];
+              for (const e of edges) {
+                const nextId = e.target;
+                if (visited.has(nextId)) continue;
+                visited.add(nextId);
+                const nextNode = candidateNodes.find(n => n.id === nextId);
+                if (!nextNode) continue;
+                if (['biomarker', 'phenotype'].includes(nextNode.node_type)) {
+                  targetToEndpoints.get(tgt.id).add(nextNode);
+                } else if (intermediateTypes.has(nextNode.node_type)) {
+                  queue.push(nextId);
+                }
+              }
+            }
+          });
+
+          const directEdges = [];
+          targets.forEach(tgt => {
+            const eps = targetToEndpoints.get(tgt.id) || new Set();
+            eps.forEach(ep => {
+              const bLabel = ep.formatted_delta ? ep.formatted_delta : (ep.node_type === 'biomarker' ? 'MODIFIES' : 'DRIVES');
+              directEdges.push({
+                source: tgt.id,
+                target: ep.id,
+                type: ep.node_type === 'biomarker' ? 'MODIFIES' : 'DRIVES',
+                readable_label: bLabel,
+                direction_class: ep.effect_magnitude >= 0 ? 'positive' : 'negative',
+                cascade_strength: ep.effect_magnitude !== undefined ? ep.effect_magnitude : 1.0,
+                is_primary_edge: Boolean(ep.is_primary),
+                leads_to_primary: Boolean((tgt.leads_to_primary || tgt.is_primary) && (ep.leads_to_primary || ep.is_primary)),
+                is_bridge: false,
+                is_direct_clinical: true,
+              });
+            });
+          });
+
+          candidateEdges = candidateEdges.filter(e => {
+            const sNode = candidateNodes.find(n => n.id === e.source);
+            const tNode = candidateNodes.find(n => n.id === e.target);
+            if (!sNode || !tNode) return false;
+            if (intermediateTypes.has(sNode.node_type) || intermediateTypes.has(tNode.node_type)) {
+              return false;
+            }
+            return true;
+          }).concat(directEdges);
+
+          candidateNodes = candidateNodes.filter(n => !intermediateTypes.has(n.node_type));
+        }
+
+        state.filtered.nodes = candidateNodes.filter(node => {
           if (mode !== 'all') {
-            if (mode === 'convergence') {
+            if (mode === 'primary') {
+              // Primary Focus: spotlight entities directly on causal path to primary clinical endpoints
+              if (node.node_type === 'compound') return true;
+              if (node.is_primary || node.leads_to_primary) return true;
+              return false;
+            } else if (mode === 'convergence') {
               const isConvergingTarget = Boolean(
                 node.has_multiple_ligands || 
                 (node.combined_effect && node.combined_effect.has_multiple_ligands)
@@ -954,9 +1066,9 @@ const graphContainer = document.getElementById('graph-canvas');
               if (isConvergingTarget) return true;
 
               if (node.node_type === 'compound') {
-                const targetsConverging = state.data.edges.some(e => {
+                const targetsConverging = candidateEdges.some(e => {
                   if (e.source !== node.id) return false;
-                  const tNode = state.data.nodes.find(n => n.id === e.target);
+                  const tNode = candidateNodes.find(n => n.id === e.target);
                   return Boolean(tNode && (tNode.has_multiple_ligands || (tNode.combined_effect && tNode.combined_effect.has_multiple_ligands)));
                 });
                 if (targetsConverging) return true;
@@ -984,7 +1096,7 @@ const graphContainer = document.getElementById('graph-canvas');
         });
 
         state.filtered.nodes.forEach(node => nodeIdsInScope.add(node.id));
-        state.filtered.edges = state.data.edges.filter(edge => nodeIdsInScope.has(edge.source) && nodeIdsInScope.has(edge.target));
+        state.filtered.edges = candidateEdges.filter(edge => nodeIdsInScope.has(edge.source) && nodeIdsInScope.has(edge.target));
       }
 
       // HIGH-DPI CRISP CYTOSCAPE INITIALIZATION
@@ -1013,27 +1125,78 @@ const graphContainer = document.getElementById('graph-canvas');
               selector: 'node',
               style: {
                 'background-color': ele => colorForNode(ele.data('node_type')),
-                'label': ele => ele.data('label') || ele.data('id'),
+                'label': ele => {
+                  const delta = ele.data('formatted_delta');
+                  const label = ele.data('label') || ele.data('id');
+                  if (delta && (ele.data('node_type') === 'biomarker' || ele.data('node_type') === 'phenotype')) {
+                    return `${label}\n[${delta}]`;
+                  }
+                  return label;
+                },
                 'font-family': 'Plus Jakarta Sans, -apple-system, sans-serif',
-                'font-size': '11px',
+                'font-size': ele => ele.data('is_primary') ? '11.5px' : (ele.data('effect_tier') === 'minor' ? '9px' : '10.5px'),
                 'font-weight': '700',
                 'text-wrap': 'wrap',
-                'text-max-width': '120px',
+                'text-max-width': '130px',
                 'color': '#f8fafc',
                 'text-background-opacity': 0.88,
                 'text-background-color': '#070d19',
                 'text-background-padding': '3px 5px',
                 'text-background-shape': 'roundrectangle',
                 'text-border-width': 1,
-                'text-border-color': ele => colorForNode(ele.data('node_type')),
-                'text-border-opacity': 0.6,
+                'text-border-color': ele => ele.data('is_primary') ? '#00f2fe' : colorForNode(ele.data('node_type')),
+                'text-border-opacity': 0.7,
                 'text-margin-y': 6,
                 'text-valign': 'bottom',
                 'text-halign': 'center',
-                'border-width': 2.5,
-                'border-color': ele => ele.data('node_type') === 'compound' ? '#ffffff' : 'rgba(255,255,255,0.7)',
-                'width': ele => ele.data('node_type') === 'compound' ? 46 : (ele.data('node_type') === 'biomarker' ? 32 : 36),
-                'height': ele => ele.data('node_type') === 'compound' ? 46 : (ele.data('node_type') === 'biomarker' ? 32 : 36),
+                'border-width': ele => {
+                  if (ele.data('is_primary')) return 3.8;
+                  if (ele.data('has_multiple_ligands')) return 3.5;
+                  if (ele.data('effect_tier') === 'minor') return 1.5;
+                  return 2.4;
+                },
+                'border-color': ele => {
+                  if (ele.data('is_primary')) return '#00f2fe';
+                  if (ele.data('node_type') === 'compound') return '#ffffff';
+                  return 'rgba(255,255,255,0.7)';
+                },
+                'border-opacity': ele => {
+                  if (ele.data('is_primary')) return 1.0;
+                  if (ele.data('effect_tier') === 'minor') return 0.55;
+                  return 0.85;
+                },
+                'width': ele => {
+                  const nt = ele.data('node_type');
+                  const isPrimary = ele.data('is_primary');
+                  const tier = ele.data('tier');
+                  if (nt === 'compound') return 48;
+                  if (nt === 'biomarker' || nt === 'phenotype') {
+                    if (isPrimary) return 56;
+                    if (ele.data('effect_tier') === 'minor') return 28;
+                    return 40;
+                  }
+                  if (tier === 1) {
+                    if (ele.data('has_multiple_ligands') || isPrimary) return 46;
+                    return 38;
+                  }
+                  return 30;
+                },
+                'height': ele => {
+                  const nt = ele.data('node_type');
+                  const isPrimary = ele.data('is_primary');
+                  const tier = ele.data('tier');
+                  if (nt === 'compound') return 48;
+                  if (nt === 'biomarker' || nt === 'phenotype') {
+                    if (isPrimary) return 56;
+                    if (ele.data('effect_tier') === 'minor') return 28;
+                    return 40;
+                  }
+                  if (tier === 1) {
+                    if (ele.data('has_multiple_ligands') || isPrimary) return 46;
+                    return 38;
+                  }
+                  return 30;
+                },
                 'shape': ele => {
                   const type = ele.data('node_type');
                   if (type === 'compound') return 'ellipse';
@@ -1087,8 +1250,20 @@ const graphContainer = document.getElementById('graph-canvas');
                   if (dir === 'negative') return 'dashed';
                   return 'solid';
                 },
-                'width': edge => edge.data('is_bridge') ? 2.8 : 2.0,
-                'label': 'data(type)',
+                'width': edge => {
+                  const isPrimary = edge.data('is_primary_edge');
+                  const str = edge.data('cascade_strength') !== undefined ? Number(edge.data('cascade_strength')) : 1.0;
+                  if (isPrimary) return Math.min(5.2, Math.max(3.2, 2.5 + str * 2.5));
+                  if (edge.data('is_bridge')) return 2.8;
+                  return Math.min(3.4, Math.max(1.5, 1.2 + str * 1.5));
+                },
+                'label': edge => {
+                  // In compact mode, show clear action label on primary edges; otherwise hide clutter by default
+                  if (state.viewMode === 'compact' && edge.data('is_primary_edge')) {
+                    return edge.data('readable_label') || edge.data('type') || '';
+                  }
+                  return '';
+                },
                 'font-family': 'JetBrains Mono, monospace',
                 'font-size': '8.5px',
                 'font-weight': '600',
@@ -1100,9 +1275,23 @@ const graphContainer = document.getElementById('graph-canvas');
                 'text-border-width': 0.8,
                 'text-border-color': 'rgba(255,255,255,0.15)',
                 'text-border-opacity': 0.8,
-                'opacity': 0.82,
+                'opacity': edge => edge.data('is_primary_edge') ? 0.95 : 0.65,
                 'text-rotation': 'autorotate',
                 'min-zoomed-font-size': 7,
+              }
+            },
+            {
+              selector: 'edge:selected, edge.highlighted, edge.hovered',
+              style: {
+                'label': edge => edge.data('readable_label') || edge.data('type') || '',
+                'z-index': 999,
+                'opacity': 1.0,
+                'width': edge => Math.max(3.6, (edge.width() || 2) + 1.6),
+                'text-background-opacity': 0.95,
+                'text-background-color': '#060a14',
+                'text-border-color': '#00f2fe',
+                'text-border-width': 1.2,
+                'color': '#ffffff',
               }
             },
             {
@@ -1176,6 +1365,14 @@ const graphContainer = document.getElementById('graph-canvas');
         state.cy.on('mouseout', 'node', () => {
           state.cy.elements().removeClass('faded');
           graphTooltip.style.display = 'none';
+        });
+
+        state.cy.on('mouseover', 'edge', event => {
+          event.target.addClass('hovered');
+        });
+
+        state.cy.on('mouseout', 'edge', event => {
+          event.target.removeClass('hovered');
         });
 
         state.cy.on('tap', 'node', event => {
@@ -1294,6 +1491,50 @@ const graphContainer = document.getElementById('graph-canvas');
         const nodes = cy.nodes();
         if (!nodes.length) return;
 
+        const isCompact = state.viewMode === 'compact';
+
+        if (isCompact) {
+          const compactBuckets = { 0: [], 1: [], 4: [], 5: [] };
+          nodes.forEach(node => {
+            const tier = node.data('tier') !== undefined ? node.data('tier') : 1;
+            if (tier === 0) compactBuckets[0].push(node);
+            else if (tier === 1) compactBuckets[1].push(node);
+            else if (tier === 4) compactBuckets[4].push(node);
+            else compactBuckets[5].push(node);
+          });
+
+          const columns = [
+            { key: 0, x: 80 },
+            { key: 1, x: 400 },
+            { key: 4, x: 740 },
+            { key: 5, x: 1080 }
+          ];
+
+          const centerY = 350;
+
+          cy.batch(() => {
+            columns.forEach(col => {
+              const group = compactBuckets[col.key];
+              if (!group || !group.length) return;
+              const totalInCol = group.length;
+              const spacingY = Math.max(90, Math.min(130, 720 / Math.max(totalInCol, 1)));
+              const colHeight = (totalInCol - 1) * spacingY;
+              const topY = centerY - (colHeight / 2);
+
+              group.forEach((node, idx) => {
+                const jitterX = (idx % 2 === 1) ? 24 : -24;
+                node.position({
+                  x: col.x + jitterX,
+                  y: topY + (idx * spacingY)
+                });
+              });
+            });
+          });
+
+          fitGraph(cy);
+          return;
+        }
+
         // Group nodes by biological tier index
         const tiers = { 0: [], 1: [], 2: [], 3: [], 4: [], 5: [] };
         
@@ -1303,7 +1544,7 @@ const graphContainer = document.getElementById('graph-canvas');
           tiers[bucket].push(node);
         });
 
-        const columnWidth = 230;
+        const columnWidth = 250;
         const startX = 60;
         const centerY = 350;
 
@@ -1314,12 +1555,12 @@ const graphContainer = document.getElementById('graph-canvas');
             
             const colX = startX + (t * columnWidth);
             const totalInCol = group.length;
-            const spacingY = Math.min(95, Math.max(55, 600 / Math.max(totalInCol, 1)));
+            const spacingY = Math.max(88, Math.min(125, 750 / Math.max(totalInCol, 1)));
             const colHeight = (totalInCol - 1) * spacingY;
             const topY = centerY - (colHeight / 2);
 
             group.forEach((node, idx) => {
-              const jitterX = (idx % 2 === 1) ? 14 : -14;
+              const jitterX = (idx % 2 === 1) ? 22 : -22;
               node.position({
                 x: colX + jitterX,
                 y: topY + (idx * spacingY)
@@ -1356,6 +1597,12 @@ const graphContainer = document.getElementById('graph-canvas');
               has_multiple_ligands: Boolean(comb && comb.has_multiple_ligands),
               net_activation_score: comb ? comb.net_activation_score : 0,
               net_activation_pct: comb ? comb.net_activation_pct : 0,
+              effect_magnitude: node.effect_magnitude !== undefined ? node.effect_magnitude : 0.5,
+              relative_strength_pct: node.relative_strength_pct !== undefined ? node.relative_strength_pct : 50,
+              is_primary: Boolean(node.is_primary),
+              leads_to_primary: Boolean(node.leads_to_primary),
+              effect_tier: node.effect_tier || 'secondary',
+              formatted_delta: node.formatted_delta || null,
             },
           });
         }
@@ -1374,8 +1621,14 @@ const graphContainer = document.getElementById('graph-canvas');
               source: edge.source,
               target: edge.target,
               type: edge.type || 'MODULATES',
+              readable_label: edge.readable_label || edge.type || 'MODULATES',
               direction_class: edge.direction_class || 'positive',
               is_bridge: Boolean(edge.is_bridge),
+              is_primary_edge: Boolean(edge.is_primary_edge),
+              leads_to_primary: Boolean(edge.leads_to_primary),
+              cascade_strength: edge.cascade_strength !== undefined ? edge.cascade_strength : 1.0,
+              downstream_effect_magnitude: edge.downstream_effect_magnitude !== undefined ? edge.downstream_effect_magnitude : 0.5,
+              is_direct_clinical: Boolean(edge.is_direct_clinical),
             },
           });
         }
@@ -2056,9 +2309,20 @@ const graphContainer = document.getElementById('graph-canvas');
       const domainFilterBtns = document.querySelectorAll('#domainFilters .filter-btn');
       domainFilterBtns.forEach(btn => {
         btn.addEventListener('click', () => {
+          if (!btn.dataset.filter) return;
           domainFilterBtns.forEach(b => b.classList.remove('active'));
           btn.classList.add('active');
           state.filterMode = btn.dataset.filter || 'all';
+          render();
+        });
+      });
+
+      const viewModeBtns = document.querySelectorAll('.view-mode-btn');
+      viewModeBtns.forEach(btn => {
+        btn.addEventListener('click', () => {
+          viewModeBtns.forEach(b => b.classList.remove('active'));
+          btn.classList.add('active');
+          state.viewMode = btn.dataset.mode || 'full';
           render();
         });
       });
